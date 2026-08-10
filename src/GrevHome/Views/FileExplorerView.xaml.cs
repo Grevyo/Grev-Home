@@ -26,6 +26,7 @@ public partial class FileExplorerView : UserControl
     public event EventHandler? UpRequested;
     public event EventHandler? RefreshRequested;
     public event EventHandler? ModalOpened;
+    public event EventHandler? ModalClosed;
     public event Action<string>? NavigateRequested;
     public event Action<FileNameRequest>? NameRequested;
     public event Action<string>? DeleteRequested;
@@ -91,13 +92,23 @@ public partial class FileExplorerView : UserControl
 
     public void CloseEditor(string message)
     {
-        EditorOverlay.Visibility = Visibility.Collapsed;
+        if (EditorOverlay.Visibility == Visibility.Visible)
+        {
+            EditorOverlay.Visibility = Visibility.Collapsed;
+            ModalClosed?.Invoke(this, EventArgs.Empty);
+        }
+
         StatusText.Text = message;
     }
 
     public void CloseDelete(string message)
     {
-        DeleteOverlay.Visibility = Visibility.Collapsed;
+        if (DeleteOverlay.Visibility == Visibility.Visible)
+        {
+            DeleteOverlay.Visibility = Visibility.Collapsed;
+            ModalClosed?.Invoke(this, EventArgs.Empty);
+        }
+
         StatusText.Text = message;
     }
 
@@ -328,7 +339,8 @@ public partial class FileExplorerView : UserControl
     private void SaveName_Click(object sender, RoutedEventArgs e) =>
         NameRequested?.Invoke(new FileNameRequest(_editorMode, NameTextBox.Text, _editorSourcePath));
 
-    private void CancelEditor_Click(object sender, RoutedEventArgs e) => EditorOverlay.Visibility = Visibility.Collapsed;
+    private void CancelEditor_Click(object sender, RoutedEventArgs e) =>
+        CloseEditor("Rename/create action cancelled.");
 
     private void Open_Click(object sender, RoutedEventArgs e)
     {
@@ -391,7 +403,8 @@ public partial class FileExplorerView : UserControl
         }
     }
 
-    private void CancelDelete_Click(object sender, RoutedEventArgs e) => DeleteOverlay.Visibility = Visibility.Collapsed;
+    private void CancelDelete_Click(object sender, RoutedEventArgs e) =>
+        CloseDelete("Delete cancelled.");
 
     private void NewFolder_Click(object sender, RoutedEventArgs e) =>
         BeginEditor(FileNameEditorMode.CreateFolder, string.Empty, null);
