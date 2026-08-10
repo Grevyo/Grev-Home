@@ -20,6 +20,11 @@ public partial class LoginView : UserControl
     public event EventHandler? ClearSessionRequested;
 
     public int? ActivationControllerIndex { get; set; }
+    public Button CreateAccountFocusTarget => CreateAccountButton;
+    public IReadOnlyList<Button> ProfileFocusTargets => ProfilesPanel.Children
+        .OfType<Button>()
+        .Where(button => button.IsVisible && button.IsEnabled && button.Focusable)
+        .ToArray();
 
     public LoginView()
     {
