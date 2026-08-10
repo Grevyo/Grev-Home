@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Apps;
+using GrevHome.Presentation;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
 
@@ -52,7 +53,7 @@ public partial class InstalledLibraryView : UserControl
         var visible = _entries.Where(MatchesFilter).ToArray();
         EmptyText.Visibility = visible.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         EmptyText.Text = _entries.Count == 0
-            ? "Nothing is installed yet. Grev Store and package installation come later."
+            ? "Nothing is installed yet. Install supported packages from Grev Store."
             : "No installed apps match this filter.";
 
         foreach (var entry in visible)
@@ -76,8 +77,8 @@ public partial class InstalledLibraryView : UserControl
 
             var button = new Button
             {
-                Width = 290,
-                Height = 150,
+                Width = DefaultThemeMetrics.AppTileWidth,
+                Height = DefaultThemeMetrics.AppTileHeight,
                 Margin = new Thickness(8),
                 Tag = entry,
                 IsEnabled = entry.AvailableToCurrentUser,
@@ -122,7 +123,7 @@ public partial class InstalledLibraryView : UserControl
         }
 
         StatusText.Text = _entries.Count == 0
-            ? "The Installed Library is ready for real app/package registration. No demonstration apps are created."
+            ? "The Installed Library is ready for packages installed from Grev Store."
             : $"{visible.Length} shown • {_entries.Count} installed for this session context. Select an available app to launch it.";
     }
 
