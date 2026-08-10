@@ -10,6 +10,13 @@ public sealed record ProfileSignInRequest(LocalProfile Profile, int? ControllerI
 public partial class LoginView : UserControl
 {
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
+
+    // Legacy shell events remain declared only until the MainWindow wiring is normalized.
+    // No current Login control raises these and there is no pre-made Guest UI.
+    public event Action<int?>? GuestSignInRequested;
+    public event Action<Guid>? PrimaryUserRequested;
+    public event EventHandler? ClearSessionRequested;
+
     public event EventHandler? CreateProfileRequested;
     public event EventHandler? EnterHomeRequested;
 
@@ -48,10 +55,6 @@ public partial class LoginView : UserControl
         {
             var signedIn = session.SignedInUsers.FirstOrDefault(user =>
                 string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
-
-            var status = signedIn is null
-                ? AccountAuthorizationService.DescribeRole(profile.Role)
-                : BuildSignedInLabel(session, signedIn);
 
             var avatar = new Border
             {
@@ -104,7 +107,7 @@ public partial class LoginView : UserControl
                         },
                         new TextBlock
                         {
-                            Text = signedIn is null ? "A / Enter to sign in" : status,
+                            Text = signedIn is null ? "A / Enter to sign in" : BuildSignedInLabel(session, signedIn),
                             Margin = new Thickness(0, 6, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
