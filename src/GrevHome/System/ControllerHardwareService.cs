@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace GrevHome.System;
+namespace GrevHome.Machine;
 
 public sealed record ControllerHardwareStatus(
     int ControllerIndex,
