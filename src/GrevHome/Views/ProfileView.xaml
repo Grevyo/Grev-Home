@@ -3,45 +3,153 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="72,42" MaxWidth="1040">
+        <StackPanel Margin="72,38" MaxWidth="1180">
             <TextBlock Text="Profile" FontSize="40" FontWeight="SemiBold" />
-            <TextBlock Text="Local Grev Home identity, role and profile information." Margin="0,6,0,24" FontSize="16" Foreground="{StaticResource MutedBrush}" />
+            <TextBlock Text="Your Grev Home identity, progression, activity and connected gaming stats."
+                       Margin="0,6,0,22"
+                       FontSize="16"
+                       Foreground="{StaticResource MutedBrush}" />
 
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="28">
-                <StackPanel>
-                    <StackPanel Orientation="Horizontal">
-                        <Border Width="100" Height="100" CornerRadius="50" Background="#1F283A" Margin="0,0,22,0" ClipToBounds="True">
-                            <Grid>
-                                <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
-                                <TextBlock x:Name="AvatarText" Text="G" FontSize="34" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                            </Grid>
-                        </Border>
-                        <StackPanel VerticalAlignment="Center">
-                            <TextBlock x:Name="DisplayNameText" Text="Display Name" FontSize="34" FontWeight="SemiBold" />
-                            <TextBlock x:Name="UsernameText" Margin="0,6,0,0" FontSize="18" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="RoleText" Margin="0,5,0,0" FontSize="14" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" />
-                            <TextBlock x:Name="SessionText" Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" />
-                        </StackPanel>
+            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="26">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Border Width="116" Height="116" CornerRadius="58" Background="#1F283A" Margin="0,0,24,0" ClipToBounds="True">
+                        <Grid>
+                            <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                            <TextBlock x:Name="AvatarText" Text="G" FontSize="38" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock x:Name="DisplayNameText" Text="Display Name" FontSize="34" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                        <TextBlock x:Name="UsernameText" Margin="0,5,0,0" FontSize="18" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="BioText" Margin="0,10,0,0" MaxWidth="680" FontSize="15" TextWrapping="Wrap" Foreground="#D7DCE7" />
+                        <TextBlock x:Name="SessionText" Margin="0,9,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" />
                     </StackPanel>
 
-                    <Border Height="1" Background="#2B3344" Margin="0,24,0,22" />
-                    <Grid>
-                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
-                        <StackPanel Margin="0,0,18,0">
-                            <TextBlock Text="GrevID" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="GrevIdText" Margin="0,5,0,16" FontSize="17" TextWrapping="Wrap" />
-                            <TextBlock Text="Created" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="CreatedText" Margin="0,5,0,0" FontSize="17" />
-                        </StackPanel>
-                        <StackPanel Grid.Column="1">
-                            <TextBlock Text="ROLE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="RoleDescriptionText" Margin="0,5,0,16" FontSize="14" TextWrapping="Wrap" />
-                            <TextBlock Text="CURRENT PERMISSIONS" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="PermissionsText" Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-                    </Grid>
-                    <Button x:Name="EditProfileButton" Content="Edit Profile" Width="170" Height="52" Margin="0,28,0,0" HorizontalAlignment="Left" Click="EditProfile_Click" />
-                </StackPanel>
+                    <StackPanel Grid.Column="2" MinWidth="170" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="22,0,0,0">
+                        <TextBlock x:Name="LevelText" Text="LEVEL 1" HorizontalAlignment="Center" FontSize="24" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="RoleText" Margin="0,6,0,0" HorizontalAlignment="Center" FontSize="12" Foreground="{StaticResource MutedBrush}" FontWeight="Bold" />
+                        <Button x:Name="EditProfileButton" Content="Edit Profile" Width="160" Height="48" Margin="0,14,0,0" Click="EditProfile_Click" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.25*" />
+                    <ColumnDefinition Width="0.75*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Margin="0,0,8,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock Text="GREV LEVEL" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock x:Name="LevelNumberText" Text="1" FontSize="46" FontWeight="Bold" VerticalAlignment="Center" Margin="0,0,22,0" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <ProgressBar x:Name="LevelProgressBar" Height="14" Minimum="0" Maximum="100" Value="0" />
+                                <TextBlock x:Name="XpText" Margin="0,8,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
+                        </Grid>
+                        <TextBlock Text="Grev Level currently uses Grev Home tracked time, completed sessions and unique managed apps. External imports will not silently double-count progression."
+                                   Margin="0,12,0,0"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Margin="8,0,0,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock Text="LAST ACTIVITY" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="LastActivityText" Text="No tracked activity yet" Margin="0,10,0,0" FontSize="18" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ActivityStatusText" Margin="0,7,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <UniformGrid Columns="4" Margin="0,16,0,0">
+                <Border Margin="0,0,6,0" Padding="18" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Text="GREV HOME TIME" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="TotalTimeText" Text="0m" Margin="0,7,0,0" FontSize="26" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="6,0" Padding="18" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Text="SESSIONS" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="SessionsText" Text="0" Margin="0,7,0,0" FontSize="26" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="6,0" Padding="18" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Text="APPS PLAYED" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="AppsPlayedText" Text="0" Margin="0,7,0,0" FontSize="26" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+                <Border Margin="6,0,0,0" Padding="18" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock Text="RUNNING NOW" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="ActiveSessionsText" Text="0" Margin="0,7,0,0" FontSize="26" FontWeight="SemiBold" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.1*" />
+                    <ColumnDefinition Width="0.9*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Margin="0,0,8,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock Text="TOP PLAYED IN GREV HOME" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="NoTopAppsText" Text="No completed Grev Home playtime yet." Margin="0,12,0,0" Foreground="{StaticResource MutedBrush}" />
+                        <StackPanel x:Name="TopAppsPanel" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Margin="8,0,0,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock Text="CONNECTED STATS" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <StackPanel x:Name="SourcesPanel" Margin="0,8,0,0" />
+                        <TextBlock Text="This area is provider-based. Playnite, emulator, RetroAchievements and other gaming sources can plug into the profile here later without changing the identity model."
+                                   Margin="0,12,0,0"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border Margin="0,16,0,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Margin="0,0,18,0">
+                        <TextBlock Text="IDENTITY" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock Text="GrevID" Margin="0,12,0,0" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="GrevIdText" Margin="0,4,0,10" FontSize="15" TextWrapping="Wrap" />
+                        <TextBlock Text="Member since" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                        <TextBlock x:Name="CreatedText" Margin="0,4,0,0" FontSize="15" />
+                    </StackPanel>
+                    <StackPanel Grid.Column="1">
+                        <TextBlock Text="ROLE &amp; ACCESS" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="RoleDescriptionText" Margin="0,12,0,10" FontSize="14" TextWrapping="Wrap" />
+                        <TextBlock x:Name="PermissionsText" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Grid>
             </Border>
         </StackPanel>
     </ScrollViewer>
