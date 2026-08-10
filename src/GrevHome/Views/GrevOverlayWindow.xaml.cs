@@ -18,6 +18,7 @@ public partial class GrevOverlayWindow : Window
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? AppKillerRequested;
     public event Action<Guid>? SwitchRequested;
+    public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
 
     public GrevOverlayWindow()
@@ -139,6 +140,18 @@ public partial class GrevOverlayWindow : Window
                 _mode = OverlayMode.Switcher;
                 Render();
                 FocusFirstButton();
+            });
+
+        AddAction(
+            foreground is null ? "Restart Current App" : $"Restart {foreground.AppName}",
+            foreground?.State == LaunchSessionState.Running,
+            () =>
+            {
+                if (foreground is not null)
+                {
+                    Dismiss();
+                    RestartRequested?.Invoke(foreground.LaunchSessionId);
+                }
             });
 
         AddAction(
