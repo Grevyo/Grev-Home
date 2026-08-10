@@ -10,11 +10,13 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock Text="Who's playing?"
+            <TextBlock x:Name="HeadingText"
+                       Text="Who's playing?"
                        HorizontalAlignment="Center"
                        FontSize="46"
                        FontWeight="SemiBold" />
-            <TextBlock Text="Sign in one or more users, assign controllers, then choose the primary user for this session."
+            <TextBlock x:Name="SubheadingText"
+                       Text="Choose your profile to enter Grev Home."
                        HorizontalAlignment="Center"
                        Margin="0,8,0,22"
                        FontSize="16"
@@ -23,60 +25,21 @@
 
         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
             <StackPanel Width="1120" HorizontalAlignment="Center">
-                <TextBlock Text="LOCAL PROFILES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="PROFILES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
                 <WrapPanel x:Name="ProfilesPanel" Margin="0,8,0,12" />
                 <TextBlock x:Name="NoProfilesText"
-                           Text="No local profiles yet. Create one below."
+                           Text="No accounts yet. Create the first Grev Home account below."
                            Margin="0,4,0,10"
                            Foreground="{StaticResource MutedBrush}" />
-
-                <WrapPanel Margin="0,0,0,28">
-                    <Button Content="＋ Create Local Profile"
-                            Width="260"
-                            Height="64"
-                            Margin="0,0,10,0"
-                            Click="CreateProfile_Click" />
-                    <Button Content="Guest"
-                            Width="170"
-                            Height="64"
-                            Margin="0,0,10,0"
-                            Click="GuestAccount_Click" />
-                </WrapPanel>
-
-                <Border Background="#A9151923" BorderBrush="#343D51" BorderThickness="1" CornerRadius="16" Padding="22">
-                    <StackPanel>
-                        <TextBlock Text="SIGNED IN THIS SESSION" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                        <TextBlock Text="Select a signed-in user to make them primary."
-                                   Margin="0,5,0,12"
-                                   Foreground="{StaticResource MutedBrush}" />
-                        <WrapPanel x:Name="SignedInPanel" />
-                        <TextBlock x:Name="NoSignedInText"
-                                   Text="Nobody is signed in yet."
-                                   Margin="0,5,0,10"
-                                   Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock x:Name="ControllerSummaryText"
-                                   Margin="0,8,0,0"
-                                   Foreground="{StaticResource MutedBrush}" />
-                    </StackPanel>
-                </Border>
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-            <Button x:Name="EnterHomeButton"
-                    Content="Enter Grev Home"
-                    Width="230"
-                    Height="58"
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+            <Button Content="＋ Create Account"
+                    Width="240"
+                    Height="60"
                     Margin="6"
-                    IsEnabled="False"
-                    Click="EnterHome_Click" />
-            <Button x:Name="ClearSessionButton"
-                    Content="Sign Everyone Out"
-                    Width="220"
-                    Height="58"
-                    Margin="6"
-                    IsEnabled="False"
-                    Click="ClearSession_Click" />
+                    Click="CreateProfile_Click" />
         </StackPanel>
     </Grid>
 </UserControl>
