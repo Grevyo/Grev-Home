@@ -19,12 +19,7 @@ public sealed class SessionUser
     public AccountRole Role { get; internal set; }
     public bool IsPrimary { get; internal set; }
 
-    public SessionUser(
-        string? grevId,
-        string? username,
-        string displayName,
-        AccountKind accountKind,
-        AccountRole role)
+    public SessionUser(string? grevId, string? username, string displayName, AccountKind accountKind, AccountRole role)
     {
         GrevId = grevId;
         Username = username;
@@ -40,25 +35,16 @@ public sealed class SessionContext
 {
     public ObservableCollection<SessionUser> SignedInUsers { get; } = new();
     public ObservableCollection<ControllerAssignment> ControllerAssignments { get; } = new();
-
     public SessionUser? PrimaryUser => SignedInUsers.FirstOrDefault(user => user.IsPrimary);
     public bool HasSignedInUsers => SignedInUsers.Count > 0;
-
     public event EventHandler? Changed;
 
     public SessionUser SignInLocal(LocalProfile profile, int? controllerIndex = null)
     {
-        var user = SignedInUsers.FirstOrDefault(candidate =>
-            string.Equals(candidate.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
-
+        var user = SignedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
         if (user is null)
         {
-            user = new SessionUser(
-                profile.GrevId,
-                profile.Username,
-                profile.DisplayName,
-                AccountKind.Local,
-                profile.Role)
+            user = new SessionUser(profile.GrevId, profile.Username, profile.DisplayName, AccountKind.Local, profile.Role)
             {
                 IsPrimary = SignedInUsers.Count == 0
             };
@@ -70,34 +56,21 @@ public sealed class SessionContext
             user.Role = profile.Role;
         }
 
-        if (controllerIndex.HasValue)
-        {
-            AssignControllerInternal(controllerIndex.Value, user.SessionId);
-        }
-
+        if (controllerIndex.HasValue) AssignControllerInternal(controllerIndex.Value, user.SessionId);
         RaiseChanged();
         return user;
     }
 
-    // Compatibility only for old shell wiring. No current Grev Home screen exposes this path;
-    // user-facing Guest accounts are persistent LocalProfiles with AccountRole.Guest.
+    // Compatibility only for old shell wiring. No current Grev Home screen exposes this path.
     public SessionUser SignInGuest(int? controllerIndex = null)
     {
         var guest = SignedInUsers.FirstOrDefault(candidate => candidate.AccountKind == AccountKind.Guest);
         if (guest is null)
         {
-            guest = new SessionUser(null, null, "Legacy Guest", AccountKind.Guest, AccountRole.Guest)
-            {
-                IsPrimary = SignedInUsers.Count == 0
-            };
+            guest = new SessionUser(null, null, "Legacy Guest", AccountKind.Guest, AccountRole.Guest) { IsPrimary = SignedInUsers.Count == 0 };
             SignedInUsers.Add(guest);
         }
-
-        if (controllerIndex.HasValue)
-        {
-            AssignControllerInternal(controllerIndex.Value, guest.SessionId);
-        }
-
+        if (controllerIndex.HasValue) AssignControllerInternal(controllerIndex.Value, guest.SessionId);
         RaiseChanged();
         return guest;
     }
@@ -106,23 +79,14 @@ public sealed class SessionContext
     {
         var requested = SignedInUsers.FirstOrDefault(user => user.SessionId == sessionUserId)
             ?? throw new InvalidOperationException("That user is not signed in.");
-
-        foreach (var user in SignedInUsers)
-        {
-            user.IsPrimary = user.SessionId == requested.SessionId;
-        }
-
+        foreach (var user in SignedInUsers) user.IsPrimary = user.SessionId == requested.SessionId;
         RaiseChanged();
     }
 
     public void UpdateDisplayName(string grevId, string displayName)
     {
         var user = FindLocalUser(grevId);
-        if (user is null)
-        {
-            return;
-        }
-
+        if (user is null) return;
         user.DisplayName = displayName;
         RaiseChanged();
     }
@@ -130,62 +94,46 @@ public sealed class SessionContext
     public void UpdateRole(string grevId, AccountRole role)
     {
         var user = FindLocalUser(grevId);
-        if (user is null)
-        {
-            return;
-        }
-
+        if (user is null) return;
         user.Role = role;
         RaiseChanged();
     }
 
     public void AssignController(int controllerIndex, Guid sessionUserId)
     {
-        if (SignedInUsers.All(user => user.SessionId != sessionUserId))
-        {
-            throw new InvalidOperationException("That user is not signed in.");
-        }
-
+        if (SignedInUsers.All(user => user.SessionId != sessionUserId)) throw new InvalidOperationException("That user is not signed in.");
         AssignControllerInternal(controllerIndex, sessionUserId);
+        RaiseChanged();
+    }
+
+    public void UnassignController(int controllerIndex, Guid? expectedSessionUserId = null)
+    {
+        if (controllerIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(controllerIndex));
+        var assignments = ControllerAssignments
+            .Where(item => item.ControllerIndex == controllerIndex && (!expectedSessionUserId.HasValue || item.SessionUserId == expectedSessionUserId.Value))
+            .ToArray();
+        if (assignments.Length == 0) return;
+        foreach (var assignment in assignments) ControllerAssignments.Remove(assignment);
         RaiseChanged();
     }
 
     public SessionUser? GetUserForController(int controllerIndex)
     {
         var assignment = ControllerAssignments.FirstOrDefault(item => item.ControllerIndex == controllerIndex);
-        return assignment is null
-            ? null
-            : SignedInUsers.FirstOrDefault(user => user.SessionId == assignment.SessionUserId);
+        return assignment is null ? null : SignedInUsers.FirstOrDefault(user => user.SessionId == assignment.SessionUserId);
     }
 
     public IReadOnlyList<int> GetControllersForUser(Guid sessionUserId) =>
-        ControllerAssignments
-            .Where(item => item.SessionUserId == sessionUserId)
-            .Select(item => item.ControllerIndex)
-            .OrderBy(index => index)
-            .ToArray();
+        ControllerAssignments.Where(item => item.SessionUserId == sessionUserId).Select(item => item.ControllerIndex).OrderBy(index => index).ToArray();
 
     public void SignOut(Guid sessionUserId)
     {
         var user = SignedInUsers.FirstOrDefault(candidate => candidate.SessionId == sessionUserId);
-        if (user is null)
-        {
-            return;
-        }
-
+        if (user is null) return;
         var wasPrimary = user.IsPrimary;
         SignedInUsers.Remove(user);
-
-        foreach (var assignment in ControllerAssignments.Where(item => item.SessionUserId == sessionUserId).ToArray())
-        {
-            ControllerAssignments.Remove(assignment);
-        }
-
-        if (wasPrimary && SignedInUsers.Count > 0)
-        {
-            SignedInUsers[0].IsPrimary = true;
-        }
-
+        foreach (var assignment in ControllerAssignments.Where(item => item.SessionUserId == sessionUserId).ToArray()) ControllerAssignments.Remove(assignment);
+        if (wasPrimary && SignedInUsers.Count > 0) SignedInUsers[0].IsPrimary = true;
         RaiseChanged();
     }
 
@@ -197,21 +145,12 @@ public sealed class SessionContext
     }
 
     private SessionUser? FindLocalUser(string grevId) =>
-        SignedInUsers.FirstOrDefault(candidate =>
-            string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
+        SignedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
 
     private void AssignControllerInternal(int controllerIndex, Guid sessionUserId)
     {
-        if (controllerIndex is < 0 or > 3)
-        {
-            throw new ArgumentOutOfRangeException(nameof(controllerIndex));
-        }
-
-        foreach (var existing in ControllerAssignments.Where(item => item.ControllerIndex == controllerIndex).ToArray())
-        {
-            ControllerAssignments.Remove(existing);
-        }
-
+        if (controllerIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(controllerIndex));
+        foreach (var existing in ControllerAssignments.Where(item => item.ControllerIndex == controllerIndex).ToArray()) ControllerAssignments.Remove(existing);
         ControllerAssignments.Add(new ControllerAssignment(controllerIndex, sessionUserId));
     }
 
