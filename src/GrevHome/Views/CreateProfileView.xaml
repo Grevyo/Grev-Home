@@ -23,15 +23,15 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Width="760" HorizontalAlignment="Center">
-            <TextBlock Text="Profile name" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+            <TextBlock Text="Profile name • up to 50 characters" FontSize="14" Foreground="{StaticResource MutedBrush}" />
             <TextBox x:Name="ProfileNameTextBox"
                      Height="54"
                      Margin="0,7,0,14"
                      Padding="14,8"
                      FontSize="22"
-                     MaxLength="32" />
+                     MaxLength="50" />
             <TextBlock x:Name="StatusText"
-                       Text="Use the controller keyboard below, or type with a physical keyboard."
+                       Text="Use the controller keyboard below, or type with a physical keyboard. A permanent GrevID is created with the account."
                        Margin="0,0,0,16"
                        Foreground="{StaticResource MutedBrush}" />
         </StackPanel>
