@@ -7,17 +7,22 @@
             <Grid Margin="0,0,0,26">
                 <StackPanel>
                     <TextBlock x:Name="WelcomeText" Text="Welcome" FontSize="38" FontWeight="SemiBold" />
-                    <TextBlock Text="Milestone 0.1 dashboard shell"
+                    <TextBlock x:Name="SessionUsersText"
                                Margin="0,6,0,0"
                                FontSize="16"
                                Foreground="{StaticResource MutedBrush}" />
                 </StackPanel>
-                <Button Content="Log out"
-                        Width="130"
-                        Height="48"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Click="Logout_Click" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+                    <Button Content="Users &amp; Controllers"
+                            Width="210"
+                            Height="48"
+                            Margin="0,0,10,0"
+                            Click="ManageUsers_Click" />
+                    <Button Content="Log out"
+                            Width="130"
+                            Height="48"
+                            Click="Logout_Click" />
+                </StackPanel>
             </Grid>
 
             <TextBlock Text="YOUR DASHBOARD" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,10" />
@@ -40,7 +45,7 @@
                     <TextBlock Text="Foundation status" FontSize="15" FontWeight="SemiBold" />
                     <TextBlock x:Name="StatusText"
                                Margin="0,8,0,0"
-                               Text="Move around with D-pad / left stick or arrow keys. A / Enter selects. B / Escape goes back."
+                               Text="0.2 stores real local profiles and keeps signed-in users, controller assignments and the primary user separate."
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
