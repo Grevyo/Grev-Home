@@ -15,4 +15,5 @@ public sealed record LocalProfile(
     AccountRole Role = AccountRole.Admin,
     string AvatarKey = ProfileAvatarCatalog.DefaultKey,
     string? AvatarImageFile = null,
-    string Bio = "");
+    string Bio = "",
+    string StatusMessage = "");
