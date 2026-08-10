@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Shapes;
 
 namespace GrevHome.Presentation;
 
@@ -36,10 +35,10 @@ public static class AppArtworkFactory
         try
         {
             Uri uri;
-            if (Path.IsPathRooted(assetPath))
+            if (System.IO.Path.IsPathRooted(assetPath))
             {
                 if (!File.Exists(assetPath)) return null;
-                uri = new Uri(Path.GetFullPath(assetPath), UriKind.Absolute);
+                uri = new Uri(System.IO.Path.GetFullPath(assetPath), UriKind.Absolute);
             }
             else
             {
@@ -71,7 +70,7 @@ public static class AppArtworkFactory
     {
         var canvas = new Grid();
 
-        var outer = new Ellipse
+        var outer = new System.Windows.Shapes.Ellipse
         {
             Width = size * 0.54,
             Height = size * 0.54,
@@ -82,7 +81,7 @@ public static class AppArtworkFactory
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        var inner = new Rectangle
+        var inner = new System.Windows.Shapes.Rectangle
         {
             Width = size * 0.24,
             Height = size * 0.24,
