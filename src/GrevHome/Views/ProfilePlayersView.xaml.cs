@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using GrevHome.Profiles;
 using GrevHome.Sessions;
 
 namespace GrevHome.Views;
@@ -8,10 +9,13 @@ public sealed record PlayerControllerAssignmentRequest(Guid SessionUserId, int C
 
 public partial class ProfilePlayersView : UserControl
 {
-    public event EventHandler? ViewProfileRequested;
-    public event EventHandler? EditProfileRequested;
+    private Guid? _primarySessionUserId;
+
+    public event Action<Guid>? ViewProfileRequested;
+    public event Action<Guid>? EditProfileRequested;
     public event EventHandler? AddPlayerRequested;
     public event EventHandler? LogoutRequested;
+    public event Action<Guid>? SignOutPlayerRequested;
     public event Action<Guid>? SetPrimaryRequested;
     public event Action<PlayerControllerAssignmentRequest>? AssignControllerRequested;
 
@@ -20,38 +24,66 @@ public partial class ProfilePlayersView : UserControl
         InitializeComponent();
     }
 
-    public void SetState(SessionContext session, IReadOnlyList<bool> connectedControllers)
+    public void SetState(
+        SessionContext session,
+        IReadOnlyList<bool> connectedControllers,
+        IReadOnlyList<LocalProfile> profiles)
     {
         var primary = session.PrimaryUser;
+        _primarySessionUserId = primary?.SessionId;
+        var primaryProfile = FindProfile(primary, profiles);
+
+        PrimaryAvatarText.Text = primaryProfile is null
+            ? "?"
+            : ProfileAvatarCatalog.GetDisplayGlyph(primaryProfile.AvatarKey, primaryProfile.DisplayName);
         PrimaryNameText.Text = primary?.DisplayName ?? "No primary profile";
         PrimaryIdentityText.Text = primary is null
             ? "No user is signed in."
             : $"@{primary.Username}  •  {primary.Role}  •  Primary User";
 
         SummaryText.Text = session.SignedInUsers.Count == 1
-            ? "1 player signed in. Add Player 2 or manage the current controller assignment."
-            : $"{session.SignedInUsers.Count} players signed in. Manage Primary User and controller assignments here.";
+            ? "1 player signed in. Add Player 2 or manage the current profile and controller assignment."
+            : $"{session.SignedInUsers.Count} players signed in. Manage profiles, Primary User and controller assignments here.";
 
+        var canManagePlayers = primary is not null &&
+                               AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManagePlayers);
         AddPlayerButton.Content = $"Player {session.SignedInUsers.Count + 1} Sign In";
-        AddPlayerButton.IsEnabled = session.SignedInUsers.Count < 4;
+        AddPlayerButton.IsEnabled = session.SignedInUsers.Count < 4 && canManagePlayers;
+        AddPlayerButton.ToolTip = canManagePlayers
+            ? null
+            : "The Primary User role cannot add more players.";
+
+        var canEditPrimary = primary?.GrevId is not null &&
+                             AccountAuthorizationService.CanEditProfile(primary.Role, primary.GrevId, primary.GrevId);
+        ViewPrimaryButton.IsEnabled = primaryProfile is not null;
+        EditPrimaryButton.IsEnabled = primaryProfile is not null && canEditPrimary;
 
         PlayersPanel.Children.Clear();
         for (var index = 0; index < session.SignedInUsers.Count; index++)
         {
-            PlayersPanel.Children.Add(CreatePlayerCard(index + 1, session.SignedInUsers[index], session, connectedControllers));
+            PlayersPanel.Children.Add(CreatePlayerCard(
+                index + 1,
+                session.SignedInUsers[index],
+                session,
+                connectedControllers,
+                profiles,
+                primary));
         }
 
         StatusText.Text = connectedControllers.Any(isConnected => isConnected)
-            ? "Select a connected Controller button on a player card to assign or reassign it. Controller ownership updates immediately."
-            : "No XInput controllers are currently connected. Connect a controller, then return here to assign it.";
+            ? "Controller ownership updates immediately. View/Edit/Sign Out actions apply to the selected signed-in player."
+            : "No XInput controllers are currently connected. Profile and player management still works without one.";
     }
 
     private UIElement CreatePlayerCard(
         int playerNumber,
         SessionUser user,
         SessionContext session,
-        IReadOnlyList<bool> connectedControllers)
+        IReadOnlyList<bool> connectedControllers,
+        IReadOnlyList<LocalProfile> profiles,
+        SessionUser? actor)
     {
+        var profile = FindProfile(user, profiles);
         var card = new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 30)),
@@ -63,10 +95,31 @@ public partial class ProfilePlayersView : UserControl
         };
 
         var root = new Grid();
+        root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
+        var avatar = new Border
+        {
+            Width = 66,
+            Height = 66,
+            CornerRadius = new CornerRadius(33),
+            Margin = new Thickness(0, 0, 16, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 40, 58)),
+            Child = new TextBlock
+            {
+                Text = profile is null ? "?" : ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName),
+                FontSize = 24,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        root.Children.Add(avatar);
+
         var details = new StackPanel();
+        Grid.SetColumn(details, 1);
         details.Children.Add(new TextBlock
         {
             Text = $"PLAYER {playerNumber}",
@@ -97,7 +150,6 @@ public partial class ProfilePlayersView : UserControl
             Margin = new Thickness(0, 5, 0, 0),
             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush")
         });
-
         root.Children.Add(details);
 
         var actions = new StackPanel
@@ -106,7 +158,47 @@ public partial class ProfilePlayersView : UserControl
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(18, 0, 0, 0)
         };
-        Grid.SetColumn(actions, 1);
+        Grid.SetColumn(actions, 2);
+
+        var profileActions = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
+        var viewButton = new Button
+        {
+            Content = "View",
+            Width = 88,
+            Height = 42,
+            Margin = new Thickness(4),
+            IsEnabled = profile is not null
+        };
+        viewButton.Click += (_, _) => ViewProfileRequested?.Invoke(user.SessionId);
+        profileActions.Children.Add(viewButton);
+
+        var canEdit = profile is not null && actor?.GrevId is not null &&
+                      AccountAuthorizationService.CanEditProfile(actor.Role, actor.GrevId, profile.GrevId);
+        var editButton = new Button
+        {
+            Content = "Edit",
+            Width = 88,
+            Height = 42,
+            Margin = new Thickness(4),
+            IsEnabled = canEdit
+        };
+        editButton.Click += (_, _) => EditProfileRequested?.Invoke(user.SessionId);
+        profileActions.Children.Add(editButton);
+
+        var canManagePlayers = actor is not null &&
+                               AccountAuthorizationService.Allows(actor.Role, AccountPermission.ManagePlayers);
+        var canSignOut = actor?.SessionId == user.SessionId || canManagePlayers;
+        var signOutButton = new Button
+        {
+            Content = "Sign Out",
+            Width = 105,
+            Height = 42,
+            Margin = new Thickness(4),
+            IsEnabled = canSignOut
+        };
+        signOutButton.Click += (_, _) => SignOutPlayerRequested?.Invoke(user.SessionId);
+        profileActions.Children.Add(signOutButton);
+        actions.Children.Add(profileActions);
 
         if (!user.IsPrimary)
         {
@@ -114,8 +206,10 @@ public partial class ProfilePlayersView : UserControl
             {
                 Content = "Make Primary",
                 Width = 150,
-                Height = 44,
-                Margin = new Thickness(4)
+                Height = 42,
+                Margin = new Thickness(4),
+                IsEnabled = actor is not null &&
+                            AccountAuthorizationService.Allows(actor.Role, AccountPermission.ChangePrimaryUser)
             };
             primaryButton.Click += (_, _) => SetPrimaryRequested?.Invoke(user.SessionId);
             actions.Children.Add(primaryButton);
@@ -131,6 +225,9 @@ public partial class ProfilePlayersView : UserControl
 
             var assignedUser = session.GetUserForController(controllerIndex);
             var assignedToThisUser = assignedUser?.SessionId == user.SessionId;
+            var canAssign = actor is not null &&
+                            AccountAuthorizationService.Allows(actor.Role, AccountPermission.AssignControllers) &&
+                            (canManagePlayers || actor.SessionId == user.SessionId);
             var button = new Button
             {
                 Content = assignedToThisUser
@@ -139,10 +236,10 @@ public partial class ProfilePlayersView : UserControl
                         ? $"C{controllerIndex + 1}"
                         : $"C{controllerIndex + 1} • {assignedUser.DisplayName}",
                 MinWidth = 72,
-                Height = 44,
+                Height = 42,
                 Margin = new Thickness(4),
                 Tag = new PlayerControllerAssignmentRequest(user.SessionId, controllerIndex),
-                IsEnabled = !assignedToThisUser
+                IsEnabled = canAssign && !assignedToThisUser
             };
             button.Click += Controller_Click;
             controllerButtons.Children.Add(button);
@@ -164,6 +261,17 @@ public partial class ProfilePlayersView : UserControl
         return card;
     }
 
+    private static LocalProfile? FindProfile(SessionUser? user, IReadOnlyList<LocalProfile> profiles)
+    {
+        if (user?.GrevId is null)
+        {
+            return null;
+        }
+
+        return profiles.FirstOrDefault(profile =>
+            string.Equals(profile.GrevId, user.GrevId, StringComparison.OrdinalIgnoreCase));
+    }
+
     private void Controller_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: PlayerControllerAssignmentRequest request })
@@ -172,11 +280,21 @@ public partial class ProfilePlayersView : UserControl
         }
     }
 
-    private void ViewProfile_Click(object sender, RoutedEventArgs e) =>
-        ViewProfileRequested?.Invoke(this, EventArgs.Empty);
+    private void ViewProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_primarySessionUserId.HasValue)
+        {
+            ViewProfileRequested?.Invoke(_primarySessionUserId.Value);
+        }
+    }
 
-    private void EditProfile_Click(object sender, RoutedEventArgs e) =>
-        EditProfileRequested?.Invoke(this, EventArgs.Empty);
+    private void EditProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_primarySessionUserId.HasValue)
+        {
+            EditProfileRequested?.Invoke(_primarySessionUserId.Value);
+        }
+    }
 
     private void AddPlayer_Click(object sender, RoutedEventArgs e) =>
         AddPlayerRequested?.Invoke(this, EventArgs.Empty);
