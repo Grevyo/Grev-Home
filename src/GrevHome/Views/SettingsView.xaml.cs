@@ -62,6 +62,23 @@ public partial class SettingsView : UserControl
         ResetPowerConfirmation();
     }
 
+    public void OpenProfileEditor()
+    {
+        if (_profile is null)
+        {
+            return;
+        }
+
+        DisplayNameTextBox.Text = _profile.DisplayName;
+        DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
+        DisplayNameEditor.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            var firstKey = DisplayNameKeyboard.Children.OfType<Button>().FirstOrDefault();
+            firstKey?.Focus();
+        }));
+    }
+
     public void ShowAccountStatus(string message, bool closeEditor = false)
     {
         AccountStatusText.Text = message;
@@ -364,17 +381,7 @@ public partial class SettingsView : UserControl
         }
     }
 
-    private void EditDisplayName_Click(object sender, RoutedEventArgs e)
-    {
-        if (_profile is null)
-        {
-            return;
-        }
-
-        DisplayNameTextBox.Text = _profile.DisplayName;
-        DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-        DisplayNameEditor.Visibility = Visibility.Visible;
-    }
+    private void EditDisplayName_Click(object sender, RoutedEventArgs e) => OpenProfileEditor();
 
     private void DisplayNameKey_Click(object sender, RoutedEventArgs e)
     {
