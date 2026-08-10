@@ -36,13 +36,13 @@ public partial class LoginView : UserControl
         SessionContext session,
         IReadOnlyList<bool> connectedControllers)
     {
-        HeadingText.Text = session.HasSignedInUsers ? "Players" : "Who's playing?";
-        SubheadingText.Text = session.HasSignedInUsers
-            ? "Choose another profile to sign them in, or log out of the current Grev Home session."
+        var addingPlayer = session.HasSignedInUsers;
+        HeadingText.Text = addingPlayer
+            ? $"Player {session.SignedInUsers.Count + 1} Sign In"
+            : "Who's playing?";
+        SubheadingText.Text = addingPlayer
+            ? "Choose a profile that is not already signed in. The controller used to select it will be assigned to that player."
             : "Choose your profile to enter Grev Home.";
-        LogoutButton.Visibility = session.HasSignedInUsers
-            ? Visibility.Visible
-            : Visibility.Collapsed;
 
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
@@ -60,6 +60,7 @@ public partial class LoginView : UserControl
                 Height = 154,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
+                IsEnabled = !addingPlayer || signedIn is null,
                 Content = new StackPanel
                 {
                     Children =
@@ -133,7 +134,4 @@ public partial class LoginView : UserControl
 
     private void CreateProfile_Click(object sender, RoutedEventArgs e) =>
         CreateProfileRequested?.Invoke(this, EventArgs.Empty);
-
-    private void Logout_Click(object sender, RoutedEventArgs e) =>
-        ClearSessionRequested?.Invoke(this, EventArgs.Empty);
 }
