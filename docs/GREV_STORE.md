@@ -14,12 +14,13 @@ The package definition owns:
 - technical `AppDefinition`;
 - install/data scope;
 - controller support;
-- description;
+- Store description;
+- Grev Home integration descriptions;
 - Grev Home default presentation.
 
 The Store is populated from these trusted package definitions. A supported installer must not be implemented as a hidden/manual workflow that is missing from Grev Store.
 
-Adding App #2 later means adding its trusted installer/package definition; that same definition becomes its Store entry.
+Adding App #2 later means adding its trusted installer/package definition; that same definition becomes its Store entry and product-page information.
 
 ## Store categories
 
@@ -32,6 +33,49 @@ The initial category contract is:
 - Tools.
 
 Categories are presentation/discovery metadata. They do not determine install ownership.
+
+## Store product page
+
+Selecting an app/package in the Grev Store grid opens a dedicated internal product page inside the permanent Grev Home `MainWindow`.
+
+The grid is discovery only; selecting a card must not immediately install software.
+
+The product page shows:
+
+- app name and default presentation;
+- Store category and app kind;
+- Profile App versus Global App ownership;
+- per-profile/global/native app-data behavior;
+- controller-support declaration;
+- what the application does;
+- how the application integrates with Grev Home;
+- expected/current install location;
+- installed state, version, install date and owner where available.
+
+Installed state is derived from the existing `installed.grevapp.json` manifest model rather than a second Store-specific downloaded flag.
+
+### Action state
+
+If the package is not installed for the relevant scope, the primary action is:
+
+```text
+Download
+```
+
+For a Profile App, Download is disabled unless a persistent local Primary GrevID exists.
+
+If the exact package is already installed for the relevant scope, the product page instead exposes:
+
+```text
+Open
+Uninstall
+```
+
+`Open` launches the existing installed manifest through Grev Home's central runtime/session manager.
+
+`Download` and `Uninstall` are package-installer operations. They must delegate to the trusted installer identified by the package's `InstallerId`; the Store page must never implement unsafe generic download/extract/delete logic itself.
+
+This allows the product-page UX and installed-state model to be validated before RetroArch's actual downloader/install/uninstall implementation is added.
 
 ## Default presentation
 
@@ -111,4 +155,6 @@ so its Store card is an Emulator/Profile App and its binary/data ownership remai
 
 RetroArch (`retroarch`) is the first registered Grev Store package and first trusted app-specific installer target.
 
-The package catalogue/discovery/presentation contract is established before its downloader/install execution is added, so the installer can concentrate on safe download, extraction, profile configuration, update, repair and uninstall behavior.
+Its product page explains its multi-system emulation purpose, Profile App isolation, Grev Home runtime/playtime integration and planned profile-owned RetroAchievements integration.
+
+The package catalogue/discovery/product-page/presentation contract is established before its downloader/install execution is added, so the installer can concentrate on safe download, extraction, profile configuration, update, repair and uninstall behavior.
