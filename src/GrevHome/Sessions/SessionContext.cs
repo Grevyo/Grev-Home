@@ -14,13 +14,15 @@ public sealed class SessionUser
 {
     public Guid SessionId { get; } = Guid.NewGuid();
     public string? GrevId { get; }
+    public string? Username { get; }
     public string DisplayName { get; }
     public AccountKind AccountKind { get; }
     public bool IsPrimary { get; internal set; }
 
-    public SessionUser(string? grevId, string displayName, AccountKind accountKind)
+    public SessionUser(string? grevId, string? username, string displayName, AccountKind accountKind)
     {
         GrevId = grevId;
+        Username = username;
         DisplayName = displayName;
         AccountKind = accountKind;
     }
@@ -45,7 +47,7 @@ public sealed class SessionContext
 
         if (user is null)
         {
-            user = new SessionUser(profile.GrevId, profile.DisplayName, AccountKind.Local)
+            user = new SessionUser(profile.GrevId, profile.Username, profile.DisplayName, AccountKind.Local)
             {
                 IsPrimary = SignedInUsers.Count == 0
             };
@@ -66,7 +68,7 @@ public sealed class SessionContext
         var guest = SignedInUsers.FirstOrDefault(candidate => candidate.AccountKind == AccountKind.Guest);
         if (guest is null)
         {
-            guest = new SessionUser(null, "Guest", AccountKind.Guest)
+            guest = new SessionUser(null, null, "Guest", AccountKind.Guest)
             {
                 IsPrimary = SignedInUsers.Count == 0
             };
