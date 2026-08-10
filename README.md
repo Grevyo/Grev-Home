@@ -5,9 +5,11 @@ Grev Home is a controller-first Windows console shell designed to make a PC usab
 ## Product rules
 
 - The first screen is always account login / user selection.
-- Every persistent local account receives a permanent **GrevID** when it is created. That GrevID owns its filesystem data and does not change with display-name changes or session state.
+- Every persistent local account receives a permanent **GrevID** and permanent **Username** when it is created.
 - GrevIDs use the portable format `GxxxxUsernamexxx`, where the four-character prefix and three-character suffix are randomly generated and collision-checked.
-- Local usernames are limited to **50 characters**. The readable username portion of GrevID is filesystem-safe and is captured only when the account is created.
+- Usernames are limited to **50 characters** and are stored in `profile.json` as immutable account identity data.
+- **DisplayName is separate from Username.** It starts equal to Username but may later be changed freely without changing GrevID, Username or folders.
+- A true Username change is a last-resort account migration, not a rename: a new account/new GrevID/new filesystem structure will be created and data copied across under an explicit migration flow.
 - A session supports multiple signed-in users and controller assignments, with one Primary User selected only for that current session.
 - Grev Home uses one persistent fullscreen shell rather than opening separate fullscreen windows for each area.
 - Home, Library, Store, Files, Running Apps, App Killer, Settings and future features share one dashboard-style navigation system.
@@ -17,21 +19,33 @@ Grev Home is a controller-first Windows console shell designed to make a PC usab
 - Grev Store will eventually distribute apps, emulators, themes, add-ons and community packages.
 - Themes are portable packages that can be created, exported, imported and eventually shared through Grev Store.
 
-## GrevID example
+## Identity example
 
-A local username `Grev` may receive a GrevID such as:
+A new local account may start as:
 
 ```text
-G4P7KGrev9Q2
+Username:    Grev
+DisplayName: Grev
+GrevID:      G4P7KGrev9Q2
 ```
 
-That ID is permanent. If the display name later changes to `Grevyo`, the GrevID remains `G4P7KGrev9Q2`.
+If the user later changes only the DisplayName:
 
-A display name such as `Joe Greeves` can produce a readable GrevID section such as `Joe_Greeves` while the visible display name remains unchanged.
+```text
+Username:    Grev
+DisplayName: Grevyo
+GrevID:      G4P7KGrev9Q2
+```
 
-The username part exists to make profile folders easier to identify. Uniqueness comes from the random prefix/suffix plus an actual collision check before creation.
+The filesystem remains:
 
-This stable identity is also intended to support future **local-profile export/import and sharing**. A transferred profile can retain its GrevID on another Grev Home machine instead of being re-created as a different identity.
+```text
+Profiles\G4P7KGrev9Q2\
+```
+
+Username and GrevID remain fixed. The readable username portion of GrevID is a filesystem-safe snapshot created once when the account is created.
+
+This stable identity is intended to support future **local-profile export/import and sharing**. A transferred account can retain its GrevID, Username and profile data on another Grev Home machine instead of being re-created as a different identity.
 
 ## Milestone 0.1
 
@@ -42,15 +56,17 @@ This stable identity is also intended to support future **local-profile export/i
 0.2 turns placeholder identities into real local Grev Home accounts and establishes the multi-user session model:
 
 1. Persistent local accounts with permanent portable GrevIDs.
-2. Controller-friendly local account creation with an on-screen keyboard.
-3. Local usernames capped at 50 characters.
-4. Per-GrevID storage reserved for Apps, AppData, Saves, Stats, Connections, Screenshots and Themes.
-5. Shared machine storage separated into Global Apps / AppData, Packages, Themes, Downloads and Logs.
-6. Multiple users can be signed in simultaneously.
-7. Controllers 1-4 can be assigned independently to signed-in users.
-8. One signed-in user is explicitly the Primary User for the current session only.
-9. The Users & Controllers lobby can be reopened without destroying the current session.
-10. Guest uses shared guest data without becoming a persistent named local account.
+2. Immutable Username stored with the account.
+3. Editable DisplayName separated from Username.
+4. Controller-friendly local account creation with an on-screen keyboard.
+5. Usernames capped at 50 characters.
+6. Per-GrevID storage reserved for Apps, AppData, Saves, Stats, Connections, Screenshots and Themes.
+7. Shared machine storage separated into Global Apps / AppData, Packages, Themes, Downloads and Logs.
+8. Multiple users can be signed in simultaneously.
+9. Controllers 1-4 can be assigned independently to signed-in users.
+10. One signed-in user is explicitly the Primary User for the current session only.
+11. The Users & Controllers lobby can be reopened without destroying the current session.
+12. Guest uses shared guest data without becoming a persistent named local account.
 
 Actual app installation is intentionally not implemented yet, but the storage contract is ready for the future package/app system to choose between a GrevID-local install and a global/shared install.
 
@@ -92,6 +108,10 @@ Grev Home\
 ```
 
 `Primary User` never appears in this path model. At launch time the session chooses a signed-in user as Primary, then Grev Home resolves that account's GrevID and uses `Profiles\<GrevID>\...` for account-owned data.
+
+## Username changes
+
+Changing Username will not mutate the existing account. A future migration system will create a new Username, new GrevID and new folder structure, copy eligible account data, validate it, and leave the original account intact until the user explicitly removes or archives it. This is intentionally a last-resort operation.
 
 ## Controls
 
