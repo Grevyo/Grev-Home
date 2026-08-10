@@ -77,21 +77,32 @@ Uninstall
 
 This allows the product-page UX and installed-state model to be validated before RetroArch's actual downloader/install/uninstall implementation is added.
 
-## Default presentation
+## Default app-tile presentation
 
-Each package supplies Grev Home defaults that work on a clean install for any user:
+Every supported package has an author-defined default presentation that works for every Grev Home user.
 
-- display name;
-- fallback glyph;
-- default icon where supplied;
-- default tile media where supplied;
-- default hero media where supplied.
+The default app tile is intentionally simple:
+
+- one package-supplied app icon/artwork image;
+- the app display name;
+- no category, install scope, description, version, initials, abbreviations or other text inside the tile.
+
+The Store/product-list surfaces must never use text such as `RA`, `APP`, `PCSX2` or similar initials as substitute artwork. The old fallback-glyph concept is removed from the package presentation model.
+
+If a package image has not yet been supplied during development, Grev Home uses one neutral graphical placeholder containing no text. Supplying the package's real default `IconAsset` replaces that placeholder automatically on all surfaces that use the standard app-artwork presenter.
+
+All richer information belongs on the product/details page rather than being squeezed into the app tile.
+
+Each package may also supply:
+
+- default tile media;
+- default hero media.
 
 Package defaults are owned by Grev Home/package authors and are safe to restore at any time.
 
 ## User presentation overrides
 
-A persistent GrevID can layer its own presentation over package defaults without modifying the package definition or installed app files.
+After an app is installed, a persistent GrevID may customise its presentation without modifying the package definition or installed app files.
 
 Overrides live under:
 
@@ -114,6 +125,8 @@ The override may replace:
 
 An unset override always falls back to the Grev Home package default. Resetting presentation removes the override layer rather than modifying/reinstalling the application.
 
+The future customisation UI should only expose these controls for an installed app. The underlying presentation storage remains separate from installer/runtime state.
+
 Custom app presentation is profile data, not theme data. Changing themes must not delete or rewrite app presentation overrides.
 
 ## Animated media
@@ -132,7 +145,7 @@ The shipped/default Grev Home theme uses one canonical application tile size:
 
 Dashboard application tiles, Grev Store package tiles and Installed Library app tiles should use this baseline size in the default theme.
 
-Artwork fills/crops inside the standard card rather than changing the card's layout dimensions.
+Artwork is rendered inside the standard card rather than changing the card's layout dimensions.
 
 Future themes may expose different presentation/layout rules, but package definitions and user app-presentation data remain independent from those theme choices.
 
