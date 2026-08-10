@@ -7,8 +7,9 @@
         WindowState="Maximized"
         Background="#090C12"
         Foreground="White"
+        Loaded="Window_HeaderNavigationLoaded"
         PreviewKeyDown="Window_PreviewKeyDown">
-    <Grid>
+    <Grid KeyboardNavigation.DirectionalNavigation="Continue">
         <Grid.Background>
             <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
                 <GradientStop Color="#182137" Offset="0" />
@@ -26,7 +27,7 @@
                 Background="#D90B0F17"
                 BorderBrush="#263044"
                 BorderThickness="0,0,0,1">
-            <Grid Margin="28,0">
+            <Grid Margin="28,0" KeyboardNavigation.DirectionalNavigation="Continue">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
@@ -58,7 +59,7 @@
                         MaxWidth="620"
                         Height="52"
                         Margin="14,0,10,0"
-                        Padding="16,8"
+                        Padding="14,8"
                         VerticalAlignment="Center"
                         Click="ShellProfile_Click">
                     <TextBlock x:Name="ControllerStatusText"
@@ -78,7 +79,10 @@
             </Grid>
         </Border>
 
-        <ContentControl x:Name="RouteHost" Grid.Row="1" Focusable="False" />
+        <ContentControl x:Name="RouteHost"
+                        Grid.Row="1"
+                        Focusable="False"
+                        KeyboardNavigation.DirectionalNavigation="Continue" />
 
         <Grid Grid.Row="2" Margin="34,0">
             <TextBlock Text="A / Enter  Select     B / Esc  Back"
