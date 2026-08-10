@@ -40,66 +40,38 @@ public partial class GrevStoreView : UserControl
 
         foreach (var package in visible)
         {
-            var scope = package.IsProfileInstall ? "PROFILE APP" : "GLOBAL APP";
             var button = new Button
             {
                 Width = DefaultThemeMetrics.AppTileWidth,
                 Height = DefaultThemeMetrics.AppTileHeight,
                 Margin = new Thickness(8),
+                Padding = new Thickness(16),
                 Tag = package,
                 IsEnabled = !package.IsProfileInstall || !string.IsNullOrWhiteSpace(_primaryUser?.GrevId)
             };
 
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-            var glyph = new Border
-            {
-                Width = 52,
-                Height = 52,
-                CornerRadius = new CornerRadius(12),
-                Background = (System.Windows.Media.Brush)FindResource("SurfaceHoverBrush"),
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Child = new TextBlock
-                {
-                    Text = package.Presentation.FallbackGlyph,
-                    FontSize = 18,
-                    FontWeight = FontWeights.Bold,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center
-                }
-            };
+            var artwork = AppArtworkFactory.Create(package.Presentation.IconAsset, 84, 15);
+            artwork.HorizontalAlignment = HorizontalAlignment.Left;
+            artwork.VerticalAlignment = VerticalAlignment.Center;
 
-            var text = new StackPanel();
-            text.Children.Add(new TextBlock
+            var name = new TextBlock
             {
                 Text = package.Presentation.DisplayName,
-                FontSize = 20,
+                FontSize = 21,
                 FontWeight = FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            text.Children.Add(new TextBlock
-            {
-                Text = $"{package.Category} • {scope}",
-                Margin = new Thickness(0, 6, 0, 0),
-                FontSize = 12,
-                Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush")
-            });
-            text.Children.Add(new TextBlock
-            {
-                Text = package.App.Description ?? string.Empty,
-                Margin = new Thickness(0, 6, 0, 0),
-                FontSize = 11,
-                Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                TextTrimming = TextTrimming.CharacterEllipsis,
                 TextWrapping = TextWrapping.Wrap,
-                MaxHeight = 42
-            });
+                MaxHeight = 58,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(name, 1);
 
-            Grid.SetColumn(text, 1);
-            grid.Children.Add(glyph);
-            grid.Children.Add(text);
+            grid.Children.Add(artwork);
+            grid.Children.Add(name);
             button.Content = grid;
             button.Click += Package_Click;
             PackagesPanel.Children.Add(button);
