@@ -12,6 +12,8 @@ Each persistent local profile has three identity layers:
 
 Changing Display Name never renames Username, GrevID or the profile folder.
 
+Profiles also have an optional local **About** field of up to 160 characters. About is presentation data and can be edited through the same controller-first popup keyboard used for Display Name.
+
 ## Roles and permissions
 
 Roles are persistent profile data. Authorization is centralized through `AccountAuthorizationService` rather than scattered role checks.
@@ -55,6 +57,58 @@ The keyboard is an internal Grev Home surface inside the existing `MainWindow` a
 
 Controller directional focus is kept inside the keyboard while it is open. B cancels the keyboard rather than leaving the underlying account/profile page.
 
+## Grev Level and activity
+
+View Profile now includes a local progression/activity layer driven by real Grev Home runtime data rather than a manually editable level number.
+
+The first profile stats source is **Grev Home**. It reads each GrevID's existing `Stats\playtime.json` and combines it with currently active managed runtime sessions for that GrevID.
+
+The profile displays:
+
+- Grev Level;
+- XP progress toward the next level;
+- total Grev Home tracked time;
+- completed session count;
+- unique managed apps played;
+- currently running managed app count;
+- last tracked activity;
+- Top Played apps;
+- Connected Stats sources.
+
+### Initial XP contract
+
+Grev XP is deliberately deterministic and reconstructable from Grev Home data:
+
+- **1 XP per tracked minute**;
+- **20 XP per completed managed-app session**;
+- **100 XP per unique managed app played**.
+
+The XP required to advance from the current level is:
+
+```text
+250 + ((current level - 1) × 150)
+```
+
+Level starts at 1. Progression is calculated from activity and is not stored as an authoritative editable number.
+
+Live managed-app time can contribute to the displayed total/XP while an app is running. Session-completion XP is only added once the managed session has actually completed.
+
+## Connected Stats provider model
+
+Profile activity is provider-based through `IProfileStatsSource`.
+
+`GrevHomeProfileStatsSource` is the first real provider. Future providers can independently contribute profile-facing data without changing the permanent identity model. Intended examples include:
+
+- Playnite library/playtime/history;
+- emulator-specific playtime and game history;
+- RetroAchievements achievements/progress;
+- Steam/Xbox/other account data where a supported connection exists;
+- game-specific statistics providers.
+
+External/imported providers do **not** automatically increase Grev Level. This prevents the same hours from being double-counted when, for example, Grev Home and Playnite both know about the same gaming session. A future progression policy can explicitly decide which external achievements or events should contribute XP.
+
+The Connected Stats area only shows providers that actually exist. Grev Home does not fabricate a Playnite or emulator connection before one has been built/configured.
+
 ## Signed-in players and controllers
 
 A signed-in player and a controller assignment are separate session concepts.
@@ -73,8 +127,10 @@ Each signed-in player can also expose View, Edit, Sign Out and Make Primary acti
 
 The profile photo picker stays inside Grev Home rather than opening a separate fullscreen WPF window. It can browse normal user locations and ready drives, shows folders plus supported image files, and returns the chosen image to the existing profile-edit draft.
 
-Entering and leaving the photo picker preserves unsaved Display Name, role and avatar choices until Save Profile is selected.
+Entering and leaving the photo picker preserves unsaved Display Name, About, role and avatar choices until Save Profile is selected.
 
 ## Still later
 
 Permanent Username migration, profile export/import, profile retirement/deletion workflows, Grev.dad linking and richer online/community profile data remain separate future work.
+
+The next stats-provider work can add a real Playnite adapter and/or emulator/RetroAchievements providers without redesigning View Profile.
