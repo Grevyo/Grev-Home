@@ -20,6 +20,7 @@ public partial class MainWindow
 
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
         InitializeProfilePlayersIntegration();
+        InitializeGrevStoreIntegration();
 
         _headerNavigationHooked = true;
         _controllerInput.ActionPressed += HandleHeaderNavigationInput;
