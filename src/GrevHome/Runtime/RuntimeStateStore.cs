@@ -44,7 +44,7 @@ public sealed class RuntimeStateStore
         {
             using var stream = File.OpenRead(StateFile);
             return JsonSerializer.Deserialize<List<RuntimeSessionRecoveryRecord>>(stream, _jsonOptions)
-                   ?? Array.Empty<RuntimeSessionRecoveryRecord>();
+                   ?? new List<RuntimeSessionRecoveryRecord>();
         }
         catch (JsonException)
         {
