@@ -35,7 +35,8 @@
         </ScrollViewer>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
-            <Button Content="＋ Create Account"
+            <Button x:Name="CreateAccountButton"
+                    Content="＋ Create Account"
                     Width="240"
                     Height="60"
                     Margin="6"
