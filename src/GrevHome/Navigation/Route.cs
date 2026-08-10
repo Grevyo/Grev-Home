@@ -7,5 +7,6 @@ public enum Route
     Dashboard,
     InstalledLibrary,
     RunningApps,
-    AppKiller
+    AppKiller,
+    Settings
 }
