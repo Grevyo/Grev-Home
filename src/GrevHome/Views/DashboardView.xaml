@@ -1,0 +1,50 @@
+<UserControl x:Class="GrevHome.Views.DashboardView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="72,42">
+            <Grid Margin="0,0,0,26">
+                <StackPanel>
+                    <TextBlock x:Name="WelcomeText" Text="Welcome" FontSize="38" FontWeight="SemiBold" />
+                    <TextBlock Text="Milestone 0.1 dashboard shell"
+                               Margin="0,6,0,0"
+                               FontSize="16"
+                               Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+                <Button Content="Log out"
+                        Width="130"
+                        Height="48"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center"
+                        Click="Logout_Click" />
+            </Grid>
+
+            <TextBlock Text="YOUR DASHBOARD" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,10" />
+            <WrapPanel>
+                <Button Tag="Recently Used" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Recently Used" />
+                <Button Tag="Running Apps" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Running Apps" />
+                <Button Tag="Grev Store" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Grev Store" />
+                <Button Tag="Files" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Files" />
+                <Button Tag="Emulators" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Emulators" />
+                <Button Tag="App Killer" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="App Killer" />
+            </WrapPanel>
+
+            <Border Margin="8,28,8,0"
+                    Padding="22"
+                    Background="#11151E"
+                    BorderBrush="#2B3344"
+                    BorderThickness="1"
+                    CornerRadius="12">
+                <StackPanel>
+                    <TextBlock Text="Foundation status" FontSize="15" FontWeight="SemiBold" />
+                    <TextBlock x:Name="StatusText"
+                               Margin="0,8,0,0"
+                               Text="Move around with D-pad / left stick or arrow keys. A / Enter selects. B / Escape goes back."
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
