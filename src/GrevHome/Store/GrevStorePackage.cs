@@ -13,7 +13,6 @@ public enum GrevStoreCategory
 
 public sealed record AppPresentationDefaults(
     string DisplayName,
-    string FallbackGlyph,
     string? IconAsset = null,
     string? TileMediaAsset = null,
     string? HeroMediaAsset = null);
@@ -52,8 +51,7 @@ public sealed class GrevStoreCatalogService
                 SupportsController: true,
                 Description: "Profile-isolated multi-system emulator frontend with independent configuration, saves and RetroAchievements identity per GrevID."),
             Presentation: new AppPresentationDefaults(
-                DisplayName: "RetroArch",
-                FallbackGlyph: "RA"),
+                DisplayName: "RetroArch"),
             Featured: true,
             StoreDescription: "RetroArch is a multi-system emulation frontend that can run games from many classic consoles through individual emulator cores. Grev Home installs RetroArch as a Profile App so every GrevID can keep its own emulator environment, RetroAchievements identity, settings, saves and states without conflicting with another user on the same machine.",
             GrevHomeIntegrations:
