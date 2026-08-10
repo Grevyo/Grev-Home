@@ -24,7 +24,9 @@ public sealed record GrevStorePackageDefinition(
     GrevStoreCategory Category,
     AppDefinition App,
     AppPresentationDefaults Presentation,
-    bool Featured = false)
+    bool Featured = false,
+    string? StoreDescription = null,
+    IReadOnlyList<string>? GrevHomeIntegrations = null)
 {
     public bool IsProfileInstall => App.InstallStrategy == InstallStrategy.GrevIdPortable;
 }
@@ -52,7 +54,16 @@ public sealed class GrevStoreCatalogService
             Presentation: new AppPresentationDefaults(
                 DisplayName: "RetroArch",
                 FallbackGlyph: "RA"),
-            Featured: true)
+            Featured: true,
+            StoreDescription: "RetroArch is a multi-system emulation frontend that can run games from many classic consoles through individual emulator cores. Grev Home installs RetroArch as a Profile App so every GrevID can keep its own emulator environment, RetroAchievements identity, settings, saves and states without conflicting with another user on the same machine.",
+            GrevHomeIntegrations:
+            [
+                "Profile-isolated install, configuration, saves and save states for the current GrevID.",
+                "Launch through the Grev Home runtime for Return Home, Overlay, Running Apps, restart/recovery and tracked playtime.",
+                "Grev Home sessions and playtime can feed the owning profile's activity, level and stats.",
+                "RetroAchievements is designed as a profile-owned connection so achievements and game progress can feed the Grev Home profile later.",
+                "Controller-first discovery, launch and app management inside the permanent Grev Home shell."
+            ])
     ];
 
     public IReadOnlyList<GrevStorePackageDefinition> GetAll() => Packages;
