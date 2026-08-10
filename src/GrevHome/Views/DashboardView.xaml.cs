@@ -11,6 +11,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? InstalledAppsRequested;
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? AppKillerRequested;
+    public event EventHandler? SettingsRequested;
 
     public DashboardView()
     {
@@ -50,6 +51,9 @@ public partial class DashboardView : UserControl
     private void AppKiller_Click(object sender, RoutedEventArgs e) =>
         AppKillerRequested?.Invoke(this, EventArgs.Empty);
 
+    private void Settings_Click(object sender, RoutedEventArgs e) =>
+        SettingsRequested?.Invoke(this, EventArgs.Empty);
+
     private void Logout_Click(object sender, RoutedEventArgs e) =>
         LogoutRequested?.Invoke(this, EventArgs.Empty);
 
@@ -57,7 +61,7 @@ public partial class DashboardView : UserControl
     {
         if (sender is Button { Tag: string feature })
         {
-            StatusText.Text = $"{feature} is still a dashboard placeholder. Runtime actions now flow through the shared session manager rather than Dashboard code.";
+            StatusText.Text = $"{feature} is still a dashboard placeholder while Grev Home's backbone is built first.";
         }
     }
 }
