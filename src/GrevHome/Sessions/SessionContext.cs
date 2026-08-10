@@ -79,6 +79,29 @@ public sealed class SessionContext
         return user;
     }
 
+    // Compatibility only for old shell wiring. No current Grev Home screen exposes this path;
+    // user-facing Guest accounts are persistent LocalProfiles with AccountRole.Guest.
+    public SessionUser SignInGuest(int? controllerIndex = null)
+    {
+        var guest = SignedInUsers.FirstOrDefault(candidate => candidate.AccountKind == AccountKind.Guest);
+        if (guest is null)
+        {
+            guest = new SessionUser(null, null, "Legacy Guest", AccountKind.Guest, AccountRole.Guest)
+            {
+                IsPrimary = SignedInUsers.Count == 0
+            };
+            SignedInUsers.Add(guest);
+        }
+
+        if (controllerIndex.HasValue)
+        {
+            AssignControllerInternal(controllerIndex.Value, guest.SessionId);
+        }
+
+        RaiseChanged();
+        return guest;
+    }
+
     public void SetPrimary(Guid sessionUserId)
     {
         var requested = SignedInUsers.FirstOrDefault(user => user.SessionId == sessionUserId)
