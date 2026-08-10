@@ -5,5 +5,6 @@ public enum Route
     Login,
     CreateProfile,
     Dashboard,
-    InstalledLibrary
+    InstalledLibrary,
+    RunningApps
 }
