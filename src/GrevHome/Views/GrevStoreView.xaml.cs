@@ -72,7 +72,7 @@ public partial class GrevStoreView : UserControl
                 }
             };
 
-            var text = new StackPanel { GridColumn = 1 };
+            var text = new StackPanel();
             text.Children.Add(new TextBlock
             {
                 Text = package.Presentation.DisplayName,
