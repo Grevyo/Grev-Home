@@ -86,6 +86,20 @@ Restart is a managed runtime operation:
 
 Restart never trusts a persisted executable command or arbitrary path from the recovery JSON. The AppID must still resolve through Grev Home's installed-app model.
 
+## Development runtime test app
+
+0.9 includes a development-only runtime test registration so the recovery stack can be physically tested before the package installers exist.
+
+It is enabled only when the Grev Home process starts with:
+
+```text
+GREV_HOME_RUNTIME_TEST=1
+```
+
+While enabled, Grev Home registers **Grev Runtime Test** as a Windows-installed utility. It resolves to Windows Character Map when available, with Notepad as a fallback. The app uses the normal Installed Apps -> RuntimeSessionManager path; there is no special launch bypass.
+
+When Grev Home later starts without the flag, the test manifest is removed again. This prevents the development helper from becoming a permanent fake Installed App.
+
 ## Boundaries
 
 0.9 does not yet persist the Grev Home signed-in lobby itself. After Grev Home restarts, a still-running external app can be recovered independently of whether users have signed back into the shell.
@@ -96,17 +110,18 @@ These are deliberate safety boundaries rather than silent guesses.
 
 ## Physical acceptance test
 
-With one real test application registered through Grev Home's current development app-registration path:
+Start the source build with the runtime-test flag enabled, then:
 
-1. sign in and launch the app from Installed Apps;
-2. verify Grev Home hides while the app runs;
-3. use Return Home and confirm the app remains listed in Running Apps;
-4. switch back to the app;
-5. open Grev Overlay and verify Resume, Switch App, Restart, Close, Running Apps, App Killer and Return Home are reachable by controller;
-6. choose Restart and verify the old process closes before the replacement starts;
-7. launch the app again, leave it running, close Grev Home itself, then start Grev Home again;
-8. verify the existing external app is recovered as a Running App rather than duplicated;
-9. verify Switch / Overlay actions still target that recovered process;
-10. close the recovered app and verify the runtime session clears normally.
+1. sign in and open Installed Apps;
+2. verify **Grev Runtime Test** is present and launch it;
+3. verify Grev Home hides while the Windows test utility runs;
+4. use Return Home and confirm the app remains listed in Running Apps;
+5. switch back to the app;
+6. open Grev Overlay and verify Resume, Switch App, Restart, Close, Running Apps, App Killer and Return Home are reachable by controller;
+7. choose Restart and verify the old process closes before the replacement starts;
+8. leave the test app running, close Grev Home itself, then start the same runtime-test source build again;
+9. sign in and verify the existing external app is recovered as a Running App rather than duplicated;
+10. verify Switch / Overlay actions still target that recovered process;
+11. close the recovered app and verify the runtime session clears normally.
 
 A PID shown in diagnostics may change after Restart. The recovered pre-restart session must never attach to an unrelated process that merely reused an old PID.
