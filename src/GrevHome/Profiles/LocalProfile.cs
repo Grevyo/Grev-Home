@@ -14,4 +14,5 @@ public sealed record LocalProfile(
     DateTimeOffset CreatedAtUtc,
     AccountRole Role = AccountRole.Admin,
     string AvatarKey = ProfileAvatarCatalog.DefaultKey,
-    string? AvatarImageFile = null);
+    string? AvatarImageFile = null,
+    string Bio = "");
