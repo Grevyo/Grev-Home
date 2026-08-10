@@ -33,13 +33,31 @@
                         </Grid>
 
                         <TextBlock Text="DISPLAY NAME" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,14,0,0" />
-                        <Grid Margin="0,8,0,22">
+                        <Grid Margin="0,8,0,18">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
                             <TextBox x:Name="DisplayNameTextBox" MaxLength="50" Height="52" FontSize="20" Padding="12" IsReadOnly="True" IsTabStop="False" />
                             <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenKeyboard_Click" />
+                        </Grid>
+
+                        <TextBlock Text="ABOUT" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <Grid Margin="0,8,0,22">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="BioTextBox"
+                                     MaxLength="160"
+                                     MinHeight="66"
+                                     FontSize="16"
+                                     Padding="12"
+                                     TextWrapping="Wrap"
+                                     VerticalContentAlignment="Center"
+                                     IsReadOnly="True"
+                                     IsTabStop="False" />
+                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" VerticalAlignment="Center" Click="OpenBioKeyboard_Click" />
                         </Grid>
 
                         <StackPanel x:Name="RolePanel">
