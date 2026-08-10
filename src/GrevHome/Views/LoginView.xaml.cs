@@ -31,7 +31,7 @@ public partial class LoginView : UserControl
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
         {
-            var signedIn = session.SignedInUsers.FirstOrDefault(user => user.LocalProfileId == profile.Id);
+            var signedIn = session.SignedInUsers.FirstOrDefault(user => user.GrevId == profile.GrevId);
             var button = new Button
             {
                 Width = 235,
