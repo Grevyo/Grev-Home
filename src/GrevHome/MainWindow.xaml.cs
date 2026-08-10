@@ -67,7 +67,7 @@ public partial class MainWindow : Window
         _loginView.EnterHomeRequested += (_, _) => EnterHome();
         _loginView.ClearSessionRequested += (_, _) => _session.SignOutAll();
 
-        _createProfileView.CreateRequested += name => _ = CreateProfileAsync(name);
+        _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
@@ -163,7 +163,7 @@ public partial class MainWindow : Window
         }
 
         _dashboardView.SetSession(_session);
-        _navigation.Navigate(Route.Dashboard);
+        _navigation.Reset(Route.Dashboard);
     }
 
     private async Task OpenInstalledLibraryAsync()
@@ -206,12 +206,6 @@ public partial class MainWindow : Window
 
     private void OpenSettings()
     {
-        if (!_session.HasSignedInUsers)
-        {
-            _navigation.Reset(Route.Login);
-            return;
-        }
-
         RefreshSettingsState();
         _navigation.Navigate(Route.Settings);
     }
@@ -481,7 +475,7 @@ public partial class MainWindow : Window
     private void OpenSessionLobby()
     {
         RefreshSessionSurfaces();
-        _navigation.Reset(Route.Login);
+        _navigation.Navigate(Route.Login);
     }
 
     private void OpenCreateProfile()
@@ -490,14 +484,14 @@ public partial class MainWindow : Window
         _navigation.Navigate(Route.CreateProfile);
     }
 
-    private async Task CreateProfileAsync(string username)
+    private async Task CreateProfileAsync(CreateProfileRequest request)
     {
         try
         {
-            await _profileService.CreateAsync(username);
+            await _profileService.CreateAsync(request.Username, request.Role);
             _profiles = await _profileService.GetProfilesAsync();
             RefreshSessionSurfaces();
-            _navigation.Reset(Route.Login);
+            ReturnToLogin();
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -507,7 +501,11 @@ public partial class MainWindow : Window
 
     private void ReturnToLogin()
     {
-        _navigation.Reset(Route.Login);
+        if (!_navigation.GoBack())
+        {
+            _navigation.Reset(Route.Login);
+        }
+
         RefreshSessionSurfaces();
     }
 
@@ -614,7 +612,6 @@ public partial class MainWindow : Window
         switch (_navigation.Current)
         {
             case Route.Dashboard:
-                Logout();
                 break;
             case Route.CreateProfile:
                 ReturnToLogin();
@@ -623,6 +620,10 @@ public partial class MainWindow : Window
                 CloseSettings();
                 break;
             case Route.Login:
+                if (_session.HasSignedInUsers)
+                {
+                    _navigation.Reset(Route.Dashboard);
+                }
                 break;
             default:
                 _navigation.GoBack();
@@ -672,20 +673,39 @@ public partial class MainWindow : Window
 
     private void UpdateControllerHeader()
     {
-        var connected = _controllers
-            .Select((isConnected, index) => (isConnected, index))
-            .Where(item => item.isConnected)
-            .Select(item =>
-            {
-                var user = _session.GetUserForController(item.index);
-                return $"Controller {item.index + 1}{(user is null ? string.Empty : $" → {user.DisplayName}")}";
-            })
-            .ToArray();
+        ProfileBubbleButton.Visibility = _session.HasSignedInUsers
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
-        ControllerStatusText.Text = connected.Length == 0
-            ? "No controllers"
-            : string.Join("  •  ", connected);
+        if (!_session.HasSignedInUsers)
+        {
+            ControllerStatusText.Text = "No signed-in players";
+            return;
+        }
+
+        var players = _session.SignedInUsers.Select(user =>
+        {
+            var controllers = _session.GetControllersForUser(user.SessionId);
+            var controllerText = controllers.Count == 0
+                ? "No controller"
+                : string.Join("+", controllers.Select(index => $"C{index + 1}"));
+            return $"{user.DisplayName} • {controllerText}{(user.IsPrimary ? " • Primary" : string.Empty)}";
+        });
+
+        ControllerStatusText.Text = string.Join("     ", players);
     }
+
+    private void ShellBack_Click(object sender, RoutedEventArgs e) => HandleBack();
+
+    private void ShellProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_session.HasSignedInUsers)
+        {
+            OpenSessionLobby();
+        }
+    }
+
+    private void ShellSettings_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
     private void BringGrevHomeToFront()
     {
