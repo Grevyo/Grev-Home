@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using GrevHome.Input;
+using GrevHome.Navigation;
 
 namespace GrevHome;
 
@@ -44,6 +45,14 @@ public partial class MainWindow
             return;
         }
 
+        // The Login screen intentionally has profile cards in a scrolling WrapPanel and
+        // Create Account in a separate row. Give that boundary an explicit controller rule
+        // instead of relying on WPF to infer a spatial relationship across containers.
+        if (TryCorrectLoginNavigation(action, originalFocus))
+        {
+            return;
+        }
+
         var currentFocus = Keyboard.FocusedElement as Button;
         if (currentFocus is not null && currentFocus != originalFocus)
         {
@@ -81,6 +90,43 @@ public partial class MainWindow
         }
 
         FocusNearestByHorizontalPosition(headerButtons, originalCenter.X);
+    }
+
+    private bool TryCorrectLoginNavigation(InputAction action, Button originalFocus)
+    {
+        if (_navigation.Current != Route.Login)
+        {
+            return false;
+        }
+
+        var createAccount = _loginView.CreateAccountFocusTarget;
+        var profiles = _loginView.ProfileFocusTargets
+            .Where(IsFocusableButton)
+            .ToArray();
+
+        if (originalFocus == createAccount && action == InputAction.Up && profiles.Length > 0)
+        {
+            FocusNearestByHorizontalPosition(profiles, GetCenter(createAccount).X);
+            return true;
+        }
+
+        if (action != InputAction.Down || !profiles.Contains(originalFocus))
+        {
+            return false;
+        }
+
+        var originalCenter = GetCenter(originalFocus);
+        var hasProfileBelow = profiles
+            .Where(button => button != originalFocus)
+            .Any(button => GetCenter(button).Y > originalCenter.Y + 8);
+
+        if (hasProfileBelow)
+        {
+            return false;
+        }
+
+        createAccount.Focus();
+        return true;
     }
 
     private void CorrectMovementFromHeader(
