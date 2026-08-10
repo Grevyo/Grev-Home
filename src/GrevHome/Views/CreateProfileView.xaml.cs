@@ -17,7 +17,7 @@ public partial class CreateProfileView : UserControl
     public void Reset()
     {
         ProfileNameTextBox.Clear();
-        StatusText.Text = "Use the controller keyboard below, or type with a physical keyboard. A permanent GrevID is created with the account.";
+        StatusText.Text = "Your display name starts the same as your username and can be changed later without changing your GrevID or folders.";
     }
 
     public void ShowError(string message)
