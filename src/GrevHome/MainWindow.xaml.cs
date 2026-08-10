@@ -4,6 +4,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
+using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
 using GrevHome.Profiles;
@@ -20,16 +21,23 @@ public partial class MainWindow : Window
     private readonly ControllerInputService _controllerInput = new();
     private readonly AppPaths _paths = new();
     private readonly ProfileService _profileService;
+    private readonly AppCatalogService _appCatalogue;
+    private readonly AppPathResolver _appPathResolver;
+    private readonly InstalledAppService _installedApps;
     private readonly bool[] _controllers = new bool[4];
     private readonly LoginView _loginView = new();
     private readonly CreateProfileView _createProfileView = new();
     private readonly DashboardView _dashboardView = new();
+    private readonly InstalledLibraryView _installedLibraryView = new();
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
 
     public MainWindow()
     {
         InitializeComponent();
         _profileService = new ProfileService(_paths);
+        _appCatalogue = new AppCatalogService(_paths);
+        _appPathResolver = new AppPathResolver(_paths);
+        _installedApps = new InstalledAppService(_paths, _appPathResolver, _appCatalogue);
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
@@ -44,7 +52,9 @@ public partial class MainWindow : Window
         _createProfileView.CreateRequested += name => _ = CreateProfileAsync(name);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
+        _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
         _dashboardView.LogoutRequested += (_, _) => Logout();
+        _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
 
         _controllerInput.ActionPressed += input =>
             Dispatcher.BeginInvoke(new Action(() => HandleInput(input.Action, input.ControllerIndex)));
@@ -83,6 +93,20 @@ public partial class MainWindow : Window
         _navigation.Navigate(Route.Dashboard);
     }
 
+    private async Task OpenInstalledLibraryAsync()
+    {
+        if (!_session.HasSignedInUsers)
+        {
+            _navigation.Reset(Route.Login);
+            return;
+        }
+
+        var primary = _session.PrimaryUser;
+        var entries = await _installedApps.GetInstalledForUserAsync(primary?.GrevId);
+        _installedLibraryView.SetLibrary(entries, primary);
+        _navigation.Navigate(Route.InstalledLibrary);
+    }
+
     private void OpenSessionLobby()
     {
         RefreshSessionSurfaces();
@@ -95,11 +119,11 @@ public partial class MainWindow : Window
         _navigation.Navigate(Route.CreateProfile);
     }
 
-    private async Task CreateProfileAsync(string displayName)
+    private async Task CreateProfileAsync(string username)
     {
         try
         {
-            await _profileService.CreateAsync(displayName);
+            await _profileService.CreateAsync(username);
             _profiles = await _profileService.GetProfilesAsync();
             RefreshSessionSurfaces();
             _navigation.Reset(Route.Login);
@@ -136,6 +160,7 @@ public partial class MainWindow : Window
             Route.Login => _loginView,
             Route.CreateProfile => _createProfileView,
             Route.Dashboard => _dashboardView,
+            Route.InstalledLibrary => _installedLibraryView,
             _ => _loginView
         };
 

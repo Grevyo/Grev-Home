@@ -1,4 +1,5 @@
 using System.IO;
+using GrevHome.Apps;
 
 namespace GrevHome.Storage;
 
@@ -8,6 +9,8 @@ public sealed class AppPaths
 
     public string Root { get; }
     public string Data => Path.Combine(Root, "Data");
+    public string AppCatalogueData => Path.Combine(Data, "Apps");
+    public string AppCatalogueFile => Path.Combine(AppCatalogueData, "catalog.json");
     public string Profiles => Path.Combine(Root, "Profiles");
     public string GuestShared => Path.Combine(Profiles, "_GuestShared");
     public string Global => Path.Combine(Root, "Global");
@@ -34,8 +37,14 @@ public sealed class AppPaths
     public string GetProfileApps(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Apps");
 
+    public string GetProfileAppRoot(string grevId, string appId) =>
+        Path.Combine(GetProfileApps(grevId), AppIdentity.ValidateAppId(appId));
+
     public string GetProfileAppData(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "AppData");
+
+    public string GetProfileAppDataRoot(string grevId, string appId) =>
+        Path.Combine(GetProfileAppData(grevId), AppIdentity.ValidateAppId(appId));
 
     public string GetProfileSaves(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Saves");
@@ -52,10 +61,17 @@ public sealed class AppPaths
     public string GetProfileThemes(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Themes");
 
+    public string GetGlobalAppRoot(string appId) =>
+        Path.Combine(GlobalApps, AppIdentity.ValidateAppId(appId));
+
+    public string GetGlobalAppDataRoot(string appId) =>
+        Path.Combine(GlobalAppData, AppIdentity.ValidateAppId(appId));
+
     public void EnsureMachineLayout()
     {
         Directory.CreateDirectory(Root);
         Directory.CreateDirectory(Data);
+        Directory.CreateDirectory(AppCatalogueData);
         Directory.CreateDirectory(Profiles);
         Directory.CreateDirectory(Global);
         Directory.CreateDirectory(GlobalApps);
