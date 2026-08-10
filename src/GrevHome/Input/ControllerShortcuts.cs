@@ -1,0 +1,200 @@
+using System.IO;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using GrevHome.Storage;
+
+namespace GrevHome.Input;
+
+public enum ControllerShortcutAction
+{
+    ReturnHome,
+    Overlay
+}
+
+public enum ControllerButton
+{
+    DPadUp,
+    DPadDown,
+    DPadLeft,
+    DPadRight,
+    Menu,
+    View,
+    LeftThumb,
+    RightThumb,
+    LeftShoulder,
+    RightShoulder,
+    A,
+    B,
+    X,
+    Y,
+    LeftTrigger,
+    RightTrigger
+}
+
+public sealed record ControllerShortcutBinding(
+    string Id,
+    ControllerShortcutAction Action,
+    IReadOnlyList<ControllerButton> Buttons,
+    int HoldMilliseconds,
+    bool Enabled = true,
+    byte TriggerThreshold = 160);
+
+public sealed record ControllerShortcutConfiguration(
+    int Version,
+    IReadOnlyList<ControllerShortcutBinding> Bindings);
+
+public sealed record ControllerShortcutEventArgs(
+    int ControllerIndex,
+    ControllerShortcutAction Action,
+    string BindingId);
+
+public sealed class ControllerShortcutService
+{
+    private const int CurrentVersion = 1;
+    private const int MaximumButtonsPerBinding = 8;
+    private const int MaximumHoldMilliseconds = 5000;
+
+    private readonly AppPaths _paths;
+    private readonly JsonSerializerOptions _jsonOptions = new()
+    {
+        WriteIndented = true,
+        Converters = { new JsonStringEnumConverter() }
+    };
+
+    public ControllerShortcutService(AppPaths paths)
+    {
+        _paths = paths;
+    }
+
+    public ControllerShortcutConfiguration LoadOrCreate()
+    {
+        _paths.EnsureMachineLayout();
+
+        if (!File.Exists(_paths.ControllerShortcutsFile))
+        {
+            var defaults = CreateDefaults();
+            Save(defaults);
+            return defaults;
+        }
+
+        try
+        {
+            var json = File.ReadAllText(_paths.ControllerShortcutsFile);
+            var loaded = JsonSerializer.Deserialize<ControllerShortcutConfiguration>(json, _jsonOptions);
+            return NormalizeAndValidate(loaded);
+        }
+        catch (JsonException)
+        {
+            // A malformed custom shortcut file must not strand the user outside Grev Home.
+            // Keep the file untouched for later repair and run safe defaults for this session.
+            return CreateDefaults();
+        }
+        catch (InvalidOperationException)
+        {
+            return CreateDefaults();
+        }
+    }
+
+    public void Save(ControllerShortcutConfiguration configuration)
+    {
+        var validated = NormalizeAndValidate(configuration);
+        _paths.EnsureMachineLayout();
+
+        var temporaryPath = _paths.ControllerShortcutsFile + ".tmp";
+        try
+        {
+            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(validated, _jsonOptions));
+            File.Move(temporaryPath, _paths.ControllerShortcutsFile, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    public static ControllerShortcutConfiguration CreateDefaults() =>
+        new(
+            CurrentVersion,
+            new[]
+            {
+                new ControllerShortcutBinding(
+                    "return-home-default",
+                    ControllerShortcutAction.ReturnHome,
+                    new[]
+                    {
+                        ControllerButton.LeftShoulder,
+                        ControllerButton.RightShoulder,
+                        ControllerButton.View
+                    },
+                    HoldMilliseconds: 700),
+                new ControllerShortcutBinding(
+                    "overlay-default",
+                    ControllerShortcutAction.Overlay,
+                    new[]
+                    {
+                        ControllerButton.LeftShoulder,
+                        ControllerButton.RightShoulder,
+                        ControllerButton.Menu
+                    },
+                    HoldMilliseconds: 450)
+            });
+
+    private static ControllerShortcutConfiguration NormalizeAndValidate(
+        ControllerShortcutConfiguration? configuration)
+    {
+        if (configuration is null || configuration.Version != CurrentVersion)
+        {
+            throw new InvalidOperationException("Unsupported controller shortcut configuration.");
+        }
+
+        var bindings = configuration.Bindings?.ToList() ?? new List<ControllerShortcutBinding>();
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var seenCombinations = new Dictionary<string, ControllerShortcutAction>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var binding in bindings)
+        {
+            if (string.IsNullOrWhiteSpace(binding.Id) || binding.Id.Length > 64 || !seenIds.Add(binding.Id))
+            {
+                throw new InvalidOperationException("Controller shortcut binding IDs must be unique and 1-64 characters long.");
+            }
+
+            var buttons = binding.Buttons?.Distinct().ToArray() ?? Array.Empty<ControllerButton>();
+            if (buttons.Length == 0 || buttons.Length > MaximumButtonsPerBinding)
+            {
+                throw new InvalidOperationException($"Controller shortcuts must contain between 1 and {MaximumButtonsPerBinding} buttons.");
+            }
+
+            if (binding.HoldMilliseconds is < 0 or > MaximumHoldMilliseconds)
+            {
+                throw new InvalidOperationException($"Controller shortcut hold time must be between 0 and {MaximumHoldMilliseconds} ms.");
+            }
+
+            if (binding.TriggerThreshold == 0)
+            {
+                throw new InvalidOperationException("Trigger threshold must be greater than zero.");
+            }
+
+            var combinationKey = string.Join(
+                "+",
+                buttons.OrderBy(button => button.ToString(), StringComparer.Ordinal));
+
+            if (seenCombinations.TryGetValue(combinationKey, out var existingAction) && existingAction != binding.Action)
+            {
+                throw new InvalidOperationException("The same controller combination cannot trigger two different Grev system actions.");
+            }
+
+            seenCombinations[combinationKey] = binding.Action;
+        }
+
+        if (!bindings.Any(binding => binding.Enabled && binding.Action == ControllerShortcutAction.ReturnHome))
+        {
+            // Direct Home is the recovery path. It can be remapped, but at least one enabled binding must exist.
+            bindings.Insert(0, CreateDefaults().Bindings[0]);
+        }
+
+        return new ControllerShortcutConfiguration(CurrentVersion, bindings);
+    }
+}
