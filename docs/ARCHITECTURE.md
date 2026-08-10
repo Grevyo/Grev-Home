@@ -12,25 +12,57 @@
 8. **Online is additive** — Grev.dad adds sync, levels, community and identity features; it does not replace the local runtime model.
 9. **Themes are packages** — presentation is customisable/exportable without allowing themes to own application logic.
 10. **Install scope is explicit** — future packages choose GrevId-local or machine-global storage. Shared binaries must not be duplicated just to provide per-user data.
+11. **Local identity is portable** — GrevId is safe to use as a folder/package identity so local accounts can later be exported or transferred without depending on a Windows account or machine-specific GUID path.
+
+## GrevId contract
+
+A local account receives a GrevId exactly once at creation.
+
+Format:
+
+```text
+GxxxxUsernamexxx
+```
+
+- `G` — Grev identity marker.
+- `xxxx` — four randomly generated uppercase alphanumeric characters.
+- `Username` — a filesystem-safe readable snapshot of the local display name at creation.
+- `xxx` — three randomly generated uppercase alphanumeric characters.
+- The complete generated ID is collision-checked against known accounts and existing profile directories before it is accepted.
+- GrevId matching is case-insensitive because the primary target filesystem is Windows.
+- GrevIds contain only ASCII letters, digits and `_`.
+- Maximum display-name length is **50 characters**.
+- Maximum GrevId path component length is therefore **58 characters**: `G` + 4 + 50 + 3.
+- Whitespace/hyphen/underscore runs in the username snapshot become `_`; unsupported characters are omitted. If no safe characters remain, the readable section becomes `User`.
+- Renaming the account later changes only `DisplayName`; it never changes GrevId.
+
+Example:
+
+```text
+DisplayName: Grev
+GrevId:      G4P7KGrev9Q2
+```
+
+If the display name later becomes `Grevyo`, the GrevId stays `G4P7KGrev9Q2`.
 
 ## Identity model
 
-A persistent local account has a permanent **GrevId**. Its display name may change later without changing that identifier.
+A persistent local account has a permanent **GrevId** and a changeable display name.
 
 A signed-in runtime user additionally receives a temporary **SessionId**. Controller assignments and the `IsPrimary` flag refer to the runtime SessionId, not to folder names.
 
 ```text
 Local Account
-  GrevId: 7f...c2      ← persistent identity / folder owner
+  GrevId: G4P7KGrev9Q2  ← persistent identity / folder owner
   DisplayName: Grev
 
 Current Session
-  SessionId: a1...9e   ← temporary runtime identity
-  GrevId: 7f...c2
-  IsPrimary: true      ← session role only
+  SessionId: a1...9e     ← temporary runtime identity
+  GrevId: G4P7KGrev9Q2
+  IsPrimary: true        ← session role only
 ```
 
-Changing the Primary User therefore changes which signed-in account's GrevId is used for profile-specific launches. It does not rename, move or create profile folders.
+Changing the Primary User therefore changes which signed-in account's GrevId is used for account-specific launches. It does not rename, move or create profile folders.
 
 ## Runtime storage contract
 
@@ -50,6 +82,8 @@ Machine-level content uses `Global/Apps` and `Global/AppData`. Guest sessions us
 
 This means a future package can express combinations such as **shared binary + per-GrevId data**, **GrevId-local binary + per-GrevId data**, or **fully global app**, without changing the account model.
 
+The portable GrevId also gives future profile export/import a stable identity. An imported local account can retain its GrevId rather than being silently re-created as a different person on another machine. Import collision/ownership rules will be designed with that feature rather than guessed in 0.2.
+
 ## Session and controller model
 
 - Several users may be signed in simultaneously.
@@ -68,7 +102,7 @@ The reserved direct-home shortcut is **hold LB + RB + View for 700 ms**. It live
 ## Foundation sequence
 
 1. Shell and input foundation — 0.1
-2. Persistent GrevId accounts, multi-user sign-in, controller assignment and session-only Primary User — 0.2
+2. Persistent portable GrevId accounts, multi-user sign-in, controller assignment and session-only Primary User — 0.2
 3. App catalogue and installed library
 4. Session/process manager and playtime
 5. Overlay and app switcher
