@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Apps;
+using GrevHome.Presentation;
 using GrevHome.Sessions;
 using GrevHome.Store;
 
@@ -29,7 +30,7 @@ public partial class GrevStoreAppView : UserControl
         _package = package;
         _installedEntry = installedEntry;
 
-        AppGlyphText.Text = package.Presentation.FallbackGlyph;
+        AppArtworkHost.Child = AppArtworkFactory.Create(package.Presentation.IconAsset, 112, 20);
         AppNameText.Text = package.Presentation.DisplayName;
         AppTypeText.Text = $"{FormatCategory(package.Category)}  •  {package.App.Kind}";
         CategoryText.Text = FormatCategory(package.Category);
