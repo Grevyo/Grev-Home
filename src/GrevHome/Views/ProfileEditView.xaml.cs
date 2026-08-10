@@ -9,17 +9,25 @@ namespace GrevHome.Views;
 public sealed record ProfileEditRequest(
     string GrevId,
     string DisplayName,
+    string Bio,
     string AvatarKey,
     AccountRole Role,
     string? CustomAvatarSourcePath);
 
 public partial class ProfileEditView : UserControl
 {
+    private enum KeyboardTarget
+    {
+        DisplayName,
+        Bio
+    }
+
     private LocalProfile? _profile;
     private string _selectedAvatarKey = ProfileAvatarCatalog.DefaultKey;
     private AccountRole _selectedRole = AccountRole.Standard;
     private bool _canChangeRole;
     private string? _customAvatarSourcePath;
+    private KeyboardTarget _keyboardTarget = KeyboardTarget.DisplayName;
 
     public event Action<ProfileEditRequest>? SaveRequested;
     public event EventHandler? ChooseCustomPhotoRequested;
@@ -34,9 +42,17 @@ public partial class ProfileEditView : UserControl
         BuildAvatarButtons();
         KeyboardOverlay.Completed += value =>
         {
-            DisplayNameTextBox.Text = value;
-            DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-            UpdateAvatarPresentation();
+            if (_keyboardTarget == KeyboardTarget.DisplayName)
+            {
+                DisplayNameTextBox.Text = value;
+                DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
+                UpdateAvatarPresentation();
+            }
+            else
+            {
+                BioTextBox.Text = value;
+                BioTextBox.CaretIndex = BioTextBox.Text.Length;
+            }
         };
         KeyboardOverlay.Opened += (_, _) => KeyboardOpened?.Invoke(this, EventArgs.Empty);
         KeyboardOverlay.Closed += (_, _) => KeyboardClosed?.Invoke(this, EventArgs.Empty);
@@ -52,22 +68,31 @@ public partial class ProfileEditView : UserControl
         IdentityText.Text = $"@{profile.Username}  •  {profile.GrevId}  •  Username and GrevID are permanent";
         DisplayNameTextBox.Text = profile.DisplayName;
         DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
+        BioTextBox.Text = profile.Bio ?? string.Empty;
+        BioTextBox.CaretIndex = BioTextBox.Text.Length;
         RolePanel.Visibility = canChangeRole ? Visibility.Visible : Visibility.Collapsed;
         RoleLockedText.Visibility = canChangeRole ? Visibility.Collapsed : Visibility.Visible;
         RoleLockedText.Text = $"Role: {profile.Role} • only an Admin can change account roles.";
-        StatusText.Text = "Display Name and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
+        StatusText.Text = "Display Name, About and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
         UpdateAvatarPresentation();
         UpdateRolePresentation();
     }
 
     public ProfileEditRequest? CaptureDraft() => _profile is null
         ? null
-        : new ProfileEditRequest(_profile.GrevId, DisplayNameTextBox.Text, _selectedAvatarKey, _selectedRole, _customAvatarSourcePath);
+        : new ProfileEditRequest(
+            _profile.GrevId,
+            DisplayNameTextBox.Text,
+            BioTextBox.Text,
+            _selectedAvatarKey,
+            _selectedRole,
+            _customAvatarSourcePath);
 
     public void RestoreDraft(ProfileEditRequest draft)
     {
         if (_profile is null || !string.Equals(_profile.GrevId, draft.GrevId, StringComparison.OrdinalIgnoreCase)) return;
         DisplayNameTextBox.Text = draft.DisplayName;
+        BioTextBox.Text = draft.Bio;
         _selectedAvatarKey = ProfileAvatarCatalog.Normalize(draft.AvatarKey);
         _selectedRole = draft.Role;
         _customAvatarSourcePath = draft.CustomAvatarSourcePath;
@@ -96,8 +121,17 @@ public partial class ProfileEditView : UserControl
         }
     }
 
-    private void OpenKeyboard_Click(object sender, RoutedEventArgs e) =>
+    private void OpenKeyboard_Click(object sender, RoutedEventArgs e)
+    {
+        _keyboardTarget = KeyboardTarget.DisplayName;
         KeyboardOverlay.Open("Change Display Name", DisplayNameTextBox.Text, DisplayNameTextBox.MaxLength);
+    }
+
+    private void OpenBioKeyboard_Click(object sender, RoutedEventArgs e)
+    {
+        _keyboardTarget = KeyboardTarget.Bio;
+        KeyboardOverlay.Open("Edit About", BioTextBox.Text, BioTextBox.MaxLength);
+    }
 
     private void ChoosePhoto_Click(object sender, RoutedEventArgs e) => ChooseCustomPhotoRequested?.Invoke(this, EventArgs.Empty);
 
