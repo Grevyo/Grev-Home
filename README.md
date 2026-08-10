@@ -27,7 +27,11 @@ G4P7KGrev9Q2
 
 That ID is permanent. If the display name later changes to `Grevyo`, the GrevId remains `G4P7KGrev9Q2`.
 
+A display name such as `Joe Greeves` can produce a readable GrevId section such as `Joe_Greeves` while the visible display name remains unchanged.
+
 The username part exists to make profile folders easier to identify. Uniqueness comes from the random prefix/suffix plus an actual collision check before creation.
+
+This stable identity is also intended to support future **local-profile export/import and sharing**. A transferred profile can retain its GrevId on another Grev Home machine instead of being re-created as a different identity.
 
 ## Milestone 0.1
 
