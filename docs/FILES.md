@@ -6,11 +6,14 @@ Milestone 0.8 introduces the first internal Grev Home file browser. It is a cont
 
 The Home surface discovers available locations at runtime:
 
+- **Test Area** — disposable Grev Home-owned sandbox for UI-only file-operation testing
 - Windows Downloads
 - Windows Documents
 - Windows Pictures
 - Grev Home machine data root
 - every Windows drive that is currently ready, including fixed and removable media
+
+The first time Files Home is opened, Grev Home creates `C:\GrevHome\TestArea` with disposable sample folders and text files. If the whole TestArea folder is later removed, Grev Home can recreate a fresh sandbox when Files Home is opened again.
 
 Drive cards show label/type and free/total capacity where Windows reports it.
 
@@ -61,7 +64,7 @@ The filesystem service:
 - tolerates removable/network locations disappearing during enumeration;
 - reports access/IO errors in Grev Home rather than crashing the whole shell.
 
-Delete is deliberately confirmed in an internal Grev Home overlay. **0.8 deletion is permanent and does not use the Windows Recycle Bin.** A future milestone may add Recycle Bin support before this becomes the preferred everyday delete path.
+Delete is deliberately confirmed in an internal Grev Home overlay. **0.8 deletion is permanent and does not use the Windows Recycle Bin.** The built-in Test Area exists so destructive testing does not require touching real personal data.
 
 ## Controller text entry
 
@@ -103,18 +106,18 @@ Those can build on the same `FileSystemService` / Files route later without repl
 
 ## Manual acceptance flow
 
-Use a disposable test folder/USB for destructive operations.
+This flow can now be completed through Grev Home itself; no CMD or Windows Explorer setup is required for the file-operation test data.
 
 1. Dashboard → Files using controller only.
-2. Verify Downloads/Documents/Pictures/Grev Home Data and ready drives appear.
-3. Enter a drive/folder, enter several nested folders, then use B repeatedly and verify it walks back through those folders before Dashboard.
-4. Use New Folder and create a mixed-case folder using the on-screen keyboard.
-5. Rename that folder.
-6. Create/copy a small test file with a physical keyboard or outside Grev Home, refresh, select it and choose Copy.
-7. Navigate elsewhere and Paste Here; verify the destination appears and the Copy source remains ready.
-8. Choose Move on a disposable file/folder, navigate elsewhere and Paste Here; verify it disappears from the source and the Move clipboard clears.
+2. Verify **Test Area**, Downloads, Documents, Pictures, Grev Home Data and ready drives appear.
+3. Open Test Area and verify `Folder A`, `Copy Move Test`, `Destination`, `Test File 1.txt` and `Test File 2.txt` exist.
+4. Enter `Folder A` → `Folder B`, then use B repeatedly and verify it walks backward through Files history before Dashboard.
+5. Use New Folder and create a mixed-case folder using the on-screen keyboard.
+6. Rename that folder.
+7. Select `Test File 1.txt` and choose Copy; navigate to `Destination` and Paste Here. Verify the copy appears and the Copy source remains ready.
+8. Select `Test File 2.txt` and choose Move; navigate to `Copy Move Test` and Paste Here. Verify the source disappears and the Move clipboard clears.
 9. Attempt to paste a copied folder into one of its own descendants; verify Grev Home rejects it.
 10. Attempt to paste where an item with the same name already exists; verify Grev Home refuses to overwrite it.
-11. Delete a disposable file/folder; verify the confirmation surface appears first.
+11. Delete a disposable Test Area file/folder; verify the confirmation surface appears first.
 12. Open Rename/Delete and press B; verify the modal cancels before folder navigation changes.
 13. Connect a removable drive, refresh Files Home, browse it, then safely remove it and verify a subsequent refresh/error does not crash Grev Home.
