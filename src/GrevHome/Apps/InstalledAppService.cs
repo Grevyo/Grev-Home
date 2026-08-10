@@ -34,12 +34,12 @@ public sealed class InstalledAppService
         _paths.EnsureMachineLayout();
         var manifests = new List<InstalledAppManifest>();
 
-        manifests.AddRange(await ReadManifestsUnderAsync(_paths.GlobalApps, cancellationToken));
+        manifests.AddRange(await ReadManifestsUnderAsync(_paths.GlobalApps, expectedOwnerGrevId: null, cancellationToken));
 
         if (!string.IsNullOrWhiteSpace(grevId))
         {
             _paths.EnsureProfileLayout(grevId);
-            manifests.AddRange(await ReadManifestsUnderAsync(_paths.GetProfileApps(grevId), cancellationToken));
+            manifests.AddRange(await ReadManifestsUnderAsync(_paths.GetProfileApps(grevId), grevId, cancellationToken));
         }
 
         var results = new List<InstalledAppEntry>();
@@ -86,8 +86,7 @@ public sealed class InstalledAppService
         string? ownerGrevId,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(definition);
-        AppIdentity.ValidateAppId(definition.AppId);
+        ValidateDefinition(definition);
 
         if (string.IsNullOrWhiteSpace(version) || version.Length > 40)
         {
@@ -122,6 +121,7 @@ public sealed class InstalledAppService
 
     private async Task<IReadOnlyList<InstalledAppManifest>> ReadManifestsUnderAsync(
         string root,
+        string? expectedOwnerGrevId,
         CancellationToken cancellationToken)
     {
         if (!Directory.Exists(root))
@@ -147,13 +147,28 @@ public sealed class InstalledAppService
                     _jsonOptions,
                     cancellationToken);
 
-                if (manifest is null)
+                if (manifest?.Definition is null)
                 {
                     continue;
                 }
 
-                AppIdentity.ValidateAppId(manifest.Definition.AppId);
+                ValidateDefinition(manifest.Definition);
+
                 if (!string.Equals(Path.GetFileName(directory), manifest.Definition.AppId, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var isGrevIdLocal = manifest.Definition.InstallStrategy == InstallStrategy.GrevIdPortable;
+                if (expectedOwnerGrevId is null)
+                {
+                    if (isGrevIdLocal || manifest.OwnerGrevId is not null)
+                    {
+                        continue;
+                    }
+                }
+                else if (!isGrevIdLocal ||
+                         !string.Equals(manifest.OwnerGrevId, expectedOwnerGrevId, StringComparison.OrdinalIgnoreCase))
                 {
                     continue;
                 }
@@ -171,6 +186,17 @@ public sealed class InstalledAppService
         }
 
         return manifests;
+    }
+
+    private static void ValidateDefinition(AppDefinition definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        AppIdentity.ValidateAppId(definition.AppId);
+
+        if (string.IsNullOrWhiteSpace(definition.Name) || definition.Launch is null || string.IsNullOrWhiteSpace(definition.Launch.Executable))
+        {
+            throw new ArgumentException("Installed app manifest contains an invalid app definition.", nameof(definition));
+        }
     }
 
     private async Task WriteManifestAsync(
