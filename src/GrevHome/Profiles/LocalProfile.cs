@@ -1,6 +1,6 @@
 namespace GrevHome.Profiles;
 
 public sealed record LocalProfile(
-    Guid Id,
+    Guid GrevId,
     string DisplayName,
     DateTimeOffset CreatedAtUtc);
