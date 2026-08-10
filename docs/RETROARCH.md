@@ -23,7 +23,7 @@ RetroArch is also the first registered trusted Grev Store package:
 
 The same package definition supplies both Store discovery metadata and the technical `AppDefinition`. There must not be a second manually maintained Store entry that can drift away from the installer definition.
 
-The Grev Home package supplies default presentation that works on a clean profile. Each GrevID may later layer its own app display name, icon, tile media/GIF and hero media over those defaults without editing the package or RetroArch files. Resetting presentation reveals the Grev Home defaults again.
+The Grev Home package supplies default presentation that works on a clean profile. Store and Installed Apps tiles use the package artwork/icon plus the app name only; text initials are not used as substitute artwork. Each GrevID may later layer its own app display name, icon, tile media/GIF and hero media over those defaults after installation without editing the package or RetroArch files. Resetting presentation reveals the Grev Home defaults again.
 
 See `docs/GREV_STORE.md` for the general Store/presentation contract.
 
