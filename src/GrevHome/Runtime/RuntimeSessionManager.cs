@@ -12,8 +12,11 @@ public sealed class RuntimeSessionManager : IDisposable
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(500);
     private static readonly TimeSpan ExitGracePeriod = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan PersistHeartbeatInterval = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan RestartGracefulWait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan RestartForceWait = TimeSpan.FromSeconds(3);
 
     private readonly ConcurrentDictionary<Guid, TrackedLaunchSession> _active = new();
+    private readonly ConcurrentDictionary<Guid, byte> _restarting = new();
     private readonly ProcessTreeService _processTree;
     private readonly ProcessWindowService _processWindows;
     private readonly PlaytimeService _playtime;
@@ -47,6 +50,11 @@ public sealed class RuntimeSessionManager : IDisposable
             .Select(session => session.Snapshot())
             .OrderByDescending(session => session.StartedAtUtc)
             .ToArray();
+
+    public LaunchSessionSnapshot? GetSession(Guid launchSessionId) =>
+        _active.TryGetValue(launchSessionId, out var tracked)
+            ? tracked.Snapshot()
+            : null;
 
     public LaunchSessionSnapshot? GetForegroundSession()
     {
@@ -130,6 +138,84 @@ public sealed class RuntimeSessionManager : IDisposable
         return true;
     }
 
+    public async Task<LaunchSessionSnapshot> RestartAsync(
+        Guid launchSessionId,
+        InstalledAppEntry entry,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+
+        if (!_restarting.TryAdd(launchSessionId, 0))
+        {
+            throw new InvalidOperationException("That app is already restarting.");
+        }
+
+        try
+        {
+            if (!_active.TryGetValue(launchSessionId, out var tracked))
+            {
+                throw new InvalidOperationException("That runtime session is no longer active.");
+            }
+
+            var snapshot = tracked.Snapshot();
+            if (!string.Equals(
+                    entry.Manifest.Definition.AppId,
+                    snapshot.AppId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException("The installed app no longer matches the running session.");
+            }
+
+            if (!entry.AvailableToCurrentUser)
+            {
+                throw new InvalidOperationException(
+                    entry.AvailabilityMessage ?? "That app is not currently available to this profile.");
+            }
+
+            var processIds = GetValidatedProcessIds(tracked);
+            if (processIds.Count > 0)
+            {
+                if (!RequestClose(launchSessionId))
+                {
+                    ForceClose(launchSessionId);
+                }
+
+                await WaitForProcessesToExitAsync(tracked, RestartGracefulWait, cancellationToken);
+
+                if (GetValidatedProcessIds(tracked).Count > 0)
+                {
+                    ForceClose(launchSessionId);
+                    await WaitForProcessesToExitAsync(tracked, RestartForceWait, cancellationToken);
+                }
+
+                if (GetValidatedProcessIds(tracked).Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        $"Windows did not close {snapshot.AppName}, so Grev Home did not start a duplicate copy.");
+                }
+            }
+
+            // Give the normal monitor a brief chance to finalize the old playtime record before
+            // registering the replacement session. A replacement may still start if finalization
+            // is finishing in parallel because it receives its own LaunchSessionId.
+            var finalizeDeadline = DateTimeOffset.UtcNow.Add(ExitGracePeriod + TimeSpan.FromSeconds(1));
+            while (_active.ContainsKey(launchSessionId) && DateTimeOffset.UtcNow < finalizeDeadline)
+            {
+                await Task.Delay(100, cancellationToken);
+            }
+
+            return await LaunchAsync(
+                entry,
+                snapshot.PrimaryGrevId,
+                snapshot.Participants,
+                cancellationToken);
+        }
+        finally
+        {
+            _restarting.TryRemove(launchSessionId, out _);
+        }
+    }
+
     public Task<LaunchSessionSnapshot> LaunchAsync(
         InstalledAppEntry entry,
         SessionContext sessionContext,
@@ -210,6 +296,7 @@ public sealed class RuntimeSessionManager : IDisposable
                 string.IsNullOrWhiteSpace(record.AppId) ||
                 string.IsNullOrWhiteSpace(record.AppName) ||
                 record.StartedAtUtc == default ||
+                record.Processes is null ||
                 record.Processes.Count == 0 ||
                 record.State is LaunchSessionState.Exited or LaunchSessionState.Failed)
             {
@@ -337,6 +424,24 @@ public sealed class RuntimeSessionManager : IDisposable
         PersistRuntimeState(force: true);
         SessionChanged?.Invoke(snapshot);
         SessionEnded?.Invoke(snapshot);
+    }
+
+    private async Task WaitForProcessesToExitAsync(
+        TrackedLaunchSession tracked,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        var deadline = DateTimeOffset.UtcNow.Add(timeout);
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (GetValidatedProcessIds(tracked).Count == 0)
+            {
+                return;
+            }
+
+            await Task.Delay(150, cancellationToken);
+        }
     }
 
     private IReadOnlyList<int> GetValidatedProcessIds(TrackedLaunchSession tracked) =>
