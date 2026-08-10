@@ -7,7 +7,25 @@ public sealed record ProfileTopAppStat(
     string AppName,
     long TotalSeconds,
     int SessionCount,
-    bool IsRunning);
+    bool IsRunning,
+    DateTimeOffset LastActivityAtUtc);
+
+public sealed record ProfileRecentActivityStat(
+    string AppId,
+    string AppName,
+    long TotalSeconds,
+    int SessionCount,
+    bool IsRunning,
+    DateTimeOffset LastActivityAtUtc);
+
+public sealed record ProfileMilestoneStat(
+    string MilestoneId,
+    string Title,
+    string Description,
+    bool IsEarned,
+    long ProgressValue,
+    long TargetValue,
+    string ProgressLabel);
 
 public sealed record ProfileStatSourceSnapshot(
     string SourceId,
@@ -19,7 +37,8 @@ public sealed record ProfileStatSourceSnapshot(
     int ActiveSessions,
     int UniqueApps,
     DateTimeOffset? LastActivityAtUtc,
-    IReadOnlyList<ProfileTopAppStat> TopApps);
+    IReadOnlyList<ProfileTopAppStat> TopApps,
+    IReadOnlyList<ProfileRecentActivityStat> RecentActivity);
 
 public sealed record ProfileLevelProgress(
     int Level,
@@ -36,6 +55,8 @@ public sealed record ProfileStatsSnapshot(
     int UniqueApps,
     DateTimeOffset? LastActivityAtUtc,
     IReadOnlyList<ProfileTopAppStat> TopApps,
+    IReadOnlyList<ProfileRecentActivityStat> RecentActivity,
+    IReadOnlyList<ProfileMilestoneStat> Milestones,
     IReadOnlyList<ProfileStatSourceSnapshot> Sources);
 
 public sealed record ProfileStatsContext(
@@ -75,7 +96,13 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
 
         var combined = stored.Apps.Values.ToDictionary(
             app => app.AppId,
-            app => new MutableAppStat(app.AppId, app.AppName, app.TotalSeconds, app.SessionCount, false),
+            app => new MutableAppStat(
+                app.AppId,
+                app.AppName,
+                app.TotalSeconds,
+                app.SessionCount,
+                false,
+                app.LastPlayedAtUtc),
             StringComparer.OrdinalIgnoreCase);
 
         foreach (var session in active)
@@ -86,6 +113,7 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
                 app.AppName = session.AppName;
                 app.TotalSeconds += liveSeconds;
                 app.IsRunning = true;
+                app.LastActivityAtUtc = DateTimeOffset.UtcNow;
             }
             else
             {
@@ -94,7 +122,8 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
                     session.AppName,
                     liveSeconds,
                     0,
-                    true);
+                    true,
+                    DateTimeOffset.UtcNow);
             }
         }
 
@@ -117,7 +146,21 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
                 app.AppName,
                 app.TotalSeconds,
                 app.SessionCount,
-                app.IsRunning))
+                app.IsRunning,
+                app.LastActivityAtUtc))
+            .ToArray();
+
+        var recentActivity = combined.Values
+            .OrderByDescending(app => app.LastActivityAtUtc)
+            .ThenBy(app => app.AppName, StringComparer.OrdinalIgnoreCase)
+            .Take(6)
+            .Select(app => new ProfileRecentActivityStat(
+                app.AppId,
+                app.AppName,
+                app.TotalSeconds,
+                app.SessionCount,
+                app.IsRunning,
+                app.LastActivityAtUtc))
             .ToArray();
 
         return new ProfileStatSourceSnapshot(
@@ -132,7 +175,8 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
             active.Length,
             combined.Count,
             lastActivity,
-            topApps);
+            topApps,
+            recentActivity);
     }
 
     private static DateTimeOffset? Max(DateTimeOffset? left, DateTimeOffset? right)
@@ -149,19 +193,22 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
         public long TotalSeconds { get; set; }
         public int SessionCount { get; }
         public bool IsRunning { get; set; }
+        public DateTimeOffset LastActivityAtUtc { get; set; }
 
         public MutableAppStat(
             string appId,
             string appName,
             long totalSeconds,
             int sessionCount,
-            bool isRunning)
+            bool isRunning,
+            DateTimeOffset lastActivityAtUtc)
         {
             AppId = appId;
             AppName = appName;
             TotalSeconds = totalSeconds;
             SessionCount = sessionCount;
             IsRunning = isRunning;
+            LastActivityAtUtc = lastActivityAtUtc;
         }
     }
 }
@@ -202,7 +249,8 @@ public sealed class ProfileStatsService
                     0,
                     0,
                     null,
-                    Array.Empty<ProfileTopAppStat>()));
+                    Array.Empty<ProfileTopAppStat>(),
+                    Array.Empty<ProfileRecentActivityStat>()));
             }
         }
 
@@ -219,15 +267,18 @@ public sealed class ProfileStatsService
         var xp = Math.Max(0L, totalSeconds / 60) +
                  (long)completedSessions * 20L +
                  (long)uniqueApps * 100L;
+        var progression = CalculateLevel(xp);
 
         return new ProfileStatsSnapshot(
-            CalculateLevel(xp),
+            progression,
             totalSeconds,
             completedSessions,
             activeSessions,
             uniqueApps,
             grevHome?.LastActivityAtUtc,
             grevHome?.TopApps ?? Array.Empty<ProfileTopAppStat>(),
+            grevHome?.RecentActivity ?? Array.Empty<ProfileRecentActivityStat>(),
+            CalculateMilestones(totalSeconds, completedSessions, uniqueApps, progression.Level),
             sources);
     }
 
@@ -256,6 +307,36 @@ public sealed class ProfileStatsService
             requirement,
             percent);
     }
+
+    private static IReadOnlyList<ProfileMilestoneStat> CalculateMilestones(
+        long totalSeconds,
+        int completedSessions,
+        int uniqueApps,
+        int level)
+    {
+        var totalHours = totalSeconds / 3600L;
+        return new[]
+        {
+            Milestone("first-session", "First Boot", "Complete your first managed app session.", completedSessions, 1, $"{Math.Min(completedSessions, 1)}/1 session"),
+            Milestone("one-hour", "Settling In", "Track one hour in Grev Home.", totalHours, 1, $"{Math.Min(totalHours, 1)}/1 hour"),
+            Milestone("ten-hours", "Regular", "Track ten hours in Grev Home.", totalHours, 10, $"{Math.Min(totalHours, 10)}/10 hours"),
+            Milestone("hundred-hours", "Centurion", "Track one hundred hours in Grev Home.", totalHours, 100, $"{Math.Min(totalHours, 100)}/100 hours"),
+            Milestone("five-apps", "Explorer", "Use five different managed apps.", uniqueApps, 5, $"{Math.Min(uniqueApps, 5)}/5 apps"),
+            Milestone("twenty-apps", "Library Hopper", "Use twenty different managed apps.", uniqueApps, 20, $"{Math.Min(uniqueApps, 20)}/20 apps"),
+            Milestone("fifty-sessions", "Session Veteran", "Complete fifty managed app sessions.", completedSessions, 50, $"{Math.Min(completedSessions, 50)}/50 sessions"),
+            Milestone("level-five", "Level Five", "Reach Grev Level 5.", level, 5, $"Level {Math.Min(level, 5)}/5"),
+            Milestone("level-ten", "Double Digits", "Reach Grev Level 10.", level, 10, $"Level {Math.Min(level, 10)}/10")
+        };
+    }
+
+    private static ProfileMilestoneStat Milestone(
+        string id,
+        string title,
+        string description,
+        long progress,
+        long target,
+        string progressLabel) =>
+        new(id, title, description, progress >= target, Math.Min(progress, target), target, progressLabel);
 
     private static long XpRequiredForLevel(int currentLevel) =>
         250L + (Math.Max(1, currentLevel) - 1L) * 150L;
