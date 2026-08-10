@@ -12,7 +12,12 @@ Each persistent local profile has three identity layers:
 
 Changing Display Name never renames Username, GrevID or the profile folder.
 
-Profiles also have an optional local **About** field of up to 160 characters. About is presentation data and can be edited through the same controller-first popup keyboard used for Display Name.
+Profiles also have:
+
+- an optional local **Status / Tagline** of up to 60 characters;
+- an optional local **About** field of up to 160 characters.
+
+Both are presentation data and are edited through the controller-first popup keyboard.
 
 ## Roles and permissions
 
@@ -59,7 +64,7 @@ Controller directional focus is kept inside the keyboard while it is open. B can
 
 ## Grev Level and activity
 
-View Profile now includes a local progression/activity layer driven by real Grev Home runtime data rather than a manually editable level number.
+View Profile includes a local progression/activity layer driven by real Grev Home runtime data rather than a manually editable level number.
 
 The first profile stats source is **Grev Home**. It reads each GrevID's existing `Stats\playtime.json` and combines it with currently active managed runtime sessions for that GrevID.
 
@@ -72,12 +77,14 @@ The profile displays:
 - unique managed apps played;
 - currently running managed app count;
 - last tracked activity;
+- Recent Activity, ordered by the last activity time for each managed app;
 - Top Played apps;
+- earned/locked Milestones with progress;
 - Connected Stats sources.
 
 ### Initial XP contract
 
-Grev XP is deliberately deterministic and reconstructable from Grev Home data:
+Grev XP is deterministic and reconstructable from Grev Home data:
 
 - **1 XP per tracked minute**;
 - **20 XP per completed managed-app session**;
@@ -92,6 +99,20 @@ The XP required to advance from the current level is:
 Level starts at 1. Progression is calculated from activity and is not stored as an authoritative editable number.
 
 Live managed-app time can contribute to the displayed total/XP while an app is running. Session-completion XP is only added once the managed session has actually completed.
+
+## Milestones
+
+Milestones are calculated from the same authoritative Grev Home activity rather than stored as independent unlock flags. This means they can be rebuilt safely from profile stats.
+
+The initial baseline includes milestones for:
+
+- first completed managed-app session;
+- 1, 10 and 100 Grev Home tracked hours;
+- 5 and 20 unique managed apps;
+- 50 completed sessions;
+- reaching Grev Level 5 and Level 10.
+
+Locked milestones show their current progress. Earned milestones remain earned because the underlying activity totals remain authoritative.
 
 ## Connected Stats provider model
 
@@ -127,7 +148,13 @@ Each signed-in player can also expose View, Edit, Sign Out and Make Primary acti
 
 The profile photo picker stays inside Grev Home rather than opening a separate fullscreen WPF window. It can browse normal user locations and ready drives, shows folders plus supported image files, and returns the chosen image to the existing profile-edit draft.
 
-Entering and leaving the photo picker preserves unsaved Display Name, About, role and avatar choices until Save Profile is selected.
+Entering and leaving the photo picker preserves unsaved Display Name, Status / Tagline, About, role and avatar choices until Save Profile is selected.
+
+## Boundaries before app work
+
+Pinned/favourite games, favourite platform, game artwork showcases and similar app-backed profile content should be added once the Grev Home app library/installer supplies real selectable app identities. The profile should not store fake placeholder games just to make the page look fuller.
+
+Profile content and progression are data. Themes are presentation. Future theme changes must not alter GrevID, profile metadata, progression, milestones, playtime or connected provider data.
 
 ## Still later
 
