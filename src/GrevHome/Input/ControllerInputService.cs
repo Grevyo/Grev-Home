@@ -21,6 +21,7 @@ public sealed class ControllerInputService : IDisposable
     private const ushort DPadDown = 0x0002;
     private const ushort DPadLeft = 0x0004;
     private const ushort DPadRight = 0x0008;
+    private const ushort StartButton = 0x0010;
     private const ushort BackButton = 0x0020;
     private const ushort LeftShoulder = 0x0100;
     private const ushort RightShoulder = 0x0200;
@@ -31,6 +32,7 @@ public sealed class ControllerInputService : IDisposable
     private static readonly TimeSpan RepeatDelay = TimeSpan.FromMilliseconds(320);
     private static readonly TimeSpan RepeatInterval = TimeSpan.FromMilliseconds(115);
     private static readonly TimeSpan HomeShortcutHold = TimeSpan.FromMilliseconds(700);
+    private static readonly TimeSpan OverlayShortcutHold = TimeSpan.FromMilliseconds(450);
 
     private readonly Timer _timer;
     private readonly ushort[] _previousButtons = new ushort[4];
@@ -40,12 +42,15 @@ public sealed class ControllerInputService : IDisposable
     private readonly DateTimeOffset[] _lastDirectionRaised = new DateTimeOffset[4];
     private readonly DateTimeOffset?[] _homeShortcutStarted = new DateTimeOffset?[4];
     private readonly bool[] _homeShortcutRaised = new bool[4];
+    private readonly DateTimeOffset?[] _overlayShortcutStarted = new DateTimeOffset?[4];
+    private readonly bool[] _overlayShortcutRaised = new bool[4];
     private readonly object _pollGate = new();
     private bool _disposed;
 
     public event Action<ControllerInputEventArgs>? ActionPressed;
     public event Action<ControllerConnectionEventArgs>? ConnectionChanged;
     public event Action<int>? ReturnHomeRequested;
+    public event Action<int>? OverlayRequested;
 
     public ControllerInputService()
     {
@@ -82,9 +87,11 @@ public sealed class ControllerInputService : IDisposable
 
                 var buttons = state.Gamepad.Buttons;
                 var homeComboActive = HasReturnHomeCombo(buttons);
+                var overlayComboActive = HasOverlayCombo(buttons);
                 HandleReturnHomeShortcut(index, homeComboActive);
+                HandleOverlayShortcut(index, overlayComboActive);
 
-                if (!homeComboActive)
+                if (!homeComboActive && !overlayComboActive)
                 {
                     if (WasPressed(index, buttons, AButton))
                     {
@@ -166,10 +173,35 @@ public sealed class ControllerInputService : IDisposable
         ReturnHomeRequested?.Invoke(index);
     }
 
+    private void HandleOverlayShortcut(int index, bool active)
+    {
+        if (!active)
+        {
+            _overlayShortcutStarted[index] = null;
+            _overlayShortcutRaised[index] = false;
+            return;
+        }
+
+        _overlayShortcutStarted[index] ??= DateTimeOffset.UtcNow;
+        if (_overlayShortcutRaised[index] ||
+            DateTimeOffset.UtcNow - _overlayShortcutStarted[index] < OverlayShortcutHold)
+        {
+            return;
+        }
+
+        _overlayShortcutRaised[index] = true;
+        OverlayRequested?.Invoke(index);
+    }
+
     private static bool HasReturnHomeCombo(ushort buttons) =>
         (buttons & LeftShoulder) != 0 &&
         (buttons & RightShoulder) != 0 &&
         (buttons & BackButton) != 0;
+
+    private static bool HasOverlayCombo(ushort buttons) =>
+        (buttons & LeftShoulder) != 0 &&
+        (buttons & RightShoulder) != 0 &&
+        (buttons & StartButton) != 0;
 
     private bool WasPressed(int index, ushort currentButtons, ushort button)
     {
@@ -212,6 +244,8 @@ public sealed class ControllerInputService : IDisposable
         _heldDirection[index] = null;
         _homeShortcutStarted[index] = null;
         _homeShortcutRaised[index] = false;
+        _overlayShortcutStarted[index] = null;
+        _overlayShortcutRaised[index] = false;
     }
 
     public void Dispose()
