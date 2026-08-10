@@ -9,6 +9,7 @@ namespace GrevHome.Profiles;
 public sealed class ProfileService
 {
     public const int MaxDisplayNameLength = 50;
+    public const int MaxGrevIdLength = 58;
 
     private const string GrevIdAlphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     private const int GrevIdPrefixLength = 4;
