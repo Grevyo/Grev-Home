@@ -28,7 +28,8 @@
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock x:Name="DisplayNameText" Text="Display Name" FontSize="34" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
                         <TextBlock x:Name="UsernameText" Margin="0,5,0,0" FontSize="18" Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock x:Name="BioText" Margin="0,10,0,0" MaxWidth="680" FontSize="15" TextWrapping="Wrap" Foreground="#D7DCE7" />
+                        <TextBlock x:Name="StatusMessageText" Margin="0,8,0,0" MaxWidth="680" FontSize="14" FontWeight="SemiBold" Foreground="{StaticResource AccentBrush}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="BioText" Margin="0,8,0,0" MaxWidth="680" FontSize="15" TextWrapping="Wrap" Foreground="#D7DCE7" />
                         <TextBlock x:Name="SessionText" Margin="0,9,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" />
                     </StackPanel>
 
@@ -103,6 +104,29 @@
                     </StackPanel>
                 </Border>
             </UniformGrid>
+
+            <Grid Margin="0,16,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="1.05*" />
+                    <ColumnDefinition Width="0.95*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Margin="0,0,8,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock Text="RECENT ACTIVITY" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="NoRecentActivityText" Text="No Grev Home activity yet." Margin="0,12,0,0" Foreground="{StaticResource MutedBrush}" />
+                        <StackPanel x:Name="RecentActivityPanel" Margin="0,8,0,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Column="1" Margin="8,0,0,0" Padding="22" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14">
+                    <StackPanel>
+                        <TextBlock Text="MILESTONES" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="MilestoneSummaryText" Margin="0,7,0,4" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                        <WrapPanel x:Name="MilestonesPanel" Margin="0,4,0,0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
 
             <Grid Margin="0,16,0,0">
                 <Grid.ColumnDefinitions>
