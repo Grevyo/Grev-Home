@@ -55,10 +55,22 @@ public sealed class ProfileService
                     continue;
                 }
 
-                // Pre-release metadata created before Username existed is upgraded in-place.
+                var needsUpgrade = false;
                 if (string.IsNullOrWhiteSpace(profile.Username))
                 {
                     profile = profile with { Username = profile.DisplayName };
+                    needsUpgrade = true;
+                }
+
+                var avatarKey = ProfileAvatarCatalog.Normalize(profile.AvatarKey);
+                if (!string.Equals(avatarKey, profile.AvatarKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    profile = profile with { AvatarKey = avatarKey };
+                    needsUpgrade = true;
+                }
+
+                if (needsUpgrade)
+                {
                     await WriteMetadataAsync(profile, cancellationToken);
                 }
 
@@ -94,8 +106,19 @@ public sealed class ProfileService
             throw new InvalidOperationException($"A local account with username '{username}' already exists.");
         }
 
+        if (existing.Count == 0)
+        {
+            role = AccountRole.Admin;
+        }
+
         var grevId = CreateUniqueGrevId(username, existing);
-        var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow, role);
+        var profile = new LocalProfile(
+            grevId,
+            username,
+            username,
+            DateTimeOffset.UtcNow,
+            role,
+            ProfileAvatarCatalog.DefaultKey);
         var profileRoot = _paths.GetProfileRoot(profile.GrevId);
 
         try
@@ -117,14 +140,67 @@ public sealed class ProfileService
         CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
+        var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        var updated = profile with { DisplayName = displayName };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
+    public async Task<LocalProfile> UpdateAvatarAsync(
+        string grevId,
+        string avatarKey,
+        CancellationToken cancellationToken = default)
+    {
+        var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        var updated = profile with { AvatarKey = ProfileAvatarCatalog.Normalize(avatarKey) };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
+    public async Task<LocalProfile> UpdateRoleAsync(
+        string grevId,
+        AccountRole role,
+        CancellationToken cancellationToken = default)
+    {
         var profiles = await GetProfilesAsync(cancellationToken);
         var profile = profiles.FirstOrDefault(candidate =>
             string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
 
-        var updated = profile with { DisplayName = displayName };
+        if (profile.Role == AccountRole.Admin && role != AccountRole.Admin &&
+            profiles.Count(candidate => candidate.Role == AccountRole.Admin) <= 1)
+        {
+            throw new InvalidOperationException("Grev Home must always have at least one Admin account.");
+        }
+
+        var updated = profile with { Role = role };
         await WriteMetadataAsync(updated, cancellationToken);
         return updated;
+    }
+
+    public async Task<LocalProfile> UpdateProfileAsync(
+        string grevId,
+        string displayName,
+        string avatarKey,
+        AccountRole? newRole,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await UpdateDisplayNameAsync(grevId, displayName, cancellationToken);
+        updated = await UpdateAvatarAsync(grevId, avatarKey, cancellationToken);
+        if (newRole.HasValue && newRole.Value != updated.Role)
+        {
+            updated = await UpdateRoleAsync(grevId, newRole.Value, cancellationToken);
+        }
+
+        return updated;
+    }
+
+    private async Task<LocalProfile> GetRequiredProfileAsync(string grevId, CancellationToken cancellationToken)
+    {
+        var profiles = await GetProfilesAsync(cancellationToken);
+        return profiles.FirstOrDefault(candidate =>
+                   string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+               ?? throw new InvalidOperationException("That local account does not exist.");
     }
 
     private string CreateUniqueGrevId(string username, IReadOnlyCollection<LocalProfile> existing)
