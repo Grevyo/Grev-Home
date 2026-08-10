@@ -10,6 +10,7 @@ public enum Route
     ProfileEdit,
     ProfilePhotoPicker,
     GrevStore,
+    GrevStoreApp,
     InstalledLibrary,
     RunningApps,
     AppKiller,
