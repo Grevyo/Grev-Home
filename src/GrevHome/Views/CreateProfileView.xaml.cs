@@ -10,14 +10,33 @@ public partial class CreateProfileView : UserControl
 {
     public event Action<CreateProfileRequest>? CreateRequested;
     public event EventHandler? CancelRequested;
+    public event EventHandler? KeyboardOpened;
+    public event EventHandler? KeyboardClosed;
 
     private AccountRole _selectedRole = AccountRole.Admin;
     private bool _firstProfile;
+    private bool _openKeyboardWhenLoaded;
+
+    public bool IsKeyboardOpen => KeyboardOverlay.IsOpen;
 
     public CreateProfileView()
     {
         InitializeComponent();
-        BuildKeyboard();
+        KeyboardOverlay.Completed += value =>
+        {
+            ProfileNameTextBox.Text = value;
+            ProfileNameTextBox.CaretIndex = ProfileNameTextBox.Text.Length;
+        };
+        KeyboardOverlay.Opened += (_, _) => KeyboardOpened?.Invoke(this, EventArgs.Empty);
+        KeyboardOverlay.Closed += (_, _) => KeyboardClosed?.Invoke(this, EventArgs.Empty);
+        Loaded += (_, _) =>
+        {
+            if (_openKeyboardWhenLoaded)
+            {
+                _openKeyboardWhenLoaded = false;
+                OpenKeyboard();
+            }
+        };
         UpdateRolePresentation();
     }
 
@@ -33,59 +52,17 @@ public partial class CreateProfileView : UserControl
         StatusText.Text = firstProfile
             ? "The first Grev Home account is always an Admin. Display Name starts the same as Username and can be changed later."
             : "Display Name starts the same as Username and can be changed later without changing GrevID or folders.";
+        _openKeyboardWhenLoaded = true;
     }
 
-    public void ShowError(string message)
-    {
-        StatusText.Text = message;
-    }
+    public void ShowError(string message) => StatusText.Text = message;
 
-    private void BuildKeyboard()
-    {
-        const string keys = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890";
-        foreach (var key in keys)
-        {
-            var button = new Button
-            {
-                Content = key.ToString(),
-                Tag = key,
-                Height = 52,
-                Margin = new Thickness(4),
-                FontSize = 18
-            };
-            button.Click += KeyboardKey_Click;
-            KeyboardGrid.Children.Add(button);
-        }
-    }
+    public void CancelKeyboard() => KeyboardOverlay.Cancel();
 
-    private void KeyboardKey_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: char key } && ProfileNameTextBox.Text.Length < ProfileNameTextBox.MaxLength)
-        {
-            ProfileNameTextBox.Text += key;
-            ProfileNameTextBox.CaretIndex = ProfileNameTextBox.Text.Length;
-        }
-    }
+    private void OpenKeyboard_Click(object sender, RoutedEventArgs e) => OpenKeyboard();
 
-    private void Space_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProfileNameTextBox.Text.Length < ProfileNameTextBox.MaxLength)
-        {
-            ProfileNameTextBox.Text += " ";
-            ProfileNameTextBox.CaretIndex = ProfileNameTextBox.Text.Length;
-        }
-    }
-
-    private void Backspace_Click(object sender, RoutedEventArgs e)
-    {
-        if (ProfileNameTextBox.Text.Length == 0)
-        {
-            return;
-        }
-
-        ProfileNameTextBox.Text = ProfileNameTextBox.Text[..^1];
-        ProfileNameTextBox.CaretIndex = ProfileNameTextBox.Text.Length;
-    }
+    private void OpenKeyboard() =>
+        KeyboardOverlay.Open("Enter Username", ProfileNameTextBox.Text, ProfileNameTextBox.MaxLength);
 
     private void Role_Click(object sender, RoutedEventArgs e)
     {
