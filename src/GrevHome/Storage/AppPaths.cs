@@ -23,31 +23,31 @@ public sealed class AppPaths
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Grev Home");
     }
 
-    public string GetProfileRoot(Guid grevId) =>
-        Path.Combine(Profiles, grevId.ToString("N"));
+    public string GetProfileRoot(string grevId) =>
+        Path.Combine(Profiles, ValidateGrevId(grevId));
 
-    public string GetProfileMetadata(Guid grevId) =>
+    public string GetProfileMetadata(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "profile.json");
 
-    public string GetProfileApps(Guid grevId) =>
+    public string GetProfileApps(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Apps");
 
-    public string GetProfileAppData(Guid grevId) =>
+    public string GetProfileAppData(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "AppData");
 
-    public string GetProfileSaves(Guid grevId) =>
+    public string GetProfileSaves(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Saves");
 
-    public string GetProfileStats(Guid grevId) =>
+    public string GetProfileStats(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Stats");
 
-    public string GetProfileConnections(Guid grevId) =>
+    public string GetProfileConnections(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Connections");
 
-    public string GetProfileScreenshots(Guid grevId) =>
+    public string GetProfileScreenshots(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Screenshots");
 
-    public string GetProfileThemes(Guid grevId) =>
+    public string GetProfileThemes(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Themes");
 
     public void EnsureMachineLayout()
@@ -65,7 +65,7 @@ public sealed class AppPaths
         EnsureGuestLayout();
     }
 
-    public void EnsureProfileLayout(Guid grevId)
+    public void EnsureProfileLayout(string grevId)
     {
         Directory.CreateDirectory(GetProfileRoot(grevId));
         Directory.CreateDirectory(GetProfileApps(grevId));
@@ -84,5 +84,18 @@ public sealed class AppPaths
         Directory.CreateDirectory(Path.Combine(GuestShared, "Saves"));
         Directory.CreateDirectory(Path.Combine(GuestShared, "Stats"));
         Directory.CreateDirectory(Path.Combine(GuestShared, "Connections"));
+    }
+
+    private static string ValidateGrevId(string grevId)
+    {
+        if (string.IsNullOrWhiteSpace(grevId) ||
+            grevId.Length > 58 ||
+            grevId[0] != 'G' ||
+            grevId.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
+        {
+            throw new ArgumentException("Invalid GrevId.", nameof(grevId));
+        }
+
+        return grevId;
     }
 }
