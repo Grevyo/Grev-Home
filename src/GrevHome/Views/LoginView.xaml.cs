@@ -35,8 +35,8 @@ public partial class LoginView : UserControl
                 string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
             var button = new Button
             {
-                Width = 250,
-                Height = 132,
+                Width = 260,
+                Height = 152,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
                 Content = new StackPanel
@@ -53,12 +53,22 @@ public partial class LoginView : UserControl
                         },
                         new TextBlock
                         {
-                            Text = profile.GrevId,
-                            Margin = new Thickness(0, 5, 0, 0),
+                            Text = $"@{profile.Username}",
+                            Margin = new Thickness(0, 4, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
-                            FontSize = 11,
-                            MaxWidth = 210,
+                            FontSize = 13,
+                            MaxWidth = 220,
+                            TextTrimming = TextTrimming.CharacterEllipsis
+                        },
+                        new TextBlock
+                        {
+                            Text = profile.GrevId,
+                            Margin = new Thickness(0, 3, 0, 0),
+                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            FontSize = 10,
+                            MaxWidth = 220,
                             TextTrimming = TextTrimming.CharacterEllipsis
                         },
                         new TextBlock
@@ -82,13 +92,14 @@ public partial class LoginView : UserControl
         foreach (var user in session.SignedInUsers)
         {
             var controllerText = BuildControllerList(session, user);
+            var identityText = user.Username is null ? user.DisplayName : $"{user.DisplayName}  (@{user.Username})";
             var button = new Button
             {
-                Width = 245,
+                Width = 275,
                 Height = 82,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = user.SessionId,
-                Content = $"{(user.IsPrimary ? "★ " : string.Empty)}{user.DisplayName}\n{controllerText}"
+                Content = $"{(user.IsPrimary ? "★ " : string.Empty)}{identityText}\n{controllerText}"
             };
             button.Click += SignedInUser_Click;
             SignedInPanel.Children.Add(button);
