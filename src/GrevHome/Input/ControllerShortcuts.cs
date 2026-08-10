@@ -58,7 +58,7 @@ public sealed class ControllerShortcutService
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
-        Converters = { new JsonStringEnumConverter() }
+        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
     };
 
     public ControllerShortcutService(AppPaths paths)
@@ -73,7 +73,19 @@ public sealed class ControllerShortcutService
         if (!File.Exists(_paths.ControllerShortcutsFile))
         {
             var defaults = CreateDefaults();
-            Save(defaults);
+            try
+            {
+                Save(defaults);
+            }
+            catch (IOException)
+            {
+                // The runtime can still use safe in-memory defaults when the settings file cannot be written.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // The runtime can still use safe in-memory defaults when the settings file cannot be written.
+            }
+
             return defaults;
         }
 
@@ -85,11 +97,17 @@ public sealed class ControllerShortcutService
         }
         catch (JsonException)
         {
-            // A malformed custom shortcut file must not strand the user outside Grev Home.
-            // Keep the file untouched for later repair and run safe defaults for this session.
             return CreateDefaults();
         }
         catch (InvalidOperationException)
+        {
+            return CreateDefaults();
+        }
+        catch (IOException)
+        {
+            return CreateDefaults();
+        }
+        catch (UnauthorizedAccessException)
         {
             return CreateDefaults();
         }
@@ -150,21 +168,28 @@ public sealed class ControllerShortcutService
             throw new InvalidOperationException("Unsupported controller shortcut configuration.");
         }
 
-        var bindings = configuration.Bindings?.ToList() ?? new List<ControllerShortcutBinding>();
+        var sourceBindings = configuration.Bindings?.ToArray() ?? Array.Empty<ControllerShortcutBinding>();
+        var normalizedBindings = new List<ControllerShortcutBinding>(sourceBindings.Length);
         var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var seenCombinations = new Dictionary<string, ControllerShortcutAction>(StringComparer.OrdinalIgnoreCase);
 
-        foreach (var binding in bindings)
+        foreach (var binding in sourceBindings)
         {
-            if (string.IsNullOrWhiteSpace(binding.Id) || binding.Id.Length > 64 || !seenIds.Add(binding.Id))
+            var id = binding.Id?.Trim() ?? string.Empty;
+            if (id.Length == 0 || id.Length > 64 || !seenIds.Add(id))
             {
                 throw new InvalidOperationException("Controller shortcut binding IDs must be unique and 1-64 characters long.");
             }
 
-            var buttons = binding.Buttons?.Distinct().ToArray() ?? Array.Empty<ControllerButton>();
-            if (buttons.Length == 0 || buttons.Length > MaximumButtonsPerBinding)
+            if (!Enum.IsDefined(binding.Action))
             {
-                throw new InvalidOperationException($"Controller shortcuts must contain between 1 and {MaximumButtonsPerBinding} buttons.");
+                throw new InvalidOperationException("Controller shortcut contains an unknown system action.");
+            }
+
+            var buttons = binding.Buttons?.Distinct().ToArray() ?? Array.Empty<ControllerButton>();
+            if (buttons.Length == 0 || buttons.Length > MaximumButtonsPerBinding || buttons.Any(button => !Enum.IsDefined(button)))
+            {
+                throw new InvalidOperationException($"Controller shortcuts must contain between 1 and {MaximumButtonsPerBinding} known controller inputs.");
             }
 
             if (binding.HoldMilliseconds is < 0 or > MaximumHoldMilliseconds)
@@ -187,14 +212,14 @@ public sealed class ControllerShortcutService
             }
 
             seenCombinations[combinationKey] = binding.Action;
+            normalizedBindings.Add(binding with { Id = id, Buttons = buttons });
         }
 
-        if (!bindings.Any(binding => binding.Enabled && binding.Action == ControllerShortcutAction.ReturnHome))
+        if (!normalizedBindings.Any(binding => binding.Enabled && binding.Action == ControllerShortcutAction.ReturnHome))
         {
-            // Direct Home is the recovery path. It can be remapped, but at least one enabled binding must exist.
-            bindings.Insert(0, CreateDefaults().Bindings[0]);
+            throw new InvalidOperationException("At least one enabled Return Home shortcut is required.");
         }
 
-        return new ControllerShortcutConfiguration(CurrentVersion, bindings);
+        return new ControllerShortcutConfiguration(CurrentVersion, normalizedBindings);
     }
 }
