@@ -33,6 +33,7 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(() => UpdateControllerStatus(change)));
         _controllerInput.ReturnHomeRequested += _ =>
             Dispatcher.BeginInvoke(new Action(BringGrevHomeToFront));
+        _controllerInput.Start();
 
         Loaded += (_, _) =>
         {
@@ -111,9 +112,13 @@ public partial class MainWindow : Window
                 ActivateFocusedControl();
                 break;
             case InputAction.Back:
-                if (!_navigation.GoBack() && _navigation.Current != Route.Login)
+                if (_navigation.Current == Route.Dashboard)
                 {
                     Logout();
+                }
+                else
+                {
+                    _navigation.GoBack();
                 }
                 break;
         }
