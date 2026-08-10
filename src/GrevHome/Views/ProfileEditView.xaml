@@ -42,6 +42,22 @@
                             <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenKeyboard_Click" />
                         </Grid>
 
+                        <TextBlock Text="STATUS / TAGLINE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <Grid Margin="0,8,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="StatusMessageTextBox"
+                                     MaxLength="60"
+                                     Height="52"
+                                     FontSize="16"
+                                     Padding="12"
+                                     IsReadOnly="True"
+                                     IsTabStop="False" />
+                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenStatusKeyboard_Click" />
+                        </Grid>
+
                         <TextBlock Text="ABOUT" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
                         <Grid Margin="0,8,0,22">
                             <Grid.ColumnDefinitions>
