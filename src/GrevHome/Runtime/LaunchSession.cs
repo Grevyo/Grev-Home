@@ -6,6 +6,7 @@ public enum LaunchSessionState
 {
     Starting,
     Running,
+    Closing,
     Exited,
     Failed
 }
@@ -81,6 +82,17 @@ internal sealed class TrackedLaunchSession
             foreach (var processId in processIds.Where(id => id > 0))
             {
                 _processIds.Add(processId);
+            }
+        }
+    }
+
+    public void MarkClosing()
+    {
+        lock (_gate)
+        {
+            if (EndedAtUtc is null)
+            {
+                State = LaunchSessionState.Closing;
             }
         }
     }
