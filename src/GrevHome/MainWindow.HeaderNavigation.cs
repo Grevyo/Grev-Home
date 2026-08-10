@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Runtime;
 
 namespace GrevHome;
 
@@ -12,12 +13,13 @@ public partial class MainWindow
 
     private void Window_HeaderNavigationLoaded(object sender, RoutedEventArgs e)
     {
-        InitializeProfilePlayersIntegration();
-
         if (_headerNavigationHooked)
         {
             return;
         }
+
+        RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
+        InitializeProfilePlayersIntegration();
 
         _headerNavigationHooked = true;
         _controllerInput.ActionPressed += HandleHeaderNavigationInput;

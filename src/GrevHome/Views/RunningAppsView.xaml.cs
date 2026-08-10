@@ -13,6 +13,7 @@ public partial class RunningAppsView : UserControl
 
     public event EventHandler? BackRequested;
     public event Action<Guid>? SwitchRequested;
+    public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
 
     public RunningAppsView()
@@ -31,6 +32,11 @@ public partial class RunningAppsView : UserControl
     {
         _sessions = sessions;
         Render();
+    }
+
+    public void ShowStatus(string message)
+    {
+        StatusText.Text = message;
     }
 
     private void Render()
@@ -57,17 +63,28 @@ public partial class RunningAppsView : UserControl
             var switchButton = new Button
             {
                 Content = "Switch",
-                Width = 115,
+                Width = 100,
                 Height = 46,
                 Margin = new Thickness(0, 12, 8, 0),
                 Tag = session.LaunchSessionId
             };
             switchButton.Click += Switch_Click;
 
+            var restartButton = new Button
+            {
+                Content = "Restart",
+                Width = 100,
+                Height = 46,
+                Margin = new Thickness(0, 12, 8, 0),
+                IsEnabled = session.State == LaunchSessionState.Running,
+                Tag = session.LaunchSessionId
+            };
+            restartButton.Click += Restart_Click;
+
             var closeButton = new Button
             {
                 Content = session.State == LaunchSessionState.Closing ? "Closing…" : "Close",
-                Width = 115,
+                Width = 100,
                 Height = 46,
                 Margin = new Thickness(0, 12, 0, 0),
                 IsEnabled = session.State != LaunchSessionState.Closing,
@@ -77,6 +94,7 @@ public partial class RunningAppsView : UserControl
 
             var actions = new StackPanel { Orientation = Orientation.Horizontal };
             actions.Children.Add(switchButton);
+            actions.Children.Add(restartButton);
             actions.Children.Add(closeButton);
 
             var content = new StackPanel();
@@ -130,7 +148,7 @@ public partial class RunningAppsView : UserControl
 
         StatusText.Text = _sessions.Count == 0
             ? "Nothing is running through Grev Home right now."
-            : "Switch brings the app back to the foreground. Close requests a normal graceful shutdown; force-close lives separately in App Killer.";
+            : "Switch foregrounds an app. Restart safely closes and relaunches the same managed AppID with its original launch participants. Close requests a normal shutdown; force-close lives in App Killer.";
 
         UpdateElapsedLabels();
     }
@@ -154,6 +172,14 @@ public partial class RunningAppsView : UserControl
         if (sender is Button { Tag: Guid launchSessionId })
         {
             SwitchRequested?.Invoke(launchSessionId);
+        }
+    }
+
+    private void Restart_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Guid launchSessionId })
+        {
+            RestartRequested?.Invoke(launchSessionId);
         }
     }
 

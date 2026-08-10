@@ -13,6 +13,8 @@ public partial class MainWindow
 
     private void InitializeProfilePlayersIntegration()
     {
+        InitializeRuntimeRecoveryIntegration();
+
         if (_profilePlayersIntegrationReady)
         {
             return;

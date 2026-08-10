@@ -7,6 +7,7 @@ public sealed class ProcessTreeService
 {
     private const uint SnapshotProcesses = 0x00000002;
     private static readonly nint InvalidHandleValue = new(-1);
+    private static readonly TimeSpan ProcessStartTolerance = TimeSpan.FromSeconds(1);
 
     public IReadOnlySet<int> DiscoverDescendants(IEnumerable<int> knownProcessIds)
     {
@@ -37,26 +38,68 @@ public sealed class ProcessTreeService
         return known;
     }
 
+    public RuntimeProcessIdentity? TryGetProcessIdentity(int processId)
+    {
+        if (processId <= 0)
+        {
+            return null;
+        }
+
+        try
+        {
+            using var process = Process.GetProcessById(processId);
+            if (process.HasExited)
+            {
+                return null;
+            }
+
+            return new RuntimeProcessIdentity(processId, process.StartTime.ToUniversalTime());
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+
+    public bool IsSameLiveProcess(RuntimeProcessIdentity identity)
+    {
+        var current = TryGetProcessIdentity(identity.ProcessId);
+        if (current is null)
+        {
+            return false;
+        }
+
+        return Math.Abs((current.StartedAtUtc - identity.StartedAtUtc).TotalMilliseconds) <=
+               ProcessStartTolerance.TotalMilliseconds;
+    }
+
+    public IReadOnlyList<RuntimeProcessIdentity> GetAliveProcessIdentities(
+        IEnumerable<RuntimeProcessIdentity> identities)
+    {
+        return identities
+            .GroupBy(identity => identity.ProcessId)
+            .Select(group => group.First())
+            .Where(IsSameLiveProcess)
+            .OrderBy(identity => identity.ProcessId)
+            .ToArray();
+    }
+
     public IReadOnlyList<int> GetAliveProcessIds(IEnumerable<int> processIds)
     {
         var alive = new List<int>();
         foreach (var processId in processIds.Distinct().Where(id => id > 0))
         {
-            try
+            if (TryGetProcessIdentity(processId) is not null)
             {
-                using var process = Process.GetProcessById(processId);
-                if (!process.HasExited)
-                {
-                    alive.Add(processId);
-                }
-            }
-            catch (ArgumentException)
-            {
-                // Process has already exited.
-            }
-            catch (InvalidOperationException)
-            {
-                // Process is no longer queryable.
+                alive.Add(processId);
             }
         }
 
