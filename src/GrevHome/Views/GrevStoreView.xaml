@@ -1,0 +1,57 @@
+<UserControl x:Class="GrevHome.Views.GrevStoreView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <Grid Margin="72,38">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" Margin="0,0,0,22">
+            <TextBlock Text="Grev Store" FontSize="40" FontWeight="SemiBold" />
+            <TextBlock x:Name="ContextText"
+                       Margin="0,6,0,0"
+                       FontSize="15"
+                       Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <WrapPanel Grid.Row="1" Margin="0,0,0,18">
+            <Button Tag="All" Content="All" Width="100" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
+            <Button Tag="Gaming" Content="Gaming" Width="115" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
+            <Button Tag="Emulator" Content="Emulators" Width="135" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
+            <Button Tag="Application" Content="Apps" Width="105" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
+            <Button Tag="Media" Content="Media" Width="105" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
+            <Button Tag="Utility" Content="Tools" Width="105" Height="44" Click="Filter_Click" />
+        </WrapPanel>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel>
+                <TextBlock x:Name="EmptyText"
+                           Text="No supported packages are available in this category yet."
+                           Margin="0,28,0,0"
+                           HorizontalAlignment="Center"
+                           FontSize="18"
+                           Foreground="{StaticResource MutedBrush}"
+                           Visibility="Collapsed" />
+                <WrapPanel x:Name="PackagesPanel" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <Border Grid.Row="3"
+                Margin="0,18,0,0"
+                Padding="18"
+                Background="#11151E"
+                BorderBrush="#2B3344"
+                BorderThickness="1"
+                CornerRadius="12">
+            <TextBlock x:Name="StatusText"
+                       Text="Every trusted Grev Home installer appears here. Package defaults are supplied by Grev Home and each profile can later override its own app presentation."
+                       Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap" />
+        </Border>
+    </Grid>
+</UserControl>
