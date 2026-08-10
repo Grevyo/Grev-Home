@@ -15,7 +15,7 @@ public sealed class SessionUser
     public Guid SessionId { get; } = Guid.NewGuid();
     public string? GrevId { get; }
     public string? Username { get; }
-    public string DisplayName { get; }
+    public string DisplayName { get; internal set; }
     public AccountKind AccountKind { get; }
     public bool IsPrimary { get; internal set; }
 
@@ -94,6 +94,20 @@ public sealed class SessionContext
             user.IsPrimary = user.SessionId == requested.SessionId;
         }
 
+        RaiseChanged();
+    }
+
+    public void UpdateDisplayName(string grevId, string displayName)
+    {
+        var user = SignedInUsers.FirstOrDefault(candidate =>
+            string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
+
+        if (user is null)
+        {
+            return;
+        }
+
+        user.DisplayName = displayName;
         RaiseChanged();
     }
 
