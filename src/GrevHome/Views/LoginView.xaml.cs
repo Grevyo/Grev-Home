@@ -10,14 +10,8 @@ public sealed record ProfileSignInRequest(LocalProfile Profile, int? ControllerI
 public partial class LoginView : UserControl
 {
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
-
-    // Kept for compatibility with the current shell wiring while the old lobby surface is removed.
-    // The current Login UI does not expose a pre-made Guest account or primary-selection lobby.
-    public event Action<int?>? GuestSignInRequested;
-    public event Action<Guid>? PrimaryUserRequested;
     public event EventHandler? CreateProfileRequested;
     public event EventHandler? EnterHomeRequested;
-    public event EventHandler? ClearSessionRequested;
 
     public int? ActivationControllerIndex { get; set; }
     public Button CreateAccountFocusTarget => CreateAccountButton;
@@ -44,6 +38,11 @@ public partial class LoginView : UserControl
             ? "Choose a profile that is not already signed in. The controller used to select it will be assigned to that player."
             : "Choose your profile to enter Grev Home.";
 
+        var canCreateAccount = profiles.Count == 0 ||
+                               session.PrimaryUser is { } primary &&
+                               AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManageProfiles);
+        CreateAccountButton.Visibility = canCreateAccount ? Visibility.Visible : Visibility.Collapsed;
+
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
         {
@@ -51,13 +50,31 @@ public partial class LoginView : UserControl
                 string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
 
             var status = signedIn is null
-                ? profile.Role.ToString()
+                ? AccountAuthorizationService.DescribeRole(profile.Role)
                 : BuildSignedInLabel(session, signedIn);
+
+            var avatar = new Border
+            {
+                Width = 54,
+                Height = 54,
+                CornerRadius = new CornerRadius(27),
+                Margin = new Thickness(0, 0, 0, 7),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 40, 58)),
+                Child = new TextBlock
+                {
+                    Text = ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName),
+                    FontSize = 21,
+                    FontWeight = FontWeights.Bold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center
+                }
+            };
 
             var button = new Button
             {
                 Width = 260,
-                Height = 154,
+                Height = 176,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
                 IsEnabled = !addingPlayer || signedIn is null,
@@ -65,40 +82,33 @@ public partial class LoginView : UserControl
                 {
                     Children =
                     {
+                        avatar,
                         new TextBlock
                         {
                             Text = profile.DisplayName,
-                            FontSize = 23,
+                            FontSize = 21,
                             FontWeight = FontWeights.SemiBold,
                             HorizontalAlignment = HorizontalAlignment.Center,
-                            TextTrimming = TextTrimming.CharacterEllipsis
-                        },
-                        new TextBlock
-                        {
-                            Text = $"@{profile.Username}",
-                            Margin = new Thickness(0, 4, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            FontSize = 13,
                             MaxWidth = 220,
                             TextTrimming = TextTrimming.CharacterEllipsis
                         },
                         new TextBlock
                         {
-                            Text = profile.Role.ToString().ToUpperInvariant(),
-                            Margin = new Thickness(0, 5, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("AccentBrush"),
-                            HorizontalAlignment = HorizontalAlignment.Center,
-                            FontSize = 11,
-                            FontWeight = FontWeights.Bold
-                        },
-                        new TextBlock
-                        {
-                            Text = status,
-                            Margin = new Thickness(0, 7, 0, 0),
+                            Text = $"@{profile.Username}  •  {profile.Role}",
+                            Margin = new Thickness(0, 4, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
                             FontSize = 12,
+                            MaxWidth = 220,
+                            TextTrimming = TextTrimming.CharacterEllipsis
+                        },
+                        new TextBlock
+                        {
+                            Text = signedIn is null ? "A / Enter to sign in" : status,
+                            Margin = new Thickness(0, 6, 0, 0),
+                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            FontSize = 11,
                             TextAlignment = TextAlignment.Center,
                             TextWrapping = TextWrapping.Wrap
                         }
