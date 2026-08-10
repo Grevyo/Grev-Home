@@ -13,12 +13,12 @@ public enum AccountKind
 public sealed class SessionUser
 {
     public Guid SessionId { get; } = Guid.NewGuid();
-    public Guid? GrevId { get; }
+    public string? GrevId { get; }
     public string DisplayName { get; }
     public AccountKind AccountKind { get; }
     public bool IsPrimary { get; internal set; }
 
-    public SessionUser(Guid? grevId, string displayName, AccountKind accountKind)
+    public SessionUser(string? grevId, string displayName, AccountKind accountKind)
     {
         GrevId = grevId;
         DisplayName = displayName;
@@ -40,11 +40,15 @@ public sealed class SessionContext
 
     public SessionUser SignInLocal(LocalProfile profile, int? controllerIndex = null)
     {
-        var user = SignedInUsers.FirstOrDefault(candidate => candidate.GrevId == profile.GrevId);
+        var user = SignedInUsers.FirstOrDefault(candidate =>
+            string.Equals(candidate.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
+
         if (user is null)
         {
-            user = new SessionUser(profile.GrevId, profile.DisplayName, AccountKind.Local);
-            user.IsPrimary = SignedInUsers.Count == 0;
+            user = new SessionUser(profile.GrevId, profile.DisplayName, AccountKind.Local)
+            {
+                IsPrimary = SignedInUsers.Count == 0
+            };
             SignedInUsers.Add(user);
         }
 
