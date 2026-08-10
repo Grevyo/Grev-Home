@@ -7,8 +7,9 @@
         WindowState="Maximized"
         Background="#090C12"
         Foreground="White"
+        Loaded="Window_HeaderNavigationLoaded"
         PreviewKeyDown="Window_PreviewKeyDown">
-    <Grid>
+    <Grid KeyboardNavigation.DirectionalNavigation="Continue">
         <Grid.Background>
             <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
                 <GradientStop Color="#182137" Offset="0" />
@@ -17,26 +18,72 @@
         </Grid.Background>
 
         <Grid.RowDefinitions>
-            <RowDefinition Height="68" />
+            <RowDefinition Height="82" />
             <RowDefinition Height="*" />
             <RowDefinition Height="44" />
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="34,0">
-            <TextBlock Text="GREV HOME"
-                       VerticalAlignment="Center"
-                       FontSize="18"
-                       FontWeight="Bold"
-                       Foreground="#C9D3E8" />
-            <TextBlock x:Name="ControllerStatusText"
-                       Text="No controllers"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Center"
-                       FontSize="14"
-                       Foreground="{StaticResource MutedBrush}" />
-        </Grid>
+        <Border Grid.Row="0"
+                Background="#D90B0F17"
+                BorderBrush="#263044"
+                BorderThickness="0,0,0,1">
+            <Grid Margin="28,0" KeyboardNavigation.DirectionalNavigation="Continue">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-        <ContentControl x:Name="RouteHost" Grid.Row="1" Focusable="False" />
+                <Button x:Name="ShellBackButton"
+                        Grid.Column="0"
+                        Content="← Back"
+                        Width="112"
+                        Height="48"
+                        Margin="0,0,14,0"
+                        VerticalAlignment="Center"
+                        IsEnabled="False"
+                        Click="ShellBack_Click" />
+
+                <TextBlock Grid.Column="1"
+                           Text="GREV HOME"
+                           VerticalAlignment="Center"
+                           FontSize="18"
+                           FontWeight="Bold"
+                           Foreground="#C9D3E8" />
+
+                <Button x:Name="ProfileBubbleButton"
+                        Grid.Column="3"
+                        Visibility="Collapsed"
+                        MinWidth="260"
+                        MaxWidth="620"
+                        Height="52"
+                        Margin="14,0,10,0"
+                        Padding="14,8"
+                        VerticalAlignment="Center"
+                        Click="ShellProfileMenu_Click">
+                    <TextBlock x:Name="ControllerStatusText"
+                               Text="No signed-in players"
+                               FontSize="13"
+                               TextTrimming="CharacterEllipsis"
+                               TextWrapping="NoWrap" />
+                </Button>
+
+                <Button x:Name="ShellSettingsButton"
+                        Grid.Column="4"
+                        Content="⚙ Settings"
+                        Width="132"
+                        Height="48"
+                        VerticalAlignment="Center"
+                        Click="ShellSettings_Click" />
+            </Grid>
+        </Border>
+
+        <ContentControl x:Name="RouteHost"
+                        Grid.Row="1"
+                        Focusable="False"
+                        KeyboardNavigation.DirectionalNavigation="Continue" />
 
         <Grid Grid.Row="2" Margin="34,0">
             <TextBlock Text="A / Enter  Select     B / Esc  Back"

@@ -1,7 +1,15 @@
 namespace GrevHome.Profiles;
 
+public enum AccountRole
+{
+    Admin,
+    Standard,
+    Guest
+}
+
 public sealed record LocalProfile(
     string GrevId,
     string Username,
     string DisplayName,
-    DateTimeOffset CreatedAtUtc);
+    DateTimeOffset CreatedAtUtc,
+    AccountRole Role = AccountRole.Admin);

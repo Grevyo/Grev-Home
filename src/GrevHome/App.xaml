@@ -13,8 +13,10 @@
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}" />
             <Setter Property="BorderBrush" Value="#343D51" />
             <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="Padding" Value="20,14" />
-            <Setter Property="FontSize" Value="18" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="FontSize" Value="16" />
+            <Setter Property="HorizontalContentAlignment" Value="Center" />
+            <Setter Property="VerticalContentAlignment" Value="Center" />
             <Setter Property="Cursor" Value="Hand" />
             <Setter Property="FocusVisualStyle" Value="{x:Null}" />
             <Style.Triggers>
@@ -23,10 +25,16 @@
                 </Trigger>
                 <Trigger Property="IsKeyboardFocused" Value="True">
                     <Setter Property="BorderBrush" Value="{StaticResource AccentBrush}" />
-                    <Setter Property="BorderThickness" Value="4" />
+                    <Setter Property="Background" Value="{StaticResource SurfaceHoverBrush}" />
                 </Trigger>
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.42" />
+                </Trigger>
+                <Trigger Property="Content" Value="Back">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+                <Trigger Property="Content" Value="Back to Dashboard">
+                    <Setter Property="Visibility" Value="Collapsed" />
                 </Trigger>
             </Style.Triggers>
         </Style>

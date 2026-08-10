@@ -6,6 +6,7 @@ namespace GrevHome.Storage;
 public sealed class AppPaths
 {
     private const int MaxGrevIdLength = 58;
+    private const string DefaultRoot = @"C:\GrevHome";
 
     public string Root { get; }
     public string Data => Path.Combine(Root, "Data");
@@ -30,7 +31,7 @@ public sealed class AppPaths
     {
         Root = root
             ?? Environment.GetEnvironmentVariable("GREV_HOME_ROOT")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Grev Home");
+            ?? DefaultRoot;
     }
 
     public string GetProfileRoot(string grevId) =>

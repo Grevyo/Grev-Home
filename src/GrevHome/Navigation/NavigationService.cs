@@ -15,9 +15,9 @@ public sealed class NavigationService
         RouteChanged?.Invoke(route);
     }
 
-    public void Navigate(Route route)
+    public void Navigate(Route route, bool allowSameRoute = false)
     {
-        if (Current == route)
+        if (Current == route && !allowSameRoute)
         {
             return;
         }
@@ -25,6 +25,17 @@ public sealed class NavigationService
         _history.Push(Current);
         Current = route;
         RouteChanged?.Invoke(route);
+    }
+
+    public bool DiscardBackEntry(Route expectedRoute)
+    {
+        if (_history.Count == 0 || _history.Peek() != expectedRoute)
+        {
+            return false;
+        }
+
+        _history.Pop();
+        return true;
     }
 
     public bool GoBack()
