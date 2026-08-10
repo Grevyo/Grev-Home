@@ -6,8 +6,7 @@ namespace GrevHome.Sessions;
 public enum AccountKind
 {
     Local,
-    Guest,
-    GrevDad
+    Guest
 }
 
 public sealed class SessionUser
@@ -17,14 +16,21 @@ public sealed class SessionUser
     public string? Username { get; }
     public string DisplayName { get; internal set; }
     public AccountKind AccountKind { get; }
+    public AccountRole Role { get; }
     public bool IsPrimary { get; internal set; }
 
-    public SessionUser(string? grevId, string? username, string displayName, AccountKind accountKind)
+    public SessionUser(
+        string? grevId,
+        string? username,
+        string displayName,
+        AccountKind accountKind,
+        AccountRole role)
     {
         GrevId = grevId;
         Username = username;
         DisplayName = displayName;
         AccountKind = accountKind;
+        Role = role;
     }
 }
 
@@ -47,7 +53,12 @@ public sealed class SessionContext
 
         if (user is null)
         {
-            user = new SessionUser(profile.GrevId, profile.Username, profile.DisplayName, AccountKind.Local)
+            user = new SessionUser(
+                profile.GrevId,
+                profile.Username,
+                profile.DisplayName,
+                AccountKind.Local,
+                profile.Role)
             {
                 IsPrimary = SignedInUsers.Count == 0
             };
@@ -63,12 +74,14 @@ public sealed class SessionContext
         return user;
     }
 
+    // Retained temporarily for backward compatibility with pre-role code paths.
+    // The current UI does not expose a pre-made Guest login; Guest is a role on a created local account.
     public SessionUser SignInGuest(int? controllerIndex = null)
     {
         var guest = SignedInUsers.FirstOrDefault(candidate => candidate.AccountKind == AccountKind.Guest);
         if (guest is null)
         {
-            guest = new SessionUser(null, null, "Guest", AccountKind.Guest)
+            guest = new SessionUser(null, null, "Guest", AccountKind.Guest, AccountRole.Guest)
             {
                 IsPrimary = SignedInUsers.Count == 0
             };
