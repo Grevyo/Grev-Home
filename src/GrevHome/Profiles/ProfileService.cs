@@ -12,6 +12,7 @@ public sealed class ProfileService
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
     public const int MaxBioLength = 160;
+    public const int MaxStatusMessageLength = 60;
     public const int MaxGrevIdLength = 58;
     public const long MaxAvatarFileBytes = 10 * 1024 * 1024;
 
@@ -65,6 +66,12 @@ public sealed class ProfileService
                     needsUpgrade = true;
                 }
 
+                if (profile.StatusMessage is null)
+                {
+                    profile = profile with { StatusMessage = string.Empty };
+                    needsUpgrade = true;
+                }
+
                 var avatarKey = ProfileAvatarCatalog.Normalize(profile.AvatarKey);
                 if (avatarKey == ProfileAvatarCatalog.CustomKey && string.IsNullOrWhiteSpace(profile.AvatarImageFile))
                 {
@@ -73,7 +80,11 @@ public sealed class ProfileService
 
                 if (!string.Equals(avatarKey, profile.AvatarKey, StringComparison.OrdinalIgnoreCase))
                 {
-                    profile = profile with { AvatarKey = avatarKey, AvatarImageFile = avatarKey == ProfileAvatarCatalog.CustomKey ? profile.AvatarImageFile : null };
+                    profile = profile with
+                    {
+                        AvatarKey = avatarKey,
+                        AvatarImageFile = avatarKey == ProfileAvatarCatalog.CustomKey ? profile.AvatarImageFile : null
+                    };
                     needsUpgrade = true;
                 }
 
@@ -171,6 +182,7 @@ public sealed class ProfileService
         AccountRole? newRole,
         string? customAvatarSourcePath = null,
         string? bio = null,
+        string? statusMessage = null,
         CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
@@ -179,6 +191,7 @@ public sealed class ProfileService
             ?? throw new InvalidOperationException("That local account does not exist.");
 
         var normalizedBio = bio is null ? profile.Bio : ValidateBio(bio);
+        var normalizedStatusMessage = statusMessage is null ? profile.StatusMessage : ValidateStatusMessage(statusMessage);
         var role = newRole ?? profile.Role;
         EnsureRoleChangeIsSafe(profile, role, profiles);
 
@@ -192,7 +205,8 @@ public sealed class ProfileService
             {
                 avatarImageFile = ImportAvatarImage(profile.GrevId, customAvatarSourcePath);
             }
-            else if (string.IsNullOrWhiteSpace(avatarImageFile) || !File.Exists(Path.Combine(_paths.GetProfileRoot(profile.GrevId), Path.GetFileName(avatarImageFile))))
+            else if (string.IsNullOrWhiteSpace(avatarImageFile) ||
+                     !File.Exists(Path.Combine(_paths.GetProfileRoot(profile.GrevId), Path.GetFileName(avatarImageFile))))
             {
                 throw new InvalidOperationException("Choose a custom profile photo first.");
             }
@@ -206,6 +220,7 @@ public sealed class ProfileService
         {
             DisplayName = displayName,
             Bio = normalizedBio,
+            StatusMessage = normalizedStatusMessage,
             AvatarKey = normalizedAvatar,
             AvatarImageFile = avatarImageFile,
             Role = role
@@ -286,7 +301,8 @@ public sealed class ProfileService
 
     private static void EnsureRoleChangeIsSafe(LocalProfile profile, AccountRole role, IReadOnlyCollection<LocalProfile> profiles)
     {
-        if (profile.Role == AccountRole.Admin && role != AccountRole.Admin && profiles.Count(candidate => candidate.Role == AccountRole.Admin) <= 1)
+        if (profile.Role == AccountRole.Admin && role != AccountRole.Admin &&
+            profiles.Count(candidate => candidate.Role == AccountRole.Admin) <= 1)
         {
             throw new InvalidOperationException("Grev Home must always have at least one Admin account.");
         }
@@ -340,7 +356,10 @@ public sealed class ProfileService
     private static string CreateRandomToken(int length)
     {
         Span<char> token = stackalloc char[length];
-        for (var index = 0; index < token.Length; index++) token[index] = GrevIdAlphabet[RandomNumberGenerator.GetInt32(GrevIdAlphabet.Length)];
+        for (var index = 0; index < token.Length; index++)
+        {
+            token[index] = GrevIdAlphabet[RandomNumberGenerator.GetInt32(GrevIdAlphabet.Length)];
+        }
         return new string(token);
     }
 
@@ -386,6 +405,20 @@ public sealed class ProfileService
         if (bio.Length > MaxBioLength) throw new InvalidOperationException($"Profile bios must be {MaxBioLength} characters or fewer.");
         if (bio.Any(char.IsControl)) throw new InvalidOperationException("Profile bios cannot contain control characters.");
         return bio;
+    }
+
+    private static string ValidateStatusMessage(string statusMessage)
+    {
+        statusMessage = statusMessage.Trim();
+        if (statusMessage.Length > MaxStatusMessageLength)
+        {
+            throw new InvalidOperationException($"Profile status messages must be {MaxStatusMessageLength} characters or fewer.");
+        }
+        if (statusMessage.Any(char.IsControl))
+        {
+            throw new InvalidOperationException("Profile status messages cannot contain control characters.");
+        }
+        return statusMessage;
     }
 
     private static void TryDeleteDirectory(string path)
