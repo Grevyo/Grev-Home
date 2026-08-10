@@ -12,12 +12,6 @@
                                FontSize="16"
                                Foreground="{StaticResource MutedBrush}" />
                 </StackPanel>
-                <Button Content="Log out"
-                        Width="130"
-                        Height="48"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Center"
-                        Click="Logout_Click" />
             </Grid>
 
             <TextBlock Text="YOUR DASHBOARD" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,10" />
