@@ -13,6 +13,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? AppKillerRequested;
     public event EventHandler? SettingsRequested;
     public event EventHandler? FilesRequested;
+    public event EventHandler? StoreRequested;
 
     public DashboardView()
     {
@@ -57,6 +58,9 @@ public partial class DashboardView : UserControl
 
     private void Files_Click(object sender, RoutedEventArgs e) =>
         FilesRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Store_Click(object sender, RoutedEventArgs e) =>
+        StoreRequested?.Invoke(this, EventArgs.Empty);
 
     private void Logout_Click(object sender, RoutedEventArgs e) =>
         LogoutRequested?.Invoke(this, EventArgs.Empty);
