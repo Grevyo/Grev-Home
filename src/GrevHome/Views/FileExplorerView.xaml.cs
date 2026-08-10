@@ -25,6 +25,7 @@ public partial class FileExplorerView : UserControl
     public event EventHandler? HomeRequested;
     public event EventHandler? UpRequested;
     public event EventHandler? RefreshRequested;
+    public event EventHandler? ModalOpened;
     public event Action<string>? NavigateRequested;
     public event Action<FileNameRequest>? NameRequested;
     public event Action<string>? DeleteRequested;
@@ -246,6 +247,7 @@ public partial class FileExplorerView : UserControl
         EditorTitleText.Text = mode == FileNameEditorMode.CreateFolder ? "New Folder" : "Rename Item";
         EditorStatusText.Text = "Use the controller keyboard or a physical keyboard.";
         EditorOverlay.Visibility = Visibility.Visible;
+        ModalOpened?.Invoke(this, EventArgs.Empty);
     }
 
     private void BuildKeyboard()
@@ -378,6 +380,7 @@ public partial class FileExplorerView : UserControl
 
         DeleteTargetText.Text = _selectedEntry.Path;
         DeleteOverlay.Visibility = Visibility.Visible;
+        ModalOpened?.Invoke(this, EventArgs.Empty);
     }
 
     private void ConfirmDelete_Click(object sender, RoutedEventArgs e)
