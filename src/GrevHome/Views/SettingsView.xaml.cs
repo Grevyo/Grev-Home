@@ -2,8 +2,8 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Input;
+using GrevHome.Machine;
 using GrevHome.Profiles;
-using GrevHome.System;
 
 namespace GrevHome.Views;
 
@@ -315,7 +315,8 @@ public partial class SettingsView : UserControl
         ShutdownButton.Content = _pendingPowerAction == SystemPowerAction.Shutdown ? "CONFIRM SHUT DOWN" : "Shut Down";
     }
 
-    private static string FormatBytes(ulong bytes) => FormatBytes((long)Math.Min(bytes, long.MaxValue));
+    private static string FormatBytes(ulong bytes) =>
+        FormatBytes(bytes > long.MaxValue ? long.MaxValue : (long)bytes);
 
     private static string FormatBytes(long bytes)
     {
@@ -422,15 +423,20 @@ public partial class SettingsView : UserControl
     private void ResetShortcuts_Click(object sender, RoutedEventArgs e) =>
         ResetShortcutsRequested?.Invoke(this, EventArgs.Empty);
 
-    private void RefreshSystemStatus_Click(object sender, RoutedEventArgs e) => RefreshSystemStatus();
+    private void RefreshSystemStatus_Click(object sender, RoutedEventArgs e) =>
+        RefreshSystemStatus();
 
-    private void Sleep_Click(object sender, RoutedEventArgs e) => ArmOrExecutePower(SystemPowerAction.Sleep);
+    private void Sleep_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecutePower(SystemPowerAction.Sleep);
 
-    private void Restart_Click(object sender, RoutedEventArgs e) => ArmOrExecutePower(SystemPowerAction.Restart);
+    private void Restart_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecutePower(SystemPowerAction.Restart);
 
-    private void Shutdown_Click(object sender, RoutedEventArgs e) => ArmOrExecutePower(SystemPowerAction.Shutdown);
+    private void Shutdown_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecutePower(SystemPowerAction.Shutdown);
 
-    private void CancelPowerAction_Click(object sender, RoutedEventArgs e) => ResetPowerConfirmation();
+    private void CancelPowerAction_Click(object sender, RoutedEventArgs e) =>
+        ResetPowerConfirmation();
 
     private void Back_Click(object sender, RoutedEventArgs e) =>
         BackRequested?.Invoke(this, EventArgs.Empty);
