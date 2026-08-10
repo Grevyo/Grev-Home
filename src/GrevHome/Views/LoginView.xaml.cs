@@ -10,6 +10,9 @@ public sealed record ProfileSignInRequest(LocalProfile Profile, int? ControllerI
 public partial class LoginView : UserControl
 {
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
+
+    // Kept for compatibility with the current shell wiring while the old lobby surface is removed.
+    // The current Login UI does not expose a pre-made Guest account or primary-selection lobby.
     public event Action<int?>? GuestSignInRequested;
     public event Action<Guid>? PrimaryUserRequested;
     public event EventHandler? CreateProfileRequested;
@@ -28,15 +31,25 @@ public partial class LoginView : UserControl
         SessionContext session,
         IReadOnlyList<bool> connectedControllers)
     {
+        HeadingText.Text = session.HasSignedInUsers ? "Add another player" : "Who's playing?";
+        SubheadingText.Text = session.HasSignedInUsers
+            ? "Choose another profile to sign them in. Back returns to the current Dashboard."
+            : "Choose your profile to enter Grev Home.";
+
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
         {
             var signedIn = session.SignedInUsers.FirstOrDefault(user =>
                 string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
+
+            var status = signedIn is null
+                ? profile.Role.ToString()
+                : BuildSignedInLabel(session, signedIn);
+
             var button = new Button
             {
                 Width = 260,
-                Height = 152,
+                Height = 154,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
                 Content = new StackPanel
@@ -63,21 +76,22 @@ public partial class LoginView : UserControl
                         },
                         new TextBlock
                         {
-                            Text = profile.GrevId,
-                            Margin = new Thickness(0, 3, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                            Text = profile.Role.ToString().ToUpperInvariant(),
+                            Margin = new Thickness(0, 5, 0, 0),
+                            Foreground = (System.Windows.Media.Brush)FindResource("AccentBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
-                            FontSize = 10,
-                            MaxWidth = 220,
-                            TextTrimming = TextTrimming.CharacterEllipsis
+                            FontSize = 11,
+                            FontWeight = FontWeights.Bold
                         },
                         new TextBlock
                         {
-                            Text = signedIn is null ? "Local account" : BuildSignedInLabel(session, signedIn),
+                            Text = status,
                             Margin = new Thickness(0, 7, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
-                            FontSize = 13
+                            FontSize = 12,
+                            TextAlignment = TextAlignment.Center,
+                            TextWrapping = TextWrapping.Wrap
                         }
                     }
                 }
@@ -87,86 +101,28 @@ public partial class LoginView : UserControl
         }
 
         NoProfilesText.Visibility = profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-
-        SignedInPanel.Children.Clear();
-        foreach (var user in session.SignedInUsers)
-        {
-            var controllerText = BuildControllerList(session, user);
-            var identityText = user.Username is null ? user.DisplayName : $"{user.DisplayName}  (@{user.Username})";
-            var button = new Button
-            {
-                Width = 275,
-                Height = 82,
-                Margin = new Thickness(0, 0, 10, 10),
-                Tag = user.SessionId,
-                Content = $"{(user.IsPrimary ? "★ " : string.Empty)}{identityText}\n{controllerText}"
-            };
-            button.Click += SignedInUser_Click;
-            SignedInPanel.Children.Add(button);
-        }
-
-        NoSignedInText.Visibility = session.HasSignedInUsers ? Visibility.Collapsed : Visibility.Visible;
-        EnterHomeButton.IsEnabled = session.HasSignedInUsers;
-        ClearSessionButton.IsEnabled = session.HasSignedInUsers;
-
-        var controllerLines = new List<string>();
-        for (var index = 0; index < connectedControllers.Count; index++)
-        {
-            if (!connectedControllers[index])
-            {
-                continue;
-            }
-
-            var assigned = session.GetUserForController(index);
-            controllerLines.Add($"Controller {index + 1} → {assigned?.DisplayName ?? "Unassigned"}");
-        }
-
-        ControllerSummaryText.Text = controllerLines.Count == 0
-            ? "No controllers connected"
-            : string.Join("     ", controllerLines);
     }
 
     private static string BuildSignedInLabel(SessionContext session, SessionUser user)
     {
         var controllers = session.GetControllersForUser(user.SessionId);
-        return controllers.Count == 0
-            ? "Signed in • no controller assigned"
-            : $"Signed in • {string.Join(", ", controllers.Select(index => $"Controller {index + 1}"))}";
-    }
-
-    private static string BuildControllerList(SessionContext session, SessionUser user)
-    {
-        var controllers = session.GetControllersForUser(user.SessionId);
-        return controllers.Count == 0
+        var controllerText = controllers.Count == 0
             ? "No controller"
             : string.Join(", ", controllers.Select(index => $"Controller {index + 1}"));
+        return $"SIGNED IN • {controllerText}{(user.IsPrimary ? " • PRIMARY" : string.Empty)}";
     }
 
     private void LocalProfile_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: LocalProfile profile })
+        if (sender is not Button { Tag: LocalProfile profile })
         {
-            LocalProfileSignInRequested?.Invoke(new ProfileSignInRequest(profile, ActivationControllerIndex));
+            return;
         }
-    }
 
-    private void GuestAccount_Click(object sender, RoutedEventArgs e) =>
-        GuestSignInRequested?.Invoke(ActivationControllerIndex);
-
-    private void SignedInUser_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: Guid sessionUserId })
-        {
-            PrimaryUserRequested?.Invoke(sessionUserId);
-        }
+        LocalProfileSignInRequested?.Invoke(new ProfileSignInRequest(profile, ActivationControllerIndex));
+        EnterHomeRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void CreateProfile_Click(object sender, RoutedEventArgs e) =>
         CreateProfileRequested?.Invoke(this, EventArgs.Empty);
-
-    private void EnterHome_Click(object sender, RoutedEventArgs e) =>
-        EnterHomeRequested?.Invoke(this, EventArgs.Empty);
-
-    private void ClearSession_Click(object sender, RoutedEventArgs e) =>
-        ClearSessionRequested?.Invoke(this, EventArgs.Empty);
 }
