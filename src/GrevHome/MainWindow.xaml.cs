@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
@@ -8,6 +9,7 @@ using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
 using GrevHome.Profiles;
+using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Storage;
 using GrevHome.Views;
@@ -24,12 +26,15 @@ public partial class MainWindow : Window
     private readonly AppCatalogService _appCatalogue;
     private readonly AppPathResolver _appPathResolver;
     private readonly InstalledAppService _installedApps;
+    private readonly RuntimeSessionManager _runtimeSessions;
     private readonly bool[] _controllers = new bool[4];
     private readonly LoginView _loginView = new();
     private readonly CreateProfileView _createProfileView = new();
     private readonly DashboardView _dashboardView = new();
     private readonly InstalledLibraryView _installedLibraryView = new();
+    private readonly RunningAppsView _runningAppsView = new();
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
+    private Guid? _foregroundLaunchSessionId;
 
     public MainWindow()
     {
@@ -38,6 +43,10 @@ public partial class MainWindow : Window
         _appCatalogue = new AppCatalogService(_paths);
         _appPathResolver = new AppPathResolver(_paths);
         _installedApps = new InstalledAppService(_paths, _appPathResolver, _appCatalogue);
+        _runtimeSessions = new RuntimeSessionManager(
+            new ProcessTreeService(),
+            new PlaytimeService(_paths),
+            new AppLaunchResolver());
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
@@ -53,8 +62,16 @@ public partial class MainWindow : Window
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
+        _dashboardView.RunningAppsRequested += (_, _) => OpenRunningApps();
         _dashboardView.LogoutRequested += (_, _) => Logout();
         _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
+        _installedLibraryView.LaunchRequested += entry => _ = LaunchInstalledAppAsync(entry);
+        _runningAppsView.BackRequested += (_, _) => _navigation.GoBack();
+
+        _runtimeSessions.SessionChanged += _ =>
+            Dispatcher.BeginInvoke(new Action(UpdateRuntimeSurfaces));
+        _runtimeSessions.SessionEnded += snapshot =>
+            Dispatcher.BeginInvoke(new Action(() => HandleRuntimeSessionEnded(snapshot)));
 
         _controllerInput.ActionPressed += input =>
             Dispatcher.BeginInvoke(new Action(() => HandleInput(input.Action, input.ControllerIndex)));
@@ -65,7 +82,11 @@ public partial class MainWindow : Window
         _controllerInput.Start();
 
         Loaded += async (_, _) => await InitializeAsync();
-        Closed += (_, _) => _controllerInput.Dispose();
+        Closed += (_, _) =>
+        {
+            _controllerInput.Dispose();
+            _runtimeSessions.Dispose();
+        };
     }
 
     private async Task InitializeAsync()
@@ -73,6 +94,7 @@ public partial class MainWindow : Window
         _paths.EnsureMachineLayout();
         _profiles = await _profileService.GetProfilesAsync();
         RefreshSessionSurfaces();
+        UpdateRuntimeSurfaces();
         _navigation.Reset(Route.Login);
         FocusFirstButton();
     }
@@ -105,6 +127,47 @@ public partial class MainWindow : Window
         var entries = await _installedApps.GetInstalledForUserAsync(primary?.GrevId);
         _installedLibraryView.SetLibrary(entries, primary);
         _navigation.Navigate(Route.InstalledLibrary);
+    }
+
+    private void OpenRunningApps()
+    {
+        if (!_session.HasSignedInUsers)
+        {
+            _navigation.Reset(Route.Login);
+            return;
+        }
+
+        UpdateRuntimeSurfaces();
+        _navigation.Navigate(Route.RunningApps);
+    }
+
+    private async Task LaunchInstalledAppAsync(InstalledAppEntry entry)
+    {
+        try
+        {
+            var launched = await _runtimeSessions.LaunchAsync(entry, _session);
+            _foregroundLaunchSessionId = launched.LaunchSessionId;
+            _installedLibraryView.ShowLaunchStarted(launched);
+            UpdateRuntimeSurfaces();
+            Hide();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            _installedLibraryView.ShowLaunchError(ex.Message);
+        }
+    }
+
+    private void HandleRuntimeSessionEnded(LaunchSessionSnapshot snapshot)
+    {
+        UpdateRuntimeSurfaces();
+
+        if (_foregroundLaunchSessionId != snapshot.LaunchSessionId)
+        {
+            return;
+        }
+
+        _foregroundLaunchSessionId = null;
+        RestoreWindowWithoutChangingRoute();
     }
 
     private void OpenSessionLobby()
@@ -153,6 +216,13 @@ public partial class MainWindow : Window
         UpdateControllerHeader();
     }
 
+    private void UpdateRuntimeSurfaces()
+    {
+        var active = _runtimeSessions.GetActiveSessions();
+        _dashboardView.SetRunningCount(active.Count);
+        _runningAppsView.SetSessions(active);
+    }
+
     private void ShowRoute(Route route)
     {
         RouteHost.Content = route switch
@@ -161,6 +231,7 @@ public partial class MainWindow : Window
             Route.CreateProfile => _createProfileView,
             Route.Dashboard => _dashboardView,
             Route.InstalledLibrary => _installedLibraryView,
+            Route.RunningApps => _runningAppsView,
             _ => _loginView
         };
 
@@ -296,6 +367,13 @@ public partial class MainWindow : Window
 
     private void BringGrevHomeToFront()
     {
+        _foregroundLaunchSessionId = null;
+        _navigation.Reset(_session.HasSignedInUsers ? Route.Dashboard : Route.Login);
+        RestoreWindowWithoutChangingRoute();
+    }
+
+    private void RestoreWindowWithoutChangingRoute()
+    {
         if (!IsVisible)
         {
             Show();
@@ -305,8 +383,6 @@ public partial class MainWindow : Window
         {
             WindowState = WindowState.Maximized;
         }
-
-        _navigation.Reset(_session.HasSignedInUsers ? Route.Dashboard : Route.Login);
 
         Activate();
         Topmost = true;
