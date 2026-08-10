@@ -86,7 +86,7 @@ public partial class MainWindow
     private void CorrectMovementFromHeader(
         Button originalFocus,
         InputAction action,
-        IReadOnlyList<Button> headerButtons)
+        List<Button> headerButtons)
     {
         var index = headerButtons.IndexOf(originalFocus);
         if (index < 0)
