@@ -48,7 +48,8 @@ public partial class LoginView : UserControl
                             Text = profile.DisplayName,
                             FontSize = 23,
                             FontWeight = FontWeights.SemiBold,
-                            HorizontalAlignment = HorizontalAlignment.Center
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            TextTrimming = TextTrimming.CharacterEllipsis
                         },
                         new TextBlock
                         {
@@ -56,7 +57,9 @@ public partial class LoginView : UserControl
                             Margin = new Thickness(0, 5, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
-                            FontSize = 11
+                            FontSize = 11,
+                            MaxWidth = 210,
+                            TextTrimming = TextTrimming.CharacterEllipsis
                         },
                         new TextBlock
                         {
