@@ -39,7 +39,9 @@ public sealed class FileSystemService
     {
         var locations = new List<FileHomeLocation>();
         var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        var testArea = EnsureTestArea(grevHomeRoot);
 
+        AddKnownFolder(locations, "Test Area", testArea, "Disposable Grev Home file-operation sandbox");
         AddKnownFolder(locations, "Downloads", Path.Combine(userProfile, "Downloads"), "Windows Downloads");
         AddKnownFolder(locations, "Documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Windows Documents");
         AddKnownFolder(locations, "Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Windows Pictures");
@@ -219,6 +221,34 @@ public sealed class FileSystemService
         }
 
         return target;
+    }
+
+    private static string EnsureTestArea(string grevHomeRoot)
+    {
+        var root = Path.GetFullPath(grevHomeRoot);
+        Directory.CreateDirectory(root);
+
+        var testArea = Path.Combine(root, "TestArea");
+        var isNew = !Directory.Exists(testArea);
+        Directory.CreateDirectory(testArea);
+
+        if (!isNew)
+        {
+            return testArea;
+        }
+
+        Directory.CreateDirectory(Path.Combine(testArea, "Folder A", "Folder B"));
+        Directory.CreateDirectory(Path.Combine(testArea, "Copy Move Test"));
+        Directory.CreateDirectory(Path.Combine(testArea, "Destination"));
+
+        File.WriteAllText(
+            Path.Combine(testArea, "Test File 1.txt"),
+            "Grev Home disposable test file 1. Safe to rename, copy, move or delete during UI testing.");
+        File.WriteAllText(
+            Path.Combine(testArea, "Test File 2.txt"),
+            "Grev Home disposable test file 2. Safe to rename, copy, move or delete during UI testing.");
+
+        return testArea;
     }
 
     private static void CopyDirectory(string source, string destination)
