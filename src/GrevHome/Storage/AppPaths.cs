@@ -23,32 +23,32 @@ public sealed class AppPaths
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Grev Home");
     }
 
-    public string GetProfileRoot(Guid profileId) =>
-        Path.Combine(Profiles, profileId.ToString("N"));
+    public string GetProfileRoot(Guid grevId) =>
+        Path.Combine(Profiles, grevId.ToString("N"));
 
-    public string GetProfileMetadata(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "profile.json");
+    public string GetProfileMetadata(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "profile.json");
 
-    public string GetProfileApps(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "Apps");
+    public string GetProfileApps(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Apps");
 
-    public string GetProfileAppData(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "AppData");
+    public string GetProfileAppData(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "AppData");
 
-    public string GetProfileSaves(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "Saves");
+    public string GetProfileSaves(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Saves");
 
-    public string GetProfileStats(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "Stats");
+    public string GetProfileStats(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Stats");
 
-    public string GetProfileConnections(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "Connections");
+    public string GetProfileConnections(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Connections");
 
-    public string GetProfileScreenshots(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "Screenshots");
+    public string GetProfileScreenshots(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Screenshots");
 
-    public string GetProfileThemes(Guid profileId) =>
-        Path.Combine(GetProfileRoot(profileId), "Themes");
+    public string GetProfileThemes(Guid grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Themes");
 
     public void EnsureMachineLayout()
     {
@@ -65,16 +65,16 @@ public sealed class AppPaths
         EnsureGuestLayout();
     }
 
-    public void EnsureProfileLayout(Guid profileId)
+    public void EnsureProfileLayout(Guid grevId)
     {
-        Directory.CreateDirectory(GetProfileRoot(profileId));
-        Directory.CreateDirectory(GetProfileApps(profileId));
-        Directory.CreateDirectory(GetProfileAppData(profileId));
-        Directory.CreateDirectory(GetProfileSaves(profileId));
-        Directory.CreateDirectory(GetProfileStats(profileId));
-        Directory.CreateDirectory(GetProfileConnections(profileId));
-        Directory.CreateDirectory(GetProfileScreenshots(profileId));
-        Directory.CreateDirectory(GetProfileThemes(profileId));
+        Directory.CreateDirectory(GetProfileRoot(grevId));
+        Directory.CreateDirectory(GetProfileApps(grevId));
+        Directory.CreateDirectory(GetProfileAppData(grevId));
+        Directory.CreateDirectory(GetProfileSaves(grevId));
+        Directory.CreateDirectory(GetProfileStats(grevId));
+        Directory.CreateDirectory(GetProfileConnections(grevId));
+        Directory.CreateDirectory(GetProfileScreenshots(grevId));
+        Directory.CreateDirectory(GetProfileThemes(grevId));
     }
 
     public void EnsureGuestLayout()
