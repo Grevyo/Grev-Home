@@ -17,6 +17,7 @@
 13. **System shortcuts are configuration, not code** — Return Home, Overlay and future global controller actions are named actions whose physical button combinations come from validated configuration.
 14. **Settings have owners** — GrevID-owned settings stay with the account; machine-wide settings live with the machine/runtime. Do not create one giant undifferentiated settings file.
 15. **Backbone before ecosystem/presentation** — system controls, files/storage, runtime recovery, account management and boot/recovery must work before package installers, Grev Store or visual theming are treated as priorities.
+16. **Runtime root is explicit** — normal Grev Home operation stores its machine/runtime data beneath `C:\GrevHome`, which Grev Home creates on first run. `GREV_HOME_ROOT` is a development/test override only.
 
 ## GrevID contract
 
@@ -96,7 +97,7 @@ This remains a last-resort migration rather than a rename.
 
 ## Runtime storage contract
 
-The default data root is `%ProgramData%\Grev Home`. `GREV_HOME_ROOT` may override it for development/testing.
+The default data root is `C:\GrevHome`. Grev Home creates this folder and its standard machine layout automatically on first run. `GREV_HOME_ROOT` may override it for development/testing only.
 
 A persistent local GrevID owns:
 
