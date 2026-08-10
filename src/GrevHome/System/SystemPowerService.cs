@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace GrevHome.System;
+namespace GrevHome.Machine;
 
 public enum SystemPowerAction
 {
