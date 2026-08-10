@@ -27,6 +27,8 @@ public sealed class NavigationService
         RouteChanged?.Invoke(route);
     }
 
+    public void PushCurrentBackEntry() => _history.Push(Current);
+
     public bool DiscardBackEntry(Route expectedRoute)
     {
         if (_history.Count == 0 || _history.Peek() != expectedRoute)
