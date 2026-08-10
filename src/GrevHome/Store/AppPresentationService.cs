@@ -21,7 +21,6 @@ public sealed record AppPresentationOverride(
 
 public sealed record ResolvedAppPresentation(
     string DisplayName,
-    string FallbackGlyph,
     string? IconPath,
     string? TileMediaPath,
     string? HeroMediaPath,
@@ -134,7 +133,6 @@ public sealed class AppPresentationService
         var root = _paths.GetProfileAppPresentationRoot(grevId, package.App.AppId);
         return new ResolvedAppPresentation(
             string.IsNullOrWhiteSpace(overrides.DisplayName) ? package.Presentation.DisplayName : overrides.DisplayName,
-            package.Presentation.FallbackGlyph,
             ResolveOverridePath(root, overrides.IconFile) ?? package.Presentation.IconAsset,
             ResolveOverridePath(root, overrides.TileMediaFile) ?? package.Presentation.TileMediaAsset,
             ResolveOverridePath(root, overrides.HeroMediaFile) ?? package.Presentation.HeroMediaAsset,
