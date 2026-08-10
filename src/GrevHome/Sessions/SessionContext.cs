@@ -16,7 +16,7 @@ public sealed class SessionUser
     public string? Username { get; }
     public string DisplayName { get; internal set; }
     public AccountKind AccountKind { get; }
-    public AccountRole Role { get; }
+    public AccountRole Role { get; internal set; }
     public bool IsPrimary { get; internal set; }
 
     public SessionUser(
@@ -64,6 +64,11 @@ public sealed class SessionContext
             };
             SignedInUsers.Add(user);
         }
+        else
+        {
+            user.DisplayName = profile.DisplayName;
+            user.Role = profile.Role;
+        }
 
         if (controllerIndex.HasValue)
         {
@@ -72,29 +77,6 @@ public sealed class SessionContext
 
         RaiseChanged();
         return user;
-    }
-
-    // Retained temporarily for backward compatibility with pre-role code paths.
-    // The current UI does not expose a pre-made Guest login; Guest is a role on a created local account.
-    public SessionUser SignInGuest(int? controllerIndex = null)
-    {
-        var guest = SignedInUsers.FirstOrDefault(candidate => candidate.AccountKind == AccountKind.Guest);
-        if (guest is null)
-        {
-            guest = new SessionUser(null, null, "Guest", AccountKind.Guest, AccountRole.Guest)
-            {
-                IsPrimary = SignedInUsers.Count == 0
-            };
-            SignedInUsers.Add(guest);
-        }
-
-        if (controllerIndex.HasValue)
-        {
-            AssignControllerInternal(controllerIndex.Value, guest.SessionId);
-        }
-
-        RaiseChanged();
-        return guest;
     }
 
     public void SetPrimary(Guid sessionUserId)
@@ -112,15 +94,25 @@ public sealed class SessionContext
 
     public void UpdateDisplayName(string grevId, string displayName)
     {
-        var user = SignedInUsers.FirstOrDefault(candidate =>
-            string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
-
+        var user = FindLocalUser(grevId);
         if (user is null)
         {
             return;
         }
 
         user.DisplayName = displayName;
+        RaiseChanged();
+    }
+
+    public void UpdateRole(string grevId, AccountRole role)
+    {
+        var user = FindLocalUser(grevId);
+        if (user is null)
+        {
+            return;
+        }
+
+        user.Role = role;
         RaiseChanged();
     }
 
@@ -180,6 +172,10 @@ public sealed class SessionContext
         ControllerAssignments.Clear();
         RaiseChanged();
     }
+
+    private SessionUser? FindLocalUser(string grevId) =>
+        SignedInUsers.FirstOrDefault(candidate =>
+            string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
 
     private void AssignControllerInternal(int controllerIndex, Guid sessionUserId)
     {
