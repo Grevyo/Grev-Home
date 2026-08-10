@@ -7,7 +7,7 @@
             <Grid Margin="0,0,0,24">
                 <StackPanel>
                     <TextBlock Text="Settings" FontSize="40" FontWeight="SemiBold" />
-                    <TextBlock Text="Account presentation and machine-wide controller system shortcuts."
+                    <TextBlock Text="Account, controller and machine settings for this Grev Home system."
                                Margin="0,6,0,0"
                                Foreground="{StaticResource MutedBrush}"
                                FontSize="16" />
@@ -76,7 +76,7 @@
             </Border>
 
             <TextBlock Text="CONTROLLER SYSTEM SHORTCUTS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22">
+            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22" Margin="0,0,0,28">
                 <StackPanel>
                     <TextBlock Text="These shortcuts are machine-wide and continue working while external apps are running."
                                Foreground="{StaticResource MutedBrush}"
@@ -130,6 +130,63 @@
 
                     <TextBlock x:Name="ShortcutStatusText"
                                Margin="0,14,0,0"
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="SYSTEM STATUS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
+            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22" Margin="0,0,0,28">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock x:Name="MachineNameText" Text="This Grev Machine" FontSize="24" FontWeight="SemiBold" />
+                            <TextBlock x:Name="WindowsText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="MachineResourcesText" Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            <TextBlock x:Name="MachinePowerText" Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        </StackPanel>
+                        <Button Grid.Column="1"
+                                Content="Refresh status"
+                                Width="150"
+                                Height="48"
+                                VerticalAlignment="Center"
+                                Click="RefreshSystemStatus_Click" />
+                    </Grid>
+
+                    <TextBlock Text="STORAGE" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
+                    <StackPanel x:Name="StorageStatusPanel" />
+
+                    <TextBlock Text="CONTROLLERS" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
+                    <StackPanel x:Name="ControllerHardwarePanel" />
+
+                    <TextBlock x:Name="SystemStatusText"
+                               Margin="0,14,0,0"
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock Text="POWER" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
+            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22">
+                <StackPanel>
+                    <TextBlock Text="Power actions affect the whole Windows machine. Select an action once to arm it, then select the same action again within 8 seconds to confirm."
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+
+                    <WrapPanel Margin="0,18,0,0">
+                        <Button x:Name="SleepButton" Content="Sleep" Width="210" Height="64" Margin="0,0,10,10" Click="Sleep_Click" />
+                        <Button x:Name="RestartButton" Content="Restart" Width="210" Height="64" Margin="0,0,10,10" Click="Restart_Click" />
+                        <Button x:Name="ShutdownButton" Content="Shut Down" Width="210" Height="64" Margin="0,0,10,10" Click="Shutdown_Click" />
+                        <Button Content="Cancel power action" Width="210" Height="64" Margin="0,0,10,10" Click="CancelPowerAction_Click" />
+                    </WrapPanel>
+
+                    <TextBlock x:Name="PowerStatusText"
+                               Margin="0,8,0,0"
+                               Text="No power action armed."
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>

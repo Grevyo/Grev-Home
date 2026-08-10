@@ -1,6 +1,8 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Input;
+using GrevHome.Machine;
 using GrevHome.Profiles;
 
 namespace GrevHome.Views;
@@ -10,8 +12,13 @@ public sealed record ShortcutHoldAdjustment(string BindingId, int DeltaMilliseco
 
 public partial class SettingsView : UserControl
 {
+    private readonly SystemStatusService _systemStatusService = new();
+    private readonly ControllerHardwareService _controllerHardwareService = new();
+    private readonly SystemPowerService _systemPowerService = new();
     private LocalProfile? _profile;
     private ControllerShortcutConfiguration _shortcuts = ControllerShortcutService.CreateDefaults();
+    private SystemPowerAction? _pendingPowerAction;
+    private DateTimeOffset _pendingPowerExpiresAt;
 
     public event EventHandler? BackRequested;
     public event Action<string>? SaveDisplayNameRequested;
@@ -51,6 +58,8 @@ public partial class SettingsView : UserControl
         }
 
         RenderShortcuts();
+        RefreshSystemStatus();
+        ResetPowerConfirmation();
     }
 
     public void ShowAccountStatus(string message, bool closeEditor = false)
@@ -178,6 +187,165 @@ public partial class SettingsView : UserControl
         Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush")
     };
 
+    private void RefreshSystemStatus()
+    {
+        try
+        {
+            var machine = _systemStatusService.GetMachineStatus();
+            MachineNameText.Text = machine.MachineName;
+            WindowsText.Text = $"{machine.WindowsDescription}  •  {machine.Architecture}";
+            MachineResourcesText.Text =
+                $"{machine.LogicalProcessors} logical processors  •  RAM {FormatBytes(machine.AvailableMemoryBytes)} free / {FormatBytes(machine.TotalMemoryBytes)} total  •  Uptime {FormatUptime(machine.Uptime)}";
+            MachinePowerText.Text = machine.BatteryPercent.HasValue
+                ? $"Power: {machine.PowerSource}  •  system battery {machine.BatteryPercent}%"
+                : $"Power: {machine.PowerSource}";
+
+            RenderStorage(_systemStatusService.GetStorageStatus());
+            RenderControllerHardware(_controllerHardwareService.GetControllers());
+            SystemStatusText.Text = $"Status refreshed {DateTime.Now:T}. Drive and controller hardware can change while Grev Home is running.";
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or Win32Exception)
+        {
+            SystemStatusText.Text = $"Windows status refresh failed: {ex.Message}";
+        }
+    }
+
+    private void RenderStorage(IReadOnlyList<StorageStatus> drives)
+    {
+        StorageStatusPanel.Children.Clear();
+
+        if (drives.Count == 0)
+        {
+            StorageStatusPanel.Children.Add(CreateEmptyLabel("No ready drives reported by Windows."));
+            return;
+        }
+
+        foreach (var drive in drives)
+        {
+            var used = Math.Max(0, drive.TotalBytes - drive.FreeBytes);
+            var usedPercent = drive.TotalBytes <= 0 ? 0 : (int)Math.Round(used * 100d / drive.TotalBytes);
+            StorageStatusPanel.Children.Add(CreateStatusRow(
+                $"{drive.Name}  {drive.Label}",
+                $"{drive.DriveType}  •  {drive.Format}  •  {FormatBytes(drive.FreeBytes)} free / {FormatBytes(drive.TotalBytes)}  •  {usedPercent}% used"));
+        }
+    }
+
+    private void RenderControllerHardware(IReadOnlyList<ControllerHardwareStatus> controllers)
+    {
+        ControllerHardwarePanel.Children.Clear();
+
+        foreach (var controller in controllers)
+        {
+            ControllerHardwarePanel.Children.Add(CreateStatusRow(
+                $"Controller {controller.ControllerIndex + 1}",
+                controller.IsConnected
+                    ? $"Connected  •  {controller.BatteryType}  •  Battery {controller.BatteryLevel}"
+                    : "Not connected"));
+        }
+    }
+
+    private UIElement CreateStatusRow(string title, string detail)
+    {
+        return new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 14, 21)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(52, 61, 81)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(14),
+            Margin = new Thickness(0, 0, 0, 8),
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = title,
+                        FontSize = 17,
+                        FontWeight = FontWeights.SemiBold
+                    },
+                    new TextBlock
+                    {
+                        Text = detail,
+                        Margin = new Thickness(0, 5, 0, 0),
+                        Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                        TextWrapping = TextWrapping.Wrap
+                    }
+                }
+            }
+        };
+    }
+
+    private void ArmOrExecutePower(SystemPowerAction action)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_pendingPowerAction != action || now > _pendingPowerExpiresAt)
+        {
+            _pendingPowerAction = action;
+            _pendingPowerExpiresAt = now.AddSeconds(8);
+            UpdatePowerButtons();
+            PowerStatusText.Text = $"{FormatPowerAction(action)} armed. Select the same action again within 8 seconds to confirm.";
+            return;
+        }
+
+        ResetPowerConfirmation();
+        try
+        {
+            PowerStatusText.Text = $"Requesting {FormatPowerAction(action).ToLowerInvariant()} from Windows…";
+            _systemPowerService.Execute(action);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or UnauthorizedAccessException)
+        {
+            PowerStatusText.Text = $"Windows did not complete the power action: {ex.Message}";
+        }
+    }
+
+    private void ResetPowerConfirmation()
+    {
+        _pendingPowerAction = null;
+        _pendingPowerExpiresAt = DateTimeOffset.MinValue;
+        UpdatePowerButtons();
+        PowerStatusText.Text = "No power action armed.";
+    }
+
+    private void UpdatePowerButtons()
+    {
+        SleepButton.Content = _pendingPowerAction == SystemPowerAction.Sleep ? "CONFIRM SLEEP" : "Sleep";
+        RestartButton.Content = _pendingPowerAction == SystemPowerAction.Restart ? "CONFIRM RESTART" : "Restart";
+        ShutdownButton.Content = _pendingPowerAction == SystemPowerAction.Shutdown ? "CONFIRM SHUT DOWN" : "Shut Down";
+    }
+
+    private static string FormatBytes(ulong bytes) =>
+        FormatBytes(bytes > long.MaxValue ? long.MaxValue : (long)bytes);
+
+    private static string FormatBytes(long bytes)
+    {
+        const double gibibyte = 1024d * 1024d * 1024d;
+        const double mebibyte = 1024d * 1024d;
+
+        return bytes >= gibibyte
+            ? $"{bytes / gibibyte:0.0} GB"
+            : $"{bytes / mebibyte:0.0} MB";
+    }
+
+    private static string FormatUptime(TimeSpan uptime)
+    {
+        if (uptime.TotalDays >= 1)
+        {
+            return $"{(int)uptime.TotalDays}d {uptime.Hours}h {uptime.Minutes}m";
+        }
+
+        return $"{uptime.Hours}h {uptime.Minutes}m";
+    }
+
+    private static string FormatPowerAction(SystemPowerAction action) => action switch
+    {
+        SystemPowerAction.Shutdown => "Shut Down",
+        SystemPowerAction.Restart => "Restart",
+        SystemPowerAction.Sleep => "Sleep",
+        _ => action.ToString()
+    };
+
     private void BuildDisplayNameKeyboard()
     {
         const string keys = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890";
@@ -254,6 +422,21 @@ public partial class SettingsView : UserControl
 
     private void ResetShortcuts_Click(object sender, RoutedEventArgs e) =>
         ResetShortcutsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void RefreshSystemStatus_Click(object sender, RoutedEventArgs e) =>
+        RefreshSystemStatus();
+
+    private void Sleep_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecutePower(SystemPowerAction.Sleep);
+
+    private void Restart_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecutePower(SystemPowerAction.Restart);
+
+    private void Shutdown_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecutePower(SystemPowerAction.Shutdown);
+
+    private void CancelPowerAction_Click(object sender, RoutedEventArgs e) =>
+        ResetPowerConfirmation();
 
     private void Back_Click(object sender, RoutedEventArgs e) =>
         BackRequested?.Invoke(this, EventArgs.Empty);
