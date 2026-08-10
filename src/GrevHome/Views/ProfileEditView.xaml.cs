@@ -49,16 +49,28 @@ public partial class ProfileEditView : UserControl
         _selectedAvatarKey = ProfileAvatarCatalog.Normalize(profile.AvatarKey);
         _selectedRole = profile.Role;
         _customAvatarSourcePath = null;
-
         IdentityText.Text = $"@{profile.Username}  •  {profile.GrevId}  •  Username and GrevID are permanent";
         DisplayNameTextBox.Text = profile.DisplayName;
         DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-
         RolePanel.Visibility = canChangeRole ? Visibility.Visible : Visibility.Collapsed;
         RoleLockedText.Visibility = canChangeRole ? Visibility.Collapsed : Visibility.Visible;
         RoleLockedText.Text = $"Role: {profile.Role} • only an Admin can change account roles.";
         StatusText.Text = "Display Name and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
+        UpdateAvatarPresentation();
+        UpdateRolePresentation();
+    }
 
+    public ProfileEditRequest? CaptureDraft() => _profile is null
+        ? null
+        : new ProfileEditRequest(_profile.GrevId, DisplayNameTextBox.Text, _selectedAvatarKey, _selectedRole, _customAvatarSourcePath);
+
+    public void RestoreDraft(ProfileEditRequest draft)
+    {
+        if (_profile is null || !string.Equals(_profile.GrevId, draft.GrevId, StringComparison.OrdinalIgnoreCase)) return;
+        DisplayNameTextBox.Text = draft.DisplayName;
+        _selectedAvatarKey = ProfileAvatarCatalog.Normalize(draft.AvatarKey);
+        _selectedRole = draft.Role;
+        _customAvatarSourcePath = draft.CustomAvatarSourcePath;
         UpdateAvatarPresentation();
         UpdateRolePresentation();
     }
@@ -78,14 +90,7 @@ public partial class ProfileEditView : UserControl
     {
         foreach (var preset in ProfileAvatarCatalog.Presets)
         {
-            var button = new Button
-            {
-                Tag = preset.Key,
-                Width = 68,
-                Height = 60,
-                Margin = new Thickness(3),
-                FontSize = 17
-            };
+            var button = new Button { Tag = preset.Key, Width = 68, Height = 60, Margin = new Thickness(3), FontSize = 17 };
             button.Click += Avatar_Click;
             AvatarButtonsPanel.Children.Add(button);
         }
@@ -94,8 +99,7 @@ public partial class ProfileEditView : UserControl
     private void OpenKeyboard_Click(object sender, RoutedEventArgs e) =>
         KeyboardOverlay.Open("Change Display Name", DisplayNameTextBox.Text, DisplayNameTextBox.MaxLength);
 
-    private void ChoosePhoto_Click(object sender, RoutedEventArgs e) =>
-        ChooseCustomPhotoRequested?.Invoke(this, EventArgs.Empty);
+    private void ChoosePhoto_Click(object sender, RoutedEventArgs e) => ChooseCustomPhotoRequested?.Invoke(this, EventArgs.Empty);
 
     private void Avatar_Click(object sender, RoutedEventArgs e)
     {
@@ -109,22 +113,14 @@ public partial class ProfileEditView : UserControl
 
     private void Role_Click(object sender, RoutedEventArgs e)
     {
-        if (!_canChangeRole || sender is not Button { Tag: string roleName } ||
-            !Enum.TryParse<AccountRole>(roleName, true, out var role))
-        {
-            return;
-        }
-
+        if (!_canChangeRole || sender is not Button { Tag: string roleName } || !Enum.TryParse<AccountRole>(roleName, true, out var role)) return;
         _selectedRole = role;
         UpdateRolePresentation();
     }
 
     private void UpdateAvatarPresentation()
     {
-        var displayName = string.IsNullOrWhiteSpace(DisplayNameTextBox.Text)
-            ? _profile?.DisplayName ?? "?"
-            : DisplayNameTextBox.Text;
-
+        var displayName = string.IsNullOrWhiteSpace(DisplayNameTextBox.Text) ? _profile?.DisplayName ?? "?" : DisplayNameTextBox.Text;
         AvatarPreviewImage.Source = null;
         AvatarPreviewImage.Visibility = Visibility.Collapsed;
         AvatarPreviewText.Visibility = Visibility.Visible;
@@ -143,8 +139,7 @@ public partial class ProfileEditView : UserControl
         }
         else
         {
-            var selectedPreset = ProfileAvatarCatalog.Presets.First(item => item.Key == _selectedAvatarKey);
-            AvatarChoiceText.Text = selectedPreset.Name;
+            AvatarChoiceText.Text = ProfileAvatarCatalog.Presets.First(item => item.Key == _selectedAvatarKey).Name;
         }
 
         foreach (var button in AvatarButtonsPanel.Children.OfType<Button>())
@@ -170,10 +165,7 @@ public partial class ProfileEditView : UserControl
             image.Freeze();
             return image;
         }
-        catch
-        {
-            return null;
-        }
+        catch { return null; }
     }
 
     private void UpdateRolePresentation()
@@ -186,12 +178,7 @@ public partial class ProfileEditView : UserControl
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
-        if (_profile is null) return;
-        SaveRequested?.Invoke(new ProfileEditRequest(
-            _profile.GrevId,
-            DisplayNameTextBox.Text,
-            _selectedAvatarKey,
-            _selectedRole,
-            _customAvatarSourcePath));
+        var draft = CaptureDraft();
+        if (draft is not null) SaveRequested?.Invoke(draft);
     }
 }
