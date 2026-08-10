@@ -17,6 +17,9 @@ public partial class ProfileView : UserControl
     {
         if (profile is null)
         {
+            AvatarImage.Source = null;
+            AvatarImage.Visibility = Visibility.Collapsed;
+            AvatarText.Visibility = Visibility.Visible;
             AvatarText.Text = "?";
             DisplayNameText.Text = "No local profile";
             UsernameText.Text = "No local profile is available.";
@@ -30,6 +33,9 @@ public partial class ProfileView : UserControl
             return;
         }
 
+        AvatarImage.Source = ProfileAvatarCatalog.TryLoadCustomImage(profile);
+        AvatarImage.Visibility = AvatarImage.Source is null ? Visibility.Collapsed : Visibility.Visible;
+        AvatarText.Visibility = AvatarImage.Source is null ? Visibility.Visible : Visibility.Collapsed;
         AvatarText.Text = ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName);
         DisplayNameText.Text = profile.DisplayName;
         UsernameText.Text = $"@{profile.Username}";
@@ -42,6 +48,5 @@ public partial class ProfileView : UserControl
         EditProfileButton.IsEnabled = canEdit;
     }
 
-    private void EditProfile_Click(object sender, RoutedEventArgs e) =>
-        EditProfileRequested?.Invoke(this, EventArgs.Empty);
+    private void EditProfile_Click(object sender, RoutedEventArgs e) => EditProfileRequested?.Invoke(this, EventArgs.Empty);
 }
