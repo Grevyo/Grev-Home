@@ -55,7 +55,7 @@ public sealed class ProfileService
                     continue;
                 }
 
-                // Pre-release 0.2 metadata created before Username existed is upgraded in-place.
+                // Pre-release metadata created before Username existed is upgraded in-place.
                 if (string.IsNullOrWhiteSpace(profile.Username))
                 {
                     profile = profile with { Username = profile.DisplayName };
@@ -68,7 +68,6 @@ public sealed class ProfileService
             catch (JsonException)
             {
                 // A damaged profile must not prevent the rest of Grev Home from reaching Login.
-                // Recovery/import UI will handle repairable profile data later.
             }
             catch (ArgumentException)
             {
@@ -82,7 +81,10 @@ public sealed class ProfileService
             .ToArray();
     }
 
-    public async Task<LocalProfile> CreateAsync(string username, CancellationToken cancellationToken = default)
+    public async Task<LocalProfile> CreateAsync(
+        string username,
+        AccountRole role,
+        CancellationToken cancellationToken = default)
     {
         username = ValidateUsername(username);
         var existing = await GetProfilesAsync(cancellationToken);
@@ -93,7 +95,7 @@ public sealed class ProfileService
         }
 
         var grevId = CreateUniqueGrevId(username, existing);
-        var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow);
+        var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow, role);
         var profileRoot = _paths.GetProfileRoot(profile.GrevId);
 
         try
