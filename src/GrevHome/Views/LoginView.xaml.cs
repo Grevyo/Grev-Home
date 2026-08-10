@@ -31,11 +31,12 @@ public partial class LoginView : UserControl
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
         {
-            var signedIn = session.SignedInUsers.FirstOrDefault(user => user.GrevId == profile.GrevId);
+            var signedIn = session.SignedInUsers.FirstOrDefault(user =>
+                string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
             var button = new Button
             {
-                Width = 235,
-                Height = 118,
+                Width = 250,
+                Height = 132,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
                 Content = new StackPanel
@@ -51,8 +52,16 @@ public partial class LoginView : UserControl
                         },
                         new TextBlock
                         {
-                            Text = signedIn is null ? "Local profile" : BuildSignedInLabel(session, signedIn),
-                            Margin = new Thickness(0, 8, 0, 0),
+                            Text = profile.GrevId,
+                            Margin = new Thickness(0, 5, 0, 0),
+                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                            HorizontalAlignment = HorizontalAlignment.Center,
+                            FontSize = 11
+                        },
+                        new TextBlock
+                        {
+                            Text = signedIn is null ? "Local account" : BuildSignedInLabel(session, signedIn),
+                            Margin = new Thickness(0, 7, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             HorizontalAlignment = HorizontalAlignment.Center,
                             FontSize = 13
