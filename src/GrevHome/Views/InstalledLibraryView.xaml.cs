@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Apps;
+using GrevHome.Runtime;
 using GrevHome.Sessions;
 
 namespace GrevHome.Views;
@@ -12,6 +13,7 @@ public partial class InstalledLibraryView : UserControl
     private SessionUser? _primaryUser;
 
     public event EventHandler? BackRequested;
+    public event Action<InstalledAppEntry>? LaunchRequested;
 
     public InstalledLibraryView()
     {
@@ -31,6 +33,16 @@ public partial class InstalledLibraryView : UserControl
                 : $"{primaryUser.DisplayName} • {primaryUser.GrevId} • shared + GrevID-local apps";
 
         Render();
+    }
+
+    public void ShowLaunchStarted(LaunchSessionSnapshot session)
+    {
+        StatusText.Text = $"Started {session.AppName} • session {session.LaunchSessionId.ToString()[..8]} • PID {session.RootProcessId}. Grev Home is staying resident in the background.";
+    }
+
+    public void ShowLaunchError(string message)
+    {
+        StatusText.Text = $"Launch failed: {message}";
     }
 
     private void Render()
@@ -96,7 +108,7 @@ public partial class InstalledLibraryView : UserControl
                         },
                         new TextBlock
                         {
-                            Text = entry.AvailableToCurrentUser ? data : entry.AvailabilityMessage,
+                            Text = entry.AvailableToCurrentUser ? $"{data} • A/Enter to launch" : entry.AvailabilityMessage,
                             Margin = new Thickness(0, 4, 0, 0),
                             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
                             FontSize = 12,
@@ -111,7 +123,7 @@ public partial class InstalledLibraryView : UserControl
 
         StatusText.Text = _entries.Count == 0
             ? "The Installed Library is ready for real app/package registration. No demonstration apps are created."
-            : $"{visible.Length} shown • {_entries.Count} installed for this session context.";
+            : $"{visible.Length} shown • {_entries.Count} installed for this session context. Select an available app to launch it.";
     }
 
     private bool MatchesFilter(InstalledAppEntry entry)
@@ -129,15 +141,11 @@ public partial class InstalledLibraryView : UserControl
 
     private void App_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: InstalledAppEntry entry })
+        if (sender is Button { Tag: InstalledAppEntry entry })
         {
-            return;
+            StatusText.Text = $"Starting {entry.Manifest.Definition.Name}...";
+            LaunchRequested?.Invoke(entry);
         }
-
-        var definition = entry.Manifest.Definition;
-        var dataRoot = entry.DataRoot ?? "Managed by the app/native account";
-        StatusText.Text =
-            $"{definition.Name} • AppID {definition.AppId} • Binary: {entry.BinaryRoot} • Data: {dataRoot}. Launching comes with the session/process milestone.";
     }
 
     private void Filter_Click(object sender, RoutedEventArgs e)
