@@ -1,0 +1,36 @@
+<UserControl x:Class="GrevHome.Views.ProfileView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="72,42" MaxWidth="980">
+            <TextBlock Text="Profile" FontSize="40" FontWeight="SemiBold" />
+            <TextBlock Text="Your local Grev Home identity and profile information."
+                       Margin="0,6,0,24"
+                       FontSize="16"
+                       Foreground="{StaticResource MutedBrush}" />
+
+            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="28">
+                <StackPanel>
+                    <TextBlock x:Name="DisplayNameText" Text="Display Name" FontSize="34" FontWeight="SemiBold" />
+                    <TextBlock x:Name="UsernameText" Margin="0,8,0,0" FontSize="18" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="RoleText" Margin="0,5,0,0" FontSize="14" Foreground="{StaticResource AccentBrush}" FontWeight="Bold" />
+
+                    <Border Height="1" Background="#2B3344" Margin="0,24,0,22" />
+
+                    <TextBlock Text="GrevID" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="GrevIdText" Margin="0,5,0,16" FontSize="17" />
+                    <TextBlock Text="Created" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="CreatedText" Margin="0,5,0,0" FontSize="17" />
+
+                    <Button Content="Edit Profile"
+                            Width="170"
+                            Height="52"
+                            Margin="0,28,0,0"
+                            HorizontalAlignment="Left"
+                            Click="EditProfile_Click" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
