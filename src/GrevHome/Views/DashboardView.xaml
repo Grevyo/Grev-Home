@@ -30,10 +30,11 @@
                 <Button Width="285" Height="145" Margin="8" Click="InstalledApps_Click" Content="Installed Apps" />
                 <Button x:Name="RunningAppsButton" Width="285" Height="145" Margin="8" Click="RunningApps_Click" Content="Running Apps&#x0a;0 active" />
                 <Button Width="285" Height="145" Margin="8" Click="AppKiller_Click" Content="App Killer" />
+                <Button Width="285" Height="145" Margin="8" Click="Settings_Click" Content="Settings" />
                 <Button Tag="Recently Used" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Recently Used" />
-                <Button Tag="Grev Store" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Grev Store" />
                 <Button Tag="Files" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Files" />
                 <Button Tag="Emulators" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Emulators" />
+                <Button Tag="Grev Store" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Grev Store • later" />
             </WrapPanel>
 
             <Border Margin="8,28,8,0"
@@ -46,7 +47,7 @@
                     <TextBlock Text="Foundation status" FontSize="15" FontWeight="SemiBold" />
                     <TextBlock x:Name="StatusText"
                                Margin="0,8,0,0"
-                               Text="0.5 adds global overlay/switcher access plus normal close and deliberate force-close controls on top of the central runtime."
+                               Text="0.6 builds the settings/configuration backbone before system tools, files, Store packages or visual theming."
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>

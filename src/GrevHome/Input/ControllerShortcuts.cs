@@ -206,9 +206,12 @@ public sealed class ControllerShortcutService
                 "+",
                 buttons.OrderBy(button => button.ToString(), StringComparer.Ordinal));
 
-            if (seenCombinations.TryGetValue(combinationKey, out var existingAction) && existingAction != binding.Action)
+            if (seenCombinations.TryGetValue(combinationKey, out var existingAction))
             {
-                throw new InvalidOperationException("The same controller combination cannot trigger two different Grev system actions.");
+                var label = existingAction == binding.Action
+                    ? "That controller combination is already configured for this action."
+                    : "The same controller combination cannot trigger two different Grev system actions.";
+                throw new InvalidOperationException(label);
             }
 
             seenCombinations[combinationKey] = binding.Action;

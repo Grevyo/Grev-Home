@@ -36,8 +36,10 @@ public partial class MainWindow : Window
     private readonly InstalledLibraryView _installedLibraryView = new();
     private readonly RunningAppsView _runningAppsView = new();
     private readonly AppKillerView _appKillerView = new();
+    private readonly SettingsView _settingsView = new();
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
     private Guid? _foregroundLaunchSessionId;
+    private ShortcutRecordRequest? _pendingShortcutRecord;
 
     public MainWindow()
     {
@@ -71,6 +73,7 @@ public partial class MainWindow : Window
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
         _dashboardView.RunningAppsRequested += (_, _) => OpenRunningApps();
         _dashboardView.AppKillerRequested += (_, _) => OpenAppKiller();
+        _dashboardView.SettingsRequested += (_, _) => OpenSettings();
         _dashboardView.LogoutRequested += (_, _) => Logout();
 
         _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
@@ -84,6 +87,14 @@ public partial class MainWindow : Window
         _appKillerView.SwitchRequested += SwitchToSession;
         _appKillerView.CloseRequested += RequestCloseSession;
         _appKillerView.ForceCloseRequested += ForceCloseSession;
+
+        _settingsView.BackRequested += (_, _) => CloseSettings();
+        _settingsView.SaveDisplayNameRequested += displayName => _ = SaveDisplayNameAsync(displayName);
+        _settingsView.RecordShortcutRequested += BeginShortcutRecording;
+        _settingsView.RemoveShortcutRequested += RemoveShortcut;
+        _settingsView.AdjustShortcutHoldRequested += AdjustShortcutHold;
+        _settingsView.ResetShortcutsRequested += (_, _) => ResetShortcuts();
+        _settingsView.CancelShortcutCaptureRequested += (_, _) => CancelShortcutRecording();
 
         _overlayWindow.ResumeRequested += SwitchToSession;
         _overlayWindow.SwitchRequested += SwitchToSession;
@@ -115,6 +126,10 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(() => UpdateControllerStatus(change)));
         _controllerInput.ShortcutRequested += shortcut =>
             Dispatcher.BeginInvoke(new Action(() => HandleSystemShortcut(shortcut)));
+        _controllerInput.ShortcutCaptured += capture =>
+            Dispatcher.BeginInvoke(new Action(() => CompleteShortcutRecording(capture)));
+        _controllerInput.ShortcutCaptureTimedOut += () =>
+            Dispatcher.BeginInvoke(new Action(ShortcutRecordingTimedOut));
         _controllerInput.Start();
 
         Loaded += async (_, _) => await InitializeAsync();
@@ -187,6 +202,200 @@ public partial class MainWindow : Window
 
         UpdateRuntimeSurfaces();
         _navigation.Navigate(Route.AppKiller);
+    }
+
+    private void OpenSettings()
+    {
+        if (!_session.HasSignedInUsers)
+        {
+            _navigation.Reset(Route.Login);
+            return;
+        }
+
+        RefreshSettingsState();
+        _navigation.Navigate(Route.Settings);
+    }
+
+    private void CloseSettings()
+    {
+        CancelShortcutRecording(showMessage: false);
+        _navigation.GoBack();
+    }
+
+    private void RefreshSettingsState()
+    {
+        _settingsView.SetState(GetPrimaryLocalProfile(), _controllerShortcuts.LoadOrCreate());
+    }
+
+    private LocalProfile? GetPrimaryLocalProfile()
+    {
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (string.IsNullOrWhiteSpace(grevId))
+        {
+            return null;
+        }
+
+        return _profiles.FirstOrDefault(profile =>
+            string.Equals(profile.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private async Task SaveDisplayNameAsync(string displayName)
+    {
+        var profile = GetPrimaryLocalProfile();
+        if (profile is null)
+        {
+            _settingsView.ShowAccountStatus("A local Primary User is required to edit Display Name.");
+            return;
+        }
+
+        try
+        {
+            var updated = await _profileService.UpdateDisplayNameAsync(profile.GrevId, displayName);
+            _profiles = await _profileService.GetProfilesAsync();
+            _session.UpdateDisplayName(updated.GrevId, updated.DisplayName);
+            RefreshSettingsState();
+            _settingsView.ShowAccountStatus(
+                $"Display Name changed to {updated.DisplayName}. Username @{updated.Username} and GrevID {updated.GrevId} were not changed.",
+                closeEditor: true);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            _settingsView.ShowAccountStatus(ex.Message);
+        }
+    }
+
+    private void BeginShortcutRecording(ShortcutRecordRequest request)
+    {
+        _pendingShortcutRecord = request;
+        _settingsView.BeginCapture(request.Action, request.ExistingBindingId is not null);
+        _controllerInput.BeginShortcutCapture();
+    }
+
+    private void CompleteShortcutRecording(ControllerShortcutCaptureEventArgs capture)
+    {
+        var request = _pendingShortcutRecord;
+        _pendingShortcutRecord = null;
+        if (request is null)
+        {
+            return;
+        }
+
+        var configuration = _controllerShortcuts.LoadOrCreate();
+        var bindings = configuration.Bindings.ToList();
+
+        if (request.ExistingBindingId is not null)
+        {
+            var index = bindings.FindIndex(binding =>
+                string.Equals(binding.Id, request.ExistingBindingId, StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+            {
+                _settingsView.EndCapture("That shortcut no longer exists. Nothing was changed.");
+                return;
+            }
+
+            bindings[index] = bindings[index] with { Buttons = capture.Buttons };
+        }
+        else
+        {
+            var prefix = request.Action == ControllerShortcutAction.ReturnHome ? "return-home" : "overlay";
+            var hold = request.Action == ControllerShortcutAction.ReturnHome ? 700 : 450;
+            bindings.Add(new ControllerShortcutBinding(
+                $"{prefix}-{Guid.NewGuid():N}"[..(prefix.Length + 9)],
+                request.Action,
+                capture.Buttons,
+                hold));
+        }
+
+        SaveShortcutConfiguration(
+            new ControllerShortcutConfiguration(configuration.Version, bindings),
+            $"Saved {SettingsView.FormatButtons(capture.Buttons)} from Controller {capture.ControllerIndex + 1}.");
+        _settingsView.EndCapture(ShortcutStatusMessage);
+    }
+
+    private string ShortcutStatusMessage { get; set; } = string.Empty;
+
+    private void RemoveShortcut(string bindingId)
+    {
+        var configuration = _controllerShortcuts.LoadOrCreate();
+        var bindings = configuration.Bindings
+            .Where(binding => !string.Equals(binding.Id, bindingId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (bindings.Length == configuration.Bindings.Count)
+        {
+            _settingsView.ShowShortcutStatus("That shortcut no longer exists.");
+            return;
+        }
+
+        SaveShortcutConfiguration(
+            new ControllerShortcutConfiguration(configuration.Version, bindings),
+            "Shortcut removed.");
+    }
+
+    private void AdjustShortcutHold(ShortcutHoldAdjustment adjustment)
+    {
+        var configuration = _controllerShortcuts.LoadOrCreate();
+        var bindings = configuration.Bindings.ToList();
+        var index = bindings.FindIndex(binding =>
+            string.Equals(binding.Id, adjustment.BindingId, StringComparison.OrdinalIgnoreCase));
+
+        if (index < 0)
+        {
+            _settingsView.ShowShortcutStatus("That shortcut no longer exists.");
+            return;
+        }
+
+        var newHold = Math.Clamp(bindings[index].HoldMilliseconds + adjustment.DeltaMilliseconds, 0, 5000);
+        bindings[index] = bindings[index] with { HoldMilliseconds = newHold };
+
+        SaveShortcutConfiguration(
+            new ControllerShortcutConfiguration(configuration.Version, bindings),
+            $"Hold time changed to {newHold} ms.");
+    }
+
+    private void ResetShortcuts()
+    {
+        SaveShortcutConfiguration(
+            ControllerShortcutService.CreateDefaults(),
+            "Controller system shortcuts reset to the Grev Home defaults.");
+    }
+
+    private void SaveShortcutConfiguration(ControllerShortcutConfiguration configuration, string successMessage)
+    {
+        try
+        {
+            _controllerShortcuts.Save(configuration);
+            _controllerInput.ReloadShortcuts();
+            RefreshSettingsState();
+            ShortcutStatusMessage = successMessage;
+            _settingsView.ShowShortcutStatus(successMessage);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            ShortcutStatusMessage = ex.Message;
+            _settingsView.ShowShortcutStatus(ex.Message);
+        }
+    }
+
+    private void CancelShortcutRecording(bool showMessage = true)
+    {
+        if (!_controllerInput.IsCapturingShortcut && _pendingShortcutRecord is null)
+        {
+            return;
+        }
+
+        _controllerInput.CancelShortcutCapture();
+        _pendingShortcutRecord = null;
+        if (showMessage)
+        {
+            _settingsView.EndCapture("Shortcut recording cancelled.");
+        }
+    }
+
+    private void ShortcutRecordingTimedOut()
+    {
+        _pendingShortcutRecord = null;
+        _settingsView.EndCapture("No combination was recorded. Recording timed out after 15 seconds.");
     }
 
     private void HandleSystemShortcut(ControllerShortcutEventArgs shortcut)
@@ -304,6 +513,7 @@ public partial class MainWindow : Window
 
     private void Logout()
     {
+        CancelShortcutRecording(showMessage: false);
         _session.SignOutAll();
         _navigation.Reset(Route.Login);
     }
@@ -334,6 +544,7 @@ public partial class MainWindow : Window
             Route.InstalledLibrary => _installedLibraryView,
             Route.RunningApps => _runningAppsView,
             Route.AppKiller => _appKillerView,
+            Route.Settings => _settingsView,
             _ => _loginView
         };
 
@@ -408,6 +619,9 @@ public partial class MainWindow : Window
             case Route.CreateProfile:
                 ReturnToLogin();
                 break;
+            case Route.Settings:
+                CloseSettings();
+                break;
             case Route.Login:
                 break;
             default:
@@ -475,6 +689,7 @@ public partial class MainWindow : Window
 
     private void BringGrevHomeToFront()
     {
+        CancelShortcutRecording(showMessage: false);
         _overlayWindow.Dismiss();
         _foregroundLaunchSessionId = null;
         _navigation.Reset(_session.HasSignedInUsers ? Route.Dashboard : Route.Login);
