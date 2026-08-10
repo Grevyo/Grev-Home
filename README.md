@@ -19,6 +19,7 @@ Grev Home is a controller-first Windows console shell designed to make a PC usab
 - Global controller shortcuts are configuration-driven and may be remapped without changing application code.
 - Grev Store/package installers are deliberately deferred until the core operating environment is mature.
 - Themes/Theme Studio are deliberately late-stage work. Behavior, recovery, system controls, files, storage, accounts and runtime stability come first.
+- Normal Grev Home runtime data lives under **`C:\GrevHome`**, which the app creates automatically on first run.
 
 ## Identity example
 
@@ -131,16 +132,16 @@ See [`docs/SETTINGS.md`](docs/SETTINGS.md).
 
 ## Runtime data layout
 
-By default Grev Home uses the machine-wide Windows data location:
+By default Grev Home creates and uses:
 
 ```text
-%ProgramData%\Grev Home\
+C:\GrevHome\
 ```
 
-For development it can be redirected with `GREV_HOME_ROOT`.
+For development/testing only, the root can be redirected with `GREV_HOME_ROOT`.
 
 ```text
-Grev Home\
+C:\GrevHome\
 ├── Data\
 │   ├── Apps\
 │   ├── Runtime\
