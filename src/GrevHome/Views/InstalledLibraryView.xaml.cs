@@ -4,11 +4,13 @@ using GrevHome.Apps;
 using GrevHome.Presentation;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
+using GrevHome.Store;
 
 namespace GrevHome.Views;
 
 public partial class InstalledLibraryView : UserControl
 {
+    private readonly GrevStoreCatalogService _storeCatalog = new();
     private IReadOnlyList<InstalledAppEntry> _entries = Array.Empty<InstalledAppEntry>();
     private string _filter = "All";
     private SessionUser? _primaryUser;
@@ -59,65 +61,43 @@ public partial class InstalledLibraryView : UserControl
         foreach (var entry in visible)
         {
             var definition = entry.Manifest.Definition;
-            var scope = definition.InstallStrategy switch
-            {
-                InstallStrategy.SharedBinary => "Shared install",
-                InstallStrategy.GrevIdPortable => "GrevID-local install",
-                InstallStrategy.SystemInstalled => "Windows-installed",
-                _ => "Installed"
-            };
-
-            var data = definition.DataStrategy switch
-            {
-                DataStrategy.GrevId => "Per-account data",
-                DataStrategy.Global => "Shared data",
-                DataStrategy.NativeAccount => "App-managed account data",
-                _ => "Data"
-            };
+            var package = _storeCatalog.Find(definition.AppId);
+            var displayName = package?.Presentation.DisplayName ?? definition.Name;
+            var iconAsset = package?.Presentation.IconAsset;
 
             var button = new Button
             {
                 Width = DefaultThemeMetrics.AppTileWidth,
                 Height = DefaultThemeMetrics.AppTileHeight,
                 Margin = new Thickness(8),
+                Padding = new Thickness(16),
                 Tag = entry,
-                IsEnabled = entry.AvailableToCurrentUser,
-                Content = new StackPanel
-                {
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = definition.Name,
-                            FontSize = 21,
-                            FontWeight = FontWeights.SemiBold,
-                            TextTrimming = TextTrimming.CharacterEllipsis
-                        },
-                        new TextBlock
-                        {
-                            Text = $"{definition.Kind} • v{entry.Manifest.Version}",
-                            Margin = new Thickness(0, 7, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            FontSize = 13
-                        },
-                        new TextBlock
-                        {
-                            Text = scope,
-                            Margin = new Thickness(0, 6, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            FontSize = 13
-                        },
-                        new TextBlock
-                        {
-                            Text = entry.AvailableToCurrentUser ? $"{data} • A/Enter to launch" : entry.AvailabilityMessage,
-                            Margin = new Thickness(0, 4, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            FontSize = 12,
-                            TextWrapping = TextWrapping.Wrap
-                        }
-                    }
-                }
+                IsEnabled = entry.AvailableToCurrentUser
             };
+
+            var grid = new Grid();
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+            var artwork = AppArtworkFactory.Create(iconAsset, 84, 15);
+            artwork.HorizontalAlignment = HorizontalAlignment.Left;
+            artwork.VerticalAlignment = VerticalAlignment.Center;
+
+            var name = new TextBlock
+            {
+                Text = displayName,
+                FontSize = 21,
+                FontWeight = FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                TextWrapping = TextWrapping.Wrap,
+                MaxHeight = 58,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            Grid.SetColumn(name, 1);
+
+            grid.Children.Add(artwork);
+            grid.Children.Add(name);
+            button.Content = grid;
             button.Click += App_Click;
             AppsPanel.Children.Add(button);
         }
