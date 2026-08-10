@@ -8,6 +8,7 @@ namespace GrevHome.Profiles;
 
 public sealed class ProfileService
 {
+    public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
     public const int MaxGrevIdLength = 58;
 
@@ -54,6 +55,13 @@ public sealed class ProfileService
                     continue;
                 }
 
+                // Pre-release 0.2 metadata created before Username existed is upgraded in-place.
+                if (string.IsNullOrWhiteSpace(profile.Username))
+                {
+                    profile = profile with { Username = profile.DisplayName };
+                    await WriteMetadataAsync(profile, cancellationToken);
+                }
+
                 profiles.Add(profile);
                 _paths.EnsureProfileLayout(profile.GrevId);
             }
@@ -70,21 +78,22 @@ public sealed class ProfileService
 
         return profiles
             .OrderBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(profile => profile.Username, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
-    public async Task<LocalProfile> CreateAsync(string displayName, CancellationToken cancellationToken = default)
+    public async Task<LocalProfile> CreateAsync(string username, CancellationToken cancellationToken = default)
     {
-        displayName = ValidateDisplayName(displayName);
+        username = ValidateUsername(username);
         var existing = await GetProfilesAsync(cancellationToken);
 
-        if (existing.Any(profile => string.Equals(profile.DisplayName, displayName, StringComparison.OrdinalIgnoreCase)))
+        if (existing.Any(profile => string.Equals(profile.Username, username, StringComparison.OrdinalIgnoreCase)))
         {
-            throw new InvalidOperationException($"A local profile named '{displayName}' already exists.");
+            throw new InvalidOperationException($"A local account with username '{username}' already exists.");
         }
 
-        var grevId = CreateUniqueGrevId(displayName, existing);
-        var profile = new LocalProfile(grevId, displayName, DateTimeOffset.UtcNow);
+        var grevId = CreateUniqueGrevId(username, existing);
+        var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow);
         var profileRoot = _paths.GetProfileRoot(profile.GrevId);
 
         try
@@ -100,9 +109,25 @@ public sealed class ProfileService
         }
     }
 
-    private string CreateUniqueGrevId(string displayName, IReadOnlyCollection<LocalProfile> existing)
+    public async Task<LocalProfile> UpdateDisplayNameAsync(
+        string grevId,
+        string displayName,
+        CancellationToken cancellationToken = default)
     {
-        var usernamePart = CreateFilesystemSafeUsernamePart(displayName);
+        displayName = ValidateDisplayName(displayName);
+        var profiles = await GetProfilesAsync(cancellationToken);
+        var profile = profiles.FirstOrDefault(candidate =>
+            string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("That local account does not exist.");
+
+        var updated = profile with { DisplayName = displayName };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
+    private string CreateUniqueGrevId(string username, IReadOnlyCollection<LocalProfile> existing)
+    {
+        var usernamePart = CreateFilesystemSafeUsernamePart(username);
 
         for (var attempt = 0; attempt < MaxGrevIdAttempts; attempt++)
         {
@@ -119,12 +144,12 @@ public sealed class ProfileService
         throw new IOException("Grev Home could not generate a unique GrevID. Try creating the account again.");
     }
 
-    private static string CreateFilesystemSafeUsernamePart(string displayName)
+    private static string CreateFilesystemSafeUsernamePart(string username)
     {
-        var builder = new StringBuilder(MaxDisplayNameLength);
+        var builder = new StringBuilder(MaxUsernameLength);
         var previousWasSeparator = false;
 
-        foreach (var character in displayName)
+        foreach (var character in username)
         {
             if (char.IsAsciiLetterOrDigit(character))
             {
@@ -179,22 +204,43 @@ public sealed class ProfileService
         }
     }
 
+    private static string ValidateUsername(string username)
+    {
+        username = username.Trim();
+        if (string.IsNullOrWhiteSpace(username))
+        {
+            throw new InvalidOperationException("Enter a username.");
+        }
+
+        if (username.Length > MaxUsernameLength)
+        {
+            throw new InvalidOperationException($"Usernames must be {MaxUsernameLength} characters or fewer.");
+        }
+
+        if (username.Any(char.IsControl))
+        {
+            throw new InvalidOperationException("Usernames cannot contain control characters.");
+        }
+
+        return username;
+    }
+
     private static string ValidateDisplayName(string displayName)
     {
         displayName = displayName.Trim();
         if (string.IsNullOrWhiteSpace(displayName))
         {
-            throw new InvalidOperationException("Enter a profile name.");
+            throw new InvalidOperationException("Enter a display name.");
         }
 
         if (displayName.Length > MaxDisplayNameLength)
         {
-            throw new InvalidOperationException($"Profile names must be {MaxDisplayNameLength} characters or fewer.");
+            throw new InvalidOperationException($"Display names must be {MaxDisplayNameLength} characters or fewer.");
         }
 
         if (displayName.Any(char.IsControl))
         {
-            throw new InvalidOperationException("Profile names cannot contain control characters.");
+            throw new InvalidOperationException("Display names cannot contain control characters.");
         }
 
         return displayName;
