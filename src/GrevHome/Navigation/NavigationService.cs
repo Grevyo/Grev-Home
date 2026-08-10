@@ -15,9 +15,9 @@ public sealed class NavigationService
         RouteChanged?.Invoke(route);
     }
 
-    public void Navigate(Route route)
+    public void Navigate(Route route, bool allowSameRoute = false)
     {
-        if (Current == route)
+        if (Current == route && !allowSameRoute)
         {
             return;
         }
