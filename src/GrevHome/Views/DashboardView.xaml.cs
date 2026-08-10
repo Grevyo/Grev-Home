@@ -8,6 +8,7 @@ public partial class DashboardView : UserControl
 {
     public event EventHandler? LogoutRequested;
     public event EventHandler? ManageUsersRequested;
+    public event EventHandler? InstalledAppsRequested;
 
     public DashboardView()
     {
@@ -33,6 +34,9 @@ public partial class DashboardView : UserControl
     private void ManageUsers_Click(object sender, RoutedEventArgs e) =>
         ManageUsersRequested?.Invoke(this, EventArgs.Empty);
 
+    private void InstalledApps_Click(object sender, RoutedEventArgs e) =>
+        InstalledAppsRequested?.Invoke(this, EventArgs.Empty);
+
     private void Logout_Click(object sender, RoutedEventArgs e) =>
         LogoutRequested?.Invoke(this, EventArgs.Empty);
 
@@ -40,7 +44,7 @@ public partial class DashboardView : UserControl
     {
         if (sender is Button { Tag: string feature })
         {
-            StatusText.Text = $"{feature} is still a dashboard placeholder. Persistent data belongs to each local account's GrevId; Primary User is only the current session's launch context.";
+            StatusText.Text = $"{feature} is still a dashboard placeholder. App installation and launching are being layered on top of the GrevID storage/session foundation rather than hard-coded into Dashboard.";
         }
     }
 }
