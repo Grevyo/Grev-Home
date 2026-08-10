@@ -8,7 +8,6 @@ public partial class MainWindow
 {
     private readonly GrevStoreView _grevStoreView = new();
     private readonly GrevStoreCatalogService _grevStoreCatalog = new();
-    private AppPresentationService? _appPresentationService;
     private bool _grevStoreIntegrationReady;
 
     private void InitializeGrevStoreIntegration()
@@ -16,7 +15,6 @@ public partial class MainWindow
         if (_grevStoreIntegrationReady) return;
         _grevStoreIntegrationReady = true;
 
-        _appPresentationService = new AppPresentationService(_paths);
         _dashboardView.StoreRequested += (_, _) => OpenGrevStore();
         _grevStoreView.PackageRequested += OpenStorePackage;
         _navigation.RouteChanged += HandleGrevStoreRouteChanged;
