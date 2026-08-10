@@ -28,6 +28,12 @@
                 <Trigger Property="IsEnabled" Value="False">
                     <Setter Property="Opacity" Value="0.42" />
                 </Trigger>
+                <Trigger Property="Content" Value="Back">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
+                <Trigger Property="Content" Value="Back to Dashboard">
+                    <Setter Property="Visibility" Value="Collapsed" />
+                </Trigger>
             </Style.Triggers>
         </Style>
     </Application.Resources>
