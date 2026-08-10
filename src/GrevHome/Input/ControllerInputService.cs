@@ -23,38 +23,53 @@ public sealed class ControllerInputService : IDisposable
     private const ushort DPadRight = 0x0008;
     private const ushort StartButton = 0x0010;
     private const ushort BackButton = 0x0020;
+    private const ushort LeftThumb = 0x0040;
+    private const ushort RightThumb = 0x0080;
     private const ushort LeftShoulder = 0x0100;
     private const ushort RightShoulder = 0x0200;
     private const ushort AButton = 0x1000;
     private const ushort BButton = 0x2000;
+    private const ushort XButton = 0x4000;
+    private const ushort YButton = 0x8000;
     private const int ThumbDeadzone = 14500;
 
     private static readonly TimeSpan RepeatDelay = TimeSpan.FromMilliseconds(320);
     private static readonly TimeSpan RepeatInterval = TimeSpan.FromMilliseconds(115);
-    private static readonly TimeSpan HomeShortcutHold = TimeSpan.FromMilliseconds(700);
-    private static readonly TimeSpan OverlayShortcutHold = TimeSpan.FromMilliseconds(450);
 
+    private readonly ControllerShortcutService _shortcutService;
     private readonly Timer _timer;
     private readonly ushort[] _previousButtons = new ushort[4];
     private readonly bool[] _connected = new bool[4];
     private readonly InputAction?[] _heldDirection = new InputAction?[4];
     private readonly DateTimeOffset[] _heldDirectionStarted = new DateTimeOffset[4];
     private readonly DateTimeOffset[] _lastDirectionRaised = new DateTimeOffset[4];
-    private readonly DateTimeOffset?[] _homeShortcutStarted = new DateTimeOffset?[4];
-    private readonly bool[] _homeShortcutRaised = new bool[4];
-    private readonly DateTimeOffset?[] _overlayShortcutStarted = new DateTimeOffset?[4];
-    private readonly bool[] _overlayShortcutRaised = new bool[4];
+    private readonly Dictionary<(int ControllerIndex, string BindingId), ShortcutPressState> _shortcutStates = new();
     private readonly object _pollGate = new();
+    private IReadOnlyList<ControllerShortcutBinding> _shortcutBindings = Array.Empty<ControllerShortcutBinding>();
     private bool _disposed;
 
     public event Action<ControllerInputEventArgs>? ActionPressed;
     public event Action<ControllerConnectionEventArgs>? ConnectionChanged;
-    public event Action<int>? ReturnHomeRequested;
-    public event Action<int>? OverlayRequested;
+    public event Action<ControllerShortcutEventArgs>? ShortcutRequested;
 
-    public ControllerInputService()
+    public ControllerInputService(ControllerShortcutService shortcutService)
     {
+        _shortcutService = shortcutService;
         _timer = new Timer(Poll, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        ReloadShortcuts();
+    }
+
+    public void ReloadShortcuts()
+    {
+        lock (_pollGate)
+        {
+            _shortcutBindings = _shortcutService
+                .LoadOrCreate()
+                .Bindings
+                .Where(binding => binding.Enabled)
+                .ToArray();
+            _shortcutStates.Clear();
+        }
     }
 
     public void Start()
@@ -65,7 +80,7 @@ public sealed class ControllerInputService : IDisposable
         }
     }
 
-    private void Poll(object? _)
+    private void Poll(object? stateObject)
     {
         if (_disposed || !Monitor.TryEnter(_pollGate))
         {
@@ -86,12 +101,9 @@ public sealed class ControllerInputService : IDisposable
                 }
 
                 var buttons = state.Gamepad.Buttons;
-                var homeComboActive = HasReturnHomeCombo(buttons);
-                var overlayComboActive = HasOverlayCombo(buttons);
-                HandleReturnHomeShortcut(index, homeComboActive);
-                HandleOverlayShortcut(index, overlayComboActive);
+                var shortcutActive = HandleShortcuts(index, state.Gamepad);
 
-                if (!homeComboActive && !overlayComboActive)
+                if (!shortcutActive)
                 {
                     if (WasPressed(index, buttons, AButton))
                     {
@@ -102,9 +114,15 @@ public sealed class ControllerInputService : IDisposable
                     {
                         Raise(index, InputAction.Back);
                     }
+
+                    HandleDirectionalInput(index, GetDirectionalAction(buttons, state.Gamepad));
+                }
+                else
+                {
+                    // A configured system chord must not also navigate/activate the foreground UI.
+                    HandleDirectionalInput(index, null);
                 }
 
-                HandleDirectionalInput(index, GetDirectionalAction(buttons, state.Gamepad));
                 _previousButtons[index] = buttons;
             }
         }
@@ -113,6 +131,73 @@ public sealed class ControllerInputService : IDisposable
             Monitor.Exit(_pollGate);
         }
     }
+
+    private bool HandleShortcuts(int controllerIndex, XInputGamepad gamepad)
+    {
+        var selected = _shortcutBindings
+            .Where(binding => IsBindingPressed(binding, gamepad))
+            .OrderByDescending(binding => binding.Buttons.Count)
+            .FirstOrDefault();
+
+        foreach (var key in _shortcutStates.Keys
+                     .Where(key => key.ControllerIndex == controllerIndex && key.BindingId != selected?.Id)
+                     .ToArray())
+        {
+            _shortcutStates.Remove(key);
+        }
+
+        if (selected is null)
+        {
+            return false;
+        }
+
+        var stateKey = (controllerIndex, selected.Id);
+        if (!_shortcutStates.TryGetValue(stateKey, out var pressState))
+        {
+            pressState = new ShortcutPressState(DateTimeOffset.UtcNow);
+            _shortcutStates[stateKey] = pressState;
+        }
+
+        if (!pressState.Raised &&
+            DateTimeOffset.UtcNow - pressState.StartedAt >= TimeSpan.FromMilliseconds(selected.HoldMilliseconds))
+        {
+            pressState.Raised = true;
+            ShortcutRequested?.Invoke(new ControllerShortcutEventArgs(
+                controllerIndex,
+                selected.Action,
+                selected.Id));
+        }
+
+        return true;
+    }
+
+    private static bool IsBindingPressed(ControllerShortcutBinding binding, XInputGamepad gamepad) =>
+        binding.Buttons.All(button => IsButtonPressed(button, gamepad, binding.TriggerThreshold));
+
+    private static bool IsButtonPressed(ControllerButton button, XInputGamepad gamepad, byte triggerThreshold) =>
+        button switch
+        {
+            ControllerButton.DPadUp => HasButton(gamepad.Buttons, DPadUp),
+            ControllerButton.DPadDown => HasButton(gamepad.Buttons, DPadDown),
+            ControllerButton.DPadLeft => HasButton(gamepad.Buttons, DPadLeft),
+            ControllerButton.DPadRight => HasButton(gamepad.Buttons, DPadRight),
+            ControllerButton.Menu => HasButton(gamepad.Buttons, StartButton),
+            ControllerButton.View => HasButton(gamepad.Buttons, BackButton),
+            ControllerButton.LeftThumb => HasButton(gamepad.Buttons, LeftThumb),
+            ControllerButton.RightThumb => HasButton(gamepad.Buttons, RightThumb),
+            ControllerButton.LeftShoulder => HasButton(gamepad.Buttons, LeftShoulder),
+            ControllerButton.RightShoulder => HasButton(gamepad.Buttons, RightShoulder),
+            ControllerButton.A => HasButton(gamepad.Buttons, AButton),
+            ControllerButton.B => HasButton(gamepad.Buttons, BButton),
+            ControllerButton.X => HasButton(gamepad.Buttons, XButton),
+            ControllerButton.Y => HasButton(gamepad.Buttons, YButton),
+            ControllerButton.LeftTrigger => gamepad.LeftTrigger >= triggerThreshold,
+            ControllerButton.RightTrigger => gamepad.RightTrigger >= triggerThreshold,
+            _ => false
+        };
+
+    private static bool HasButton(ushort currentButtons, ushort button) =>
+        (currentButtons & button) != 0;
 
     private void UpdateConnection(int index, bool isConnected)
     {
@@ -153,56 +238,6 @@ public sealed class ControllerInputService : IDisposable
         Raise(index, direction.Value);
     }
 
-    private void HandleReturnHomeShortcut(int index, bool active)
-    {
-        if (!active)
-        {
-            _homeShortcutStarted[index] = null;
-            _homeShortcutRaised[index] = false;
-            return;
-        }
-
-        _homeShortcutStarted[index] ??= DateTimeOffset.UtcNow;
-        if (_homeShortcutRaised[index] ||
-            DateTimeOffset.UtcNow - _homeShortcutStarted[index] < HomeShortcutHold)
-        {
-            return;
-        }
-
-        _homeShortcutRaised[index] = true;
-        ReturnHomeRequested?.Invoke(index);
-    }
-
-    private void HandleOverlayShortcut(int index, bool active)
-    {
-        if (!active)
-        {
-            _overlayShortcutStarted[index] = null;
-            _overlayShortcutRaised[index] = false;
-            return;
-        }
-
-        _overlayShortcutStarted[index] ??= DateTimeOffset.UtcNow;
-        if (_overlayShortcutRaised[index] ||
-            DateTimeOffset.UtcNow - _overlayShortcutStarted[index] < OverlayShortcutHold)
-        {
-            return;
-        }
-
-        _overlayShortcutRaised[index] = true;
-        OverlayRequested?.Invoke(index);
-    }
-
-    private static bool HasReturnHomeCombo(ushort buttons) =>
-        (buttons & LeftShoulder) != 0 &&
-        (buttons & RightShoulder) != 0 &&
-        (buttons & BackButton) != 0;
-
-    private static bool HasOverlayCombo(ushort buttons) =>
-        (buttons & LeftShoulder) != 0 &&
-        (buttons & RightShoulder) != 0 &&
-        (buttons & StartButton) != 0;
-
     private bool WasPressed(int index, ushort currentButtons, ushort button)
     {
         var isDown = (currentButtons & button) != 0;
@@ -242,16 +277,28 @@ public sealed class ControllerInputService : IDisposable
     {
         _previousButtons[index] = 0;
         _heldDirection[index] = null;
-        _homeShortcutStarted[index] = null;
-        _homeShortcutRaised[index] = false;
-        _overlayShortcutStarted[index] = null;
-        _overlayShortcutRaised[index] = false;
+
+        foreach (var key in _shortcutStates.Keys.Where(key => key.ControllerIndex == index).ToArray())
+        {
+            _shortcutStates.Remove(key);
+        }
     }
 
     public void Dispose()
     {
         _disposed = true;
         _timer.Dispose();
+    }
+
+    private sealed class ShortcutPressState
+    {
+        public DateTimeOffset StartedAt { get; }
+        public bool Raised { get; set; }
+
+        public ShortcutPressState(DateTimeOffset startedAt)
+        {
+            StartedAt = startedAt;
+        }
     }
 
     [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
