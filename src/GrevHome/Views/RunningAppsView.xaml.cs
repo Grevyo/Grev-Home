@@ -12,6 +12,8 @@ public partial class RunningAppsView : UserControl
     private IReadOnlyList<LaunchSessionSnapshot> _sessions = Array.Empty<LaunchSessionSnapshot>();
 
     public event EventHandler? BackRequested;
+    public event Action<Guid>? SwitchRequested;
+    public event Action<Guid>? CloseRequested;
 
     public RunningAppsView()
     {
@@ -52,10 +54,68 @@ public partial class RunningAppsView : UserControl
             };
             _elapsedLabels[session.LaunchSessionId] = elapsed;
 
-            var card = new Border
+            var switchButton = new Button
             {
-                Width = 340,
-                MinHeight = 170,
+                Content = "Switch",
+                Width = 115,
+                Height = 46,
+                Margin = new Thickness(0, 12, 8, 0),
+                Tag = session.LaunchSessionId
+            };
+            switchButton.Click += Switch_Click;
+
+            var closeButton = new Button
+            {
+                Content = session.State == LaunchSessionState.Closing ? "Closing…" : "Close",
+                Width = 115,
+                Height = 46,
+                Margin = new Thickness(0, 12, 0, 0),
+                IsEnabled = session.State != LaunchSessionState.Closing,
+                Tag = session.LaunchSessionId
+            };
+            closeButton.Click += Close_Click;
+
+            var actions = new StackPanel { Orientation = Orientation.Horizontal };
+            actions.Children.Add(switchButton);
+            actions.Children.Add(closeButton);
+
+            var content = new StackPanel();
+            content.Children.Add(new TextBlock
+            {
+                Text = session.AppName,
+                FontSize = 22,
+                FontWeight = FontWeights.SemiBold,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+            content.Children.Add(new TextBlock
+            {
+                Text = $"AppID {session.AppId}",
+                Margin = new Thickness(0, 6, 0, 0),
+                Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                FontSize = 12
+            });
+            content.Children.Add(elapsed);
+            content.Children.Add(new TextBlock
+            {
+                Text = $"Playing: {participants}",
+                Margin = new Thickness(0, 8, 0, 0),
+                Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                FontSize = 13,
+                TextWrapping = TextWrapping.Wrap
+            });
+            content.Children.Add(new TextBlock
+            {
+                Text = $"{processes} • {session.State}",
+                Margin = new Thickness(0, 6, 0, 0),
+                Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                FontSize = 12
+            });
+            content.Children.Add(actions);
+
+            SessionsPanel.Children.Add(new Border
+            {
+                Width = 360,
+                MinHeight = 220,
                 Margin = new Thickness(8),
                 Padding = new Thickness(18),
                 Background = new System.Windows.Media.SolidColorBrush(
@@ -64,50 +124,13 @@ public partial class RunningAppsView : UserControl
                     System.Windows.Media.Color.FromRgb(43, 51, 68)),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
-                Child = new StackPanel
-                {
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = session.AppName,
-                            FontSize = 22,
-                            FontWeight = FontWeights.SemiBold,
-                            TextTrimming = TextTrimming.CharacterEllipsis
-                        },
-                        new TextBlock
-                        {
-                            Text = $"AppID {session.AppId}",
-                            Margin = new Thickness(0, 6, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            FontSize = 12
-                        },
-                        elapsed,
-                        new TextBlock
-                        {
-                            Text = $"Playing: {participants}",
-                            Margin = new Thickness(0, 8, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            FontSize = 13,
-                            TextWrapping = TextWrapping.Wrap
-                        },
-                        new TextBlock
-                        {
-                            Text = processes,
-                            Margin = new Thickness(0, 6, 0, 0),
-                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
-                            FontSize = 12
-                        }
-                    }
-                }
-            };
-
-            SessionsPanel.Children.Add(card);
+                Child = content
+            });
         }
 
         StatusText.Text = _sessions.Count == 0
             ? "Nothing is running through Grev Home right now."
-            : $"{_sessions.Count} active Grev Home session{(_sessions.Count == 1 ? string.Empty : "s")}. Switching and closing arrive next.";
+            : "Switch brings the app back to the foreground. Close requests a normal graceful shutdown; force-close lives separately in App Killer.";
 
         UpdateElapsedLabels();
     }
@@ -123,6 +146,22 @@ public partial class RunningAppsView : UserControl
                     ? $"{(int)elapsed.TotalHours}:{elapsed.Minutes:00}:{elapsed.Seconds:00} running"
                     : $"{elapsed.Minutes}:{elapsed.Seconds:00} running";
             }
+        }
+    }
+
+    private void Switch_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Guid launchSessionId })
+        {
+            SwitchRequested?.Invoke(launchSessionId);
+        }
+    }
+
+    private void Close_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: Guid launchSessionId })
+        {
+            CloseRequested?.Invoke(launchSessionId);
         }
     }
 

@@ -20,33 +20,40 @@ public partial class MainWindow : Window
 {
     private readonly NavigationService _navigation = new();
     private readonly SessionContext _session = new();
-    private readonly ControllerInputService _controllerInput = new();
     private readonly AppPaths _paths = new();
+    private readonly ControllerShortcutService _controllerShortcuts;
+    private readonly ControllerInputService _controllerInput;
     private readonly ProfileService _profileService;
     private readonly AppCatalogService _appCatalogue;
     private readonly AppPathResolver _appPathResolver;
     private readonly InstalledAppService _installedApps;
     private readonly RuntimeSessionManager _runtimeSessions;
+    private readonly GrevOverlayWindow _overlayWindow;
     private readonly bool[] _controllers = new bool[4];
     private readonly LoginView _loginView = new();
     private readonly CreateProfileView _createProfileView = new();
     private readonly DashboardView _dashboardView = new();
     private readonly InstalledLibraryView _installedLibraryView = new();
     private readonly RunningAppsView _runningAppsView = new();
+    private readonly AppKillerView _appKillerView = new();
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
     private Guid? _foregroundLaunchSessionId;
 
     public MainWindow()
     {
         InitializeComponent();
+        _controllerShortcuts = new ControllerShortcutService(_paths);
+        _controllerInput = new ControllerInputService(_controllerShortcuts);
         _profileService = new ProfileService(_paths);
         _appCatalogue = new AppCatalogService(_paths);
         _appPathResolver = new AppPathResolver(_paths);
         _installedApps = new InstalledAppService(_paths, _appPathResolver, _appCatalogue);
         _runtimeSessions = new RuntimeSessionManager(
             new ProcessTreeService(),
+            new ProcessWindowService(),
             new PlaytimeService(_paths),
             new AppLaunchResolver());
+        _overlayWindow = new GrevOverlayWindow();
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
@@ -63,10 +70,39 @@ public partial class MainWindow : Window
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
         _dashboardView.RunningAppsRequested += (_, _) => OpenRunningApps();
+        _dashboardView.AppKillerRequested += (_, _) => OpenAppKiller();
         _dashboardView.LogoutRequested += (_, _) => Logout();
+
         _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
         _installedLibraryView.LaunchRequested += entry => _ = LaunchInstalledAppAsync(entry);
+
         _runningAppsView.BackRequested += (_, _) => _navigation.GoBack();
+        _runningAppsView.SwitchRequested += SwitchToSession;
+        _runningAppsView.CloseRequested += RequestCloseSession;
+
+        _appKillerView.BackRequested += (_, _) => _navigation.GoBack();
+        _appKillerView.SwitchRequested += SwitchToSession;
+        _appKillerView.CloseRequested += RequestCloseSession;
+        _appKillerView.ForceCloseRequested += ForceCloseSession;
+
+        _overlayWindow.ResumeRequested += SwitchToSession;
+        _overlayWindow.SwitchRequested += SwitchToSession;
+        _overlayWindow.CloseRequested += launchSessionId =>
+        {
+            RequestCloseSession(launchSessionId);
+            BringGrevHomeToFront();
+        };
+        _overlayWindow.ReturnHomeRequested += (_, _) => BringGrevHomeToFront();
+        _overlayWindow.RunningAppsRequested += (_, _) =>
+        {
+            OpenRunningApps();
+            RestoreWindowWithoutChangingRoute();
+        };
+        _overlayWindow.AppKillerRequested += (_, _) =>
+        {
+            OpenAppKiller();
+            RestoreWindowWithoutChangingRoute();
+        };
 
         _runtimeSessions.SessionChanged += _ =>
             Dispatcher.BeginInvoke(new Action(UpdateRuntimeSurfaces));
@@ -77,13 +113,15 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(() => HandleInput(input.Action, input.ControllerIndex)));
         _controllerInput.ConnectionChanged += change =>
             Dispatcher.BeginInvoke(new Action(() => UpdateControllerStatus(change)));
-        _controllerInput.ReturnHomeRequested += _ =>
-            Dispatcher.BeginInvoke(new Action(BringGrevHomeToFront));
+        _controllerInput.ShortcutRequested += shortcut =>
+            Dispatcher.BeginInvoke(new Action(() => HandleSystemShortcut(shortcut)));
         _controllerInput.Start();
 
         Loaded += async (_, _) => await InitializeAsync();
         Closed += (_, _) =>
         {
+            _overlayWindow.Dismiss();
+            _overlayWindow.Close();
             _controllerInput.Dispose();
             _runtimeSessions.Dispose();
         };
@@ -99,10 +137,8 @@ public partial class MainWindow : Window
         FocusFirstButton();
     }
 
-    private void SignInLocal(ProfileSignInRequest request)
-    {
+    private void SignInLocal(ProfileSignInRequest request) =>
         _session.SignInLocal(request.Profile, request.ControllerIndex);
-    }
 
     private void EnterHome()
     {
@@ -141,6 +177,43 @@ public partial class MainWindow : Window
         _navigation.Navigate(Route.RunningApps);
     }
 
+    private void OpenAppKiller()
+    {
+        if (!_session.HasSignedInUsers)
+        {
+            _navigation.Reset(Route.Login);
+            return;
+        }
+
+        UpdateRuntimeSurfaces();
+        _navigation.Navigate(Route.AppKiller);
+    }
+
+    private void HandleSystemShortcut(ControllerShortcutEventArgs shortcut)
+    {
+        switch (shortcut.Action)
+        {
+            case ControllerShortcutAction.ReturnHome:
+                BringGrevHomeToFront();
+                break;
+            case ControllerShortcutAction.Overlay:
+                OpenOverlay();
+                break;
+        }
+    }
+
+    private void OpenOverlay()
+    {
+        var active = _runtimeSessions.GetActiveSessions();
+        var foreground = _runtimeSessions.GetForegroundSession();
+        if (foreground is null && _foregroundLaunchSessionId.HasValue)
+        {
+            foreground = active.FirstOrDefault(session => session.LaunchSessionId == _foregroundLaunchSessionId.Value);
+        }
+
+        _overlayWindow.Open(active, foreground);
+    }
+
     private async Task LaunchInstalledAppAsync(InstalledAppEntry entry)
     {
         try
@@ -157,6 +230,31 @@ public partial class MainWindow : Window
         }
     }
 
+    private void SwitchToSession(Guid launchSessionId)
+    {
+        _overlayWindow.Dismiss();
+        if (!_runtimeSessions.SwitchTo(launchSessionId))
+        {
+            RestoreWindowWithoutChangingRoute();
+            return;
+        }
+
+        _foregroundLaunchSessionId = launchSessionId;
+        Hide();
+    }
+
+    private void RequestCloseSession(Guid launchSessionId)
+    {
+        _ = _runtimeSessions.RequestClose(launchSessionId);
+        UpdateRuntimeSurfaces();
+    }
+
+    private void ForceCloseSession(Guid launchSessionId)
+    {
+        _ = _runtimeSessions.ForceClose(launchSessionId);
+        UpdateRuntimeSurfaces();
+    }
+
     private void HandleRuntimeSessionEnded(LaunchSessionSnapshot snapshot)
     {
         UpdateRuntimeSurfaces();
@@ -167,6 +265,7 @@ public partial class MainWindow : Window
         }
 
         _foregroundLaunchSessionId = null;
+        _overlayWindow.Dismiss();
         RestoreWindowWithoutChangingRoute();
     }
 
@@ -221,6 +320,8 @@ public partial class MainWindow : Window
         var active = _runtimeSessions.GetActiveSessions();
         _dashboardView.SetRunningCount(active.Count);
         _runningAppsView.SetSessions(active);
+        _appKillerView.SetSessions(active);
+        _overlayWindow.Refresh(active);
     }
 
     private void ShowRoute(Route route)
@@ -232,6 +333,7 @@ public partial class MainWindow : Window
             Route.Dashboard => _dashboardView,
             Route.InstalledLibrary => _installedLibraryView,
             Route.RunningApps => _runningAppsView,
+            Route.AppKiller => _appKillerView,
             _ => _loginView
         };
 
@@ -267,6 +369,12 @@ public partial class MainWindow : Window
 
     private void HandleInput(InputAction action, int? controllerIndex)
     {
+        if (_overlayWindow.IsOpen)
+        {
+            _overlayWindow.HandleControllerInput(action);
+            return;
+        }
+
         switch (action)
         {
             case InputAction.Up:
@@ -367,6 +475,7 @@ public partial class MainWindow : Window
 
     private void BringGrevHomeToFront()
     {
+        _overlayWindow.Dismiss();
         _foregroundLaunchSessionId = null;
         _navigation.Reset(_session.HasSignedInUsers ? Route.Dashboard : Route.Login);
         RestoreWindowWithoutChangingRoute();

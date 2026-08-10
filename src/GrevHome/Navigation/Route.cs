@@ -6,5 +6,6 @@ public enum Route
     CreateProfile,
     Dashboard,
     InstalledLibrary,
-    RunningApps
+    RunningApps,
+    AppKiller
 }
