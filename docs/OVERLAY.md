@@ -4,10 +4,14 @@ Milestone 0.5 adds the first cross-app Grev Home control surface on top of the 0
 
 ## Global controller shortcuts
 
+The shipped defaults are:
+
 - Hold **LB + RB + View** for 700 ms — direct Return Home. This bypasses the overlay and restores the Grev Home Dashboard/Login.
 - Hold **LB + RB + Menu** for 450 ms — open the Grev Overlay.
 
-The exact combinations can become user-configurable later. They are deliberately separate so a broken overlay never removes the direct route back to Grev Home.
+These combinations are **not baked into the input engine**. They are generated into `%ProgramData%\Grev Home\Data\Input\controller-shortcuts.json` on first run and can be remapped, extended with extra buttons, given different hold times, or supplemented with alternative combinations for the same action. See `docs/CONTROLLER_SHORTCUTS.md`.
+
+Return Home and Overlay remain separate system actions so a broken overlay never removes the direct route back to Grev Home. At least one enabled Return Home binding is always required as the controller recovery path.
 
 ## Overlay boundary
 
@@ -59,12 +63,14 @@ Overlay, Running Apps and App Killer do not own processes themselves. They all c
 - natural exit/failure
 - playtime finalisation
 
+Controller chord detection is similarly centralised: the runtime input service receives validated shortcut bindings from `ControllerShortcutService` and raises named system actions. Views/runtime features do not inspect specific controller-button combinations themselves.
+
 ## 0.5 smoke test
 
 Use the Notepad registration flow from `docs/RUNTIME.md`.
 
 1. Launch Notepad through Installed Apps and confirm Grev Home hides.
-2. Hold **LB + RB + Menu** and confirm the semi-transparent Grev Overlay appears above Notepad.
+2. Use the currently configured **Overlay** shortcut and confirm the semi-transparent Grev Overlay appears above Notepad.
 3. Choose Resume and confirm Notepad returns to foreground.
 4. Open Overlay again and choose Return to Grev Home; confirm Notepad keeps running.
 5. Open Running Apps and choose Switch; confirm Notepad returns to foreground.
@@ -72,3 +78,4 @@ Use the Notepad registration flow from `docs/RUNTIME.md`.
 7. Relaunch Notepad, return Home, open App Killer and select Force Close once; confirm it changes to a confirmation action without killing Notepad.
 8. Select CONFIRM FORCE CLOSE and confirm Notepad terminates and its runtime session disappears after the normal exit grace period.
 9. Launch two registered apps and verify Overlay → Switch App can move between the two tracked sessions without using Windows Alt+Tab.
+10. Change the shortcut JSON, restart Grev Home, and verify the new combinations replace the shipped defaults without changing application code.
