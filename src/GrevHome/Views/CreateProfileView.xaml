@@ -11,11 +11,11 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" HorizontalAlignment="Center">
-            <TextBlock Text="Create local profile"
+            <TextBlock Text="Create local account"
                        HorizontalAlignment="Center"
                        FontSize="42"
                        FontWeight="SemiBold" />
-            <TextBlock Text="The profile stays on this Grev Home machine and works offline."
+            <TextBlock Text="Choose the permanent username for this local account."
                        HorizontalAlignment="Center"
                        Margin="0,8,0,24"
                        FontSize="16"
@@ -23,7 +23,7 @@
         </StackPanel>
 
         <StackPanel Grid.Row="1" Width="760" HorizontalAlignment="Center">
-            <TextBlock Text="Profile name • up to 50 characters" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+            <TextBlock Text="Username • permanent • up to 50 characters" FontSize="14" Foreground="{StaticResource MutedBrush}" />
             <TextBox x:Name="ProfileNameTextBox"
                      Height="54"
                      Margin="0,7,0,14"
@@ -31,9 +31,10 @@
                      FontSize="22"
                      MaxLength="50" />
             <TextBlock x:Name="StatusText"
-                       Text="Use the controller keyboard below, or type with a physical keyboard. A permanent GrevID is created with the account."
+                       Text="Your display name starts the same as your username and can be changed later without changing your GrevID or folders."
                        Margin="0,0,0,16"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap" />
         </StackPanel>
 
         <StackPanel Grid.Row="2" Width="820" HorizontalAlignment="Center" VerticalAlignment="Center">
@@ -45,7 +46,7 @@
         </StackPanel>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,20,0,0">
-            <Button Content="Create Profile" Width="210" Height="56" Margin="6" Click="Create_Click" />
+            <Button Content="Create Account" Width="210" Height="56" Margin="6" Click="Create_Click" />
             <Button Content="Cancel" Width="150" Height="56" Margin="6" Click="Cancel_Click" />
         </StackPanel>
     </Grid>
