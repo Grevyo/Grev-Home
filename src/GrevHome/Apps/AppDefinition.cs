@@ -1,5 +1,8 @@
+using System.Text.Json.Serialization;
+
 namespace GrevHome.Apps;
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum AppKind
 {
     Application,
@@ -10,6 +13,7 @@ public enum AppKind
     SystemTool
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum InstallStrategy
 {
     SharedBinary,
@@ -17,6 +21,7 @@ public enum InstallStrategy
     SystemInstalled
 }
 
+[JsonConverter(typeof(JsonStringEnumConverter))]
 public enum DataStrategy
 {
     GrevId,
