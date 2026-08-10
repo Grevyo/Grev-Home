@@ -42,7 +42,7 @@ public sealed class ProfileService
                 if (profile is not null)
                 {
                     profiles.Add(profile);
-                    _paths.EnsureProfileLayout(profile.Id);
+                    _paths.EnsureProfileLayout(profile.GrevId);
                 }
             }
             catch (JsonException)
@@ -68,11 +68,11 @@ public sealed class ProfileService
         }
 
         var profile = new LocalProfile(Guid.NewGuid(), displayName, DateTimeOffset.UtcNow);
-        var profileRoot = _paths.GetProfileRoot(profile.Id);
+        var profileRoot = _paths.GetProfileRoot(profile.GrevId);
 
         try
         {
-            _paths.EnsureProfileLayout(profile.Id);
+            _paths.EnsureProfileLayout(profile.GrevId);
             await WriteMetadataAsync(profile, cancellationToken);
             return profile;
         }
@@ -85,7 +85,7 @@ public sealed class ProfileService
 
     private async Task WriteMetadataAsync(LocalProfile profile, CancellationToken cancellationToken)
     {
-        var metadataPath = _paths.GetProfileMetadata(profile.Id);
+        var metadataPath = _paths.GetProfileMetadata(profile.GrevId);
         var temporaryPath = metadataPath + ".tmp";
 
         try
