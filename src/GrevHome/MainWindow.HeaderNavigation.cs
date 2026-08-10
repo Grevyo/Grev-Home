@@ -12,6 +12,8 @@ public partial class MainWindow
 
     private void Window_HeaderNavigationLoaded(object sender, RoutedEventArgs e)
     {
+        InitializeProfilePlayersIntegration();
+
         if (_headerNavigationHooked)
         {
             return;
