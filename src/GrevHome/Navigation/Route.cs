@@ -7,6 +7,8 @@ public enum Route
     Dashboard,
     ProfilePlayers,
     ProfileView,
+    ProfileEdit,
+    ProfilePhotoPicker,
     InstalledLibrary,
     RunningApps,
     AppKiller,

@@ -5,52 +5,42 @@
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="72,42" MaxWidth="1180">
             <TextBlock Text="Profile &amp; Players" FontSize="40" FontWeight="SemiBold" />
-            <TextBlock x:Name="SummaryText"
-                       Margin="0,6,0,22"
-                       FontSize="16"
-                       Foreground="{StaticResource MutedBrush}"
-                       Text="Manage the active profile, additional players and controller assignments." />
+            <TextBlock x:Name="SummaryText" Margin="0,6,0,22" FontSize="16" Foreground="{StaticResource MutedBrush}" Text="Manage profiles, additional players and controller assignments." />
 
-            <TextBlock Text="PROFILE" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
+            <TextBlock Text="PRIMARY PROFILE" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
             <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22" Margin="0,0,0,26">
                 <Grid>
                     <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <StackPanel>
+                    <Border Width="72" Height="72" CornerRadius="36" Background="#1F283A" Margin="0,0,18,0" ClipToBounds="True">
+                        <Grid>
+                            <Image x:Name="PrimaryAvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                            <TextBlock x:Name="PrimaryAvatarText" Text="G" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Grid>
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock x:Name="PrimaryNameText" Text="Primary profile" FontSize="25" FontWeight="SemiBold" />
                         <TextBlock x:Name="PrimaryIdentityText" Margin="0,5,0,0" Foreground="{StaticResource MutedBrush}" />
                     </StackPanel>
-                    <WrapPanel Grid.Column="1" VerticalAlignment="Center" Margin="16,0,0,0">
-                        <Button Content="View Profile" Width="150" Height="50" Margin="4" Click="ViewProfile_Click" />
-                        <Button Content="Edit Profile" Width="150" Height="50" Margin="4" Click="EditProfile_Click" />
+                    <WrapPanel Grid.Column="2" VerticalAlignment="Center" Margin="16,0,0,0">
+                        <Button x:Name="ViewPrimaryButton" Content="View Profile" Width="150" Height="50" Margin="4" Click="ViewProfile_Click" />
+                        <Button x:Name="EditPrimaryButton" Content="Edit Profile" Width="150" Height="50" Margin="4" Click="EditProfile_Click" />
                     </WrapPanel>
                 </Grid>
             </Border>
 
-            <TextBlock Text="PLAYERS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
+            <TextBlock Text="SIGNED-IN PLAYERS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
             <StackPanel x:Name="PlayersPanel" />
 
             <WrapPanel Margin="0,14,0,0">
-                <Button x:Name="AddPlayerButton"
-                        Content="Player 2 Sign In"
-                        Width="220"
-                        Height="58"
-                        Margin="0,0,10,10"
-                        Click="AddPlayer_Click" />
-                <Button Content="Log out"
-                        Width="150"
-                        Height="58"
-                        Margin="0,0,10,10"
-                        Click="Logout_Click" />
+                <Button x:Name="AddPlayerButton" Content="Player 2 Sign In" Width="220" Height="58" Margin="0,0,10,10" Click="AddPlayer_Click" />
+                <Button Content="End Session" Width="170" Height="58" Margin="0,0,10,10" Click="Logout_Click" />
             </WrapPanel>
 
-            <TextBlock x:Name="StatusText"
-                       Margin="2,10,0,0"
-                       Foreground="{StaticResource MutedBrush}"
-                       TextWrapping="Wrap"
-                       Text="Connected controllers can be assigned or reassigned below. A user may own more than one controller." />
+            <TextBlock x:Name="StatusText" Margin="2,10,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" Text="Connected controllers can be assigned, reassigned or unassigned below." />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

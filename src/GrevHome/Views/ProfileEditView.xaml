@@ -1,0 +1,100 @@
+<UserControl x:Class="GrevHome.Views.ProfileEditView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GrevHome.Views"
+             Focusable="False">
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="72,38" MaxWidth="1100">
+                <TextBlock Text="Edit Profile" FontSize="40" FontWeight="SemiBold" />
+                <TextBlock x:Name="IdentityText" Margin="0,6,0,22" FontSize="15" Foreground="{StaticResource MutedBrush}" />
+
+                <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="24">
+                    <StackPanel>
+                        <TextBlock Text="PROFILE PICTURE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <Grid Margin="0,10,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Border Width="96" Height="96" CornerRadius="48" Background="#1F283A" Margin="0,0,18,0" ClipToBounds="True">
+                                <Grid>
+                                    <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                                    <TextBlock x:Name="AvatarPreviewText" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                </Grid>
+                            </Border>
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <WrapPanel x:Name="AvatarButtonsPanel" />
+                                <WrapPanel Margin="0,8,0,0">
+                                    <Button Content="Choose Custom Photo" Width="200" Height="50" Margin="3" Click="ChoosePhoto_Click" />
+                                </WrapPanel>
+                                <TextBlock x:Name="AvatarChoiceText" Margin="4,8,0,0" Foreground="{StaticResource MutedBrush}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <TextBlock Text="DISPLAY NAME" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,14,0,0" />
+                        <Grid Margin="0,8,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="DisplayNameTextBox" MaxLength="50" Height="52" FontSize="20" Padding="12" IsReadOnly="True" IsTabStop="False" />
+                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenKeyboard_Click" />
+                        </Grid>
+
+                        <TextBlock Text="STATUS / TAGLINE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <Grid Margin="0,8,0,18">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="StatusMessageTextBox"
+                                     MaxLength="60"
+                                     Height="52"
+                                     FontSize="16"
+                                     Padding="12"
+                                     IsReadOnly="True"
+                                     IsTabStop="False" />
+                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenStatusKeyboard_Click" />
+                        </Grid>
+
+                        <TextBlock Text="ABOUT" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                        <Grid Margin="0,8,0,22">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBox x:Name="BioTextBox"
+                                     MaxLength="160"
+                                     MinHeight="66"
+                                     FontSize="16"
+                                     Padding="12"
+                                     TextWrapping="Wrap"
+                                     VerticalContentAlignment="Center"
+                                     IsReadOnly="True"
+                                     IsTabStop="False" />
+                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" VerticalAlignment="Center" Click="OpenBioKeyboard_Click" />
+                        </Grid>
+
+                        <StackPanel x:Name="RolePanel">
+                            <TextBlock Text="ACCOUNT ROLE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                            <TextBlock x:Name="RoleDescriptionText" Margin="0,6,0,8" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            <WrapPanel>
+                                <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" Click="Role_Click" />
+                                <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" Click="Role_Click" />
+                                <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" Click="Role_Click" />
+                            </WrapPanel>
+                        </StackPanel>
+
+                        <TextBlock x:Name="RoleLockedText" Visibility="Collapsed" Margin="0,0,0,6" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+
+                        <Button Content="Save Profile" Width="190" Height="56" Margin="0,26,0,0" HorizontalAlignment="Left" Click="Save_Click" />
+                        <TextBlock x:Name="StatusText" Margin="0,12,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+        </ScrollViewer>
+
+        <local:ControllerQwertyKeyboard x:Name="KeyboardOverlay" Panel.ZIndex="100" />
+    </Grid>
+</UserControl>
