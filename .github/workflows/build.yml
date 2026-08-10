@@ -28,25 +28,3 @@ jobs:
 
       - name: Build
         run: dotnet build .\src\GrevHome\GrevHome.csproj --configuration Release --nologo
-
-      - name: Publish Windows x64 test build
-        run: dotnet publish .\src\GrevHome\GrevHome.csproj --configuration Release --runtime win-x64 --self-contained true --output .\artifacts\GrevHome-0.8-TestBuild --nologo
-
-      - name: Add test build information
-        shell: pwsh
-        run: |
-          @"
-          Grev Home Milestone 0.8 Test Build
-          Commit: $env:GITHUB_SHA
-          Runtime root: C:\GrevHome
-
-          Launch GrevHome.exe and perform the test through the Grev Home UI.
-          Files Home includes C:\GrevHome\TestArea with disposable test content.
-          "@ | Set-Content .\artifacts\GrevHome-0.8-TestBuild\TEST_BUILD.txt
-
-      - name: Upload Windows test build
-        uses: actions/upload-artifact@v4
-        with:
-          name: GrevHome-0.8-TestBuild
-          path: .\artifacts\GrevHome-0.8-TestBuild\
-          if-no-files-found: error
