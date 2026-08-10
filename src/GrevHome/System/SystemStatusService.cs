@@ -1,7 +1,7 @@
 using System.IO;
 using System.Runtime.InteropServices;
 
-namespace GrevHome.System;
+namespace GrevHome.Machine;
 
 public sealed record MachineStatus(
     string MachineName,
@@ -32,8 +32,7 @@ public sealed class SystemStatusService
             throw new InvalidOperationException("Windows could not report memory status.");
         }
 
-        var power = new SystemPowerStatus();
-        var hasPowerStatus = GetSystemPowerStatus(out power);
+        var hasPowerStatus = GetSystemPowerStatus(out var power);
 
         return new MachineStatus(
             Environment.MachineName,
