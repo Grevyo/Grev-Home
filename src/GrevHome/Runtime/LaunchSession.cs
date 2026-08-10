@@ -17,6 +17,8 @@ public sealed record LaunchParticipant(
     string DisplayName,
     AccountKind AccountKind);
 
+public sealed record RuntimeProcessIdentity(int ProcessId, DateTimeOffset StartedAtUtc);
+
 public sealed record LaunchSessionSnapshot(
     Guid LaunchSessionId,
     string AppId,
@@ -36,14 +38,15 @@ public sealed record LaunchSessionSnapshot(
 internal sealed class TrackedLaunchSession
 {
     private readonly object _gate = new();
-    private readonly HashSet<int> _processIds = new();
+    private readonly Dictionary<int, DateTimeOffset> _processes = new();
 
-    public Guid LaunchSessionId { get; } = Guid.NewGuid();
+    public Guid LaunchSessionId { get; }
     public string AppId { get; }
     public string AppName { get; }
     public string? PrimaryGrevId { get; }
     public IReadOnlyList<LaunchParticipant> Participants { get; }
     public DateTimeOffset StartedAtUtc { get; }
+    public DateTimeOffset LastObservedAliveAtUtc { get; private set; }
     public DateTimeOffset? EndedAtUtc { get; private set; }
     public LaunchSessionState State { get; private set; }
     public int RootProcessId { get; }
@@ -54,34 +57,110 @@ internal sealed class TrackedLaunchSession
         string appName,
         string? primaryGrevId,
         IReadOnlyList<LaunchParticipant> participants,
-        int rootProcessId,
+        RuntimeProcessIdentity rootProcess,
         DateTimeOffset startedAtUtc)
+        : this(
+            Guid.NewGuid(),
+            appId,
+            appName,
+            primaryGrevId,
+            participants,
+            rootProcess.ProcessId,
+            new[] { rootProcess },
+            startedAtUtc,
+            startedAtUtc,
+            LaunchSessionState.Running)
     {
+    }
+
+    private TrackedLaunchSession(
+        Guid launchSessionId,
+        string appId,
+        string appName,
+        string? primaryGrevId,
+        IReadOnlyList<LaunchParticipant> participants,
+        int rootProcessId,
+        IReadOnlyList<RuntimeProcessIdentity> processes,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset lastObservedAliveAtUtc,
+        LaunchSessionState state)
+    {
+        LaunchSessionId = launchSessionId;
         AppId = appId;
         AppName = appName;
         PrimaryGrevId = primaryGrevId;
         Participants = participants;
         RootProcessId = rootProcessId;
         StartedAtUtc = startedAtUtc;
-        State = LaunchSessionState.Running;
-        _processIds.Add(rootProcessId);
+        LastObservedAliveAtUtc = lastObservedAliveAtUtc;
+        State = state is LaunchSessionState.Closing ? LaunchSessionState.Closing : LaunchSessionState.Running;
+
+        foreach (var process in processes.Where(process => process.ProcessId > 0))
+        {
+            _processes[process.ProcessId] = process.StartedAtUtc;
+        }
     }
+
+    public static TrackedLaunchSession Recover(
+        Guid launchSessionId,
+        string appId,
+        string appName,
+        string? primaryGrevId,
+        IReadOnlyList<LaunchParticipant> participants,
+        int rootProcessId,
+        IReadOnlyList<RuntimeProcessIdentity> processes,
+        DateTimeOffset startedAtUtc,
+        DateTimeOffset lastObservedAliveAtUtc,
+        LaunchSessionState state) =>
+        new(
+            launchSessionId,
+            appId,
+            appName,
+            primaryGrevId,
+            participants,
+            rootProcessId,
+            processes,
+            startedAtUtc,
+            lastObservedAliveAtUtc,
+            state);
 
     public IReadOnlyList<int> GetKnownProcessIds()
     {
         lock (_gate)
         {
-            return _processIds.OrderBy(id => id).ToArray();
+            return _processes.Keys.OrderBy(id => id).ToArray();
         }
     }
 
-    public void AddProcessIds(IEnumerable<int> processIds)
+    public IReadOnlyList<RuntimeProcessIdentity> GetKnownProcessIdentities()
     {
         lock (_gate)
         {
-            foreach (var processId in processIds.Where(id => id > 0))
+            return _processes
+                .OrderBy(pair => pair.Key)
+                .Select(pair => new RuntimeProcessIdentity(pair.Key, pair.Value))
+                .ToArray();
+        }
+    }
+
+    public void AddProcessIdentities(IEnumerable<RuntimeProcessIdentity> processes)
+    {
+        lock (_gate)
+        {
+            foreach (var process in processes.Where(process => process.ProcessId > 0))
             {
-                _processIds.Add(processId);
+                _processes.TryAdd(process.ProcessId, process.StartedAtUtc);
+            }
+        }
+    }
+
+    public void MarkObservedAlive(DateTimeOffset observedAtUtc)
+    {
+        lock (_gate)
+        {
+            if (EndedAtUtc is null && observedAtUtc > LastObservedAliveAtUtc)
+            {
+                LastObservedAliveAtUtc = observedAtUtc;
             }
         }
     }
@@ -135,7 +214,7 @@ internal sealed class TrackedLaunchSession
                 EndedAtUtc,
                 State,
                 RootProcessId,
-                _processIds.OrderBy(id => id).ToArray(),
+                _processes.Keys.OrderBy(id => id).ToArray(),
                 FailureMessage);
         }
     }
