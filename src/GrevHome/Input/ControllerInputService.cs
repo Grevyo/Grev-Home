@@ -14,6 +14,7 @@ public enum InputAction
 
 public sealed record ControllerInputEventArgs(int ControllerIndex, InputAction Action);
 public sealed record ControllerConnectionEventArgs(int ControllerIndex, bool IsConnected);
+public sealed record ControllerShortcutCaptureEventArgs(int ControllerIndex, IReadOnlyList<ControllerButton> Buttons);
 
 public sealed class ControllerInputService : IDisposable
 {
@@ -32,9 +33,11 @@ public sealed class ControllerInputService : IDisposable
     private const ushort XButton = 0x4000;
     private const ushort YButton = 0x8000;
     private const int ThumbDeadzone = 14500;
+    private const byte CaptureTriggerThreshold = 160;
 
     private static readonly TimeSpan RepeatDelay = TimeSpan.FromMilliseconds(320);
     private static readonly TimeSpan RepeatInterval = TimeSpan.FromMilliseconds(115);
+    private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ControllerShortcutService _shortcutService;
     private readonly Timer _timer;
@@ -46,17 +49,31 @@ public sealed class ControllerInputService : IDisposable
     private readonly Dictionary<(int ControllerIndex, string BindingId), ShortcutPressState> _shortcutStates = new();
     private readonly object _pollGate = new();
     private IReadOnlyList<ControllerShortcutBinding> _shortcutBindings = Array.Empty<ControllerShortcutBinding>();
+    private ShortcutCaptureState? _capture;
     private bool _disposed;
 
     public event Action<ControllerInputEventArgs>? ActionPressed;
     public event Action<ControllerConnectionEventArgs>? ConnectionChanged;
     public event Action<ControllerShortcutEventArgs>? ShortcutRequested;
+    public event Action<ControllerShortcutCaptureEventArgs>? ShortcutCaptured;
+    public event Action? ShortcutCaptureTimedOut;
 
     public ControllerInputService(ControllerShortcutService shortcutService)
     {
         _shortcutService = shortcutService;
         _timer = new Timer(Poll, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         ReloadShortcuts();
+    }
+
+    public bool IsCapturingShortcut
+    {
+        get
+        {
+            lock (_pollGate)
+            {
+                return _capture is not null;
+            }
+        }
     }
 
     public void ReloadShortcuts()
@@ -69,6 +86,24 @@ public sealed class ControllerInputService : IDisposable
                 .Where(binding => binding.Enabled)
                 .ToArray();
             _shortcutStates.Clear();
+        }
+    }
+
+    public void BeginShortcutCapture()
+    {
+        lock (_pollGate)
+        {
+            _capture = new ShortcutCaptureState(DateTimeOffset.UtcNow);
+            _shortcutStates.Clear();
+            Array.Fill(_heldDirection, null);
+        }
+    }
+
+    public void CancelShortcutCapture()
+    {
+        lock (_pollGate)
+        {
+            _capture = null;
         }
     }
 
@@ -89,17 +124,32 @@ public sealed class ControllerInputService : IDisposable
 
         try
         {
+            var states = new XInputState[4];
             for (var index = 0; index < 4; index++)
             {
-                var isConnected = XInputGetState((uint)index, out var state) == 0;
+                var isConnected = XInputGetState((uint)index, out states[index]) == 0;
                 UpdateConnection(index, isConnected);
 
                 if (!isConnected)
                 {
                     ResetController(index);
+                }
+            }
+
+            if (_capture is not null)
+            {
+                HandleShortcutCapture(states);
+                return;
+            }
+
+            for (var index = 0; index < 4; index++)
+            {
+                if (!_connected[index])
+                {
                     continue;
                 }
 
+                var state = states[index];
                 var buttons = state.Gamepad.Buttons;
                 var shortcutActive = HandleShortcuts(index, state.Gamepad);
 
@@ -119,7 +169,6 @@ public sealed class ControllerInputService : IDisposable
                 }
                 else
                 {
-                    // A configured system chord must not also navigate/activate the foreground UI.
                     HandleDirectionalInput(index, null);
                 }
 
@@ -129,6 +178,73 @@ public sealed class ControllerInputService : IDisposable
         finally
         {
             Monitor.Exit(_pollGate);
+        }
+    }
+
+    private void HandleShortcutCapture(IReadOnlyList<XInputState> states)
+    {
+        var capture = _capture;
+        if (capture is null)
+        {
+            return;
+        }
+
+        if (DateTimeOffset.UtcNow - capture.StartedAt >= CaptureTimeout)
+        {
+            _capture = null;
+            ThreadPool.QueueUserWorkItem(_ => ShortcutCaptureTimedOut?.Invoke());
+            return;
+        }
+
+        var pressedByController = Enumerable.Range(0, 4)
+            .Where(index => _connected[index])
+            .Select(index => (Index: index, Buttons: GetPressedButtons(states[index].Gamepad, CaptureTriggerThreshold)))
+            .ToArray();
+
+        if (!capture.NeutralSeen)
+        {
+            if (pressedByController.All(item => item.Buttons.Count == 0))
+            {
+                capture.NeutralSeen = true;
+            }
+
+            return;
+        }
+
+        if (capture.ControllerIndex is null)
+        {
+            var firstActive = pressedByController.FirstOrDefault(item => item.Buttons.Count > 0);
+            if (firstActive.Buttons is null || firstActive.Buttons.Count == 0)
+            {
+                return;
+            }
+
+            capture.ControllerIndex = firstActive.Index;
+            capture.LargestCombination = firstActive.Buttons;
+            return;
+        }
+
+        var controller = pressedByController.FirstOrDefault(item => item.Index == capture.ControllerIndex.Value);
+        var currentlyPressed = controller.Buttons ?? Array.Empty<ControllerButton>();
+
+        if (currentlyPressed.Count > capture.LargestCombination.Count)
+        {
+            capture.LargestCombination = currentlyPressed;
+        }
+
+        if (currentlyPressed.Count > 0)
+        {
+            return;
+        }
+
+        var completedController = capture.ControllerIndex.Value;
+        var completedButtons = capture.LargestCombination.Distinct().Take(8).ToArray();
+        _capture = null;
+
+        if (completedButtons.Length > 0)
+        {
+            ThreadPool.QueueUserWorkItem(_ => ShortcutCaptured?.Invoke(
+                new ControllerShortcutCaptureEventArgs(completedController, completedButtons)));
         }
     }
 
@@ -169,6 +285,20 @@ public sealed class ControllerInputService : IDisposable
         }
 
         return true;
+    }
+
+    private static IReadOnlyList<ControllerButton> GetPressedButtons(XInputGamepad gamepad, byte triggerThreshold)
+    {
+        var result = new List<ControllerButton>(16);
+        foreach (var button in Enum.GetValues<ControllerButton>())
+        {
+            if (IsButtonPressed(button, gamepad, triggerThreshold))
+            {
+                result.Add(button);
+            }
+        }
+
+        return result;
     }
 
     private static bool IsBindingPressed(ControllerShortcutBinding binding, XInputGamepad gamepad) =>
@@ -296,6 +426,19 @@ public sealed class ControllerInputService : IDisposable
         public bool Raised { get; set; }
 
         public ShortcutPressState(DateTimeOffset startedAt)
+        {
+            StartedAt = startedAt;
+        }
+    }
+
+    private sealed class ShortcutCaptureState
+    {
+        public DateTimeOffset StartedAt { get; }
+        public bool NeutralSeen { get; set; }
+        public int? ControllerIndex { get; set; }
+        public IReadOnlyList<ControllerButton> LargestCombination { get; set; } = Array.Empty<ControllerButton>();
+
+        public ShortcutCaptureState(DateTimeOffset startedAt)
         {
             StartedAt = startedAt;
         }
