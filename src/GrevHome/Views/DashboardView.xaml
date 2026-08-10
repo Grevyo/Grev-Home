@@ -30,7 +30,7 @@
                 <Button Width="285" Height="145" Margin="8" Click="InstalledApps_Click" Content="Installed Apps" />
                 <Button x:Name="RunningAppsButton" Width="285" Height="145" Margin="8" Click="RunningApps_Click" Content="Running Apps&#x0a;0 active" />
                 <Button Width="285" Height="145" Margin="8" Click="AppKiller_Click" Content="App Killer" />
-                <Button Width="285" Height="145" Margin="8" Click="Settings_Click" Content="Settings" />
+                <Button Width="285" Height="145" Margin="8" Click="Settings_Click" Content="Settings &amp; System" />
                 <Button Tag="Recently Used" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Recently Used" />
                 <Button Tag="Files" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Files" />
                 <Button Tag="Emulators" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Emulators" />
@@ -47,7 +47,7 @@
                     <TextBlock Text="Foundation status" FontSize="15" FontWeight="SemiBold" />
                     <TextBlock x:Name="StatusText"
                                Margin="0,8,0,0"
-                               Text="0.6 builds the settings/configuration backbone before system tools, files, Store packages or visual theming."
+                               Text="0.7 adds machine status, storage/controller hardware visibility and confirmed Windows power controls on top of the 0.6 Settings backbone."
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
