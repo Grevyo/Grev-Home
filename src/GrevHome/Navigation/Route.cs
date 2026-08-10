@@ -4,5 +4,6 @@ public enum Route
 {
     Login,
     CreateProfile,
-    Dashboard
+    Dashboard,
+    InstalledLibrary
 }
