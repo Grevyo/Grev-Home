@@ -41,6 +41,13 @@
                     Height="60"
                     Margin="6"
                     Click="CreateProfile_Click" />
+            <Button x:Name="LogoutButton"
+                    Content="Log out"
+                    Width="180"
+                    Height="60"
+                    Margin="6"
+                    Visibility="Collapsed"
+                    Click="Logout_Click" />
         </StackPanel>
     </Grid>
 </UserControl>
