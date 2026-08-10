@@ -11,6 +11,7 @@ public sealed class ProfileService
 {
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
+    public const int MaxBioLength = 160;
     public const int MaxGrevIdLength = 58;
     public const long MaxAvatarFileBytes = 10 * 1024 * 1024;
 
@@ -55,6 +56,12 @@ public sealed class ProfileService
                 if (string.IsNullOrWhiteSpace(profile.Username))
                 {
                     profile = profile with { Username = profile.DisplayName };
+                    needsUpgrade = true;
+                }
+
+                if (profile.Bio is null)
+                {
+                    profile = profile with { Bio = string.Empty };
                     needsUpgrade = true;
                 }
 
@@ -163,6 +170,7 @@ public sealed class ProfileService
         string avatarKey,
         AccountRole? newRole,
         string? customAvatarSourcePath = null,
+        string? bio = null,
         CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
@@ -170,6 +178,7 @@ public sealed class ProfileService
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
 
+        var normalizedBio = bio is null ? profile.Bio : ValidateBio(bio);
         var role = newRole ?? profile.Role;
         EnsureRoleChangeIsSafe(profile, role, profiles);
 
@@ -196,6 +205,7 @@ public sealed class ProfileService
         var updated = profile with
         {
             DisplayName = displayName,
+            Bio = normalizedBio,
             AvatarKey = normalizedAvatar,
             AvatarImageFile = avatarImageFile,
             Role = role
@@ -368,6 +378,14 @@ public sealed class ProfileService
         if (displayName.Length > MaxDisplayNameLength) throw new InvalidOperationException($"Display names must be {MaxDisplayNameLength} characters or fewer.");
         if (displayName.Any(char.IsControl)) throw new InvalidOperationException("Display names cannot contain control characters.");
         return displayName;
+    }
+
+    private static string ValidateBio(string bio)
+    {
+        bio = bio.Trim();
+        if (bio.Length > MaxBioLength) throw new InvalidOperationException($"Profile bios must be {MaxBioLength} characters or fewer.");
+        if (bio.Any(char.IsControl)) throw new InvalidOperationException("Profile bios cannot contain control characters.");
+        return bio;
     }
 
     private static void TryDeleteDirectory(string path)
