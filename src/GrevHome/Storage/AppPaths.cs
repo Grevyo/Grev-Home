@@ -4,6 +4,8 @@ namespace GrevHome.Storage;
 
 public sealed class AppPaths
 {
+    private const int MaxGrevIdLength = 58;
+
     public string Root { get; }
     public string Data => Path.Combine(Root, "Data");
     public string Profiles => Path.Combine(Root, "Profiles");
@@ -89,7 +91,7 @@ public sealed class AppPaths
     private static string ValidateGrevId(string grevId)
     {
         if (string.IsNullOrWhiteSpace(grevId) ||
-            grevId.Length > 58 ||
+            grevId.Length > MaxGrevIdLength ||
             grevId[0] != 'G' ||
             grevId.Any(character => !char.IsAsciiLetterOrDigit(character) && character != '_'))
         {
