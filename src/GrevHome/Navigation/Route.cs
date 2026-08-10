@@ -9,6 +9,7 @@ public enum Route
     ProfileView,
     ProfileEdit,
     ProfilePhotoPicker,
+    GrevStore,
     InstalledLibrary,
     RunningApps,
     AppKiller,
