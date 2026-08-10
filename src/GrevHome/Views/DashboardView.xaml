@@ -23,7 +23,7 @@
                 <Button Width="285" Height="145" Margin="8" Click="Files_Click" Content="Files" />
                 <Button Tag="Recently Used" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Recently Used" />
                 <Button Tag="Emulators" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Emulators" />
-                <Button Tag="Grev Store" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Grev Store • later" />
+                <Button Width="285" Height="145" Margin="8" Click="Store_Click" Content="Grev Store" />
             </WrapPanel>
 
             <Border Margin="8,28,8,0"
@@ -36,7 +36,7 @@
                     <TextBlock Text="Foundation status" FontSize="15" FontWeight="SemiBold" />
                     <TextBlock x:Name="StatusText"
                                Margin="0,8,0,0"
-                               Text="0.8 adds the first Grev File Explorer: controller-first drives/folders/files and safe file-management operations inside the persistent shell."
+                               Text="0.11 begins trusted app-specific installers and Grev Store package discovery while keeping the current controller-first dashboard baseline."
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
