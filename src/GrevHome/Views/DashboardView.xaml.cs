@@ -40,7 +40,7 @@ public partial class DashboardView : UserControl
     {
         if (sender is Button { Tag: string feature })
         {
-            StatusText.Text = $"{feature} is still a dashboard placeholder. The foundation is being kept small until profiles, sessions and controller ownership are stable.";
+            StatusText.Text = $"{feature} is still a dashboard placeholder. Persistent data belongs to each local account's GrevId; Primary User is only the current session's launch context.";
         }
     }
 }
