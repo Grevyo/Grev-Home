@@ -9,6 +9,7 @@ namespace GrevHome.Views;
 public sealed record ProfileEditRequest(
     string GrevId,
     string DisplayName,
+    string StatusMessage,
     string Bio,
     string AvatarKey,
     AccountRole Role,
@@ -19,6 +20,7 @@ public partial class ProfileEditView : UserControl
     private enum KeyboardTarget
     {
         DisplayName,
+        StatusMessage,
         Bio
     }
 
@@ -42,16 +44,21 @@ public partial class ProfileEditView : UserControl
         BuildAvatarButtons();
         KeyboardOverlay.Completed += value =>
         {
-            if (_keyboardTarget == KeyboardTarget.DisplayName)
+            switch (_keyboardTarget)
             {
-                DisplayNameTextBox.Text = value;
-                DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-                UpdateAvatarPresentation();
-            }
-            else
-            {
-                BioTextBox.Text = value;
-                BioTextBox.CaretIndex = BioTextBox.Text.Length;
+                case KeyboardTarget.DisplayName:
+                    DisplayNameTextBox.Text = value;
+                    DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
+                    UpdateAvatarPresentation();
+                    break;
+                case KeyboardTarget.StatusMessage:
+                    StatusMessageTextBox.Text = value;
+                    StatusMessageTextBox.CaretIndex = StatusMessageTextBox.Text.Length;
+                    break;
+                case KeyboardTarget.Bio:
+                    BioTextBox.Text = value;
+                    BioTextBox.CaretIndex = BioTextBox.Text.Length;
+                    break;
             }
         };
         KeyboardOverlay.Opened += (_, _) => KeyboardOpened?.Invoke(this, EventArgs.Empty);
@@ -68,12 +75,14 @@ public partial class ProfileEditView : UserControl
         IdentityText.Text = $"@{profile.Username}  •  {profile.GrevId}  •  Username and GrevID are permanent";
         DisplayNameTextBox.Text = profile.DisplayName;
         DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
+        StatusMessageTextBox.Text = profile.StatusMessage ?? string.Empty;
+        StatusMessageTextBox.CaretIndex = StatusMessageTextBox.Text.Length;
         BioTextBox.Text = profile.Bio ?? string.Empty;
         BioTextBox.CaretIndex = BioTextBox.Text.Length;
         RolePanel.Visibility = canChangeRole ? Visibility.Visible : Visibility.Collapsed;
         RoleLockedText.Visibility = canChangeRole ? Visibility.Collapsed : Visibility.Visible;
         RoleLockedText.Text = $"Role: {profile.Role} • only an Admin can change account roles.";
-        StatusText.Text = "Display Name, About and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
+        StatusText.Text = "Display Name, status, About and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
         UpdateAvatarPresentation();
         UpdateRolePresentation();
     }
@@ -83,6 +92,7 @@ public partial class ProfileEditView : UserControl
         : new ProfileEditRequest(
             _profile.GrevId,
             DisplayNameTextBox.Text,
+            StatusMessageTextBox.Text,
             BioTextBox.Text,
             _selectedAvatarKey,
             _selectedRole,
@@ -92,6 +102,7 @@ public partial class ProfileEditView : UserControl
     {
         if (_profile is null || !string.Equals(_profile.GrevId, draft.GrevId, StringComparison.OrdinalIgnoreCase)) return;
         DisplayNameTextBox.Text = draft.DisplayName;
+        StatusMessageTextBox.Text = draft.StatusMessage;
         BioTextBox.Text = draft.Bio;
         _selectedAvatarKey = ProfileAvatarCatalog.Normalize(draft.AvatarKey);
         _selectedRole = draft.Role;
@@ -125,6 +136,12 @@ public partial class ProfileEditView : UserControl
     {
         _keyboardTarget = KeyboardTarget.DisplayName;
         KeyboardOverlay.Open("Change Display Name", DisplayNameTextBox.Text, DisplayNameTextBox.MaxLength);
+    }
+
+    private void OpenStatusKeyboard_Click(object sender, RoutedEventArgs e)
+    {
+        _keyboardTarget = KeyboardTarget.StatusMessage;
+        KeyboardOverlay.Open("Edit Status / Tagline", StatusMessageTextBox.Text, StatusMessageTextBox.MaxLength);
     }
 
     private void OpenBioKeyboard_Click(object sender, RoutedEventArgs e)
