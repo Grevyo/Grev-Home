@@ -8,5 +8,6 @@ public enum Route
     InstalledLibrary,
     RunningApps,
     AppKiller,
-    Settings
+    Settings,
+    Files
 }
