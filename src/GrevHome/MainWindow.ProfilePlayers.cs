@@ -228,7 +228,8 @@ public partial class MainWindow
                 request.AvatarKey,
                 requestedRole,
                 customAvatarSourcePath: request.CustomAvatarSourcePath,
-                bio: request.Bio);
+                bio: request.Bio,
+                statusMessage: request.StatusMessage);
             _profiles = await _profileService.GetProfilesAsync();
             _session.UpdateDisplayName(updated.GrevId, updated.DisplayName);
             _session.UpdateRole(updated.GrevId, updated.Role);
