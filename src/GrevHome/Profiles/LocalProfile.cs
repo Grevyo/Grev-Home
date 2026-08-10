@@ -12,4 +12,5 @@ public sealed record LocalProfile(
     string Username,
     string DisplayName,
     DateTimeOffset CreatedAtUtc,
-    AccountRole Role = AccountRole.Admin);
+    AccountRole Role = AccountRole.Admin,
+    string AvatarKey = ProfileAvatarCatalog.DefaultKey);
