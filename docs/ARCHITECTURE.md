@@ -14,6 +14,7 @@
 10. **Themes are packages** — presentation is customisable/exportable without allowing themes to own application logic.
 11. **Install scope is explicit** — future packages choose GrevID-local or machine-global storage. Shared binaries must not be duplicated just to provide per-user data.
 12. **Local identity is portable** — GrevID is safe to use as a folder/package identity so local accounts can later be exported or transferred without depending on a Windows account or machine-specific GUID path.
+13. **Launches become runtime sessions** — UI surfaces never launch or kill processes directly. A central runtime owns process identity, participants, elapsed time and exit detection.
 
 ## GrevID contract
 
@@ -121,8 +122,41 @@ The portable GrevID also gives future profile export/import a stable identity. A
 - The first signed-in user becomes primary by default; primary can be changed explicitly.
 - Primary User is a current-session role only.
 - When an app needs account-specific data, Grev Home resolves the Primary User's GrevID and uses `Profiles/<GrevID>/...`.
-- Other signed-in session participants remain available for future shared playtime/achievement attribution.
+- Other signed-in users are session participants and can receive playtime independently of whose GrevID owns the launched app context.
 - Disconnecting a controller does not destroy its assignment; reconnecting the same XInput slot can resume it.
+
+## App runtime session contract
+
+Every launch through Grev Home creates a `LaunchSession` owned by the runtime layer.
+
+A launch session snapshots:
+
+- LaunchSessionId
+- AppID / app name
+- Primary GrevID used for the launch context
+- all signed-in participants at launch time
+- start time / end time
+- root process ID
+- discovered child process IDs
+- runtime state / failure message
+
+The runtime is responsible for:
+
+1. Resolving the executable safely from the installed app definition.
+2. Applying the current Primary User's GrevID to app-data resolution where required.
+3. Starting the process.
+4. Hiding Grev Home without terminating it.
+5. Discovering descendants of known process IDs.
+6. Treating the session as active while any tracked process remains alive.
+7. Using a short no-process grace period so launcher/starter process hand-offs do not prematurely end the session.
+8. Recording the same elapsed session duration to every launch participant's own statistics store.
+9. Raising runtime state changes for Running Apps, the future Switcher, App Killer and Overlay.
+
+Process ownership must not be implemented independently by dashboard views. Future close/switch/restart controls call runtime/session services.
+
+A natural exit restores the Grev Home route that remained active while the shell was hidden. The explicit global Home chord instead returns to Dashboard and leaves the tracked app alive.
+
+Crash/reboot recovery for an active launch when the Grev Home process itself terminates is a later runtime-hardening milestone.
 
 ## Direct-home runtime contract
 
@@ -132,9 +166,9 @@ The reserved direct-home shortcut is **hold LB + RB + View for 700 ms**. It live
 
 1. Shell and input foundation — 0.1
 2. Persistent portable GrevID accounts, immutable usernames, editable display names, multi-user sign-in, controller assignment and session-only Primary User — 0.2
-3. App catalogue and installed library
-4. Session/process manager and playtime
-5. Overlay and app switcher
+3. App catalogue and installed library — 0.3
+4. App launcher, runtime sessions, process-tree tracking and playtime — 0.4
+5. Overlay, app switcher and controller-safe close/force-close paths
 6. Package format and Grev Store
 7. Controller file manager and system tools
 8. Theme engine / Theme Studio

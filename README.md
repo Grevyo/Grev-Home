@@ -68,7 +68,35 @@ This stable identity is intended to support future **local-profile export/import
 11. The Users & Controllers lobby can be reopened without destroying the current session.
 12. Guest uses shared guest data without becoming a persistent named local account.
 
-Actual app installation is intentionally not implemented yet, but the storage contract is ready for the future package/app system to choose between a GrevID-local install and a global/shared install.
+## Milestone 0.3
+
+0.3 establishes the single app catalogue / installed-state model used by Library, future Store packages and the runtime:
+
+1. Stable AppID and generic app definitions.
+2. Explicit `SharedBinary`, `GrevIdPortable` and `SystemInstalled` install strategies.
+3. Explicit `GrevId`, `Global` and `NativeAccount` data strategies.
+4. Shared binary + per-GrevID data is a first-class combination.
+5. Installed manifests live with the install they describe.
+6. The Installed Apps dashboard reads real manifests and creates no fake/demo entries.
+
+See [`docs/APP_MODEL.md`](docs/APP_MODEL.md).
+
+## Milestone 0.4
+
+0.4 introduces the first real app runtime:
+
+1. Installed apps launch through a central resolver/runtime manager rather than Dashboard click handlers.
+2. Grev Home hides while a launched app is foreground but remains resident and continues polling controllers.
+3. The runtime tracks the root PID plus descendant processes.
+4. A short exit grace period supports starter-process → child-process hand-offs.
+5. All users signed in at launch are snapshotted as session participants.
+6. The Primary User's GrevID supplies per-account app data for that launch.
+7. When the process tree exits, elapsed time is recorded to every participant's stats.
+8. Running Apps is now a live read-only dashboard surface showing active sessions, elapsed time, participants and process count.
+9. Natural app exit restores the Grev Home route that was already active while the shell was hidden.
+10. The LB + RB + View Home chord separately returns directly to Dashboard while leaving the external app running.
+
+See [`docs/RUNTIME.md`](docs/RUNTIME.md).
 
 ## Runtime data layout
 
@@ -83,6 +111,8 @@ For development it can be redirected with `GREV_HOME_ROOT`.
 ```text
 Grev Home\
 ├── Data\
+│   ├── Apps\
+│   └── Runtime\
 ├── Profiles\
 │   ├── GxxxxUsernamexxx\
 │   │   ├── profile.json
@@ -90,6 +120,7 @@ Grev Home\
 │   │   ├── AppData\
 │   │   ├── Saves\
 │   │   ├── Stats\
+│   │   │   └── playtime.json
 │   │   ├── Connections\
 │   │   ├── Screenshots\
 │   │   └── Themes\
@@ -97,6 +128,7 @@ Grev Home\
 │       ├── AppData\
 │       ├── Saves\
 │       ├── Stats\
+│       │   └── playtime.json
 │       └── Connections\
 ├── Global\
 │   ├── Apps\

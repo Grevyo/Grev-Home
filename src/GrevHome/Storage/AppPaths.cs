@@ -11,8 +11,11 @@ public sealed class AppPaths
     public string Data => Path.Combine(Root, "Data");
     public string AppCatalogueData => Path.Combine(Data, "Apps");
     public string AppCatalogueFile => Path.Combine(AppCatalogueData, "catalog.json");
+    public string RuntimeData => Path.Combine(Data, "Runtime");
     public string Profiles => Path.Combine(Root, "Profiles");
     public string GuestShared => Path.Combine(Profiles, "_GuestShared");
+    public string GuestStats => Path.Combine(GuestShared, "Stats");
+    public string GuestPlaytimeFile => Path.Combine(GuestStats, "playtime.json");
     public string Global => Path.Combine(Root, "Global");
     public string GlobalApps => Path.Combine(Global, "Apps");
     public string GlobalAppData => Path.Combine(Global, "AppData");
@@ -52,6 +55,9 @@ public sealed class AppPaths
     public string GetProfileStats(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Stats");
 
+    public string GetProfilePlaytimeFile(string grevId) =>
+        Path.Combine(GetProfileStats(grevId), "playtime.json");
+
     public string GetProfileConnections(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Connections");
 
@@ -72,6 +78,7 @@ public sealed class AppPaths
         Directory.CreateDirectory(Root);
         Directory.CreateDirectory(Data);
         Directory.CreateDirectory(AppCatalogueData);
+        Directory.CreateDirectory(RuntimeData);
         Directory.CreateDirectory(Profiles);
         Directory.CreateDirectory(Global);
         Directory.CreateDirectory(GlobalApps);
@@ -100,7 +107,7 @@ public sealed class AppPaths
         Directory.CreateDirectory(GuestShared);
         Directory.CreateDirectory(Path.Combine(GuestShared, "AppData"));
         Directory.CreateDirectory(Path.Combine(GuestShared, "Saves"));
-        Directory.CreateDirectory(Path.Combine(GuestShared, "Stats"));
+        Directory.CreateDirectory(GuestStats);
         Directory.CreateDirectory(Path.Combine(GuestShared, "Connections"));
     }
 
