@@ -70,6 +70,18 @@ public sealed class AppPaths
     public string GetProfileThemes(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Themes");
 
+    public string GetProfilePresentation(string grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Presentation");
+
+    public string GetProfileAppPresentation(string grevId) =>
+        Path.Combine(GetProfilePresentation(grevId), "Apps");
+
+    public string GetProfileAppPresentationRoot(string grevId, string appId) =>
+        Path.Combine(GetProfileAppPresentation(grevId), AppIdentity.ValidateAppId(appId));
+
+    public string GetProfileAppPresentationMetadata(string grevId, string appId) =>
+        Path.Combine(GetProfileAppPresentationRoot(grevId, appId), "presentation.json");
+
     public string GetGlobalAppRoot(string appId) =>
         Path.Combine(GlobalApps, AppIdentity.ValidateAppId(appId));
 
@@ -104,6 +116,8 @@ public sealed class AppPaths
         Directory.CreateDirectory(GetProfileConnections(grevId));
         Directory.CreateDirectory(GetProfileScreenshots(grevId));
         Directory.CreateDirectory(GetProfileThemes(grevId));
+        Directory.CreateDirectory(GetProfilePresentation(grevId));
+        Directory.CreateDirectory(GetProfileAppPresentation(grevId));
     }
 
     public void EnsureGuestLayout()
