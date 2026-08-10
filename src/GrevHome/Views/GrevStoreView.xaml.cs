@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using GrevHome.Presentation;
 using GrevHome.Sessions;
 using GrevHome.Store;
@@ -45,34 +46,49 @@ public partial class GrevStoreView : UserControl
                 Width = DefaultThemeMetrics.AppTileWidth,
                 Height = DefaultThemeMetrics.AppTileHeight,
                 Margin = new Thickness(8),
-                Padding = new Thickness(16),
+                Padding = new Thickness(0),
                 Tag = package,
-                IsEnabled = !package.IsProfileInstall || !string.IsNullOrWhiteSpace(_primaryUser?.GrevId)
+                IsEnabled = !package.IsProfileInstall || !string.IsNullOrWhiteSpace(_primaryUser?.GrevId),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                VerticalContentAlignment = VerticalAlignment.Stretch
             };
 
-            var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(96) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            var tile = new Border
+            {
+                Background = CreateTileBrush(package.Presentation.TileColor),
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(14, 10, 14, 8)
+            };
 
-            var artwork = AppArtworkFactory.Create(package.Presentation.IconAsset, 84, 15);
-            artwork.HorizontalAlignment = HorizontalAlignment.Left;
+            var content = new Grid();
+            content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+            content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            var artwork = AppArtworkFactory.Create(
+                package.Presentation.IconAsset,
+                package.Presentation.TileColor,
+                88,
+                14);
+            artwork.HorizontalAlignment = HorizontalAlignment.Center;
             artwork.VerticalAlignment = VerticalAlignment.Center;
 
             var name = new TextBlock
             {
                 Text = package.Presentation.DisplayName,
-                FontSize = 21,
+                Margin = new Thickness(0, 3, 0, 0),
+                FontSize = 18,
                 FontWeight = FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis,
-                TextWrapping = TextWrapping.Wrap,
-                MaxHeight = 58,
-                VerticalAlignment = VerticalAlignment.Center
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextAlignment = TextAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
-            Grid.SetColumn(name, 1);
+            Grid.SetRow(name, 1);
 
-            grid.Children.Add(artwork);
-            grid.Children.Add(name);
-            button.Content = grid;
+            content.Children.Add(artwork);
+            content.Children.Add(name);
+            tile.Child = content;
+            button.Content = tile;
             button.Click += Package_Click;
             PackagesPanel.Children.Add(button);
         }
@@ -82,6 +98,18 @@ public partial class GrevStoreView : UserControl
 
     private bool MatchesFilter(GrevStorePackageDefinition package) =>
         _filter == "All" || string.Equals(package.Category.ToString(), _filter, StringComparison.OrdinalIgnoreCase);
+
+    private static Brush CreateTileBrush(string color)
+    {
+        try
+        {
+            return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)!);
+        }
+        catch
+        {
+            return new SolidColorBrush(Color.FromRgb(21, 25, 35));
+        }
+    }
 
     private void Filter_Click(object sender, RoutedEventArgs e)
     {
