@@ -124,9 +124,9 @@ The exact same combination cannot be assigned to two different system actions be
 
 ## Safety and recovery
 
-`ReturnHome` is Grev Home's controller recovery path. It is fully remappable, but at least one enabled Return Home binding must exist. If a configuration removes every Return Home binding, Grev Home restores the default Return Home binding while preserving the remaining valid configuration.
+`ReturnHome` is Grev Home's controller recovery path. It is fully remappable, but at least one enabled Return Home binding must exist. A configuration with no enabled Return Home binding is rejected for that session and Grev Home runs the safe defaults instead.
 
-If the shortcut JSON is malformed or unsupported, Grev Home leaves that file untouched for later repair and runs the safe defaults for that session rather than risking a machine with no controller escape route.
+If the shortcut JSON is malformed, unsupported, unreadable or otherwise invalid, Grev Home leaves that file untouched for later repair and runs the safe defaults for that session rather than risking a machine with no controller escape route.
 
 ## Future Settings UI
 
