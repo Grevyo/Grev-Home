@@ -8,7 +8,7 @@ public partial class MainWindow
 {
     private readonly GrevStoreView _grevStoreView = new();
     private readonly GrevStoreCatalogService _grevStoreCatalog = new();
-    private readonly AppPresentationService _appPresentationService;
+    private AppPresentationService? _appPresentationService;
     private bool _grevStoreIntegrationReady;
 
     private void InitializeGrevStoreIntegration()
