@@ -21,7 +21,7 @@ public sealed class ProcessWindowService
         }
 
         var windows = new List<RuntimeWindow>();
-        EnumWindows((handle, _) =>
+        EnumWindows((handle, parameter) =>
         {
             if (!IsWindowVisible(handle) || GetWindow(handle, GwOwner) != nint.Zero)
             {
