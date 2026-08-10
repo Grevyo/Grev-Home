@@ -49,7 +49,15 @@ public sealed class ControllerInputService : IDisposable
 
     public ControllerInputService()
     {
-        _timer = new Timer(Poll, null, TimeSpan.Zero, TimeSpan.FromMilliseconds(33));
+        _timer = new Timer(Poll, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+    }
+
+    public void Start()
+    {
+        if (!_disposed)
+        {
+            _timer.Change(TimeSpan.Zero, TimeSpan.FromMilliseconds(33));
+        }
     }
 
     private void Poll(object? _)
