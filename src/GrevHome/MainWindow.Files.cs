@@ -40,6 +40,7 @@ public partial class MainWindow
         _fileExplorerView.RefreshRequested += (_, _) => RenderFiles();
         _fileExplorerView.NavigateRequested += NavigateFilesPath;
         _fileExplorerView.ModalOpened += (_, _) => PushFileModalHistory();
+        _fileExplorerView.ModalClosed += (_, _) => _navigation.DiscardBackEntry(Route.Files);
         _fileExplorerView.NameRequested += request => _ = HandleFileNameRequestAsync(request);
         _fileExplorerView.DeleteRequested += path => _ = DeleteFileItemAsync(path);
         _fileExplorerView.CopyRequested += path => BeginFileTransfer(path, FileTransferMode.Copy);
@@ -189,6 +190,7 @@ public partial class MainWindow
             if (_filePathHistory.Count > 0)
             {
                 _fileCurrentPath = _filePathHistory.Pop();
+                _navigation.DiscardBackEntry(Route.Files);
                 RenderFiles();
             }
             else
