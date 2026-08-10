@@ -82,7 +82,7 @@ Machine-level content uses `Global/Apps` and `Global/AppData`. Guest sessions us
 
 This means a future package can express combinations such as **shared binary + per-GrevId data**, **GrevId-local binary + per-GrevId data**, or **fully global app**, without changing the account model.
 
-The portable GrevId also gives future profile export/import a stable identity. An imported local account can retain its GrevId rather than being silently re-created as a different person on another machine. Import collision/ownership rules will be designed with that feature rather than guessed in 0.2.
+The portable GrevId also gives future profile export/import a stable identity. An imported local account keeps its existing GrevId so copied saves, settings, playtime and connections stay attached to the same identity. If a destination machine already has that GrevId, import must treat it as the same identity and use an explicit merge/replace/conflict flow rather than silently minting a new ID. The detailed import UI belongs to a later milestone.
 
 ## Session and controller model
 
