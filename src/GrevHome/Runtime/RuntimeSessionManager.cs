@@ -12,6 +12,7 @@ public sealed class RuntimeSessionManager : IDisposable
 
     private readonly ConcurrentDictionary<Guid, TrackedLaunchSession> _active = new();
     private readonly ProcessTreeService _processTree;
+    private readonly ProcessWindowService _processWindows;
     private readonly PlaytimeService _playtime;
     private readonly AppLaunchResolver _launchResolver;
     private readonly CancellationTokenSource _shutdown = new();
@@ -21,10 +22,12 @@ public sealed class RuntimeSessionManager : IDisposable
 
     public RuntimeSessionManager(
         ProcessTreeService processTree,
+        ProcessWindowService processWindows,
         PlaytimeService playtime,
         AppLaunchResolver launchResolver)
     {
         _processTree = processTree;
+        _processWindows = processWindows;
         _playtime = playtime;
         _launchResolver = launchResolver;
     }
@@ -34,6 +37,66 @@ public sealed class RuntimeSessionManager : IDisposable
             .Select(session => session.Snapshot())
             .OrderByDescending(session => session.StartedAtUtc)
             .ToArray();
+
+    public LaunchSessionSnapshot? GetForegroundSession()
+    {
+        var foregroundProcessId = _processWindows.GetForegroundProcessId();
+        if (!foregroundProcessId.HasValue)
+        {
+            return null;
+        }
+
+        return GetActiveSessions().FirstOrDefault(session => session.ProcessIds.Contains(foregroundProcessId.Value));
+    }
+
+    public bool SwitchTo(Guid launchSessionId)
+    {
+        if (!_active.TryGetValue(launchSessionId, out var tracked))
+        {
+            return false;
+        }
+
+        var snapshot = tracked.Snapshot();
+        return _processWindows.TryActivate(snapshot.ProcessIds);
+    }
+
+    public bool RequestClose(Guid launchSessionId)
+    {
+        if (!_active.TryGetValue(launchSessionId, out var tracked))
+        {
+            return false;
+        }
+
+        var snapshot = tracked.Snapshot();
+        var requested = _processWindows.RequestGracefulClose(snapshot.ProcessIds, snapshot.StartedAtUtc);
+        if (!requested)
+        {
+            return false;
+        }
+
+        tracked.MarkClosing();
+        SessionChanged?.Invoke(tracked.Snapshot());
+        return true;
+    }
+
+    public bool ForceClose(Guid launchSessionId)
+    {
+        if (!_active.TryGetValue(launchSessionId, out var tracked))
+        {
+            return false;
+        }
+
+        var snapshot = tracked.Snapshot();
+        var killed = _processWindows.ForceTerminate(snapshot.ProcessIds, snapshot.StartedAtUtc);
+        if (!killed)
+        {
+            return false;
+        }
+
+        tracked.MarkClosing();
+        SessionChanged?.Invoke(tracked.Snapshot());
+        return true;
+    }
 
     public Task<LaunchSessionSnapshot> LaunchAsync(
         InstalledAppEntry entry,
