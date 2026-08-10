@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using GrevHome.Input;
 using GrevHome.Navigation;
 using GrevHome.Profiles;
+using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Views;
 
@@ -15,6 +16,7 @@ public partial class MainWindow
     private readonly ProfileView _profileView = new();
     private readonly ProfileEditView _profileEditView = new();
     private readonly ProfilePhotoPickerView _profilePhotoPickerView = new();
+    private ProfileStatsService? _profileStatsService;
     private string? _profileTargetGrevId;
     private string? _profilePhotoCurrentPath;
     private ProfileEditRequest? _profileEditDraftBeforePhotoPicker;
@@ -28,6 +30,11 @@ public partial class MainWindow
         if (_profilePlayersIntegrationReady) return;
 
         _profilePlayersIntegrationReady = true;
+        _profileStatsService = new ProfileStatsService(new IProfileStatsSource[]
+        {
+            new GrevHomeProfileStatsSource(new PlaytimeService(_paths))
+        });
+
         _navigation.RouteChanged += HandleProfileRouteChanged;
         _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(RefreshProfilePlayerViews));
         _controllerInput.ConnectionChanged += _ => Dispatcher.BeginInvoke(new Action(RefreshProfilePlayerViews));
@@ -220,7 +227,8 @@ public partial class MainWindow
                 request.DisplayName,
                 request.AvatarKey,
                 requestedRole,
-                customAvatarSourcePath: request.CustomAvatarSourcePath);
+                customAvatarSourcePath: request.CustomAvatarSourcePath,
+                bio: request.Bio);
             _profiles = await _profileService.GetProfilesAsync();
             _session.UpdateDisplayName(updated.GrevId, updated.DisplayName);
             _session.UpdateRole(updated.GrevId, updated.Role);
@@ -337,6 +345,37 @@ public partial class MainWindow
         var sessionStatus = targetSessionUser is null ? "Not currently signed in" : BuildProfileSessionStatus(targetSessionUser);
         var canEdit = profile is not null && actor?.GrevId is not null && AccountAuthorizationService.CanEditProfile(actor.Role, actor.GrevId, profile.GrevId);
         _profileView.SetProfile(profile, sessionStatus, canEdit);
+
+        if (profile is not null)
+        {
+            _ = LoadProfileStatsAsync(profile.GrevId);
+        }
+    }
+
+    private async Task LoadProfileStatsAsync(string grevId)
+    {
+        var statsService = _profileStatsService;
+        if (statsService is null) return;
+
+        try
+        {
+            var stats = await statsService.GetAsync(grevId, _runtimeSessions.GetActiveSessions());
+            if (_navigation.Current != Route.ProfileView ||
+                !string.Equals(GetProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            _profileView.SetStats(stats);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            if (_navigation.Current == Route.ProfileView &&
+                string.Equals(GetProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            {
+                _profileView.ShowStatsError(ex.Message);
+            }
+        }
     }
 
     private void RenderProfileEditor()
