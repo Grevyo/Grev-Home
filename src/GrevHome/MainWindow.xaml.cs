@@ -42,6 +42,7 @@ public partial class MainWindow : Window
 
         _createProfileView.CreateRequested += name => _ = CreateProfileAsync(name);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
+        _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.LogoutRequested += (_, _) => Logout();
 
         _controllerInput.ActionPressed += input =>
@@ -77,8 +78,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        _dashboardView.SetPrimaryUser(_session.PrimaryUser);
+        _dashboardView.SetSession(_session);
         _navigation.Navigate(Route.Dashboard);
+    }
+
+    private void OpenSessionLobby()
+    {
+        RefreshSessionSurfaces();
+        _navigation.Reset(Route.Login);
     }
 
     private void OpenCreateProfile()
@@ -117,7 +124,7 @@ public partial class MainWindow : Window
     private void RefreshSessionSurfaces()
     {
         _loginView.Refresh(_profiles, _session, _controllers);
-        _dashboardView.SetPrimaryUser(_session.PrimaryUser);
+        _dashboardView.SetSession(_session);
         UpdateControllerHeader();
     }
 
