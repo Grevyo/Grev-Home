@@ -30,7 +30,11 @@ public partial class GrevStoreAppView : UserControl
         _package = package;
         _installedEntry = installedEntry;
 
-        AppArtworkHost.Child = AppArtworkFactory.Create(package.Presentation.IconAsset, 112, 20);
+        AppArtworkHost.Child = AppArtworkFactory.Create(
+            package.Presentation.IconAsset,
+            package.Presentation.TileColor,
+            112,
+            20);
         AppNameText.Text = package.Presentation.DisplayName;
         AppTypeText.Text = $"{FormatCategory(package.Category)}  •  {package.App.Kind}";
         CategoryText.Text = FormatCategory(package.Category);
@@ -107,7 +111,7 @@ public partial class GrevStoreAppView : UserControl
                 ? "Download will create a separate installation for the current Primary GrevID."
                 : "Download will create the package's machine-wide installation.";
             StatusText.Text = DownloadButton.IsEnabled
-                ? "Select Download when the package-specific installer is ready."
+                ? "Ready to download."
                 : "Choose a persistent local Primary User before downloading this Profile App.";
         }
         else
@@ -120,6 +124,16 @@ public partial class GrevStoreAppView : UserControl
                 ? "Open launches this installed app through the Grev Home runtime."
                 : installedEntry.AvailabilityMessage ?? "This installation is not available to the current user.";
         }
+    }
+
+    public void SetBusy(string action, string message, double? progressPercent = null)
+    {
+        DownloadButton.IsEnabled = false;
+        OpenButton.IsEnabled = false;
+        UninstallButton.IsEnabled = false;
+        StatusText.Text = progressPercent is null
+            ? $"{action} • {message}"
+            : $"{action} • {progressPercent.Value:0}% • {message}";
     }
 
     public void ShowStatus(string message) => StatusText.Text = message;
