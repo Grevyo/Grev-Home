@@ -12,6 +12,21 @@ RetroArch is the first real Grev Home package and is deliberately a **Profile Ap
 
 Installing RetroArch for one GrevID does not install it for any other GrevID.
 
+## Grev Store identity
+
+RetroArch is also the first registered trusted Grev Store package:
+
+- PackageId: `retroarch`
+- InstallerId: `retroarch`
+- Store category: `Emulator`
+- install scope: Profile App
+
+The same package definition supplies both Store discovery metadata and the technical `AppDefinition`. There must not be a second manually maintained Store entry that can drift away from the installer definition.
+
+The Grev Home package supplies default presentation that works on a clean profile. Each GrevID may later layer its own app display name, icon, tile media/GIF and hero media over those defaults without editing the package or RetroArch files. Resetting presentation reveals the Grev Home defaults again.
+
+See `docs/GREV_STORE.md` for the general Store/presentation contract.
+
 ## Why RetroArch is profile-owned
 
 Each Grev Home user must be able to maintain an independent RetroArch environment without conflicts with another local user. That includes:
@@ -53,9 +68,16 @@ C:\GrevHome\Profiles\<GrevID>\
 │       └── States\
 ├── Screenshots\
 │   └── RetroArch\
-└── Connections\
-    └── RetroAchievements\
-        └── profile-owned connection metadata
+├── Connections\
+│   └── RetroAchievements\
+│       └── profile-owned connection metadata
+└── Presentation\
+    └── Apps\
+        └── retroarch\
+            ├── presentation.json
+            ├── icon.*
+            ├── tile.*
+            └── hero.*
 ```
 
 Exact RetroArch directory names/config directives are installer-specific and must be validated against the supported Windows RetroArch package before implementation. The ownership boundaries above are the Grev Home contract.
@@ -111,6 +133,10 @@ RetroArch does not establish a universal arbitrary installer-script system. It i
 
 Every future supported app receives its own trusted install/update/repair/uninstall workflow because different applications distribute and configure themselves differently.
 
+Every such trusted installer must also be represented in Grev Store through its package definition and receive author-defined default presentation that users can override without changing installer/package behavior.
+
 ## Theme boundary
 
 RetroArch/package state, saves, configuration, connections and profile ownership are data/runtime concerns. Themes may change how the installer/library/profile surfaces look, but theme changes must never alter this ownership model.
+
+App-specific icon/tile/hero overrides are profile presentation data and also survive theme changes. The shipped/default theme uses the shared 285 × 145 app-card baseline; future themes may style/layout cards differently without rewriting RetroArch ownership or presentation metadata.
