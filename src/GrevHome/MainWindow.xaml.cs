@@ -20,8 +20,9 @@ public partial class MainWindow : Window
 {
     private readonly NavigationService _navigation = new();
     private readonly SessionContext _session = new();
-    private readonly ControllerInputService _controllerInput = new();
     private readonly AppPaths _paths = new();
+    private readonly ControllerShortcutService _controllerShortcuts;
+    private readonly ControllerInputService _controllerInput;
     private readonly ProfileService _profileService;
     private readonly AppCatalogService _appCatalogue;
     private readonly AppPathResolver _appPathResolver;
@@ -41,6 +42,8 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _controllerShortcuts = new ControllerShortcutService(_paths);
+        _controllerInput = new ControllerInputService(_controllerShortcuts);
         _profileService = new ProfileService(_paths);
         _appCatalogue = new AppCatalogService(_paths);
         _appPathResolver = new AppPathResolver(_paths);
@@ -110,10 +113,8 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(() => HandleInput(input.Action, input.ControllerIndex)));
         _controllerInput.ConnectionChanged += change =>
             Dispatcher.BeginInvoke(new Action(() => UpdateControllerStatus(change)));
-        _controllerInput.ReturnHomeRequested += _ =>
-            Dispatcher.BeginInvoke(new Action(BringGrevHomeToFront));
-        _controllerInput.OverlayRequested += _ =>
-            Dispatcher.BeginInvoke(new Action(OpenOverlay));
+        _controllerInput.ShortcutRequested += shortcut =>
+            Dispatcher.BeginInvoke(new Action(() => HandleSystemShortcut(shortcut)));
         _controllerInput.Start();
 
         Loaded += async (_, _) => await InitializeAsync();
@@ -186,6 +187,19 @@ public partial class MainWindow : Window
 
         UpdateRuntimeSurfaces();
         _navigation.Navigate(Route.AppKiller);
+    }
+
+    private void HandleSystemShortcut(ControllerShortcutEventArgs shortcut)
+    {
+        switch (shortcut.Action)
+        {
+            case ControllerShortcutAction.ReturnHome:
+                BringGrevHomeToFront();
+                break;
+            case ControllerShortcutAction.Overlay:
+                OpenOverlay();
+                break;
+        }
     }
 
     private void OpenOverlay()
