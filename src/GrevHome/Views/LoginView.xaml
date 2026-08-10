@@ -41,10 +41,6 @@
                             Height="64"
                             Margin="0,0,10,0"
                             Click="GuestAccount_Click" />
-                    <Button Content="Grev.dad  •  Later"
-                            Width="210"
-                            Height="64"
-                            IsEnabled="False" />
                 </WrapPanel>
 
                 <Border Background="#A9151923" BorderBrush="#343D51" BorderThickness="1" CornerRadius="16" Padding="22">
