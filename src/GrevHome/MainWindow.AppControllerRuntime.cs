@@ -1,11 +1,13 @@
 using System.Windows;
 using GrevHome.Input;
+using GrevHome.Runtime;
 
 namespace GrevHome;
 
 public partial class MainWindow
 {
     private readonly AppControllerRuntimeService _appControllerRuntime = new();
+    private readonly ProcessWindowService _appProcessWindows = new();
     private ResolvedAppControllerProfile? _foregroundAppControllerProfile;
     private Guid? _foregroundControllerProfileSessionId;
     private bool _appControllerRuntimeIntegrationReady;
@@ -48,7 +50,7 @@ public partial class MainWindow
                 return;
             }
 
-            if (_runtimeSessions.SwitchTo(launchSessionId))
+            if (TryActivateManagedAppWindow(launchSessionId))
             {
                 return;
             }
@@ -65,6 +67,20 @@ public partial class MainWindow
         const string message = "The app process started, but Grev Home could not find a usable app window to bring forward. The app remains tracked in Running Apps/App Killer if its process is still active.";
         _installedLibraryView.ShowLaunchError(message);
         _grevStoreAppView.ShowStatus(message);
+    }
+
+    private bool TryActivateManagedAppWindow(Guid launchSessionId)
+    {
+        var snapshot = _runtimeSessions.GetSession(launchSessionId);
+        if (snapshot is null || snapshot.ProcessIds.Count == 0)
+        {
+            return false;
+        }
+
+        var package = _grevStoreCatalog.Find(snapshot.AppId);
+        return _appProcessWindows.TryActivate(
+            snapshot.ProcessIds,
+            maximize: package?.LaunchMaximized == true);
     }
 
     private void UpdateForegroundAppInputMode()
@@ -140,7 +156,7 @@ public partial class MainWindow
         {
             _appControllerRuntime.Execute(
                 mapping.Output,
-                focusManagedApp: () => _runtimeSessions.SwitchTo(launchSessionId));
+                focusManagedApp: () => TryActivateManagedAppWindow(launchSessionId));
         }
         catch (Exception ex) when (ex is InvalidOperationException or FileNotFoundException)
         {
