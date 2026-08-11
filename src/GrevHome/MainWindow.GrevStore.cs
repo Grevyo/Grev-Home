@@ -38,7 +38,17 @@ public partial class MainWindow
         _grevStoreView.PackageRequested += OpenStorePackage;
         _grevStoreAppView.DownloadRequested += package => _ = BeginStoreDownloadAsync(package);
         _grevStoreAppView.OpenRequested += entry => _ = LaunchInstalledAppAsync(entry);
-        _grevStoreAppView.UninstallRequested += ShowStoreUninstallWarning;
+        _grevStoreAppView.UninstallRequested += package =>
+        {
+            if (package.IsProfileInstall)
+            {
+                ShowStoreUninstallWarning(package);
+            }
+            else
+            {
+                _ = RemoveGlobalAppFromLibraryAsync(package);
+            }
+        };
         _navigation.RouteChanged += HandleGrevStoreRouteChanged;
         _session.Changed += (_, _) =>
         {
@@ -122,15 +132,25 @@ public partial class MainWindow
         var primary = _session.PrimaryUser;
         var grevId = primary?.GrevId;
         InstalledAppEntry? installedEntry = null;
+        var isInCurrentUserLibrary = true;
 
         try
         {
-            var entries = await _installedApps.GetInstalledForUserAsync(grevId);
-            installedEntry = entries.FirstOrDefault(entry =>
-                string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
-                (package.IsProfileInstall
-                    ? !string.IsNullOrWhiteSpace(grevId) && string.Equals(entry.Manifest.OwnerGrevId, grevId, StringComparison.OrdinalIgnoreCase)
-                    : entry.Manifest.OwnerGrevId is null));
+            if (package.IsProfileInstall)
+            {
+                var entries = await _installedApps.GetInstalledForUserAsync(grevId);
+                installedEntry = entries.FirstOrDefault(entry =>
+                    string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
+                    !string.IsNullOrWhiteSpace(grevId) &&
+                    string.Equals(entry.Manifest.OwnerGrevId, grevId, StringComparison.OrdinalIgnoreCase));
+            }
+            else
+            {
+                var machineEntries = await _installedApps.GetMachineInstalledAsync();
+                installedEntry = machineEntries.FirstOrDefault(entry =>
+                    string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase));
+                isInCurrentUserLibrary = await _installedApps.IsGlobalAppInUserLibraryAsync(grevId, package.App.AppId);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -150,7 +170,12 @@ public partial class MainWindow
             _ => _paths.GetGlobalAppRoot(package.App.AppId)
         };
 
-        _grevStoreAppView.SetPackage(package, primary, installedEntry, installLocation);
+        _grevStoreAppView.SetPackage(
+            package,
+            primary,
+            installedEntry,
+            installLocation,
+            isInCurrentUserLibrary);
     }
 
     private async Task BeginStoreDownloadAsync(GrevStorePackageDefinition package)
@@ -164,8 +189,36 @@ public partial class MainWindow
             return;
         }
 
+        if (!package.IsProfileInstall)
+        {
+            try
+            {
+                var existing = (await _installedApps.GetMachineInstalledAsync()).FirstOrDefault(entry =>
+                    string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase));
+                if (existing is not null)
+                {
+                    if (string.IsNullOrWhiteSpace(grevId))
+                    {
+                        _grevStoreAppView.ShowStatus("This Global App is already installed on the machine. Choose a persistent local Primary User to save library membership.");
+                        return;
+                    }
+
+                    await _installedApps.RestoreGlobalAppToUserLibraryAsync(grevId, package.App.AppId);
+                    await RefreshSelectedStorePackageAsync();
+                    _grevStoreAppView.ShowStatus($"{package.Presentation.DisplayName} was added back to this GrevID's library. No download was needed.");
+                    return;
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+            {
+                _grevStoreAppView.ShowStatus($"Library update failed: {ex.Message}");
+                return;
+            }
+        }
+
         _storeInstallBusy = true;
         ShowStoreOperation(package, "Installing", "Preparing trusted installer…");
+        var installedSuccessfully = false;
         try
         {
             var progress = CreateStoreProgress(package);
@@ -183,6 +236,12 @@ public partial class MainWindow
             {
                 throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' is not implemented yet.");
             }
+
+            installedSuccessfully = true;
+            if (!package.IsProfileInstall && !string.IsNullOrWhiteSpace(grevId))
+            {
+                await _installedApps.RestoreGlobalAppToUserLibraryAsync(grevId, package.App.AppId);
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or
                                    InvalidOperationException or InvalidDataException or Win32Exception)
@@ -198,6 +257,33 @@ public partial class MainWindow
         if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
         {
             await RefreshSelectedStorePackageAsync();
+            if (installedSuccessfully)
+            {
+                _grevStoreAppView.ShowStatus($"{package.Presentation.DisplayName} is installed and available in this library.");
+            }
+        }
+    }
+
+    private async Task RemoveGlobalAppFromLibraryAsync(GrevStorePackageDefinition package)
+    {
+        if (_storeInstallBusy || IsStoreModalOpen || package.IsProfileInstall) return;
+
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (string.IsNullOrWhiteSpace(grevId))
+        {
+            _grevStoreAppView.ShowStatus("A persistent local Primary User is required to remove a Global App from a personal library.");
+            return;
+        }
+
+        try
+        {
+            await _installedApps.RemoveGlobalAppFromUserLibraryAsync(grevId, package.App.AppId);
+            await RefreshSelectedStorePackageAsync();
+            _grevStoreAppView.ShowStatus($"{package.Presentation.DisplayName} was removed from this GrevID's library. The machine installation was not changed.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _grevStoreAppView.ShowStatus($"Remove from Library failed: {ex.Message}");
         }
     }
 
@@ -205,8 +291,14 @@ public partial class MainWindow
     {
         if (_storeInstallBusy || IsStoreModalOpen) return;
 
+        if (!package.IsProfileInstall)
+        {
+            _ = RemoveGlobalAppFromLibraryAsync(package);
+            return;
+        }
+
         var grevId = _session.PrimaryUser?.GrevId;
-        if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
+        if (string.IsNullOrWhiteSpace(grevId))
         {
             _grevStoreAppView.ShowStatus("A persistent local Primary User is required to uninstall this Profile App.");
             return;
@@ -233,8 +325,14 @@ public partial class MainWindow
     {
         if (_storeInstallBusy || IsStoreModalOpen) return;
 
+        if (!package.IsProfileInstall)
+        {
+            _grevStoreAppView.ShowStatus("Global Apps can only be removed from a user's library here. Machine-wide uninstall is restricted to the Admin Console.");
+            return;
+        }
+
         var grevId = _session.PrimaryUser?.GrevId;
-        if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
+        if (string.IsNullOrWhiteSpace(grevId))
         {
             _grevStoreAppView.ShowStatus("A persistent local Primary User is required to uninstall this Profile App.");
             return;
@@ -254,16 +352,11 @@ public partial class MainWindow
             if (string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
                 _retroArchInstaller is not null)
             {
-                await _retroArchInstaller.UninstallAsync(package, grevId!, progress);
-            }
-            else if (string.Equals(package.InstallerId, DiscordInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
-                     _discordInstaller is not null)
-            {
-                await _discordInstaller.UninstallAsync(package, progress);
+                await _retroArchInstaller.UninstallAsync(package, grevId, progress);
             }
             else
             {
-                throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' does not support uninstall yet.");
+                throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' does not support Profile App uninstall yet.");
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
