@@ -394,7 +394,7 @@ public partial class MainWindow : Window
 
     private void HandleSystemShortcut(ControllerShortcutEventArgs shortcut)
     {
-        if (IsStoreModalOpen)
+        if (IsStoreModalOpen || IsPowerMenuOpen)
         {
             return;
         }
@@ -412,7 +412,7 @@ public partial class MainWindow : Window
 
     private void OpenOverlay()
     {
-        if (IsStoreModalOpen)
+        if (IsStoreModalOpen || IsPowerMenuOpen)
         {
             return;
         }
@@ -593,6 +593,32 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (IsPowerMenuOpen)
+        {
+            switch (action)
+            {
+                case InputAction.Up:
+                    MoveFocus(FocusNavigationDirection.Up);
+                    break;
+                case InputAction.Down:
+                    MoveFocus(FocusNavigationDirection.Down);
+                    break;
+                case InputAction.Left:
+                    MoveFocus(FocusNavigationDirection.Left);
+                    break;
+                case InputAction.Right:
+                    MoveFocus(FocusNavigationDirection.Right);
+                    break;
+                case InputAction.Accept:
+                    ActivateFocusedControl(controllerIndex);
+                    break;
+                case InputAction.Back:
+                    ClosePowerMenu();
+                    break;
+            }
+            return;
+        }
+
         if (_overlayWindow.IsOpen)
         {
             _overlayWindow.HandleControllerInput(action);
@@ -691,23 +717,117 @@ public partial class MainWindow : Window
         ProfileBubbleButton.Visibility = _session.HasSignedInUsers
             ? Visibility.Visible
             : Visibility.Collapsed;
+        HeaderPlayersPanel.Children.Clear();
 
         if (!_session.HasSignedInUsers)
         {
-            ControllerStatusText.Text = "No signed-in players";
             return;
         }
 
-        var players = _session.SignedInUsers.Select(user =>
+        foreach (var user in _session.SignedInUsers)
         {
-            var controllers = _session.GetControllersForUser(user.SessionId);
-            var controllerText = controllers.Count == 0
-                ? "No controller"
-                : string.Join("+", controllers.Select(index => $"C{index + 1}"));
-            return $"{user.DisplayName} • {controllerText}{(user.IsPrimary ? " • Primary" : string.Empty)}";
+            HeaderPlayersPanel.Children.Add(CreateHeaderPlayerBadge(user));
+        }
+    }
+
+    private UIElement CreateHeaderPlayerBadge(SessionUser user)
+    {
+        var profile = string.IsNullOrWhiteSpace(user.GrevId)
+            ? null
+            : _profiles.FirstOrDefault(candidate =>
+                string.Equals(candidate.GrevId, user.GrevId, StringComparison.OrdinalIgnoreCase));
+        var assignedControllers = _session.GetControllersForUser(user.SessionId);
+        var hasConnectedAssignedController = assignedControllers.Any(index =>
+            index >= 0 && index < _controllers.Length && _controllers[index]);
+
+        var controllerIcon = new TextBlock
+        {
+            Text = "🎮",
+            FontFamily = new FontFamily("Segoe UI Symbol"),
+            FontSize = 18,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = hasConnectedAssignedController
+                ? (Brush)FindResource("AccentBrush")
+                : new SolidColorBrush(Color.FromRgb(91, 98, 112)),
+            Opacity = hasConnectedAssignedController ? 1d : 0.48d
+        };
+
+        var username = string.IsNullOrWhiteSpace(user.Username)
+            ? user.DisplayName
+            : $"@{user.Username}";
+
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        content.Children.Add(controllerIcon);
+        content.Children.Add(CreateHeaderAvatar(profile, user, 32));
+        content.Children.Add(new TextBlock
+        {
+            Text = username,
+            MaxWidth = 120,
+            Margin = new Thickness(7, 0, 0, 0),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
         });
 
-        ControllerStatusText.Text = string.Join("     ", players);
+        return new Border
+        {
+            Padding = new Thickness(7, 3, 9, 3),
+            Margin = new Thickness(0, 0, 6, 0),
+            CornerRadius = new CornerRadius(18),
+            Background = user.IsPrimary
+                ? new SolidColorBrush(Color.FromRgb(31, 40, 58))
+                : new SolidColorBrush(Color.FromRgb(18, 23, 33)),
+            BorderBrush = user.IsPrimary
+                ? (Brush)FindResource("AccentBrush")
+                : new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            BorderThickness = new Thickness(1),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = content
+        };
+    }
+
+    private static Border CreateHeaderAvatar(LocalProfile? profile, SessionUser user, double size)
+    {
+        var imageSource = profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(profile);
+        var host = new Grid();
+
+        if (imageSource is not null)
+        {
+            host.Children.Add(new Image
+            {
+                Source = imageSource,
+                Stretch = Stretch.UniformToFill
+            });
+        }
+        else
+        {
+            host.Children.Add(new TextBlock
+            {
+                Text = profile is null
+                    ? ProfileAvatarCatalog.GetDisplayGlyph(ProfileAvatarCatalog.DefaultKey, user.DisplayName)
+                    : ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName),
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        return new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 2),
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            ClipToBounds = true,
+            Child = host
+        };
     }
 
     private void ShellBack_Click(object sender, RoutedEventArgs e) => HandleBack();
@@ -724,7 +844,7 @@ public partial class MainWindow : Window
 
     private void BringGrevHomeToFront()
     {
-        if (IsStoreModalOpen)
+        if (IsStoreModalOpen || IsPowerMenuOpen)
         {
             return;
         }
