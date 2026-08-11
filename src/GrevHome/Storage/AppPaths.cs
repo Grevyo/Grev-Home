@@ -85,6 +85,9 @@ public sealed class AppPaths
     public string GetProfileSettings(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Settings");
 
+    public string GetProfileAppLibraryPreferencesFile(string grevId) =>
+        Path.Combine(GetProfileSettings(grevId), "app-library.json");
+
     public string GetProfileAppSettings(string grevId) =>
         Path.Combine(GetProfileSettings(grevId), "Apps");
 
