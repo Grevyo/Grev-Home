@@ -15,10 +15,10 @@ public sealed record PackageInstallProgress(
     double? Percent = null);
 
 /// <summary>
-/// Trusted, RetroArch-specific installer. It never launches RetroArch's Windows setup UI.
-/// Grev Home downloads the official portable archive, verifies it against the pinned hash
-/// for the supported version, extracts it with the Windows inbox tar/libarchive tool,
-/// configures profile-owned paths, and only then registers the installed manifest.
+/// Trusted, RetroArch-specific package workflow. Grev Home downloads the official portable
+/// archive, verifies the pinned hash, installs only inside the owning GrevID app root, keeps
+/// profile data outside the binary root, and removes only that verified binary install during
+/// uninstall.
 /// </summary>
 public sealed class RetroArchInstallerService
 {
@@ -46,22 +46,7 @@ public sealed class RetroArchInstallerService
         IProgress<PackageInstallProgress>? progress = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(package);
-        if (!string.Equals(package.InstallerId, InstallerId, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(package.App.AppId, "retroarch", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("The RetroArch installer can only install the trusted RetroArch package.");
-        }
-
-        if (!package.IsProfileInstall)
-        {
-            throw new InvalidOperationException("RetroArch must be installed as a Profile App.");
-        }
-
-        if (string.IsNullOrWhiteSpace(grevId))
-        {
-            throw new InvalidOperationException("A persistent Primary GrevID is required to install RetroArch.");
-        }
+        ValidatePackage(package, grevId);
 
         _paths.EnsureProfileLayout(grevId);
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
@@ -108,7 +93,7 @@ public sealed class RetroArchInstallerService
             MoveExtractedPackage(extractedRoot, targetRoot);
 
             progress?.Report(new PackageInstallProgress("Configure", "Creating profile-owned RetroArch folders and defaults...", 94));
-            ConfigureProfile(targetRoot, grevId);
+            ConfigureProfile(grevId);
 
             progress?.Report(new PackageInstallProgress("Register", "Registering RetroArch with Grev Home...", 98));
             await _installedApps.RegisterInstalledAsync(
@@ -121,9 +106,8 @@ public sealed class RetroArchInstallerService
         }
         catch
         {
-            // A failed fresh install must never leave a registered half-install. If Grev Home
-            // already moved package files into the otherwise-empty target, remove only that
-            // package-owned binary folder. Profile AppData/Saves are deliberately outside it.
+            // A failed fresh install must never leave a registered half-install. Only the
+            // package-owned binary root is rolled back. Persistent profile data is outside it.
             TryDeleteDirectory(targetRoot);
             throw;
         }
@@ -132,6 +116,136 @@ public sealed class RetroArchInstallerService
             TryDeleteDirectory(stagingRoot);
         }
     }
+
+    public async Task UninstallAsync(
+        GrevStorePackageDefinition package,
+        string grevId,
+        IProgress<PackageInstallProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePackage(package, grevId);
+
+        progress?.Report(new PackageInstallProgress("Uninstall", "Verifying this GrevID-owned RetroArch installation...", 10));
+        var entries = await _installedApps.GetInstalledForUserAsync(grevId, cancellationToken);
+        var installed = entries.FirstOrDefault(entry =>
+            string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(entry.Manifest.OwnerGrevId, grevId, StringComparison.OrdinalIgnoreCase));
+
+        if (installed is null)
+        {
+            throw new InvalidOperationException("RetroArch is not registered as installed for the current Primary GrevID.");
+        }
+
+        var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
+        if (!PathsEqual(installed.BinaryRoot, targetRoot))
+        {
+            throw new InvalidOperationException("The registered RetroArch binary path does not match the current GrevID app root. Nothing was removed.");
+        }
+
+        progress?.Report(new PackageInstallProgress("Preserve", "Preserving profile configuration and saves...", 35));
+        PreserveLegacyBinaryConfig(targetRoot, grevId);
+
+        cancellationToken.ThrowIfCancellationRequested();
+        progress?.Report(new PackageInstallProgress("Uninstall", "Removing only this profile's RetroArch binaries...", 70));
+        if (Directory.Exists(targetRoot))
+        {
+            await Task.Run(() => Directory.Delete(targetRoot, recursive: true), cancellationToken);
+        }
+
+        if (Directory.Exists(targetRoot))
+        {
+            throw new IOException("RetroArch binary removal did not complete. Profile data was not deleted.");
+        }
+
+        progress?.Report(new PackageInstallProgress(
+            "Complete",
+            "RetroArch binaries were removed. Profile configuration, saves, states, screenshots, remaps and playlists were preserved.",
+            100));
+    }
+
+    private static void ValidatePackage(GrevStorePackageDefinition package, string grevId)
+    {
+        ArgumentNullException.ThrowIfNull(package);
+        if (!string.Equals(package.InstallerId, InstallerId, StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(package.App.AppId, "retroarch", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The RetroArch installer can only manage the trusted RetroArch package.");
+        }
+
+        if (!package.IsProfileInstall)
+        {
+            throw new InvalidOperationException("RetroArch must be managed as a Profile App.");
+        }
+
+        if (string.IsNullOrWhiteSpace(grevId))
+        {
+            throw new InvalidOperationException("A persistent Primary GrevID is required to manage RetroArch.");
+        }
+    }
+
+    private void ConfigureProfile(string grevId)
+    {
+        var appDataRoot = _paths.GetProfileAppDataRoot(grevId, "retroarch");
+        var profileRoot = Directory.GetParent(Directory.GetParent(appDataRoot)?.FullName ?? string.Empty)?.FullName;
+        if (string.IsNullOrWhiteSpace(profileRoot))
+        {
+            throw new InvalidOperationException("RetroArch profile data path is invalid.");
+        }
+
+        var saveRoot = Path.Combine(profileRoot, "Saves", "retroarch");
+        var saveRamRoot = Path.Combine(saveRoot, "SaveRAM");
+        var stateRoot = Path.Combine(saveRoot, "States");
+        var screenshotRoot = Path.Combine(profileRoot, "Screenshots", "RetroArch");
+        var remapRoot = Path.Combine(appDataRoot, "remaps");
+        var playlistRoot = Path.Combine(appDataRoot, "playlists");
+
+        Directory.CreateDirectory(appDataRoot);
+        Directory.CreateDirectory(saveRamRoot);
+        Directory.CreateDirectory(stateRoot);
+        Directory.CreateDirectory(screenshotRoot);
+        Directory.CreateDirectory(remapRoot);
+        Directory.CreateDirectory(playlistRoot);
+
+        var configPath = Path.Combine(appDataRoot, "retroarch.cfg");
+        if (File.Exists(configPath))
+        {
+            return;
+        }
+
+        var config = new StringBuilder()
+            .AppendLine("# Generated by Grev Home for this GrevID-owned RetroArch install.")
+            .AppendLine($"# GrevID: {grevId}")
+            .AppendLine($"savefile_directory = \"{EscapeConfigPath(saveRamRoot)}\"")
+            .AppendLine($"savestate_directory = \"{EscapeConfigPath(stateRoot)}\"")
+            .AppendLine($"screenshot_directory = \"{EscapeConfigPath(screenshotRoot)}\"")
+            .AppendLine($"input_remapping_directory = \"{EscapeConfigPath(remapRoot)}\"")
+            .AppendLine($"playlist_directory = \"{EscapeConfigPath(playlistRoot)}\"")
+            .AppendLine("config_save_on_exit = \"true\"")
+            .AppendLine("video_fullscreen = \"true\"")
+            .ToString();
+
+        File.WriteAllText(configPath, config, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    private void PreserveLegacyBinaryConfig(string binaryRoot, string grevId)
+    {
+        var legacyConfig = Path.Combine(binaryRoot, "retroarch.cfg");
+        if (!File.Exists(legacyConfig)) return;
+
+        var appDataRoot = _paths.GetProfileAppDataRoot(grevId, "retroarch");
+        Directory.CreateDirectory(appDataRoot);
+        var persistentConfig = Path.Combine(appDataRoot, "retroarch.cfg");
+        if (!File.Exists(persistentConfig))
+        {
+            File.Copy(legacyConfig, persistentConfig, overwrite: false);
+        }
+    }
+
+    private static bool PathsEqual(string left, string right) =>
+        string.Equals(
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
+            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
+            StringComparison.OrdinalIgnoreCase);
 
     private static async Task DownloadArchiveAsync(
         string destination,
@@ -274,44 +388,6 @@ public sealed class RetroArchInstallerService
         }
 
         Directory.Move(extractedRoot, targetRoot);
-    }
-
-    private void ConfigureProfile(string binaryRoot, string grevId)
-    {
-        var appsRoot = Directory.GetParent(binaryRoot)?.FullName
-                       ?? throw new InvalidOperationException("RetroArch profile app path is invalid.");
-        var profileRoot = Directory.GetParent(appsRoot)?.FullName
-                          ?? throw new InvalidOperationException("RetroArch profile root is invalid.");
-
-        var appDataRoot = Path.Combine(profileRoot, "AppData", "retroarch");
-        var saveRoot = Path.Combine(profileRoot, "Saves", "retroarch");
-        var saveRamRoot = Path.Combine(saveRoot, "SaveRAM");
-        var stateRoot = Path.Combine(saveRoot, "States");
-        var screenshotRoot = Path.Combine(profileRoot, "Screenshots", "RetroArch");
-        var remapRoot = Path.Combine(appDataRoot, "remaps");
-        var playlistRoot = Path.Combine(appDataRoot, "playlists");
-
-        Directory.CreateDirectory(appDataRoot);
-        Directory.CreateDirectory(saveRamRoot);
-        Directory.CreateDirectory(stateRoot);
-        Directory.CreateDirectory(screenshotRoot);
-        Directory.CreateDirectory(remapRoot);
-        Directory.CreateDirectory(playlistRoot);
-
-        var configPath = Path.Combine(binaryRoot, "retroarch.cfg");
-        var config = new StringBuilder()
-            .AppendLine("# Generated by Grev Home for this GrevID-owned RetroArch install.")
-            .AppendLine($"# GrevID: {grevId}")
-            .AppendLine($"savefile_directory = \"{EscapeConfigPath(saveRamRoot)}\"")
-            .AppendLine($"savestate_directory = \"{EscapeConfigPath(stateRoot)}\"")
-            .AppendLine($"screenshot_directory = \"{EscapeConfigPath(screenshotRoot)}\"")
-            .AppendLine($"input_remapping_directory = \"{EscapeConfigPath(remapRoot)}\"")
-            .AppendLine($"playlist_directory = \"{EscapeConfigPath(playlistRoot)}\"")
-            .AppendLine("config_save_on_exit = \"true\"")
-            .AppendLine("video_fullscreen = \"true\"")
-            .ToString();
-
-        File.WriteAllText(configPath, config, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
     private static string EscapeConfigPath(string path) =>
