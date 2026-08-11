@@ -34,7 +34,12 @@ public partial class AppKillerView : UserControl
             _elapsedTimer.Start();
             FocusPreferredSession();
         };
-        Unloaded += (_, _) => _elapsedTimer.Stop();
+        Unloaded += (_, _) =>
+        {
+            _elapsedTimer.Stop();
+            _preferredAppId = null;
+            _preferredFocusButton = null;
+        };
     }
 
     public void SetPreferredApp(string? appId)
