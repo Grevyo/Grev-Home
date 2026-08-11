@@ -73,6 +73,74 @@
                                    FontSize="13"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
+
+                        <Border x:Name="OnboardingPanel"
+                                Visibility="Collapsed"
+                                Margin="0,18,0,0"
+                                Padding="16"
+                                Background="#0B0E15"
+                                BorderBrush="#343D51"
+                                BorderThickness="1"
+                                CornerRadius="10">
+                            <StackPanel>
+                                <TextBlock x:Name="OnboardingTitleText"
+                                           FontSize="17"
+                                           FontWeight="SemiBold"
+                                           TextWrapping="Wrap" />
+                                <TextBlock x:Name="OnboardingSummaryText"
+                                           Margin="0,6,0,0"
+                                           Foreground="{StaticResource MutedBrush}"
+                                           TextWrapping="Wrap" />
+                                <Button x:Name="ResetOnboardingButton"
+                                        Content="Show Launch Guide Again"
+                                        MinWidth="230"
+                                        MaxWidth="380"
+                                        Margin="0,12,0,0"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource WrappedSettingsButtonStyle}"
+                                        Click="ResetOnboarding_Click" />
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+
+            <Border Margin="0,16,0,0"
+                    Padding="12"
+                    Background="#11151E"
+                    BorderBrush="#2B3344"
+                    BorderThickness="1"
+                    CornerRadius="16">
+                <StackPanel>
+                    <Button x:Name="PresentationSectionToggleButton"
+                            Style="{StaticResource SettingsSectionHeaderStyle}"
+                            Click="PresentationSectionToggle_Click" />
+                    <StackPanel x:Name="PresentationSectionPanel" Margin="12,12,12,12">
+                        <TextBlock x:Name="PresentationSourceText"
+                                   FontSize="14"
+                                   Foreground="#D7DCE7"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="PresentationCurrentText"
+                                   Margin="0,7,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="PresentationDefaultText"
+                                   Margin="0,5,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Presentation is separate from install/runtime state. Package defaults define display name, tile colour, icon, tile media and hero media; each persistent GrevID may layer its own overrides without modifying app files."
+                                   Margin="0,10,0,0"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="ResetPresentationButton"
+                                Content="Reset Appearance to App Default"
+                                MinWidth="250"
+                                MaxWidth="420"
+                                Margin="0,14,0,0"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource WrappedSettingsButtonStyle}"
+                                Click="ResetPresentation_Click" />
                     </StackPanel>
                 </StackPanel>
             </Border>
@@ -139,7 +207,7 @@
 
                         <StackPanel x:Name="MappingsPanel" />
 
-                        <TextBlock Text="The mapping catalogue is intentionally app-agnostic: keyboard navigation, common shortcuts, Grev on-screen keyboard, mouse modes and media controls. Future packages such as Discord can ship a populated default using this same layout."
+                        <TextBlock Text="The mapping catalogue is intentionally app-agnostic: keyboard navigation, common shortcuts, Grev on-screen keyboard, mouse modes and media controls. App packages can ship a populated default using this same layout."
                                    Margin="0,14,0,0"
                                    FontSize="12"
                                    Foreground="{StaticResource MutedBrush}"
@@ -150,14 +218,14 @@
 
             <WrapPanel Margin="0,18,0,0">
                 <Button x:Name="SaveButton"
-                        Content="Save App Settings"
-                        MinWidth="210"
+                        Content="Save Controller Settings"
+                        MinWidth="220"
                         Margin="0,0,10,10"
                         Style="{StaticResource WrappedSettingsButtonStyle}"
                         Click="Save_Click" />
                 <Button x:Name="ResetButton"
-                        Content="Reset to App Default"
-                        MinWidth="220"
+                        Content="Reset Controller to App Default"
+                        MinWidth="250"
                         Margin="0,0,10,10"
                         Style="{StaticResource WrappedSettingsButtonStyle}"
                         Click="Reset_Click" />
