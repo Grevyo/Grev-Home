@@ -59,14 +59,14 @@ public partial class MainWindow
                 _ = RefreshAdminConsoleAsync();
             }));
         };
-        _runtimeSessions.SessionChanged += _ =>
+        _runtimeSessions.SessionChanged += snapshot =>
         {
             if (_navigation.Current == Route.AdminConsole && !_storeInstallBusy)
             {
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshAdminConsoleAsync()));
             }
         };
-        _runtimeSessions.SessionEnded += _ =>
+        _runtimeSessions.SessionEnded += snapshot =>
         {
             if (_navigation.Current == Route.AdminConsole && !_storeInstallBusy)
             {
