@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.IO;
 using System.Net.Http;
+using System.Windows;
+using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Navigation;
 using GrevHome.Store;
@@ -15,9 +17,13 @@ public partial class MainWindow
     private readonly GrevStoreAppView _grevStoreAppView = new();
     private readonly GrevStoreCatalogService _grevStoreCatalog = new();
     private GrevStorePackageDefinition? _selectedStorePackage;
+    private GrevStorePackageDefinition? _storeUninstallWarningPackage;
     private RetroArchInstallerService? _retroArchInstaller;
+    private StoreRouteTransition _storeRouteTransition;
     private bool _grevStoreIntegrationReady;
     private bool _storeInstallBusy;
+
+    private bool IsStoreModalOpen => StoreModalOverlay.Visibility == Visibility.Visible;
 
     private void InitializeGrevStoreIntegration()
     {
@@ -29,7 +35,7 @@ public partial class MainWindow
         _grevStoreView.PackageRequested += OpenStorePackage;
         _grevStoreAppView.DownloadRequested += package => _ = BeginStoreDownloadAsync(package);
         _grevStoreAppView.OpenRequested += entry => _ = LaunchInstalledAppAsync(entry);
-        _grevStoreAppView.UninstallRequested += package => _ = BeginStoreUninstallAsync(package);
+        _grevStoreAppView.UninstallRequested += ShowStoreUninstallWarning;
         _navigation.RouteChanged += HandleGrevStoreRouteChanged;
         _session.Changed += (_, _) =>
         {
@@ -37,7 +43,7 @@ public partial class MainWindow
             {
                 Dispatcher.BeginInvoke(new Action(RefreshGrevStore));
             }
-            else if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy)
+            else if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy && _storeUninstallWarningPackage is null)
             {
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshSelectedStorePackageAsync()));
             }
@@ -70,6 +76,25 @@ public partial class MainWindow
                 break;
             case Route.GrevStoreApp:
                 RouteHost.Content = _grevStoreAppView;
+
+                if (_storeRouteTransition == StoreRouteTransition.WarningPush)
+                {
+                    _storeRouteTransition = StoreRouteTransition.None;
+                    Dispatcher.BeginInvoke(
+                        DispatcherPriority.ContextIdle,
+                        new Action(() => StoreWarningCancelButton.Focus()));
+                    break;
+                }
+
+                if (_storeUninstallWarningPackage is not null)
+                {
+                    HideStoreUninstallWarning(discardBackEntry: false, showCancelledStatus: true);
+                    _storeRouteTransition = StoreRouteTransition.None;
+                    FocusRouteSoon();
+                    break;
+                }
+
+                _storeRouteTransition = StoreRouteTransition.None;
                 if (!_storeInstallBusy)
                 {
                     _ = RefreshSelectedStorePackageAsync();
@@ -81,7 +106,7 @@ public partial class MainWindow
 
     private void OpenStorePackage(GrevStorePackageDefinition package)
     {
-        if (_storeInstallBusy) return;
+        if (_storeInstallBusy || IsStoreModalOpen) return;
         _selectedStorePackage = package;
         _navigation.Navigate(Route.GrevStoreApp);
     }
@@ -89,7 +114,7 @@ public partial class MainWindow
     private async Task RefreshSelectedStorePackageAsync()
     {
         var package = _selectedStorePackage;
-        if (package is null || _navigation.Current != Route.GrevStoreApp || _storeInstallBusy) return;
+        if (package is null || _navigation.Current != Route.GrevStoreApp || _storeInstallBusy || _storeUninstallWarningPackage is not null) return;
 
         var primary = _session.PrimaryUser;
         var grevId = primary?.GrevId;
@@ -109,7 +134,7 @@ public partial class MainWindow
             _grevStoreAppView.ShowStatus($"Installed-state check failed: {ex.Message}");
         }
 
-        if (_navigation.Current != Route.GrevStoreApp || _selectedStorePackage != package || _storeInstallBusy) return;
+        if (_navigation.Current != Route.GrevStoreApp || _selectedStorePackage != package || _storeInstallBusy || _storeUninstallWarningPackage is not null) return;
 
         var installLocation = package.IsProfileInstall
             ? string.IsNullOrWhiteSpace(grevId)
@@ -122,7 +147,7 @@ public partial class MainWindow
 
     private async Task BeginStoreDownloadAsync(GrevStorePackageDefinition package)
     {
-        if (_storeInstallBusy) return;
+        if (_storeInstallBusy || IsStoreModalOpen) return;
 
         var grevId = _session.PrimaryUser?.GrevId;
         if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
@@ -139,6 +164,7 @@ public partial class MainWindow
         }
 
         _storeInstallBusy = true;
+        ShowStoreOperation(package, "Installing", "Preparing trusted installer…");
         try
         {
             var progress = CreateStoreProgress(package);
@@ -152,6 +178,7 @@ public partial class MainWindow
         finally
         {
             _storeInstallBusy = false;
+            HideStoreOperation();
         }
 
         if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
@@ -160,9 +187,40 @@ public partial class MainWindow
         }
     }
 
+    private void ShowStoreUninstallWarning(GrevStorePackageDefinition package)
+    {
+        if (_storeInstallBusy || IsStoreModalOpen) return;
+
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
+        {
+            _grevStoreAppView.ShowStatus("A persistent local Primary User is required to uninstall this Profile App.");
+            return;
+        }
+
+        var running = _runtimeSessions.GetActiveSessions().Any(session =>
+            string.Equals(session.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase));
+        if (running)
+        {
+            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} for this Primary GrevID before uninstalling it.");
+            return;
+        }
+
+        _storeUninstallWarningPackage = package;
+        StoreModalTitleText.Text = $"Final uninstall warning — {package.Presentation.DisplayName}";
+        StoreProgressPanel.Visibility = Visibility.Collapsed;
+        StoreWarningPanel.Visibility = Visibility.Visible;
+        ShellInteractionHost.IsEnabled = false;
+        StoreModalOverlay.Visibility = Visibility.Visible;
+
+        _storeRouteTransition = StoreRouteTransition.WarningPush;
+        _navigation.Navigate(Route.GrevStoreApp, allowSameRoute: true);
+    }
+
     private async Task BeginStoreUninstallAsync(GrevStorePackageDefinition package)
     {
-        if (_storeInstallBusy) return;
+        if (_storeInstallBusy || IsStoreModalOpen) return;
 
         var grevId = _session.PrimaryUser?.GrevId;
         if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
@@ -183,11 +241,12 @@ public partial class MainWindow
             string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase));
         if (running)
         {
-            _grevStoreAppView.ShowStatus("Close RetroArch for this Primary GrevID before uninstalling it.");
+            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} for this Primary GrevID before uninstalling it.");
             return;
         }
 
         _storeInstallBusy = true;
+        ShowStoreOperation(package, "Uninstalling", "Preparing package-specific uninstall…");
         try
         {
             var progress = CreateStoreProgress(package);
@@ -200,6 +259,7 @@ public partial class MainWindow
         finally
         {
             _storeInstallBusy = false;
+            HideStoreOperation();
         }
 
         if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
@@ -211,9 +271,102 @@ public partial class MainWindow
     private IProgress<PackageInstallProgress> CreateStoreProgress(GrevStorePackageDefinition package) =>
         new Progress<PackageInstallProgress>(update =>
         {
+            if (!_storeInstallBusy) return;
+
             if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
             {
                 _grevStoreAppView.SetBusy(update.Stage, update.Message, update.Percent);
             }
+
+            UpdateStoreOperation(update);
         });
+
+    private void ShowStoreOperation(GrevStorePackageDefinition package, string action, string initialMessage)
+    {
+        _storeUninstallWarningPackage = null;
+        StoreModalTitleText.Text = $"{action} {package.Presentation.DisplayName}";
+        StoreWarningPanel.Visibility = Visibility.Collapsed;
+        StoreProgressPanel.Visibility = Visibility.Visible;
+        StoreProgressStageText.Text = "Preparing";
+        StoreProgressMessageText.Text = initialMessage;
+        StoreProgressBar.IsIndeterminate = false;
+        StoreProgressBar.Value = 0;
+        StoreProgressPercentText.Text = "0%";
+        ShellInteractionHost.IsEnabled = false;
+        StoreModalOverlay.Visibility = Visibility.Visible;
+        _grevStoreAppView.SetBusy("Preparing", initialMessage, 0);
+    }
+
+    private void UpdateStoreOperation(PackageInstallProgress update)
+    {
+        if (!_storeInstallBusy || StoreModalOverlay.Visibility != Visibility.Visible || StoreProgressPanel.Visibility != Visibility.Visible)
+        {
+            return;
+        }
+
+        StoreProgressStageText.Text = update.Stage;
+        StoreProgressMessageText.Text = update.Message;
+        StoreProgressBar.IsIndeterminate = update.Percent is null;
+
+        if (update.Percent is null)
+        {
+            StoreProgressPercentText.Text = "Working…";
+            return;
+        }
+
+        var percent = Math.Clamp(update.Percent.Value, 0, 100);
+        StoreProgressBar.Value = percent;
+        StoreProgressPercentText.Text = $"{percent:0}%";
+    }
+
+    private void HideStoreOperation()
+    {
+        StoreModalOverlay.Visibility = Visibility.Collapsed;
+        StoreProgressPanel.Visibility = Visibility.Visible;
+        StoreWarningPanel.Visibility = Visibility.Collapsed;
+        StoreProgressBar.IsIndeterminate = false;
+        ShellInteractionHost.IsEnabled = true;
+    }
+
+    private void HideStoreUninstallWarning(bool discardBackEntry, bool showCancelledStatus)
+    {
+        if (_storeUninstallWarningPackage is null) return;
+
+        _storeUninstallWarningPackage = null;
+        StoreModalOverlay.Visibility = Visibility.Collapsed;
+        StoreWarningPanel.Visibility = Visibility.Collapsed;
+        StoreProgressPanel.Visibility = Visibility.Visible;
+        ShellInteractionHost.IsEnabled = true;
+
+        if (discardBackEntry)
+        {
+            _navigation.DiscardBackEntry(Route.GrevStoreApp);
+        }
+
+        if (showCancelledStatus)
+        {
+            _grevStoreAppView.ShowStatus("Uninstall cancelled. Nothing was changed.");
+        }
+    }
+
+    private void StoreWarningCancel_Click(object sender, RoutedEventArgs e)
+    {
+        HideStoreUninstallWarning(discardBackEntry: true, showCancelledStatus: true);
+        FocusRouteSoon();
+    }
+
+    private void StoreWarningConfirm_Click(object sender, RoutedEventArgs e)
+    {
+        var package = _storeUninstallWarningPackage;
+        if (package is null) return;
+
+        HideStoreUninstallWarning(discardBackEntry: true, showCancelledStatus: false);
+        _ = BeginStoreUninstallAsync(package);
+    }
+
+    private enum StoreRouteTransition
+    {
+        None,
+        WarningPush
+    }
 }
