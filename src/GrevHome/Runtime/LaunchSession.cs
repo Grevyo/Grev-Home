@@ -44,6 +44,7 @@ internal sealed class TrackedLaunchSession
     public string AppId { get; }
     public string AppName { get; }
     public string? PrimaryGrevId { get; }
+    public string? ProcessName { get; }
     public IReadOnlyList<LaunchParticipant> Participants { get; }
     public DateTimeOffset StartedAtUtc { get; }
     public DateTimeOffset LastObservedAliveAtUtc { get; private set; }
@@ -56,6 +57,7 @@ internal sealed class TrackedLaunchSession
         string appId,
         string appName,
         string? primaryGrevId,
+        string? processName,
         IReadOnlyList<LaunchParticipant> participants,
         RuntimeProcessIdentity rootProcess,
         DateTimeOffset startedAtUtc)
@@ -64,6 +66,7 @@ internal sealed class TrackedLaunchSession
             appId,
             appName,
             primaryGrevId,
+            processName,
             participants,
             rootProcess.ProcessId,
             new[] { rootProcess },
@@ -78,6 +81,7 @@ internal sealed class TrackedLaunchSession
         string appId,
         string appName,
         string? primaryGrevId,
+        string? processName,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -89,6 +93,7 @@ internal sealed class TrackedLaunchSession
         AppId = appId;
         AppName = appName;
         PrimaryGrevId = primaryGrevId;
+        ProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
         Participants = participants;
         RootProcessId = rootProcessId;
         StartedAtUtc = startedAtUtc;
@@ -106,6 +111,7 @@ internal sealed class TrackedLaunchSession
         string appId,
         string appName,
         string? primaryGrevId,
+        string? processName,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -117,6 +123,7 @@ internal sealed class TrackedLaunchSession
             appId,
             appName,
             primaryGrevId,
+            processName,
             participants,
             rootProcessId,
             processes,
