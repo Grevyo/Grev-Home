@@ -66,6 +66,7 @@ public sealed class RuntimeSessionManager : IDisposable
 
         foreach (var tracked in _active.Values)
         {
+            RefreshDeclaredProcesses(tracked);
             if (GetValidatedProcessIds(tracked).Contains(foregroundProcessId.Value))
             {
                 return tracked.Snapshot();
@@ -82,6 +83,9 @@ public sealed class RuntimeSessionManager : IDisposable
             return false;
         }
 
+        // A tray-style app can replace or hide its original top-level window while keeping the
+        // same named process group alive. Refresh those identities before attempting activation.
+        RefreshDeclaredProcesses(tracked);
         var processIds = GetValidatedProcessIds(tracked);
         return processIds.Count > 0 && _processWindows.TryActivate(processIds);
     }
@@ -259,6 +263,20 @@ public sealed class RuntimeSessionManager : IDisposable
             throw new InvalidOperationException("At least one participant is required before launching an app.");
         }
 
+        if (ShouldReuseRunningSession(entry))
+        {
+            var existing = FindReusableSession(entry.Manifest.Definition.AppId);
+            if (existing is not null)
+            {
+                RefreshDeclaredProcesses(existing);
+                DeduplicateActiveSessions();
+                PersistRuntimeState(force: true);
+                var reusedSnapshot = existing.Snapshot();
+                SessionChanged?.Invoke(reusedSnapshot);
+                return Task.FromResult(reusedSnapshot);
+            }
+        }
+
         var startInfo = _launchResolver.Resolve(entry, primaryGrevId);
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Windows did not start {entry.Manifest.Definition.Name}.");
@@ -278,11 +296,25 @@ public sealed class RuntimeSessionManager : IDisposable
             rootIdentity,
             startedAtUtc);
 
-        tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(declaredProcessName));
+        RefreshDeclaredProcesses(tracked);
 
         if (!_active.TryAdd(tracked.LaunchSessionId, tracked))
         {
             throw new InvalidOperationException("Grev Home could not register the new runtime session.");
+        }
+
+        if (ShouldReuseRunningSession(entry))
+        {
+            DeduplicateActiveSessions();
+            if (!_active.ContainsKey(tracked.LaunchSessionId))
+            {
+                var canonical = FindReusableSession(entry.Manifest.Definition.AppId);
+                if (canonical is not null)
+                {
+                    PersistRuntimeState(force: true);
+                    return Task.FromResult(canonical.Snapshot());
+                }
+            }
         }
 
         PersistRuntimeState(force: true);
@@ -340,6 +372,15 @@ public sealed class RuntimeSessionManager : IDisposable
             }
 
             recoveredAny = true;
+        }
+
+        // Older Discord builds could persist multiple Grev launch records that all adopted the
+        // same Discord.exe process group. Keep the oldest canonical session and discard any later
+        // records that overlap the same live Windows processes before monitors/playtime start.
+        DeduplicateActiveSessions();
+
+        foreach (var tracked in _active.Values)
+        {
             _ = Task.Run(() => MonitorAsync(tracked, _shutdown.Token), CancellationToken.None);
         }
 
@@ -358,7 +399,14 @@ public sealed class RuntimeSessionManager : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(tracked.ProcessName));
+                // A session removed by deduplication must stop silently. It must not later write a
+                // second playtime record for the canonical app process group.
+                if (!_active.ContainsKey(tracked.LaunchSessionId))
+                {
+                    return;
+                }
+
+                RefreshDeclaredProcesses(tracked);
 
                 var aliveKnown = _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
                 var discoveredIds = _processTree.DiscoverDescendants(aliveKnown.Select(process => process.ProcessId));
@@ -413,6 +461,11 @@ public sealed class RuntimeSessionManager : IDisposable
         string? failureMessage,
         CancellationToken cancellationToken)
     {
+        if (!_active.ContainsKey(tracked.LaunchSessionId))
+        {
+            return;
+        }
+
         if (failureMessage is null)
         {
             tracked.MarkExited(endedAtUtc);
@@ -454,6 +507,73 @@ public sealed class RuntimeSessionManager : IDisposable
             }
 
             await Task.Delay(150, cancellationToken);
+        }
+    }
+
+    private TrackedLaunchSession? FindReusableSession(string appId)
+    {
+        foreach (var tracked in _active.Values
+                     .Where(session => string.Equals(session.AppId, appId, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(session => session.StartedAtUtc))
+        {
+            RefreshDeclaredProcesses(tracked);
+            var snapshot = tracked.Snapshot();
+            if (snapshot.State != LaunchSessionState.Closing && GetValidatedProcessIds(tracked).Count > 0)
+            {
+                return tracked;
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ShouldReuseRunningSession(InstalledAppEntry entry)
+    {
+        var definition = entry.Manifest.Definition;
+        return definition.Launch.SingleInstance ||
+               (definition.InstallStrategy == InstallStrategy.SystemInstalled &&
+                !string.IsNullOrWhiteSpace(definition.Launch.ProcessName));
+    }
+
+    private void RefreshDeclaredProcesses(TrackedLaunchSession tracked)
+    {
+        if (!string.IsNullOrWhiteSpace(tracked.ProcessName))
+        {
+            tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(tracked.ProcessName));
+        }
+    }
+
+    private void DeduplicateActiveSessions()
+    {
+        var claimedProcesses = new HashSet<(string AppId, int ProcessId)>();
+        var changed = false;
+
+        foreach (var tracked in _active.Values.OrderBy(session => session.StartedAtUtc).ToArray())
+        {
+            RefreshDeclaredProcesses(tracked);
+            var alive = GetValidatedProcessIdentities(tracked);
+            if (alive.Count == 0)
+            {
+                continue;
+            }
+
+            var duplicate = alive.Any(process =>
+                claimedProcesses.Contains((tracked.AppId.ToUpperInvariant(), process.ProcessId)));
+            if (duplicate)
+            {
+                changed |= _active.TryRemove(tracked.LaunchSessionId, out _);
+                continue;
+            }
+
+            foreach (var process in alive)
+            {
+                claimedProcesses.Add((tracked.AppId.ToUpperInvariant(), process.ProcessId));
+            }
+        }
+
+        if (changed)
+        {
+            PersistRuntimeState(force: true);
         }
     }
 
