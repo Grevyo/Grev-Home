@@ -16,19 +16,18 @@ public sealed record PackageInstallProgress(
 
 /// <summary>
 /// Trusted, RetroArch-specific installer. It never launches RetroArch's Windows setup UI.
-/// Grev Home downloads the official portable archive, verifies it, extracts it with the
-/// Windows inbox tar/libarchive tool in a hidden process, configures profile-owned paths,
-/// and only then registers the installed manifest.
+/// Grev Home downloads the official portable archive, verifies it against the pinned hash
+/// for the supported version, extracts it with the Windows inbox tar/libarchive tool,
+/// configures profile-owned paths, and only then registers the installed manifest.
 /// </summary>
 public sealed class RetroArchInstallerService
 {
     public const string InstallerId = "retroarch";
     public const string SupportedVersion = "1.22.2";
+    public const string SupportedArchiveSha256 = "B2139B1D0F9D4526DC6B5CE23CBB3EFDC766096FA6F2C3DF016818B486AC6372";
 
     private static readonly Uri ArchiveUri = new(
         $"https://buildbot.libretro.com/stable/{SupportedVersion}/windows/x86_64/RetroArch.7z");
-    private static readonly Uri ChecksumUri = new(
-        $"https://buildbot.libretro.com/stable/{SupportedVersion}/windows/x86_64/RetroArch.7z.sha256");
 
     private static readonly HttpClient Http = CreateHttpClient();
 
@@ -86,14 +85,11 @@ public sealed class RetroArchInstallerService
 
         try
         {
-            progress?.Report(new PackageInstallProgress("Download", "Reading official package checksum...", 0));
-            var expectedHash = await DownloadExpectedSha256Async(cancellationToken);
-
             progress?.Report(new PackageInstallProgress("Download", $"Downloading RetroArch {SupportedVersion}...", 0));
             await DownloadArchiveAsync(archivePath, progress, cancellationToken);
 
-            progress?.Report(new PackageInstallProgress("Verify", "Verifying SHA-256...", 72));
-            await VerifySha256Async(archivePath, expectedHash, cancellationToken);
+            progress?.Report(new PackageInstallProgress("Verify", "Verifying pinned SHA-256...", 72));
+            await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Extract", "Checking archive paths...", 76));
             await ValidateArchiveEntriesAsync(archivePath, cancellationToken);
@@ -135,23 +131,6 @@ public sealed class RetroArchInstallerService
         {
             TryDeleteDirectory(stagingRoot);
         }
-    }
-
-    private static async Task<string> DownloadExpectedSha256Async(CancellationToken cancellationToken)
-    {
-        using var response = await Http.GetAsync(ChecksumUri, HttpCompletionOption.ResponseContentRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-        var text = await response.Content.ReadAsStringAsync(cancellationToken);
-        var token = text
-            .Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)
-            .FirstOrDefault(value => value.Length == 64 && value.All(Uri.IsHexDigit));
-
-        if (token is null)
-        {
-            throw new InvalidDataException("The official RetroArch checksum response did not contain a SHA-256 value.");
-        }
-
-        return token.ToUpperInvariant();
     }
 
     private static async Task DownloadArchiveAsync(
