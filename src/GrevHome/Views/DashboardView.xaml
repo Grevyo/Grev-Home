@@ -20,6 +20,13 @@
                 <Button x:Name="RunningAppsButton" Width="285" Height="145" Margin="8" Click="RunningApps_Click" Content="Running Apps&#x0a;0 active" />
                 <Button Width="285" Height="145" Margin="8" Click="AppKiller_Click" Content="App Killer" />
                 <Button Width="285" Height="145" Margin="8" Click="Settings_Click" Content="Settings &amp; System" />
+                <Button x:Name="AdminConsoleButton"
+                        Width="285"
+                        Height="145"
+                        Margin="8"
+                        Visibility="Collapsed"
+                        Click="AdminConsole_Click"
+                        Content="Admin Console" />
                 <Button Width="285" Height="145" Margin="8" Click="Files_Click" Content="Files" />
                 <Button Tag="Recently Used" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Recently Used" />
                 <Button Tag="Emulators" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Emulators" />
