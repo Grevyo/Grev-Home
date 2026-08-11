@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
 using GrevHome.Input;
@@ -7,10 +8,13 @@ using GrevHome.Runtime;
 
 namespace GrevHome.Views;
 
+public sealed record ControllerGuideItem(string Control, string Action);
+
 public partial class GrevOverlayWindow : Window
 {
     private IReadOnlyList<LaunchSessionSnapshot> _sessions = Array.Empty<LaunchSessionSnapshot>();
     private Guid? _foregroundSessionId;
+    private ControllerGuideContent? _controllerGuide;
     private OverlayMode _mode = OverlayMode.Home;
 
     public event Action<Guid>? ResumeRequested;
@@ -20,6 +24,7 @@ public partial class GrevOverlayWindow : Window
     public event Action<Guid>? SwitchRequested;
     public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
+    public event Action<string, string>? ControllerGuideDontShowAgainRequested;
 
     public GrevOverlayWindow()
     {
@@ -41,16 +46,30 @@ public partial class GrevOverlayWindow : Window
     {
         _sessions = sessions;
         _foregroundSessionId = foregroundSession?.LaunchSessionId;
+        _controllerGuide = null;
         _mode = OverlayMode.Home;
         Render();
+        ShowAndFocus();
+    }
 
-        if (!IsVisible)
-        {
-            Show();
-        }
-
-        Activate();
-        FocusFirstButton();
+    public void OpenControllerGuide(
+        string appId,
+        string appName,
+        string? grevId,
+        string returnHomeShortcut,
+        string overlayShortcut,
+        IReadOnlyList<ControllerGuideItem> controls)
+    {
+        _controllerGuide = new ControllerGuideContent(
+            appId,
+            appName,
+            grevId,
+            returnHomeShortcut,
+            overlayShortcut,
+            controls);
+        _mode = OverlayMode.ControllerGuide;
+        Render();
+        ShowAndFocus();
     }
 
     public void Refresh(IReadOnlyList<LaunchSessionSnapshot> sessions)
@@ -101,9 +120,26 @@ public partial class GrevOverlayWindow : Window
         }
     }
 
+    private void ShowAndFocus()
+    {
+        if (!IsVisible)
+        {
+            Show();
+        }
+
+        Activate();
+        FocusFirstButton();
+    }
+
     private void Render()
     {
         ActionPanel.Children.Clear();
+
+        if (_mode == OverlayMode.ControllerGuide)
+        {
+            RenderControllerGuide();
+            return;
+        }
 
         if (_mode == OverlayMode.Switcher)
         {
@@ -187,6 +223,62 @@ public partial class GrevOverlayWindow : Window
         HintText.Text = "A Select   •   B Resume / Close Overlay";
     }
 
+    private void RenderControllerGuide()
+    {
+        var guide = _controllerGuide;
+        if (guide is null)
+        {
+            _mode = OverlayMode.Home;
+            Render();
+            return;
+        }
+
+        TitleText.Text = $"{guide.AppName.ToUpperInvariant()} CONTROLS";
+        SubtitleText.Text =
+            "Grev Home is translating your controller for this desktop app. These controls reflect the app's current Grev controller profile.";
+
+        AddSectionHeading("SYSTEM SHORTCUTS");
+        var shortcutGrid = new UniformGrid
+        {
+            Columns = 2,
+            Margin = new Thickness(-5, 0, -5, 16)
+        };
+        shortcutGrid.Children.Add(CreateGuideCard("Return Home", guide.ReturnHomeShortcut, emphasize: true));
+        shortcutGrid.Children.Add(CreateGuideCard("Grev Overlay", guide.OverlayShortcut, emphasize: true));
+        ActionPanel.Children.Add(shortcutGrid);
+
+        AddSectionHeading("CONTROLLER");
+        var controlGrid = new UniformGrid
+        {
+            Columns = 3,
+            Margin = new Thickness(-5, 0, -5, 18)
+        };
+
+        foreach (var item in guide.Controls.Take(12))
+        {
+            controlGrid.Children.Add(CreateGuideCard(item.Control, item.Action, emphasize: false));
+        }
+        ActionPanel.Children.Add(controlGrid);
+
+        AddAction("Close", true, Dismiss, minimumHeight: 54);
+        AddAction(
+            string.IsNullOrWhiteSpace(guide.GrevId)
+                ? "Don't Show Again (requires a persistent profile)"
+                : "Don't Show Again",
+            !string.IsNullOrWhiteSpace(guide.GrevId),
+            () =>
+            {
+                if (!string.IsNullOrWhiteSpace(guide.GrevId))
+                {
+                    ControllerGuideDontShowAgainRequested?.Invoke(guide.GrevId, guide.AppId);
+                }
+                Dismiss();
+            },
+            minimumHeight: 54);
+
+        HintText.Text = "A Select   •   B Close Guide";
+    }
+
     private void RenderSwitcher()
     {
         TitleText.Text = "SWITCH APP";
@@ -205,7 +297,7 @@ public partial class GrevOverlayWindow : Window
                     Dismiss();
                     SwitchRequested?.Invoke(session.LaunchSessionId);
                 },
-                height: 82);
+                minimumHeight: 82);
         }
 
         AddAction("Back", true, () =>
@@ -218,14 +310,68 @@ public partial class GrevOverlayWindow : Window
         HintText.Text = "A Switch   •   B Back";
     }
 
-    private void AddAction(string label, bool isEnabled, Action action, double height = 64)
+    private void AddSectionHeading(string text)
+    {
+        ActionPanel.Children.Add(new TextBlock
+        {
+            Text = text,
+            Margin = new Thickness(0, 0, 0, 8),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("AccentBrush")
+        });
+    }
+
+    private Border CreateGuideCard(string title, string value, bool emphasize)
+    {
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 14,
+            FontWeight = FontWeights.SemiBold,
+            TextWrapping = TextWrapping.Wrap
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = value,
+            Margin = new Thickness(0, 6, 0, 0),
+            FontSize = 13,
+            Foreground = emphasize
+                ? (Brush)FindResource("AccentBrush")
+                : (Brush)FindResource("MutedBrush"),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        return new Border
+        {
+            MinHeight = 82,
+            Margin = new Thickness(5),
+            Padding = new Thickness(13, 11, 13, 11),
+            Background = new SolidColorBrush(Color.FromRgb(19, 24, 34)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(49, 59, 78)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Child = content
+        };
+    }
+
+    private void AddAction(string label, bool isEnabled, Action action, double minimumHeight = 64)
     {
         var button = new Button
         {
-            Content = label,
-            Height = height,
+            Content = new TextBlock
+            {
+                Text = label,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            MinHeight = minimumHeight,
+            Padding = new Thickness(16, 10, 16, 10),
             Margin = new Thickness(0, 0, 0, 10),
-            HorizontalContentAlignment = HorizontalAlignment.Left,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Center,
             IsEnabled = isEnabled,
             Tag = action
         };
@@ -235,7 +381,7 @@ public partial class GrevOverlayWindow : Window
 
     private void ActionButton_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is Button { Tag: Action action } && ((Button)sender).IsEnabled)
+        if (sender is Button { Tag: Action action, IsEnabled: true })
         {
             action();
         }
@@ -265,6 +411,12 @@ public partial class GrevOverlayWindow : Window
 
     private void HandleBack()
     {
+        if (_mode == OverlayMode.ControllerGuide)
+        {
+            Dismiss();
+            return;
+        }
+
         if (_mode == OverlayMode.Switcher)
         {
             _mode = OverlayMode.Home;
@@ -330,9 +482,18 @@ public partial class GrevOverlayWindow : Window
         }
     }
 
+    private sealed record ControllerGuideContent(
+        string AppId,
+        string AppName,
+        string? GrevId,
+        string ReturnHomeShortcut,
+        string OverlayShortcut,
+        IReadOnlyList<ControllerGuideItem> Controls);
+
     private enum OverlayMode
     {
         Home,
-        Switcher
+        Switcher,
+        ControllerGuide
     }
 }
