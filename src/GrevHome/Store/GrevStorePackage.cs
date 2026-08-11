@@ -27,6 +27,7 @@ public sealed record GrevStorePackageDefinition(
     AppDefinition App,
     AppPresentationDefaults Presentation,
     AppControllerProfileDefaults? ControllerProfile = null,
+    bool LaunchMaximized = false,
     bool Featured = false,
     string? StoreDescription = null,
     IReadOnlyList<string>? GrevHomeIntegrations = null)
@@ -93,35 +94,23 @@ public sealed class GrevStoreCatalogService
                 TileColor: "#151923"),
             ControllerProfile: new AppControllerProfileDefaults(
                 Enabled: true,
-                Mappings:
-                [
-                    new(AppControllerControl.DPadUp, new(AppControllerOutputKind.KeyboardShortcut, "UP")),
-                    new(AppControllerControl.DPadDown, new(AppControllerOutputKind.KeyboardShortcut, "DOWN")),
-                    new(AppControllerControl.DPadLeft, new(AppControllerOutputKind.KeyboardShortcut, "LEFT")),
-                    new(AppControllerControl.DPadRight, new(AppControllerOutputKind.KeyboardShortcut, "RIGHT")),
-                    new(AppControllerControl.A, new(AppControllerOutputKind.KeyboardShortcut, "ENTER")),
-                    new(AppControllerControl.B, new(AppControllerOutputKind.KeyboardShortcut, "ESCAPE")),
-                    new(AppControllerControl.X, new(AppControllerOutputKind.GrevKeyboard)),
+                Mappings: DesktopMouseMappings(
                     new(AppControllerControl.Y, new(AppControllerOutputKind.KeyboardShortcut, "CTRL K")),
                     new(AppControllerControl.LeftShoulder, new(AppControllerOutputKind.KeyboardShortcut, "SHIFT F6")),
                     new(AppControllerControl.RightShoulder, new(AppControllerOutputKind.KeyboardShortcut, "F6")),
-                    new(AppControllerControl.LeftTrigger, new(AppControllerOutputKind.KeyboardShortcut, "ALT UP")),
-                    new(AppControllerControl.RightTrigger, new(AppControllerOutputKind.KeyboardShortcut, "ALT DOWN")),
                     new(AppControllerControl.Menu, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT M")),
                     new(AppControllerControl.View, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT D")),
-                    new(AppControllerControl.LeftThumb, new(AppControllerOutputKind.KeyboardShortcut, "TAB")),
-                    new(AppControllerControl.RightThumb, new(AppControllerOutputKind.MouseLeftClick)),
-                    new(AppControllerControl.RightStick, new(AppControllerOutputKind.MouseCursor))
-                ]),
+                    new(AppControllerControl.LeftThumb, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
+            LaunchMaximized: true,
             Featured: true,
-            StoreDescription: "Install Discord Stable for the current Windows account and launch it through Grev Home. Discord keeps its normal account, updater and AppData; Grev Home layers a per-GrevID editable controller profile over the desktop app using Discord's keyboard-navigation model, with right-stick mouse fallback for controls that still need pointing.",
+            StoreDescription: "Install Discord Stable for the current Windows account and launch it through Grev Home. Discord keeps its normal account, updater and AppData; Grev Home layers a per-GrevID editable controller profile over the desktop app using a Steam-inspired desktop mouse layout plus Discord's keyboard-navigation shortcuts.",
             GrevHomeIntegrations:
             [
                 "Official Discord Stable Windows download and Windows-user installation.",
                 "Per-GrevID editable controller profile even though the underlying Discord installation is shared by the Windows account.",
-                "Default controller navigation for arrows, select/back, section/channel movement, Quick Switcher, mute and deafen.",
-                "Right-stick mouse movement and stick-click mouse selection for Discord controls that are awkward to reach through keyboard navigation.",
-                "Launch through the Grev Home runtime for Return Home, Overlay, Running Apps, App Killer, restart/recovery and tracked usage."
+                "Grev Desktop controls: right stick moves the pointer, RT left-clicks, LT right-clicks, left stick scrolls, X opens the keyboard and B sends Escape.",
+                "Discord shortcuts remain layered onto shoulders, Y, Menu, View and L3 without making A a dangerous generic Enter key.",
+                "Launch maximized through the Grev Home runtime for Return Home, Overlay, Running Apps, App Killer, restart/recovery and tracked usage."
             ])
     ];
 
@@ -130,4 +119,31 @@ public sealed class GrevStoreCatalogService
     public GrevStorePackageDefinition? Find(string packageId) =>
         Packages.FirstOrDefault(package =>
             string.Equals(package.PackageId, packageId, StringComparison.OrdinalIgnoreCase));
+
+    private static IReadOnlyList<AppControllerMapping> DesktopMouseMappings(
+        params AppControllerMapping[] appSpecificMappings)
+    {
+        var mappings = new Dictionary<AppControllerControl, AppControllerOutput>
+        {
+            [AppControllerControl.DPadUp] = new(AppControllerOutputKind.KeyboardShortcut, "UP"),
+            [AppControllerControl.DPadDown] = new(AppControllerOutputKind.KeyboardShortcut, "DOWN"),
+            [AppControllerControl.DPadLeft] = new(AppControllerOutputKind.KeyboardShortcut, "LEFT"),
+            [AppControllerControl.DPadRight] = new(AppControllerOutputKind.KeyboardShortcut, "RIGHT"),
+            [AppControllerControl.B] = new(AppControllerOutputKind.KeyboardShortcut, "ESCAPE"),
+            [AppControllerControl.X] = new(AppControllerOutputKind.GrevKeyboard),
+            [AppControllerControl.LeftTrigger] = new(AppControllerOutputKind.MouseRightClick),
+            [AppControllerControl.RightTrigger] = new(AppControllerOutputKind.MouseLeftClick),
+            [AppControllerControl.LeftStick] = new(AppControllerOutputKind.MouseScroll),
+            [AppControllerControl.RightStick] = new(AppControllerOutputKind.MouseCursor)
+        };
+
+        foreach (var mapping in appSpecificMappings)
+        {
+            mappings[mapping.Control] = mapping.Output;
+        }
+
+        return mappings
+            .Select(pair => new AppControllerMapping(pair.Key, pair.Value))
+            .ToArray();
+    }
 }
