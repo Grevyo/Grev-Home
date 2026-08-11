@@ -7,7 +7,7 @@
             <Grid Margin="0,0,0,24">
                 <StackPanel>
                     <TextBlock Text="Admin Console" FontSize="40" FontWeight="SemiBold" />
-                    <TextBlock Text="Machine-wide administration. Global App uninstall lives here so normal GrevID libraries cannot accidentally remove software for everyone."
+                    <TextBlock Text="Machine-wide Global App health, repair, update and uninstall. Normal GrevID libraries never remove Windows software for everyone."
                                Margin="0,6,0,0"
                                Foreground="{StaticResource MutedBrush}"
                                FontSize="16"
@@ -31,7 +31,7 @@
                     CornerRadius="14">
                 <StackPanel>
                     <TextBlock Text="GLOBAL APPS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                    <TextBlock Text="These are installed once for the Windows machine. Uninstall from Machine can affect every GrevID and therefore requires Admin access and a second confirmation."
+                    <TextBlock Text="Each card shows machine install state, runtime state, package health and which local GrevIDs currently include the app in their library. Trusted package capabilities determine which Admin actions are available."
                                Margin="0,8,0,0"
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
