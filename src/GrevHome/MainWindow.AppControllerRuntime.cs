@@ -34,20 +34,14 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(new Action(() => HandleForegroundAppAnalog(input)));
         IsVisibleChanged += (_, _) => HandleShellVisibilityChanged();
 
-        // A normal Close request should end the managed session even when an app interprets
+        // Explicit user Close requests must end the managed session even when an app interprets
         // WM_CLOSE as "hide to tray" (Discord does this). Give the app a short graceful window,
         // then terminate only the same Grev-tracked process identities if they are still alive.
+        // Restart is intentionally not wired here; it keeps its own longer graceful/recovery timing.
         _runningAppsView.CloseRequested += ScheduleManagedCloseEscalation;
         _appKillerView.CloseRequested += ScheduleManagedCloseEscalation;
         _installedLibraryView.CloseRequested += ScheduleManagedCloseEscalation;
         _overlayWindow.CloseRequested += ScheduleManagedCloseEscalation;
-        _runtimeSessions.SessionChanged += snapshot =>
-        {
-            if (snapshot.State == LaunchSessionState.Closing)
-            {
-                ScheduleManagedCloseEscalation(snapshot.LaunchSessionId);
-            }
-        };
 
         _overlayWindow.ControllerGuideDontShowAgainRequested += (grevId, appId) =>
         {
@@ -231,8 +225,8 @@ public partial class MainWindow
         {
             await Task.Delay(ManagedCloseEscalationDelay);
 
-            // If the session still exists, its normal close either failed or only hid the app to
-            // its tray. ForceClose is still identity-validated and is scoped to this Grev session.
+            // If the session still exists, its explicit normal Close either failed or only hid
+            // the app to its tray. ForceClose is identity-validated and scoped to this session.
             if (_runtimeSessions.GetSession(launchSessionId) is not null)
             {
                 _runtimeSessions.ForceClose(launchSessionId);
