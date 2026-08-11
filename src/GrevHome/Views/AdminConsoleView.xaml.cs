@@ -203,7 +203,7 @@ public partial class AdminConsoleView : UserControl
             },
             MinHeight = 54,
             Height = double.NaN,
-            Padding = new Thickness(14, 10),
+            Padding = new Thickness(14, 10, 14, 10),
             Margin = new Thickness(0, 0, 0, 8),
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             IsEnabled = !_busy
