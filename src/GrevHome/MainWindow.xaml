@@ -83,11 +83,15 @@
                     <Button x:Name="ShellPowerButton"
                             Grid.Column="5"
                             Content="⏻"
-                            Width="54"
-                            Height="48"
+                            Width="62"
+                            Height="Auto"
+                            MinHeight="50"
                             Margin="10,0,0,0"
+                            Padding="8"
                             VerticalAlignment="Center"
-                            FontSize="22"
+                            FontSize="20"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
                             Click="ShellPower_Click" />
                 </Grid>
             </Border>
@@ -115,7 +119,7 @@
                 Background="#88090C12"
                 Panel.ZIndex="90">
             <Grid>
-                <Border Width="360"
+                <Border Width="430"
                         Margin="0,76,28,0"
                         Padding="22"
                         HorizontalAlignment="Right"
@@ -124,6 +128,27 @@
                         BorderBrush="#3A465F"
                         BorderThickness="1"
                         CornerRadius="16">
+                    <Border.Resources>
+                        <Style x:Key="PowerMenuButtonStyle"
+                               TargetType="Button"
+                               BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Height" Value="Auto" />
+                            <Setter Property="MinHeight" Value="52" />
+                            <Setter Property="Padding" Value="16,10" />
+                            <Setter Property="ContentTemplate">
+                                <Setter.Value>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Border.Resources>
+
                     <StackPanel>
                         <TextBlock Text="POWER &amp; SYSTEM"
                                    FontSize="13"
@@ -138,41 +163,41 @@
 
                         <Button x:Name="PowerAppKillerButton"
                                 Content="App Killer"
-                                Height="48"
                                 Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerAppKiller_Click" />
                         <Button x:Name="PowerRunningAppsButton"
                                 Content="Running Apps"
-                                Height="48"
                                 Margin="0,0,0,14"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerRunningApps_Click" />
 
                         <Border Height="1" Background="#2B3344" Margin="0,0,0,14" />
 
                         <Button x:Name="PowerSleepButton"
                                 Content="Sleep"
-                                Height="48"
                                 Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerSleep_Click" />
                         <Button x:Name="PowerRestartButton"
                                 Content="Restart"
-                                Height="48"
                                 Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerRestart_Click" />
                         <Button x:Name="PowerShutdownButton"
                                 Content="Shut Down"
-                                Height="48"
                                 Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerShutdown_Click" />
                         <Button x:Name="PowerCloseGrevHomeButton"
                                 Content="Close Grev Home"
-                                Height="48"
                                 Margin="0,0,0,14"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerCloseGrevHome_Click" />
 
                         <Button x:Name="PowerMenuCancelButton"
                                 Content="Cancel"
-                                Height="46"
+                                Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerMenuCancel_Click" />
                     </StackPanel>
                 </Border>
