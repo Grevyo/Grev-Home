@@ -17,7 +17,11 @@
                     </Grid.ColumnDefinitions>
                     <Border Width="72" Height="72" CornerRadius="36" Background="#1F283A" Margin="0,0,18,0" ClipToBounds="True">
                         <Grid>
-                            <Image x:Name="PrimaryAvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                            <Image x:Name="PrimaryAvatarImage" Stretch="UniformToFill" Visibility="Collapsed">
+                                <Image.Clip>
+                                    <EllipseGeometry Center="36,36" RadiusX="36" RadiusY="36" />
+                                </Image.Clip>
+                            </Image>
                             <TextBlock x:Name="PrimaryAvatarText" Text="G" FontSize="25" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
