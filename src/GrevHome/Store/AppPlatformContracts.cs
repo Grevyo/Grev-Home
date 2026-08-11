@@ -52,10 +52,14 @@ public enum AppWindowReturnBehavior
     ReturnHomeWhenMinimizedOrHidden
 }
 
+/// <summary>
+/// Shell/window behaviour for a managed app. Process/session reuse is deliberately not duplicated
+/// here: AppLaunchDefinition.SingleInstance is the single runtime source of truth consumed by
+/// RuntimeSessionManager.
+/// </summary>
 public sealed record AppRuntimePolicy(
     AppWindowMode WindowMode = AppWindowMode.Normal,
-    AppWindowReturnBehavior ReturnBehavior = AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden,
-    bool ReuseExistingSession = false);
+    AppWindowReturnBehavior ReturnBehavior = AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden);
 
 public sealed record AppVersionPolicy(
     string? CurrentVersion = null,
