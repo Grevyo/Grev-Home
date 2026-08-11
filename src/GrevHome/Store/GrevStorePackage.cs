@@ -48,6 +48,7 @@ public sealed class GrevStoreCatalogService
                 DataStrategy: DataStrategy.GrevId,
                 Launch: new AppLaunchDefinition(
                     Executable: "retroarch.exe",
+                    Arguments: "-c \"{DataRoot}\\retroarch.cfg\"",
                     WorkingDirectory: "{BinaryRoot}",
                     ProcessName: "retroarch"),
                 SupportsController: true,
