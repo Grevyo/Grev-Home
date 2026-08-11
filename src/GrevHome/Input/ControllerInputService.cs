@@ -63,6 +63,7 @@ public sealed class ControllerInputService : IDisposable
     private readonly object _pollGate = new();
     private IReadOnlyList<ControllerShortcutBinding> _shortcutBindings = Array.Empty<ControllerShortcutBinding>();
     private ShortcutCaptureState? _capture;
+    private volatile bool _appInputMode;
     private bool _disposed;
 
     public event Action<ControllerInputEventArgs>? ActionPressed;
@@ -81,6 +82,12 @@ public sealed class ControllerInputService : IDisposable
         _shortcutService = shortcutService;
         _timer = new Timer(Poll, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         ReloadShortcuts();
+    }
+
+    public bool AppInputMode
+    {
+        get => _appInputMode;
+        set => _appInputMode = value;
     }
 
     public bool IsCapturingShortcut
@@ -189,13 +196,17 @@ public sealed class ControllerInputService : IDisposable
                     }
 
                     HandleDirectionalInput(index, GetDirectionalAction(buttons, state.Gamepad));
-                    RaiseExtendedAppControls(index, state.Gamepad);
-                    AnalogChanged?.Invoke(new ControllerAnalogEventArgs(
-                        index,
-                        state.Gamepad.ThumbLX,
-                        state.Gamepad.ThumbLY,
-                        state.Gamepad.ThumbRX,
-                        state.Gamepad.ThumbRY));
+
+                    if (AppInputMode)
+                    {
+                        RaiseExtendedAppControls(index, state.Gamepad);
+                        AnalogChanged?.Invoke(new ControllerAnalogEventArgs(
+                            index,
+                            state.Gamepad.ThumbLX,
+                            state.Gamepad.ThumbLY,
+                            state.Gamepad.ThumbRX,
+                            state.Gamepad.ThumbRY));
+                    }
                 }
                 else
                 {
@@ -515,8 +526,26 @@ public sealed class ControllerInputService : IDisposable
         return y < 0 ? InputAction.Down : InputAction.Up;
     }
 
-    private void Raise(int index, InputAction action) =>
-        ActionPressed?.Invoke(new ControllerInputEventArgs(index, action));
+    private void Raise(int index, InputAction action)
+    {
+        if (!AppInputMode)
+        {
+            ActionPressed?.Invoke(new ControllerInputEventArgs(index, action));
+            return;
+        }
+
+        var control = action switch
+        {
+            InputAction.Up => AppControllerControl.DPadUp,
+            InputAction.Down => AppControllerControl.DPadDown,
+            InputAction.Left => AppControllerControl.DPadLeft,
+            InputAction.Right => AppControllerControl.DPadRight,
+            InputAction.Accept => AppControllerControl.A,
+            InputAction.Back => AppControllerControl.B,
+            _ => throw new ArgumentOutOfRangeException(nameof(action))
+        };
+        AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, control));
+    }
 
     private void ResetController(int index)
     {
