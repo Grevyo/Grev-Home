@@ -10,7 +10,7 @@
                        FontSize="16"
                        Foreground="{StaticResource MutedBrush}" />
 
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="26">
+            <Border x:Name="ProfileHeaderCard" Background="#11151E" BorderBrush="{StaticResource GuestRoleBrush}" BorderThickness="2" CornerRadius="16" Padding="26">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto" />
@@ -18,9 +18,13 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
-                    <Border Width="116" Height="116" CornerRadius="58" Background="#1F283A" Margin="0,0,24,0" ClipToBounds="True">
+                    <Border x:Name="ProfileAvatarBorder" Width="116" Height="116" CornerRadius="58" Background="#1F283A" BorderBrush="{StaticResource GuestRoleBrush}" BorderThickness="2" Margin="0,0,24,0" ClipToBounds="True">
                         <Grid>
-                            <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                            <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed">
+                                <Image.Clip>
+                                    <EllipseGeometry Center="58,58" RadiusX="58" RadiusY="58" />
+                                </Image.Clip>
+                            </Image>
                             <TextBlock x:Name="AvatarText" Text="G" FontSize="38" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                         </Grid>
                     </Border>
