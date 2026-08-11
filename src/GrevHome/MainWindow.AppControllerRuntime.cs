@@ -365,8 +365,28 @@ public partial class MainWindow
     {
         if (_overlayWindow.IsOpen)
         {
-            // The guide/overlay is a Grev Home surface, so keep only the desktop pointer layer
-            // alive over it. Do not pass Discord/app keyboard shortcuts through to the app below.
+            // While an external app is active, A/B/D-pad/left-stick directions are emitted as
+            // app controls instead of normal Grev Home actions. Route those controls back into
+            // the visible Grev overlay so its controller navigation remains fully functional.
+            var overlayAction = input.Control switch
+            {
+                AppControllerControl.DPadUp => InputAction.Up,
+                AppControllerControl.DPadDown => InputAction.Down,
+                AppControllerControl.DPadLeft => InputAction.Left,
+                AppControllerControl.DPadRight => InputAction.Right,
+                AppControllerControl.A => InputAction.Accept,
+                AppControllerControl.B => InputAction.Back,
+                _ => (InputAction?)null
+            };
+
+            if (overlayAction.HasValue)
+            {
+                _overlayWindow.HandleControllerInput(overlayAction.Value);
+                return;
+            }
+
+            // Keep only the desktop pointer layer alive over Grev's overlay. Discord/app-specific
+            // keyboard shortcuts remain blocked so they cannot fire into the app underneath.
             if (_controllerInput.AppInputMode)
             {
                 var pointerOutput = input.Control switch
@@ -418,8 +438,8 @@ public partial class MainWindow
         {
             if (_controllerInput.AppInputMode)
             {
-                // Steam-style pointer controls remain useful on Grev's own overlay: right stick
-                // moves the pointer and left stick scrolls the overlay's ScrollViewer.
+                // Right stick remains a pointer over Grev's overlay. Left stick still scrolls the
+                // overlay while its directional events also provide controller focus navigation.
                 _appControllerRuntime.ExecuteAnalog(
                     new AppControllerOutput(AppControllerOutputKind.MouseCursor),
                     input.RightX,
