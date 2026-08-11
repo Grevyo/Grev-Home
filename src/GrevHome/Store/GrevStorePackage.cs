@@ -86,7 +86,8 @@ public sealed class GrevStoreCatalogService
                     Executable: "%LOCALAPPDATA%\\Discord\\Update.exe",
                     Arguments: "--processStart Discord.exe",
                     WorkingDirectory: "%LOCALAPPDATA%\\Discord",
-                    ProcessName: "Discord"),
+                    ProcessName: "Discord",
+                    SingleInstance: true),
                 SupportsController: false,
                 Description: "Discord desktop for text, voice and video. The Windows-user Discord account/data stays native while Grev Home adds controller-first launch, navigation and app management."),
             Presentation: new AppPresentationDefaults(
