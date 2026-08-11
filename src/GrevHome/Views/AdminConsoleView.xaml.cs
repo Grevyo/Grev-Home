@@ -134,7 +134,6 @@ public partial class AdminConsoleView : UserControl
 
         var actions = new StackPanel
         {
-            Grid.IsSharedSizeScopeProperty = { },
             Margin = new Thickness(20, 0, 0, 0),
             VerticalAlignment = VerticalAlignment.Center
         };
