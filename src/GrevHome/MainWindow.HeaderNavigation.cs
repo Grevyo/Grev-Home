@@ -30,6 +30,7 @@ public partial class MainWindow
         InitializeProfilePlayersIntegration();
         InitializeGrevStoreIntegration();
         InitializeAppSettingsIntegration();
+        InitializeAdminConsoleIntegration();
 
         _headerNavigationHooked = true;
         _controllerInput.ActionPressed += HandleHeaderNavigationInput;
@@ -119,35 +120,42 @@ public partial class MainWindow
             .Where(IsFocusableButton)
             .ToArray();
 
-        if (originalFocus == createAccount && action == InputAction.Up && profiles.Length > 0)
+        if (profiles.Length == 0 || !IsFocusableButton(createAccount))
+        {
+            return false;
+        }
+
+        if (originalFocus == createAccount && action == InputAction.Up)
         {
             FocusNearestByHorizontalPosition(profiles, GetCenter(createAccount).X);
             return true;
         }
 
-        if (action != InputAction.Down || !profiles.Contains(originalFocus))
+        if (profiles.Contains(originalFocus) && action == InputAction.Down)
         {
-            return false;
+            var originalCenter = GetCenter(originalFocus);
+            var lowerProfile = profiles
+                .Where(button => button != originalFocus)
+                .Select(button => (Button: button, Center: GetCenter(button)))
+                .Where(item => item.Center.Y > originalCenter.Y + 8)
+                .OrderBy(item => item.Center.Y - originalCenter.Y)
+                .ThenBy(item => Math.Abs(item.Center.X - originalCenter.X))
+                .Select(item => item.Button)
+                .FirstOrDefault();
+            if (lowerProfile is not null)
+            {
+                lowerProfile.Focus();
+                return true;
+            }
+
+            createAccount.Focus();
+            return true;
         }
 
-        var originalCenter = GetCenter(originalFocus);
-        var hasProfileBelow = profiles
-            .Where(button => button != originalFocus)
-            .Any(button => GetCenter(button).Y > originalCenter.Y + 8);
-
-        if (hasProfileBelow)
-        {
-            return false;
-        }
-
-        createAccount.Focus();
-        return true;
+        return false;
     }
 
-    private void CorrectMovementFromHeader(
-        Button originalFocus,
-        InputAction action,
-        List<Button> headerButtons)
+    private void CorrectMovementFromHeader(Button originalFocus, InputAction action, IReadOnlyList<Button> headerButtons)
     {
         var index = headerButtons.IndexOf(originalFocus);
         if (index < 0)
@@ -172,16 +180,74 @@ public partial class MainWindow
                 {
                     FocusNearestByHorizontalPosition(routeButtons, GetCenter(originalFocus).X);
                 }
-
                 break;
             }
         }
     }
 
-    private List<Button> GetHeaderButtons()
+    private IReadOnlyList<Button> GetHeaderButtons()
     {
-        var buttons = new[] { ShellBackButton, ProfileBubbleButton, ShellSettingsButton, ShellPowerButton };
-        return buttons.Where(IsFocusableButton).ToList();
+        var buttons = new[]
+        {
+            ShellBackButton,
+            ShellPlayerButton,
+            ShellSettingsButton,
+            ShellPowerButton
+        };
+
+        return buttons.Where(IsFocusableButton).ToArray();
+    }
+
+    private static bool IsFocusableButton(Button? button) =>
+        button is { IsVisible: true, IsEnabled: true, Focusable: true };
+
+    private static Point GetCenter(FrameworkElement element)
+    {
+        try
+        {
+            var point = element.TranslatePoint(new Point(element.ActualWidth / 2d, element.ActualHeight / 2d), Application.Current.MainWindow);
+            return point;
+        }
+        catch (InvalidOperationException)
+        {
+            return new Point();
+        }
+    }
+
+    private static void FocusNearestByHorizontalPosition(IEnumerable<Button> buttons, double x)
+    {
+        buttons
+            .Select(button => (Button: button, Center: GetCenter(button)))
+            .OrderBy(item => Math.Abs(item.Center.X - x))
+            .ThenBy(item => item.Center.Y)
+            .Select(item => item.Button)
+            .FirstOrDefault()
+            ?.Focus();
+    }
+
+    private void ShellBack_Click(object sender, RoutedEventArgs e)
+    {
+        HandleShellBack();
+    }
+
+    private void ShellPlayer_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsStoreModalOpen || IsPowerMenuOpen)
+        {
+            return;
+        }
+
+        OpenProfilePlayersMenu();
+    }
+
+    private void ShellSettings_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsStoreModalOpen || IsPowerMenuOpen)
+        {
+            return;
+        }
+
+        OpenSettings();
     }
 
     private void ShellPower_Click(object sender, RoutedEventArgs e)
@@ -203,97 +269,33 @@ public partial class MainWindow
     private void OpenPowerMenu()
     {
         ResetHeaderPowerConfirmation();
-        PowerAppKillerButton.IsEnabled = _session.HasSignedInUsers;
-        PowerRunningAppsButton.IsEnabled = _session.HasSignedInUsers;
-        PowerMenuStatusText.Text = "Select an action. Power actions require a second press within 8 seconds to confirm.";
         ShellInteractionHost.IsEnabled = false;
         PowerMenuOverlay.Visibility = Visibility.Visible;
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            if (PowerAppKillerButton.IsEnabled) PowerAppKillerButton.Focus();
-            else PowerSleepButton.Focus();
-        }));
+        Dispatcher.BeginInvoke(new Action(() => PowerAppKillerButton.Focus()));
     }
 
-    private void ClosePowerMenu(bool returnFocusToHeader = true)
+    private void ClosePowerMenu()
     {
+        if (!IsPowerMenuOpen)
+        {
+            return;
+        }
+
         ResetHeaderPowerConfirmation();
         PowerMenuOverlay.Visibility = Visibility.Collapsed;
         ShellInteractionHost.IsEnabled = true;
-        if (returnFocusToHeader)
-        {
-            Dispatcher.BeginInvoke(new Action(() => ShellPowerButton.Focus()));
-        }
-    }
-
-    private void ArmOrExecuteHeaderPower(SystemPowerAction action)
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (_headerPendingPowerAction != action || _headerCloseGrevHomeArmed || now > _headerPowerExpiresAt)
-        {
-            _headerPendingPowerAction = action;
-            _headerCloseGrevHomeArmed = false;
-            _headerPowerExpiresAt = now.AddSeconds(8);
-            UpdatePowerMenuButtons();
-            PowerMenuStatusText.Text = $"{FormatHeaderPowerAction(action)} armed. Select it again within 8 seconds to confirm.";
-            return;
-        }
-
-        ResetHeaderPowerConfirmation();
-        try
-        {
-            PowerMenuStatusText.Text = $"Requesting {FormatHeaderPowerAction(action).ToLowerInvariant()} from Windows…";
-            _headerPowerService.Execute(action);
-            ClosePowerMenu(returnFocusToHeader: false);
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or UnauthorizedAccessException)
-        {
-            PowerMenuStatusText.Text = $"Windows did not complete the power action: {ex.Message}";
-        }
-    }
-
-    private void ArmOrCloseGrevHome()
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (!_headerCloseGrevHomeArmed || _headerPendingPowerAction is not null || now > _headerPowerExpiresAt)
-        {
-            _headerPendingPowerAction = null;
-            _headerCloseGrevHomeArmed = true;
-            _headerPowerExpiresAt = now.AddSeconds(8);
-            UpdatePowerMenuButtons();
-            PowerMenuStatusText.Text = "Close Grev Home armed. Select it again within 8 seconds to confirm.";
-            return;
-        }
-
-        ResetHeaderPowerConfirmation();
-        Application.Current.Shutdown();
-    }
-
-    private void ResetHeaderPowerConfirmation()
-    {
-        _headerPendingPowerAction = null;
-        _headerCloseGrevHomeArmed = false;
-        _headerPowerExpiresAt = DateTimeOffset.MinValue;
-        UpdatePowerMenuButtons();
-    }
-
-    private void UpdatePowerMenuButtons()
-    {
-        PowerSleepButton.Content = _headerPendingPowerAction == SystemPowerAction.Sleep ? "CONFIRM SLEEP" : "Sleep";
-        PowerRestartButton.Content = _headerPendingPowerAction == SystemPowerAction.Restart ? "CONFIRM RESTART" : "Restart";
-        PowerShutdownButton.Content = _headerPendingPowerAction == SystemPowerAction.Shutdown ? "CONFIRM SHUT DOWN" : "Shut Down";
-        PowerCloseGrevHomeButton.Content = _headerCloseGrevHomeArmed ? "CONFIRM CLOSE GREV HOME" : "Close Grev Home";
+        FocusRouteSoon();
     }
 
     private void PowerAppKiller_Click(object sender, RoutedEventArgs e)
     {
-        ClosePowerMenu(returnFocusToHeader: false);
+        ClosePowerMenu();
         OpenAppKiller();
     }
 
     private void PowerRunningApps_Click(object sender, RoutedEventArgs e)
     {
-        ClosePowerMenu(returnFocusToHeader: false);
+        ClosePowerMenu();
         OpenRunningApps();
     }
 
@@ -306,11 +308,71 @@ public partial class MainWindow
     private void PowerShutdown_Click(object sender, RoutedEventArgs e) =>
         ArmOrExecuteHeaderPower(SystemPowerAction.Shutdown);
 
-    private void PowerCloseGrevHome_Click(object sender, RoutedEventArgs e) =>
-        ArmOrCloseGrevHome();
+    private void PowerCloseGrevHome_Click(object sender, RoutedEventArgs e)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!_headerCloseGrevHomeArmed || now > _headerPowerExpiresAt)
+        {
+            _headerPendingPowerAction = null;
+            _headerCloseGrevHomeArmed = true;
+            _headerPowerExpiresAt = now.AddSeconds(8);
+            PowerStatusText.Text = "Close Grev Home armed. Select Close Grev Home again within 8 seconds to confirm.";
+            PowerCloseGrevHomeButton.Content = "CONFIRM CLOSE GREV HOME";
+            UpdateHeaderPowerButtons();
+            return;
+        }
 
-    private void PowerMenuCancel_Click(object sender, RoutedEventArgs e) =>
+        _headerCloseGrevHomeArmed = false;
+        Close();
+    }
+
+    private void PowerCancel_Click(object sender, RoutedEventArgs e)
+    {
         ClosePowerMenu();
+    }
+
+    private void ArmOrExecuteHeaderPower(SystemPowerAction action)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_headerPendingPowerAction != action || now > _headerPowerExpiresAt)
+        {
+            _headerCloseGrevHomeArmed = false;
+            _headerPendingPowerAction = action;
+            _headerPowerExpiresAt = now.AddSeconds(8);
+            PowerStatusText.Text = $"{FormatHeaderPowerAction(action)} armed. Select the same action again within 8 seconds to confirm.";
+            PowerCloseGrevHomeButton.Content = "Close Grev Home";
+            UpdateHeaderPowerButtons();
+            return;
+        }
+
+        ResetHeaderPowerConfirmation();
+        try
+        {
+            PowerStatusText.Text = $"Requesting {FormatHeaderPowerAction(action).ToLowerInvariant()} from Windows…";
+            _headerPowerService.Execute(action);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or UnauthorizedAccessException)
+        {
+            PowerStatusText.Text = $"Windows did not complete the power action: {ex.Message}";
+        }
+    }
+
+    private void ResetHeaderPowerConfirmation()
+    {
+        _headerPendingPowerAction = null;
+        _headerPowerExpiresAt = DateTimeOffset.MinValue;
+        _headerCloseGrevHomeArmed = false;
+        PowerStatusText.Text = "Choose a system action. Power actions require a second confirmation.";
+        PowerCloseGrevHomeButton.Content = "Close Grev Home";
+        UpdateHeaderPowerButtons();
+    }
+
+    private void UpdateHeaderPowerButtons()
+    {
+        PowerSleepButton.Content = _headerPendingPowerAction == SystemPowerAction.Sleep ? "CONFIRM SLEEP" : "Sleep";
+        PowerRestartButton.Content = _headerPendingPowerAction == SystemPowerAction.Restart ? "CONFIRM RESTART" : "Restart";
+        PowerShutdownButton.Content = _headerPendingPowerAction == SystemPowerAction.Shutdown ? "CONFIRM SHUT DOWN" : "Shut Down";
+    }
 
     private static string FormatHeaderPowerAction(SystemPowerAction action) => action switch
     {
@@ -319,22 +381,4 @@ public partial class MainWindow
         SystemPowerAction.Sleep => "Sleep",
         _ => action.ToString()
     };
-
-    private void FocusNearestByHorizontalPosition(IEnumerable<Button> buttons, double sourceX)
-    {
-        buttons
-            .OrderBy(button => Math.Abs(GetCenter(button).X - sourceX))
-            .FirstOrDefault()
-            ?.Focus();
-    }
-
-    private Point GetCenter(FrameworkElement element) =>
-        element.TranslatePoint(new Point(element.ActualWidth / 2, element.ActualHeight / 2), this);
-
-    private static bool IsFocusableButton(Button button) =>
-        button.IsVisible &&
-        button.IsEnabled &&
-        button.Focusable &&
-        button.ActualWidth > 0 &&
-        button.ActualHeight > 0;
 }
