@@ -32,12 +32,10 @@ public partial class GrevStoreAppView : UserControl
 
         AppArtworkHost.Width = DefaultThemeMetrics.AppTileWidth;
         AppArtworkHost.Height = DefaultThemeMetrics.AppTileHeight;
-        AppArtworkHost.Child = AppArtworkFactory.Create(
+        AppArtworkHost.Child = AppArtworkFactory.CreateTile(
+            package.Presentation.DisplayName,
             package.Presentation.IconAsset,
-            package.Presentation.TileColor,
-            DefaultThemeMetrics.AppTileWidth,
-            DefaultThemeMetrics.AppTileHeight,
-            20);
+            package.Presentation.TileColor);
         AppNameText.Text = package.Presentation.DisplayName;
         AppTypeText.Text = $"{FormatCategory(package.Category)}  •  {package.App.Kind}";
         CategoryText.Text = FormatCategory(package.Category);
