@@ -11,6 +11,7 @@ public partial class GrevStoreAppView : UserControl
 {
     private GrevStorePackageDefinition? _package;
     private InstalledAppEntry? _installedEntry;
+    private bool _uninstallArmed;
 
     public event Action<GrevStorePackageDefinition>? DownloadRequested;
     public event Action<InstalledAppEntry>? OpenRequested;
@@ -29,6 +30,8 @@ public partial class GrevStoreAppView : UserControl
     {
         _package = package;
         _installedEntry = installedEntry;
+        _uninstallArmed = false;
+        UninstallButton.Content = "Uninstall";
 
         AppArtworkHost.Width = DefaultThemeMetrics.AppTileWidth;
         AppArtworkHost.Height = DefaultThemeMetrics.AppTileHeight;
@@ -151,7 +154,19 @@ public partial class GrevStoreAppView : UserControl
 
     private void Uninstall_Click(object sender, RoutedEventArgs e)
     {
-        if (_package is not null) UninstallRequested?.Invoke(_package);
+        if (_package is null) return;
+
+        if (!_uninstallArmed)
+        {
+            _uninstallArmed = true;
+            UninstallButton.Content = "Confirm Uninstall";
+            StatusText.Text = "Press Confirm Uninstall again to remove this GrevID's app binaries. Profile configuration and saves will be preserved.";
+            return;
+        }
+
+        _uninstallArmed = false;
+        UninstallButton.Content = "Uninstall";
+        UninstallRequested?.Invoke(_package);
     }
 
     private static string FormatCategory(GrevStoreCategory category) => category switch
