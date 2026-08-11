@@ -19,7 +19,7 @@ public partial class MainWindow
             Dispatcher.BeginInvoke(new Action(() => HandleForegroundAppControl(input)));
         _controllerInput.AnalogChanged += input =>
             Dispatcher.BeginInvoke(new Action(() => HandleForegroundAppAnalog(input)));
-        IsVisibleChanged += (_, _) => UpdateForegroundAppInputMode();
+        IsVisibleChanged += (_, _) => HandleShellVisibilityChanged();
         _runtimeSessions.SessionEnded += snapshot =>
         {
             if (_foregroundControllerProfileSessionId == snapshot.LaunchSessionId)
@@ -27,6 +27,44 @@ public partial class MainWindow
                 Dispatcher.BeginInvoke(new Action(ClearForegroundAppControllerProfile));
             }
         };
+    }
+
+    private void HandleShellVisibilityChanged()
+    {
+        UpdateForegroundAppInputMode();
+
+        if (!IsVisible && _foregroundLaunchSessionId.HasValue)
+        {
+            _ = EnsureForegroundAppActivatedAsync(_foregroundLaunchSessionId.Value);
+        }
+    }
+
+    private async Task EnsureForegroundAppActivatedAsync(Guid launchSessionId)
+    {
+        for (var attempt = 0; attempt < 24; attempt++)
+        {
+            if (IsVisible || _foregroundLaunchSessionId != launchSessionId)
+            {
+                return;
+            }
+
+            if (_runtimeSessions.SwitchTo(launchSessionId))
+            {
+                return;
+            }
+
+            await Task.Delay(125);
+        }
+
+        if (IsVisible || _foregroundLaunchSessionId != launchSessionId)
+        {
+            return;
+        }
+
+        RestoreWindowWithoutChangingRoute();
+        const string message = "The app process started, but Grev Home could not find a usable app window to bring forward. The app remains tracked in Running Apps/App Killer if its process is still active.";
+        _installedLibraryView.ShowLaunchError(message);
+        _grevStoreAppView.ShowStatus(message);
     }
 
     private void UpdateForegroundAppInputMode()
