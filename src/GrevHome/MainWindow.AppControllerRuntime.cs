@@ -1,6 +1,7 @@
 using System.Windows;
 using GrevHome.Input;
 using GrevHome.Runtime;
+using GrevHome.Views;
 
 namespace GrevHome;
 
@@ -8,10 +9,15 @@ public partial class MainWindow
 {
     private static readonly TimeSpan ForegroundWindowPollInterval = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan ForegroundWindowHiddenGrace = TimeSpan.FromMilliseconds(650);
+    private static readonly TimeSpan ManagedCloseEscalationDelay = TimeSpan.FromSeconds(3);
 
     private readonly AppControllerRuntimeService _appControllerRuntime = new();
     private readonly ProcessWindowService _appProcessWindows = new();
+    private readonly HashSet<Guid> _controllerGuideShownSessions = [];
+    private readonly HashSet<Guid> _scheduledCloseEscalations = [];
+    private readonly object _closeEscalationGate = new();
     private ResolvedAppControllerProfile? _foregroundAppControllerProfile;
+    private AppControllerGuidePreferenceService? _appControllerGuidePreferences;
     private Guid? _foregroundControllerProfileSessionId;
     private CancellationTokenSource? _foregroundWindowWatchCts;
     private bool _appControllerRuntimeIntegrationReady;
@@ -20,18 +26,51 @@ public partial class MainWindow
     {
         if (_appControllerRuntimeIntegrationReady) return;
         _appControllerRuntimeIntegrationReady = true;
+        _appControllerGuidePreferences = new AppControllerGuidePreferenceService(_paths);
 
         _controllerInput.AppControlPressed += input =>
             Dispatcher.BeginInvoke(new Action(() => HandleForegroundAppControl(input)));
         _controllerInput.AnalogChanged += input =>
             Dispatcher.BeginInvoke(new Action(() => HandleForegroundAppAnalog(input)));
         IsVisibleChanged += (_, _) => HandleShellVisibilityChanged();
+
+        // A normal Close request should end the managed session even when an app interprets
+        // WM_CLOSE as "hide to tray" (Discord does this). Give the app a short graceful window,
+        // then terminate only the same Grev-tracked process identities if they are still alive.
+        _runningAppsView.CloseRequested += ScheduleManagedCloseEscalation;
+        _appKillerView.CloseRequested += ScheduleManagedCloseEscalation;
+        _installedLibraryView.CloseRequested += ScheduleManagedCloseEscalation;
+        _overlayWindow.CloseRequested += ScheduleManagedCloseEscalation;
+        _runtimeSessions.SessionChanged += snapshot =>
+        {
+            if (snapshot.State == LaunchSessionState.Closing)
+            {
+                ScheduleManagedCloseEscalation(snapshot.LaunchSessionId);
+            }
+        };
+
+        _overlayWindow.ControllerGuideDontShowAgainRequested += (grevId, appId) =>
+        {
+            try
+            {
+                _appControllerGuidePreferences.DisableForProfile(grevId, appId);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                _installedLibraryView.ShowStatus($"Could not save controller-guide preference: {ex.Message}");
+            }
+        };
+
         _runtimeSessions.SessionEnded += snapshot =>
         {
-            if (_foregroundControllerProfileSessionId == snapshot.LaunchSessionId)
+            Dispatcher.BeginInvoke(new Action(() =>
             {
-                Dispatcher.BeginInvoke(new Action(ClearForegroundAppControllerProfile));
-            }
+                _controllerGuideShownSessions.Remove(snapshot.LaunchSessionId);
+                if (_foregroundControllerProfileSessionId == snapshot.LaunchSessionId)
+                {
+                    ClearForegroundAppControllerProfile();
+                }
+            }));
         };
     }
 
@@ -61,6 +100,7 @@ public partial class MainWindow
 
             if (TryActivateManagedAppWindow(launchSessionId))
             {
+                await MaybeOpenControllerGuideAsync(launchSessionId);
                 return;
             }
 
@@ -91,6 +131,120 @@ public partial class MainWindow
         return _appProcessWindows.TryActivate(
             snapshot.ProcessIds,
             maximize: package?.LaunchMaximized == true);
+    }
+
+    private async Task MaybeOpenControllerGuideAsync(Guid launchSessionId)
+    {
+        if (_controllerGuideShownSessions.Contains(launchSessionId) ||
+            IsVisible ||
+            _foregroundLaunchSessionId != launchSessionId)
+        {
+            return;
+        }
+
+        var snapshot = _runtimeSessions.GetSession(launchSessionId);
+        if (snapshot is null)
+        {
+            return;
+        }
+
+        var package = _grevStoreCatalog.Find(snapshot.AppId);
+        if (package is not { ShowControllerGuideOnLaunch: true } ||
+            package.ControllerGuideControls is not { Count: > 0 })
+        {
+            return;
+        }
+
+        _appControllerGuidePreferences ??= new AppControllerGuidePreferenceService(_paths);
+        if (!_appControllerGuidePreferences.ShouldShow(snapshot.PrimaryGrevId, snapshot.AppId))
+        {
+            return;
+        }
+
+        var profileService = _appControllerProfileService ??= new AppControllerProfileService(_paths);
+        var resolved = string.IsNullOrWhiteSpace(snapshot.PrimaryGrevId)
+            ? AppControllerProfileService.ResolveDefaults(package.ControllerProfile)
+            : await profileService.ResolveAsync(snapshot.PrimaryGrevId, snapshot.AppId, package.ControllerProfile);
+
+        if (!resolved.Enabled ||
+            IsVisible ||
+            _foregroundLaunchSessionId != launchSessionId ||
+            _runtimeSessions.GetSession(launchSessionId) is null)
+        {
+            return;
+        }
+
+        var controls = package.ControllerGuideControls
+            .Take(12)
+            .Select(control =>
+            {
+                var mapping = resolved.Mappings.FirstOrDefault(candidate => candidate.Control == control);
+                var output = mapping?.Output ?? new AppControllerOutput(AppControllerOutputKind.None);
+                return new ControllerGuideItem(
+                    AppControllerProfileLayout.FormatControl(control),
+                    AppControllerOutputCatalog.Format(output));
+            })
+            .ToArray();
+
+        _controllerGuideShownSessions.Add(launchSessionId);
+        _overlayWindow.OpenControllerGuide(
+            snapshot.AppId,
+            snapshot.AppName,
+            snapshot.PrimaryGrevId,
+            FormatSystemShortcut(ControllerShortcutAction.ReturnHome),
+            FormatSystemShortcut(ControllerShortcutAction.Overlay),
+            controls);
+    }
+
+    private string FormatSystemShortcut(ControllerShortcutAction action)
+    {
+        var bindings = _controllerShortcuts.LoadOrCreate().Bindings
+            .Where(binding => binding.Enabled && binding.Action == action)
+            .ToArray();
+        if (bindings.Length == 0)
+        {
+            return "Not configured";
+        }
+
+        return string.Join(
+            "   OR   ",
+            bindings.Select(binding =>
+                $"{SettingsView.FormatButtons(binding.Buttons)} • hold {binding.HoldMilliseconds} ms"));
+    }
+
+    private void ScheduleManagedCloseEscalation(Guid launchSessionId)
+    {
+        lock (_closeEscalationGate)
+        {
+            if (!_scheduledCloseEscalations.Add(launchSessionId))
+            {
+                return;
+            }
+        }
+
+        _ = EscalateManagedCloseAsync(launchSessionId);
+    }
+
+    private async Task EscalateManagedCloseAsync(Guid launchSessionId)
+    {
+        try
+        {
+            await Task.Delay(ManagedCloseEscalationDelay);
+
+            // If the session still exists, its normal close either failed or only hid the app to
+            // its tray. ForceClose is still identity-validated and is scoped to this Grev session.
+            if (_runtimeSessions.GetSession(launchSessionId) is not null)
+            {
+                _runtimeSessions.ForceClose(launchSessionId);
+            }
+        }
+        finally
+        {
+            lock (_closeEscalationGate)
+            {
+                _scheduledCloseEscalations.Remove(launchSessionId);
+            }
+        }
     }
 
     private void StartForegroundWindowWatch(Guid launchSessionId)
@@ -215,7 +369,8 @@ public partial class MainWindow
 
     private void HandleForegroundAppControl(ControllerAppControlEventArgs input)
     {
-        if (!_controllerInput.AppInputMode ||
+        if (_overlayWindow.IsOpen ||
+            !_controllerInput.AppInputMode ||
             IsVisible ||
             !_foregroundLaunchSessionId.HasValue ||
             _foregroundControllerProfileSessionId != _foregroundLaunchSessionId ||
@@ -245,7 +400,8 @@ public partial class MainWindow
 
     private void HandleForegroundAppAnalog(ControllerAnalogEventArgs input)
     {
-        if (!_controllerInput.AppInputMode ||
+        if (_overlayWindow.IsOpen ||
+            !_controllerInput.AppInputMode ||
             IsVisible ||
             _foregroundControllerProfileSessionId != _foregroundLaunchSessionId ||
             _foregroundAppControllerProfile is not { Enabled: true } profile)
