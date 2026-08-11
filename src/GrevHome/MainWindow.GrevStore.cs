@@ -30,6 +30,7 @@ public partial class MainWindow
     {
         if (_grevStoreIntegrationReady) return;
         _grevStoreIntegrationReady = true;
+        InitializeAppControllerRuntimeIntegration();
 
         _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
