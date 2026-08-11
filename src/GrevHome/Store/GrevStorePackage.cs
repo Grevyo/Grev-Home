@@ -28,6 +28,8 @@ public sealed record GrevStorePackageDefinition(
     AppPresentationDefaults Presentation,
     AppControllerProfileDefaults? ControllerProfile = null,
     bool LaunchMaximized = false,
+    bool ShowControllerGuideOnLaunch = false,
+    IReadOnlyList<AppControllerControl>? ControllerGuideControls = null,
     bool Featured = false,
     string? StoreDescription = null,
     IReadOnlyList<string>? GrevHomeIntegrations = null)
@@ -103,6 +105,22 @@ public sealed class GrevStoreCatalogService
                     new(AppControllerControl.View, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT D")),
                     new(AppControllerControl.LeftThumb, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
             LaunchMaximized: true,
+            ShowControllerGuideOnLaunch: true,
+            ControllerGuideControls:
+            [
+                AppControllerControl.RightTrigger,
+                AppControllerControl.LeftTrigger,
+                AppControllerControl.RightStick,
+                AppControllerControl.LeftStick,
+                AppControllerControl.X,
+                AppControllerControl.B,
+                AppControllerControl.Y,
+                AppControllerControl.LeftShoulder,
+                AppControllerControl.RightShoulder,
+                AppControllerControl.Menu,
+                AppControllerControl.View,
+                AppControllerControl.LeftThumb
+            ],
             Featured: true,
             StoreDescription: "Install Discord Stable for the current Windows account and launch it through Grev Home. Discord keeps its normal account, updater and AppData; Grev Home layers a per-GrevID editable controller profile over the desktop app using a Steam-inspired desktop mouse layout plus Discord's keyboard-navigation shortcuts.",
             GrevHomeIntegrations:
