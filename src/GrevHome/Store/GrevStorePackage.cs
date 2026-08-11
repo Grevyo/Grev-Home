@@ -69,6 +69,59 @@ public sealed class GrevStoreCatalogService
                 "Grev Home sessions and playtime can feed the owning profile's activity, level and stats.",
                 "RetroAchievements is designed as a profile-owned connection so achievements and game progress can feed the Grev Home profile later.",
                 "Controller-first discovery, launch and app management inside the permanent Grev Home shell."
+            ]),
+
+        new GrevStorePackageDefinition(
+            PackageId: "discord",
+            InstallerId: "discord",
+            Category: GrevStoreCategory.Application,
+            App: new AppDefinition(
+                AppId: "discord",
+                Name: "Discord",
+                Kind: AppKind.Application,
+                InstallStrategy: InstallStrategy.SystemInstalled,
+                DataStrategy: DataStrategy.NativeAccount,
+                Launch: new AppLaunchDefinition(
+                    Executable: "%LOCALAPPDATA%\\Discord\\Update.exe",
+                    Arguments: "--processStart Discord.exe",
+                    WorkingDirectory: "%LOCALAPPDATA%\\Discord",
+                    ProcessName: "Discord"),
+                SupportsController: false,
+                Description: "Discord desktop for text, voice and video. The Windows-user Discord account/data stays native while Grev Home adds controller-first launch, navigation and app management."),
+            Presentation: new AppPresentationDefaults(
+                DisplayName: "Discord",
+                TileColor: "#151923"),
+            ControllerProfile: new AppControllerProfileDefaults(
+                Enabled: true,
+                Mappings:
+                [
+                    new(AppControllerControl.DPadUp, new(AppControllerOutputKind.KeyboardShortcut, "UP")),
+                    new(AppControllerControl.DPadDown, new(AppControllerOutputKind.KeyboardShortcut, "DOWN")),
+                    new(AppControllerControl.DPadLeft, new(AppControllerOutputKind.KeyboardShortcut, "LEFT")),
+                    new(AppControllerControl.DPadRight, new(AppControllerOutputKind.KeyboardShortcut, "RIGHT")),
+                    new(AppControllerControl.A, new(AppControllerOutputKind.KeyboardShortcut, "ENTER")),
+                    new(AppControllerControl.B, new(AppControllerOutputKind.KeyboardShortcut, "ESCAPE")),
+                    new(AppControllerControl.X, new(AppControllerOutputKind.GrevKeyboard)),
+                    new(AppControllerControl.Y, new(AppControllerOutputKind.KeyboardShortcut, "CTRL K")),
+                    new(AppControllerControl.LeftShoulder, new(AppControllerOutputKind.KeyboardShortcut, "SHIFT F6")),
+                    new(AppControllerControl.RightShoulder, new(AppControllerOutputKind.KeyboardShortcut, "F6")),
+                    new(AppControllerControl.LeftTrigger, new(AppControllerOutputKind.KeyboardShortcut, "ALT UP")),
+                    new(AppControllerControl.RightTrigger, new(AppControllerOutputKind.KeyboardShortcut, "ALT DOWN")),
+                    new(AppControllerControl.Menu, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT M")),
+                    new(AppControllerControl.View, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT D")),
+                    new(AppControllerControl.LeftThumb, new(AppControllerOutputKind.KeyboardShortcut, "TAB")),
+                    new(AppControllerControl.RightThumb, new(AppControllerOutputKind.MouseLeftClick)),
+                    new(AppControllerControl.RightStick, new(AppControllerOutputKind.MouseCursor))
+                ]),
+            Featured: true,
+            StoreDescription: "Install Discord Stable for the current Windows account and launch it through Grev Home. Discord keeps its normal account, updater and AppData; Grev Home layers a per-GrevID editable controller profile over the desktop app using Discord's keyboard-navigation model, with right-stick mouse fallback for controls that still need pointing.",
+            GrevHomeIntegrations:
+            [
+                "Official Discord Stable Windows download and Windows-user installation.",
+                "Per-GrevID editable controller profile even though the underlying Discord installation is shared by the Windows account.",
+                "Default controller navigation for arrows, select/back, section/channel movement, Quick Switcher, mute and deafen.",
+                "Right-stick mouse movement and stick-click mouse selection for Discord controls that are awkward to reach through keyboard navigation.",
+                "Launch through the Grev Home runtime for Return Home, Overlay, Running Apps, App Killer, restart/recovery and tracked usage."
             ])
     ];
 
