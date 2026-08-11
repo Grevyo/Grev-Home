@@ -7,6 +7,9 @@
         <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#20283A" />
         <SolidColorBrush x:Key="AccentBrush" Color="#7EA6FF" />
         <SolidColorBrush x:Key="MutedBrush" Color="#97A0B3" />
+        <SolidColorBrush x:Key="AdminRoleBrush" Color="#D8B65A" />
+        <SolidColorBrush x:Key="StandardRoleBrush" Color="#D94B55" />
+        <SolidColorBrush x:Key="GuestRoleBrush" Color="#747B88" />
 
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="White" />
