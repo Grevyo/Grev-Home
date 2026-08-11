@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
@@ -737,62 +738,94 @@ public partial class MainWindow : Window
             : _profiles.FirstOrDefault(candidate =>
                 string.Equals(candidate.GrevId, user.GrevId, StringComparison.OrdinalIgnoreCase));
         var assignedControllers = _session.GetControllersForUser(user.SessionId);
+        var hasAssignedController = assignedControllers.Count > 0;
         var hasConnectedAssignedController = assignedControllers.Any(index =>
             index >= 0 && index < _controllers.Length && _controllers[index]);
+        var roleBrush = GetProfileRoleBrush(user.Role);
 
-        var controllerIcon = new TextBlock
+        var controllerHost = new Grid
+        {
+            Width = 26,
+            Height = 32,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        controllerHost.Children.Add(new TextBlock
         {
             Text = "🎮",
             FontFamily = new FontFamily("Segoe UI Symbol"),
             FontSize = 18,
-            Margin = new Thickness(0, 0, 7, 0),
+            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = hasConnectedAssignedController
                 ? (Brush)FindResource("AccentBrush")
                 : new SolidColorBrush(Color.FromRgb(91, 98, 112)),
-            Opacity = hasConnectedAssignedController ? 1d : 0.48d
-        };
+            Opacity = hasConnectedAssignedController ? 1d : 0.55d
+        });
 
-        var username = string.IsNullOrWhiteSpace(user.Username)
-            ? user.DisplayName
-            : $"@{user.Username}";
-
-        var content = new StackPanel
+        if (!hasAssignedController)
         {
-            Orientation = Orientation.Horizontal,
+            controllerHost.Children.Add(new TextBlock
+            {
+                Text = "╳",
+                FontFamily = new FontFamily("Segoe UI Symbol"),
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(224, 82, 94)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        var content = new Grid
+        {
+            Height = 34,
             VerticalAlignment = VerticalAlignment.Center
         };
-        content.Children.Add(controllerIcon);
-        content.Children.Add(CreateHeaderAvatar(profile, user, 32));
-        content.Children.Add(new TextBlock
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        content.Children.Add(controllerHost);
+
+        var avatar = CreateHeaderAvatar(profile, user, 32, roleBrush);
+        Grid.SetColumn(avatar, 1);
+        content.Children.Add(avatar);
+
+        var displayName = new TextBlock
         {
-            Text = username,
-            MaxWidth = 120,
-            Margin = new Thickness(7, 0, 0, 0),
+            Text = user.DisplayName,
+            MaxWidth = 128,
+            Margin = new Thickness(8, 0, 0, 0),
             FontSize = 13,
             FontWeight = FontWeights.SemiBold,
             VerticalAlignment = VerticalAlignment.Center,
-            TextTrimming = TextTrimming.CharacterEllipsis
-        });
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap
+        };
+        Grid.SetColumn(displayName, 2);
+        content.Children.Add(displayName);
 
         return new Border
         {
+            MinWidth = 142,
+            MaxWidth = 202,
+            Height = 42,
             Padding = new Thickness(7, 3, 9, 3),
             Margin = new Thickness(0, 0, 6, 0),
-            CornerRadius = new CornerRadius(18),
+            CornerRadius = new CornerRadius(17),
             Background = user.IsPrimary
                 ? new SolidColorBrush(Color.FromRgb(31, 40, 58))
                 : new SolidColorBrush(Color.FromRgb(18, 23, 33)),
-            BorderBrush = user.IsPrimary
-                ? (Brush)FindResource("AccentBrush")
-                : new SolidColorBrush(Color.FromRgb(43, 51, 68)),
-            BorderThickness = new Thickness(1),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(1.5),
+            Effect = CreateHeaderRoleEffect(user.Role, roleBrush.Color),
             VerticalAlignment = VerticalAlignment.Center,
             Child = content
         };
     }
 
-    private static Border CreateHeaderAvatar(LocalProfile? profile, SessionUser user, double size)
+    private Border CreateHeaderAvatar(LocalProfile? profile, SessionUser user, double size, SolidColorBrush roleBrush)
     {
         var imageSource = profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(profile);
         var host = new Grid();
@@ -802,7 +835,8 @@ public partial class MainWindow : Window
             host.Children.Add(new Image
             {
                 Source = imageSource,
-                Stretch = Stretch.UniformToFill
+                Stretch = Stretch.UniformToFill,
+                Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
             });
         }
         else
@@ -825,10 +859,39 @@ public partial class MainWindow : Window
             Height = size,
             CornerRadius = new CornerRadius(size / 2),
             Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(1.25),
             ClipToBounds = true,
             Child = host
         };
     }
+
+    private SolidColorBrush GetProfileRoleBrush(AccountRole role) =>
+        (SolidColorBrush)FindResource(role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
+    private static DropShadowEffect? CreateHeaderRoleEffect(AccountRole role, Color color) => role switch
+    {
+        AccountRole.Admin => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 14,
+            ShadowDepth = 0,
+            Opacity = 0.58
+        },
+        AccountRole.Standard => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 7,
+            ShadowDepth = 0,
+            Opacity = 0.18
+        },
+        _ => null
+    };
 
     private void ShellBack_Click(object sender, RoutedEventArgs e) => HandleBack();
 
