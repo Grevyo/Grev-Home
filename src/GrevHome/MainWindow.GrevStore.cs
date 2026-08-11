@@ -19,6 +19,7 @@ public partial class MainWindow
     private GrevStorePackageDefinition? _selectedStorePackage;
     private GrevStorePackageDefinition? _storeUninstallWarningPackage;
     private RetroArchInstallerService? _retroArchInstaller;
+    private DiscordInstallerService? _discordInstaller;
     private StoreRouteTransition _storeRouteTransition;
     private bool _grevStoreIntegrationReady;
     private bool _storeInstallBusy;
@@ -31,6 +32,7 @@ public partial class MainWindow
         _grevStoreIntegrationReady = true;
 
         _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
+        _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
         _dashboardView.StoreRequested += (_, _) => OpenGrevStore();
         _grevStoreView.PackageRequested += OpenStorePackage;
         _grevStoreAppView.DownloadRequested += package => _ = BeginStoreDownloadAsync(package);
@@ -136,11 +138,16 @@ public partial class MainWindow
 
         if (_navigation.Current != Route.GrevStoreApp || _selectedStorePackage != package || _storeInstallBusy || _storeUninstallWarningPackage is not null) return;
 
-        var installLocation = package.IsProfileInstall
-            ? string.IsNullOrWhiteSpace(grevId)
-                ? $"Profiles\\<GrevID>\\Apps\\{package.App.AppId}"
-                : _paths.GetProfileAppRoot(grevId, package.App.AppId)
-            : _paths.GetGlobalAppRoot(package.App.AppId);
+        var installLocation = package.App.InstallStrategy switch
+        {
+            InstallStrategy.GrevIdPortable when string.IsNullOrWhiteSpace(grevId) =>
+                $"Profiles\\<GrevID>\\Apps\\{package.App.AppId}",
+            InstallStrategy.GrevIdPortable => _paths.GetProfileAppRoot(grevId!, package.App.AppId),
+            InstallStrategy.SystemInstalled =>
+                Path.GetDirectoryName(Environment.ExpandEnvironmentVariables(package.App.Launch.Executable))
+                ?? Environment.ExpandEnvironmentVariables(package.App.Launch.Executable),
+            _ => _paths.GetGlobalAppRoot(package.App.AppId)
+        };
 
         _grevStoreAppView.SetPackage(package, primary, installedEntry, installLocation);
     }
@@ -156,19 +163,25 @@ public partial class MainWindow
             return;
         }
 
-        if (!string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) ||
-            _retroArchInstaller is null)
-        {
-            _grevStoreAppView.ShowStatus($"Trusted installer '{package.InstallerId}' is not implemented yet.");
-            return;
-        }
-
         _storeInstallBusy = true;
         ShowStoreOperation(package, "Installing", "Preparing trusted installer…");
         try
         {
             var progress = CreateStoreProgress(package);
-            await _retroArchInstaller.InstallAsync(package, grevId!, progress);
+            if (string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
+                _retroArchInstaller is not null)
+            {
+                await _retroArchInstaller.InstallAsync(package, grevId!, progress);
+            }
+            else if (string.Equals(package.InstallerId, DiscordInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
+                     _discordInstaller is not null)
+            {
+                await _discordInstaller.InstallAsync(package, progress);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' is not implemented yet.");
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or
                                    InvalidOperationException or InvalidDataException or Win32Exception)
@@ -198,12 +211,9 @@ public partial class MainWindow
             return;
         }
 
-        var running = _runtimeSessions.GetActiveSessions().Any(session =>
-            string.Equals(session.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase));
-        if (running)
+        if (IsStorePackageRunning(package, grevId))
         {
-            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} for this Primary GrevID before uninstalling it.");
+            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} before uninstalling it.");
             return;
         }
 
@@ -229,19 +239,9 @@ public partial class MainWindow
             return;
         }
 
-        if (!string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) ||
-            _retroArchInstaller is null)
+        if (IsStorePackageRunning(package, grevId))
         {
-            _grevStoreAppView.ShowStatus($"Trusted installer '{package.InstallerId}' does not support uninstall yet.");
-            return;
-        }
-
-        var running = _runtimeSessions.GetActiveSessions().Any(session =>
-            string.Equals(session.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase));
-        if (running)
-        {
-            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} for this Primary GrevID before uninstalling it.");
+            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} before uninstalling it.");
             return;
         }
 
@@ -250,9 +250,22 @@ public partial class MainWindow
         try
         {
             var progress = CreateStoreProgress(package);
-            await _retroArchInstaller.UninstallAsync(package, grevId!, progress);
+            if (string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
+                _retroArchInstaller is not null)
+            {
+                await _retroArchInstaller.UninstallAsync(package, grevId!, progress);
+            }
+            else if (string.Equals(package.InstallerId, DiscordInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
+                     _discordInstaller is not null)
+            {
+                await _discordInstaller.UninstallAsync(package, progress);
+            }
+            else
+            {
+                throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' does not support uninstall yet.");
+            }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
         {
             _grevStoreAppView.ShowStatus($"Uninstall failed: {ex.Message}");
         }
@@ -267,6 +280,11 @@ public partial class MainWindow
             await RefreshSelectedStorePackageAsync();
         }
     }
+
+    private bool IsStorePackageRunning(GrevStorePackageDefinition package, string? grevId) =>
+        _runtimeSessions.GetActiveSessions().Any(session =>
+            string.Equals(session.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
+            (!package.IsProfileInstall || string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase)));
 
     private IProgress<PackageInstallProgress> CreateStoreProgress(GrevStorePackageDefinition package) =>
         new Progress<PackageInstallProgress>(update =>
