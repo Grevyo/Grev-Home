@@ -363,8 +363,28 @@ public partial class MainWindow
 
     private void HandleForegroundAppControl(ControllerAppControlEventArgs input)
     {
-        if (_overlayWindow.IsOpen ||
-            !_controllerInput.AppInputMode ||
+        if (_overlayWindow.IsOpen)
+        {
+            // The guide/overlay is a Grev Home surface, so keep only the desktop pointer layer
+            // alive over it. Do not pass Discord/app keyboard shortcuts through to the app below.
+            if (_controllerInput.AppInputMode)
+            {
+                var pointerOutput = input.Control switch
+                {
+                    AppControllerControl.RightTrigger => new AppControllerOutput(AppControllerOutputKind.MouseLeftClick),
+                    AppControllerControl.LeftTrigger => new AppControllerOutput(AppControllerOutputKind.MouseRightClick),
+                    _ => null
+                };
+
+                if (pointerOutput is not null)
+                {
+                    _appControllerRuntime.Execute(pointerOutput);
+                }
+            }
+            return;
+        }
+
+        if (!_controllerInput.AppInputMode ||
             IsVisible ||
             !_foregroundLaunchSessionId.HasValue ||
             _foregroundControllerProfileSessionId != _foregroundLaunchSessionId ||
@@ -394,8 +414,25 @@ public partial class MainWindow
 
     private void HandleForegroundAppAnalog(ControllerAnalogEventArgs input)
     {
-        if (_overlayWindow.IsOpen ||
-            !_controllerInput.AppInputMode ||
+        if (_overlayWindow.IsOpen)
+        {
+            if (_controllerInput.AppInputMode)
+            {
+                // Steam-style pointer controls remain useful on Grev's own overlay: right stick
+                // moves the pointer and left stick scrolls the overlay's ScrollViewer.
+                _appControllerRuntime.ExecuteAnalog(
+                    new AppControllerOutput(AppControllerOutputKind.MouseCursor),
+                    input.RightX,
+                    input.RightY);
+                _appControllerRuntime.ExecuteAnalog(
+                    new AppControllerOutput(AppControllerOutputKind.MouseScroll),
+                    input.LeftX,
+                    input.LeftY);
+            }
+            return;
+        }
+
+        if (!_controllerInput.AppInputMode ||
             IsVisible ||
             _foregroundControllerProfileSessionId != _foregroundLaunchSessionId ||
             _foregroundAppControllerProfile is not { Enabled: true } profile)
