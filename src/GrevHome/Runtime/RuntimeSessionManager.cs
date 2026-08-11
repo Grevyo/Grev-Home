@@ -93,14 +93,14 @@ public sealed class RuntimeSessionManager : IDisposable
             return false;
         }
 
-        var snapshot = tracked.Snapshot();
         var processIds = GetValidatedProcessIds(tracked);
         if (processIds.Count == 0)
         {
             return false;
         }
 
-        var requested = _processWindows.RequestGracefulClose(processIds, snapshot.StartedAtUtc);
+        var requested = _processWindows.RequestGracefulClose(
+            GetValidatedProcessIdentities(tracked));
         if (!requested)
         {
             return false;
@@ -119,14 +119,14 @@ public sealed class RuntimeSessionManager : IDisposable
             return false;
         }
 
-        var snapshot = tracked.Snapshot();
         var processIds = GetValidatedProcessIds(tracked);
         if (processIds.Count == 0)
         {
             return false;
         }
 
-        var killed = _processWindows.ForceTerminate(processIds, snapshot.StartedAtUtc);
+        var killed = _processWindows.ForceTerminate(
+            GetValidatedProcessIdentities(tracked));
         if (!killed)
         {
             return false;
@@ -266,13 +266,19 @@ public sealed class RuntimeSessionManager : IDisposable
         var rootIdentity = _processTree.TryGetProcessIdentity(process.Id)
             ?? new RuntimeProcessIdentity(process.Id, process.StartTime.ToUniversalTime());
         var startedAtUtc = DateTimeOffset.UtcNow;
+        var declaredProcessName = entry.Manifest.Definition.InstallStrategy == InstallStrategy.SystemInstalled
+            ? entry.Manifest.Definition.Launch.ProcessName
+            : null;
         var tracked = new TrackedLaunchSession(
             entry.Manifest.Definition.AppId,
             entry.Manifest.Definition.Name,
             primaryGrevId,
+            declaredProcessName,
             participants.ToArray(),
             rootIdentity,
             startedAtUtc);
+
+        tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(declaredProcessName));
 
         if (!_active.TryAdd(tracked.LaunchSessionId, tracked))
         {
@@ -304,6 +310,10 @@ public sealed class RuntimeSessionManager : IDisposable
             }
 
             var aliveProcesses = _processTree.GetAliveProcessIdentities(record.Processes);
+            if (aliveProcesses.Count == 0 && !string.IsNullOrWhiteSpace(record.ProcessName))
+            {
+                aliveProcesses = _processTree.GetProcessIdentitiesByName(record.ProcessName);
+            }
             if (aliveProcesses.Count == 0)
             {
                 // The app ended while Grev Home was not running. Do not guess an end time and
@@ -316,6 +326,7 @@ public sealed class RuntimeSessionManager : IDisposable
                 record.AppId,
                 record.AppName,
                 record.PrimaryGrevId,
+                record.ProcessName,
                 record.Participants ?? Array.Empty<LaunchParticipant>(),
                 record.RootProcessId,
                 aliveProcesses,
@@ -347,6 +358,8 @@ public sealed class RuntimeSessionManager : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
+                tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(tracked.ProcessName));
+
                 var aliveKnown = _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
                 var discoveredIds = _processTree.DiscoverDescendants(aliveKnown.Select(process => process.ProcessId));
                 var discoveredIdentities = discoveredIds
@@ -444,9 +457,11 @@ public sealed class RuntimeSessionManager : IDisposable
         }
     }
 
+    private IReadOnlyList<RuntimeProcessIdentity> GetValidatedProcessIdentities(TrackedLaunchSession tracked) =>
+        _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
+
     private IReadOnlyList<int> GetValidatedProcessIds(TrackedLaunchSession tracked) =>
-        _processTree
-            .GetAliveProcessIdentities(tracked.GetKnownProcessIdentities())
+        GetValidatedProcessIdentities(tracked)
             .Select(process => process.ProcessId)
             .ToArray();
 
@@ -474,7 +489,8 @@ public sealed class RuntimeSessionManager : IDisposable
                         tracked.LastObservedAliveAtUtc,
                         snapshot.State,
                         snapshot.RootProcessId,
-                        tracked.GetKnownProcessIdentities());
+                        tracked.GetKnownProcessIdentities(),
+                        tracked.ProcessName);
                 })
                 .OrderByDescending(record => record.StartedAtUtc)
                 .ToArray();
