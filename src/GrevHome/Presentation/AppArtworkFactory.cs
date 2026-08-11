@@ -16,26 +16,35 @@ public static class AppArtworkFactory
     private static readonly Color DefaultBackground = Color.FromRgb(31, 40, 58);
 
     public static FrameworkElement Create(string? assetPath, double size, double cornerRadius = 16) =>
-        Create(assetPath, null, size, cornerRadius);
+        Create(assetPath, null, size, size, cornerRadius);
 
     public static FrameworkElement Create(
         string? assetPath,
         string? backgroundColor,
         double size,
+        double cornerRadius = 16) =>
+        Create(assetPath, backgroundColor, size, size, cornerRadius);
+
+    public static FrameworkElement Create(
+        string? assetPath,
+        string? backgroundColor,
+        double width,
+        double height,
         double cornerRadius = 16)
     {
+        var referenceSize = Math.Min(width, height);
         var host = new Border
         {
-            Width = size,
-            Height = size,
+            Width = width,
+            Height = height,
             CornerRadius = new CornerRadius(cornerRadius),
             Background = new SolidColorBrush(ParseColor(backgroundColor)),
             ClipToBounds = true,
-            Padding = new Thickness(Math.Max(4, size * 0.08))
+            Padding = new Thickness(Math.Max(4, referenceSize * 0.08))
         };
 
         var image = TryCreateImage(assetPath);
-        host.Child = image ?? CreateNeutralGraphic(size);
+        host.Child = image ?? CreateNeutralGraphic(referenceSize);
         return host;
     }
 
