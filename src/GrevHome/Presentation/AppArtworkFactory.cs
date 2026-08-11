@@ -8,8 +8,9 @@ using System.Windows.Shapes;
 namespace GrevHome.Presentation;
 
 /// <summary>
-/// Creates the standard Grev Home app artwork surface. App tiles never use text initials
-/// as artwork: package/user image first, then a neutral graphical fallback.
+/// Creates Grev Home app presentation surfaces. App tiles never use text initials as artwork:
+/// package/user image first, then a neutral graphical fallback. The complete standard app tile
+/// is also rendered here so Store, Installed Apps and app detail pages share one layout.
 /// </summary>
 public static class AppArtworkFactory
 {
@@ -46,6 +47,48 @@ public static class AppArtworkFactory
         var image = TryCreateImage(assetPath);
         host.Child = image ?? CreateNeutralGraphic(referenceSize);
         return host;
+    }
+
+    public static FrameworkElement CreateTile(
+        string displayName,
+        string? assetPath,
+        string? backgroundColor)
+    {
+        var tile = new Border
+        {
+            Background = new SolidColorBrush(ParseColor(backgroundColor)),
+            CornerRadius = new CornerRadius(9),
+            Padding = new Thickness(14, 10, 14, 8),
+            ClipToBounds = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
+
+        var content = new Grid();
+        content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var artwork = Create(assetPath, backgroundColor, 88, 14);
+        artwork.HorizontalAlignment = HorizontalAlignment.Center;
+        artwork.VerticalAlignment = VerticalAlignment.Center;
+
+        var name = new TextBlock
+        {
+            Text = displayName,
+            Margin = new Thickness(0, 3, 0, 0),
+            FontSize = 18,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        };
+        Grid.SetRow(name, 1);
+
+        content.Children.Add(artwork);
+        content.Children.Add(name);
+        tile.Child = content;
+        return tile;
     }
 
     private static Image? TryCreateImage(string? assetPath)
