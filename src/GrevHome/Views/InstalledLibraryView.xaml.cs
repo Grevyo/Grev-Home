@@ -17,6 +17,7 @@ public partial class InstalledLibraryView : UserControl
 
     public event EventHandler? BackRequested;
     public event Action<InstalledAppEntry>? LaunchRequested;
+    public event Action<InstalledAppEntry>? SettingsRequested;
 
     public InstalledLibraryView()
     {
@@ -66,11 +67,16 @@ public partial class InstalledLibraryView : UserControl
             var tileColor = package?.Presentation.TileColor ?? "#151923";
             var icon = package?.Presentation.IconAsset;
 
-            var button = new Button
+            var appCard = new StackPanel
+            {
+                Width = DefaultThemeMetrics.AppTileWidth,
+                Margin = new Thickness(8)
+            };
+
+            var launchButton = new Button
             {
                 Width = DefaultThemeMetrics.AppTileWidth,
                 Height = DefaultThemeMetrics.AppTileHeight,
-                Margin = new Thickness(8),
                 Padding = new Thickness(0),
                 Tag = entry,
                 IsEnabled = entry.AvailableToCurrentUser,
@@ -78,14 +84,29 @@ public partial class InstalledLibraryView : UserControl
                 VerticalContentAlignment = VerticalAlignment.Stretch,
                 Content = AppArtworkFactory.CreateTile(displayName, icon, tileColor)
             };
+            launchButton.Click += App_Click;
 
-            button.Click += App_Click;
-            AppsPanel.Children.Add(button);
+            var settingsButton = new Button
+            {
+                Width = DefaultThemeMetrics.AppTileWidth,
+                Height = 42,
+                Margin = new Thickness(0, 7, 0, 0),
+                Padding = new Thickness(10, 6, 10, 6),
+                Tag = entry,
+                IsEnabled = entry.AvailableToCurrentUser,
+                Content = "App Settings",
+                FontSize = 13
+            };
+            settingsButton.Click += Settings_Click;
+
+            appCard.Children.Add(launchButton);
+            appCard.Children.Add(settingsButton);
+            AppsPanel.Children.Add(appCard);
         }
 
         StatusText.Text = _entries.Count == 0
             ? "The Installed Library is ready for packages installed from Grev Store."
-            : $"{visible.Length} shown • {_entries.Count} installed for this session context. Select an available app to launch it.";
+            : $"{visible.Length} shown • {_entries.Count} installed for this session context. Select an app to launch it, or open App Settings for its Grev controller profile.";
     }
 
     private bool MatchesFilter(InstalledAppEntry entry)
@@ -107,6 +128,14 @@ public partial class InstalledLibraryView : UserControl
         {
             StatusText.Text = $"Starting {entry.Manifest.Definition.Name}...";
             LaunchRequested?.Invoke(entry);
+        }
+    }
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: InstalledAppEntry entry })
+        {
+            SettingsRequested?.Invoke(entry);
         }
     }
 
