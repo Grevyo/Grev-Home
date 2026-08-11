@@ -8,7 +8,8 @@
         Background="#090C12"
         Foreground="White"
         Loaded="Window_HeaderNavigationLoaded"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        Closing="Window_Closing">
     <Grid KeyboardNavigation.DirectionalNavigation="Continue">
         <Grid.Background>
             <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
