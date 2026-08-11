@@ -32,6 +32,7 @@
                     <StackPanel Grid.Column="2" Margin="24,0,0,0" VerticalAlignment="Center" MinWidth="190">
                         <Button x:Name="DownloadButton" Content="Download" Height="54" Click="Download_Click" />
                         <Button x:Name="OpenButton" Content="Open" Height="54" Margin="0,8,0,0" Visibility="Collapsed" Click="Open_Click" />
+                        <Button x:Name="SettingsButton" Content="App Settings" Height="54" Margin="0,8,0,0" Visibility="Collapsed" Click="Settings_Click" />
                         <Button x:Name="UninstallButton" Content="Uninstall" Height="54" Margin="0,8,0,0" Visibility="Collapsed" Click="Uninstall_Click" />
                     </StackPanel>
                 </Grid>
