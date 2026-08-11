@@ -1,6 +1,7 @@
 using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Presentation;
+using GrevHome.Store.Installers;
 
 namespace GrevHome.Store;
 
@@ -26,15 +27,19 @@ public sealed record GrevStorePackageDefinition(
     GrevStoreCategory Category,
     AppDefinition App,
     AppPresentationDefaults Presentation,
+    AppPackageCapability Capabilities,
     AppControllerProfileDefaults? ControllerProfile = null,
-    bool LaunchMaximized = false,
-    bool ShowControllerGuideOnLaunch = false,
-    IReadOnlyList<AppControllerControl>? ControllerGuideControls = null,
+    AppRuntimePolicy? RuntimePolicy = null,
+    AppVersionPolicy? VersionPolicy = null,
+    AppOnboardingDefinition? Onboarding = null,
     bool Featured = false,
     string? StoreDescription = null,
     IReadOnlyList<string>? GrevHomeIntegrations = null)
 {
     public bool IsProfileInstall => App.InstallStrategy == InstallStrategy.GrevIdPortable;
+
+    public AppRuntimePolicy EffectiveRuntimePolicy => RuntimePolicy ?? new AppRuntimePolicy(
+        ReuseExistingSession: App.Launch.SingleInstance);
 }
 
 public sealed class GrevStoreCatalogService
@@ -43,7 +48,7 @@ public sealed class GrevStoreCatalogService
     [
         new GrevStorePackageDefinition(
             PackageId: "retroarch",
-            InstallerId: "retroarch",
+            InstallerId: RetroArchInstallerService.InstallerId,
             Category: GrevStoreCategory.Emulator,
             App: new AppDefinition(
                 AppId: "retroarch",
@@ -62,21 +67,36 @@ public sealed class GrevStoreCatalogService
                 DisplayName: "RetroArch",
                 TileColor: "#000000",
                 IconAsset: DefaultAppArtwork.RetroArchIconAssetUri),
+            Capabilities:
+                AppPackageCapability.Install |
+                AppPackageCapability.Update |
+                AppPackageCapability.Repair |
+                AppPackageCapability.ProfileUninstall |
+                AppPackageCapability.ControllerProfile |
+                AppPackageCapability.AppSettings |
+                AppPackageCapability.PresentationOverrides,
             ControllerProfile: AppControllerProfileDefaults.Empty,
+            RuntimePolicy: new AppRuntimePolicy(
+                AppWindowMode.Normal,
+                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden,
+                ReuseExistingSession: false),
+            VersionPolicy: new AppVersionPolicy(
+                CurrentVersion: RetroArchInstallerService.SupportedVersion,
+                NativeAutoUpdate: false),
             Featured: true,
             StoreDescription: "RetroArch is a multi-system emulation frontend that can run games from many classic consoles through individual emulator cores. Grev Home installs RetroArch as a Profile App so every GrevID can keep its own emulator environment, RetroAchievements identity, settings, saves and states without conflicting with another user on the same machine.",
             GrevHomeIntegrations:
             [
                 "Profile-isolated install, configuration, saves and save states for the current GrevID.",
+                "Trusted update and repair can replace only this GrevID's RetroArch binaries while preserving profile data.",
                 "Launch through the Grev Home runtime for Return Home, Overlay, Running Apps, restart/recovery and tracked playtime.",
                 "Grev Home sessions and playtime can feed the owning profile's activity, level and stats.",
-                "RetroAchievements is designed as a profile-owned connection so achievements and game progress can feed the Grev Home profile later.",
                 "Controller-first discovery, launch and app management inside the permanent Grev Home shell."
             ]),
 
         new GrevStorePackageDefinition(
             PackageId: "discord",
-            InstallerId: "discord",
+            InstallerId: DiscordInstallerService.InstallerId,
             Category: GrevStoreCategory.Application,
             App: new AppDefinition(
                 AppId: "discord",
@@ -96,6 +116,16 @@ public sealed class GrevStoreCatalogService
                 DisplayName: "Discord",
                 TileColor: "#5865F2",
                 IconAsset: DefaultAppArtwork.DiscordIconAssetUri),
+            Capabilities:
+                AppPackageCapability.Install |
+                AppPackageCapability.Repair |
+                AppPackageCapability.MachineUninstall |
+                AppPackageCapability.LibraryMembership |
+                AppPackageCapability.ControllerProfile |
+                AppPackageCapability.ControllerGuide |
+                AppPackageCapability.AppSettings |
+                AppPackageCapability.PresentationOverrides |
+                AppPackageCapability.AdminManagement,
             ControllerProfile: new AppControllerProfileDefaults(
                 Enabled: true,
                 Mappings: DesktopMouseMappings(
@@ -105,31 +135,39 @@ public sealed class GrevStoreCatalogService
                     new(AppControllerControl.Menu, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT M")),
                     new(AppControllerControl.View, new(AppControllerOutputKind.KeyboardShortcut, "CTRL SHIFT D")),
                     new(AppControllerControl.LeftThumb, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
-            LaunchMaximized: true,
-            ShowControllerGuideOnLaunch: true,
-            ControllerGuideControls:
-            [
-                AppControllerControl.RightTrigger,
-                AppControllerControl.LeftTrigger,
-                AppControllerControl.RightStick,
-                AppControllerControl.LeftStick,
-                AppControllerControl.X,
-                AppControllerControl.B,
-                AppControllerControl.Y,
-                AppControllerControl.LeftShoulder,
-                AppControllerControl.RightShoulder,
-                AppControllerControl.Menu,
-                AppControllerControl.View,
-                AppControllerControl.LeftThumb
-            ],
+            RuntimePolicy: new AppRuntimePolicy(
+                AppWindowMode.Maximized,
+                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden,
+                ReuseExistingSession: true),
+            VersionPolicy: new AppVersionPolicy(
+                CurrentVersion: null,
+                NativeAutoUpdate: true),
+            Onboarding: new AppOnboardingDefinition(
+                Title: "Discord Controls",
+                Summary: "Grev Home is translating your controller for Discord. These cards reflect the current resolved controller profile for this GrevID.",
+                ControllerGuideControls:
+                [
+                    AppControllerControl.RightTrigger,
+                    AppControllerControl.LeftTrigger,
+                    AppControllerControl.RightStick,
+                    AppControllerControl.LeftStick,
+                    AppControllerControl.X,
+                    AppControllerControl.B,
+                    AppControllerControl.Y,
+                    AppControllerControl.LeftShoulder,
+                    AppControllerControl.RightShoulder,
+                    AppControllerControl.Menu,
+                    AppControllerControl.View,
+                    AppControllerControl.LeftThumb
+                ]),
             Featured: true,
             StoreDescription: "Install Discord Stable for the current Windows account and launch it through Grev Home. Discord keeps its normal account, updater and AppData; Grev Home layers a per-GrevID editable controller profile over the desktop app using a Steam-inspired desktop mouse layout plus Discord's keyboard-navigation shortcuts.",
             GrevHomeIntegrations:
             [
-                "Official Discord Stable Windows download and Windows-user installation.",
-                "Per-GrevID editable controller profile even though the underlying Discord installation is shared by the Windows account.",
+                "Official Discord Stable Windows-user installation with native Discord self-updating left intact.",
+                "Global App library membership is per GrevID even though the Windows installation is shared.",
+                "Per-GrevID editable controller profile and reusable first-launch controller guide.",
                 "Grev Desktop controls: right stick moves the pointer, RT left-clicks, LT right-clicks, left stick scrolls, X opens the keyboard and B sends Escape.",
-                "Discord shortcuts remain layered onto shoulders, Y, Menu, View and L3 without making A a dangerous generic Enter key.",
                 "Launch maximized through the Grev Home runtime for Return Home, Overlay, Running Apps, App Killer, restart/recovery and tracked usage."
             ])
     ];
