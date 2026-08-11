@@ -171,6 +171,19 @@ public partial class MainWindow
         OpenStorePackage(package);
     }
 
+    private void OpenAppKiller(string preferredAppId)
+    {
+        if (!_session.HasSignedInUsers)
+        {
+            _navigation.Reset(Route.Login);
+            return;
+        }
+
+        _appKillerView.SetPreferredApp(preferredAppId);
+        UpdateRuntimeSurfaces();
+        _navigation.Navigate(Route.AppKiller);
+    }
+
     private void RefreshInstalledLibraryRuntimeState() =>
         _installedLibraryView.SetRunningSessions(_runtimeSessions.GetActiveSessions());
 
