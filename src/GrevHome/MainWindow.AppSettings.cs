@@ -57,6 +57,11 @@ public partial class MainWindow
             ForceCloseSession(launchSessionId);
             _installedLibraryView.ShowStatus("Force Kill requested for the selected app's tracked process tree.");
         };
+        _installedLibraryView.AppKillerRequested += (_, _) =>
+        {
+            CloseInstalledLibraryActionMenuForAction();
+            OpenAppKiller();
+        };
         _installedLibraryView.RunningAppsRequested += (_, _) =>
         {
             CloseInstalledLibraryActionMenuForAction();
