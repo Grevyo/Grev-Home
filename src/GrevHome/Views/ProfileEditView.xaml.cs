@@ -1,6 +1,8 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using GrevHome.Profiles;
 
@@ -79,9 +81,16 @@ public partial class ProfileEditView : UserControl
         StatusMessageTextBox.CaretIndex = StatusMessageTextBox.Text.Length;
         BioTextBox.Text = profile.Bio ?? string.Empty;
         BioTextBox.CaretIndex = BioTextBox.Text.Length;
-        RolePanel.Visibility = canChangeRole ? Visibility.Visible : Visibility.Collapsed;
+
+        RolePanel.Visibility = Visibility.Visible;
+        AdminRoleButton.IsEnabled = canChangeRole;
+        StandardRoleButton.IsEnabled = canChangeRole;
+        GuestRoleButton.IsEnabled = canChangeRole;
         RoleLockedText.Visibility = canChangeRole ? Visibility.Collapsed : Visibility.Visible;
-        RoleLockedText.Text = $"Role: {profile.Role} • only an Admin can change account roles.";
+        RoleLockedText.Text = profile.Role == AccountRole.Guest
+            ? "Guest role and its grey profile border are locked for this session. An Admin must change the account role."
+            : $"Role: {profile.Role} • only an Admin can change account roles and their profile-border style.";
+
         StatusText.Text = "Display Name, status, About and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
         UpdateAvatarPresentation();
         UpdateRolePresentation();
@@ -221,11 +230,51 @@ public partial class ProfileEditView : UserControl
 
     private void UpdateRolePresentation()
     {
-        RoleDescriptionText.Text = AccountAuthorizationService.DescribeRole(_selectedRole);
+        RoleDescriptionText.Text = $"{AccountAuthorizationService.DescribeRole(_selectedRole)}  •  {DescribeRoleBorder(_selectedRole)}";
         AdminRoleButton.Content = _selectedRole == AccountRole.Admin ? "✓ Admin" : "Admin";
         StandardRoleButton.Content = _selectedRole == AccountRole.Standard ? "✓ Standard" : "Standard";
         GuestRoleButton.Content = _selectedRole == AccountRole.Guest ? "✓ Guest" : "Guest";
+
+        var roleBrush = GetRoleBrush(_selectedRole);
+        ProfileEditCard.BorderBrush = roleBrush;
+        AvatarPreviewBorder.BorderBrush = roleBrush;
+        ProfileEditCard.Effect = CreateRoleEffect(_selectedRole, roleBrush.Color);
     }
+
+    private SolidColorBrush GetRoleBrush(AccountRole role) =>
+        (SolidColorBrush)FindResource(role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
+    private static DropShadowEffect? CreateRoleEffect(AccountRole role, Color color) => role switch
+    {
+        AccountRole.Admin => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 18,
+            ShadowDepth = 0,
+            Opacity = 0.52
+        },
+        AccountRole.Standard => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 9,
+            ShadowDepth = 0,
+            Opacity = 0.22
+        },
+        _ => null
+    };
+
+    private static string DescribeRoleBorder(AccountRole role) => role switch
+    {
+        AccountRole.Admin => "Gold profile border with a gold glow.",
+        AccountRole.Standard => "Red profile border.",
+        AccountRole.Guest => "Fixed grey profile border.",
+        _ => "Grey profile border."
+    };
 
     private void Save_Click(object sender, RoutedEventArgs e)
     {
