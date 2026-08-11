@@ -6,10 +6,14 @@ namespace GrevHome;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan ForegroundWindowPollInterval = TimeSpan.FromMilliseconds(200);
+    private static readonly TimeSpan ForegroundWindowHiddenGrace = TimeSpan.FromMilliseconds(650);
+
     private readonly AppControllerRuntimeService _appControllerRuntime = new();
     private readonly ProcessWindowService _appProcessWindows = new();
     private ResolvedAppControllerProfile? _foregroundAppControllerProfile;
     private Guid? _foregroundControllerProfileSessionId;
+    private CancellationTokenSource? _foregroundWindowWatchCts;
     private bool _appControllerRuntimeIntegrationReady;
 
     private void InitializeAppControllerRuntimeIntegration()
@@ -35,10 +39,15 @@ public partial class MainWindow
     {
         UpdateForegroundAppInputMode();
 
-        if (!IsVisible && _foregroundLaunchSessionId.HasValue)
+        if (IsVisible || !_foregroundLaunchSessionId.HasValue)
         {
-            _ = EnsureForegroundAppActivatedAsync(_foregroundLaunchSessionId.Value);
+            StopForegroundWindowWatch();
+            return;
         }
+
+        var launchSessionId = _foregroundLaunchSessionId.Value;
+        StartForegroundWindowWatch(launchSessionId);
+        _ = EnsureForegroundAppActivatedAsync(launchSessionId);
     }
 
     private async Task EnsureForegroundAppActivatedAsync(Guid launchSessionId)
@@ -63,6 +72,7 @@ public partial class MainWindow
             return;
         }
 
+        _foregroundLaunchSessionId = null;
         RestoreWindowWithoutChangingRoute();
         const string message = "The app process started, but Grev Home could not find a usable app window to bring forward. The app remains tracked in Running Apps/App Killer if its process is still active.";
         _installedLibraryView.ShowLaunchError(message);
@@ -81,6 +91,75 @@ public partial class MainWindow
         return _appProcessWindows.TryActivate(
             snapshot.ProcessIds,
             maximize: package?.LaunchMaximized == true);
+    }
+
+    private void StartForegroundWindowWatch(Guid launchSessionId)
+    {
+        StopForegroundWindowWatch();
+        _foregroundWindowWatchCts = new CancellationTokenSource();
+        _ = MonitorForegroundWindowAsync(launchSessionId, _foregroundWindowWatchCts.Token);
+    }
+
+    private void StopForegroundWindowWatch()
+    {
+        var existing = _foregroundWindowWatchCts;
+        _foregroundWindowWatchCts = null;
+        if (existing is null)
+        {
+            return;
+        }
+
+        existing.Cancel();
+        existing.Dispose();
+    }
+
+    private async Task MonitorForegroundWindowAsync(Guid launchSessionId, CancellationToken cancellationToken)
+    {
+        var observedVisibleWindow = false;
+        DateTimeOffset? hiddenSince = null;
+
+        try
+        {
+            while (!cancellationToken.IsCancellationRequested &&
+                   !IsVisible &&
+                   _foregroundLaunchSessionId == launchSessionId)
+            {
+                var snapshot = _runtimeSessions.GetSession(launchSessionId);
+                if (snapshot is null)
+                {
+                    // Normal SessionEnded handling owns the process-exit return path.
+                    return;
+                }
+
+                var state = _appProcessWindows.GetWindowState(snapshot.ProcessIds);
+                if (state == RuntimeWindowState.Visible)
+                {
+                    observedVisibleWindow = true;
+                    hiddenSince = null;
+                }
+                else if (observedVisibleWindow)
+                {
+                    hiddenSince ??= DateTimeOffset.UtcNow;
+                    if (DateTimeOffset.UtcNow - hiddenSince.Value >= ForegroundWindowHiddenGrace)
+                    {
+                        _foregroundLaunchSessionId = null;
+                        _overlayWindow.Dismiss();
+                        RestoreWindowWithoutChangingRoute();
+
+                        var reason = state == RuntimeWindowState.Minimized ? "minimized" : "hidden";
+                        _installedLibraryView.ShowStatus(
+                            $"{snapshot.AppName} is {reason} but still running. Use Running Apps or Switch to return to it.");
+                        return;
+                    }
+                }
+
+                await Task.Delay(ForegroundWindowPollInterval, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Expected when Grev Home becomes visible again or control moves to another app.
+        }
     }
 
     private void UpdateForegroundAppInputMode()
