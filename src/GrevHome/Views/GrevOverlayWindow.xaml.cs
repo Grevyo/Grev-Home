@@ -54,16 +54,18 @@ public partial class GrevOverlayWindow : Window
 
     public void OpenControllerGuide(
         string appId,
-        string appName,
         string? grevId,
+        string title,
+        string summary,
         string returnHomeShortcut,
         string overlayShortcut,
         IReadOnlyList<ControllerGuideItem> controls)
     {
         _controllerGuide = new ControllerGuideContent(
             appId,
-            appName,
             grevId,
+            title,
+            summary,
             returnHomeShortcut,
             overlayShortcut,
             controls);
@@ -233,9 +235,8 @@ public partial class GrevOverlayWindow : Window
             return;
         }
 
-        TitleText.Text = $"{guide.AppName.ToUpperInvariant()} CONTROLS";
-        SubtitleText.Text =
-            "Grev Home is translating your controller for this desktop app. These controls reflect the app's current Grev controller profile.";
+        TitleText.Text = guide.Title;
+        SubtitleText.Text = guide.Summary;
 
         AddSectionHeading("SYSTEM SHORTCUTS");
         var shortcutGrid = new UniformGrid
@@ -276,7 +277,7 @@ public partial class GrevOverlayWindow : Window
             },
             minimumHeight: 54);
 
-        HintText.Text = "A Select   •   B Close Guide";
+        HintText.Text = "A Select   •   B Close Guide   •   Right Stick / Triggers Pointer";
     }
 
     private void RenderSwitcher()
@@ -484,8 +485,9 @@ public partial class GrevOverlayWindow : Window
 
     private sealed record ControllerGuideContent(
         string AppId,
-        string AppName,
         string? GrevId,
+        string Title,
+        string Summary,
         string ReturnHomeShortcut,
         string OverlayShortcut,
         IReadOnlyList<ControllerGuideItem> Controls);
