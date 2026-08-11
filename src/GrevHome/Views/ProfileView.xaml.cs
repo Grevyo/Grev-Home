@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
 using GrevHome.Profiles;
 
 namespace GrevHome.Views;
@@ -32,6 +34,7 @@ public partial class ProfileView : UserControl
             RoleDescriptionText.Text = "—";
             PermissionsText.Text = "—";
             EditProfileButton.IsEnabled = false;
+            ApplyRolePresentation(AccountRole.Guest);
             ShowStatsLoading("No profile activity available.");
             return;
         }
@@ -55,7 +58,40 @@ public partial class ProfileView : UserControl
         RoleDescriptionText.Text = AccountAuthorizationService.DescribeRole(profile.Role);
         PermissionsText.Text = AccountAuthorizationService.SummarizePermissions(profile.Role);
         EditProfileButton.IsEnabled = canEdit;
+        ApplyRolePresentation(profile.Role);
         ShowStatsLoading("Reading Grev Home activity…");
+    }
+
+    private void ApplyRolePresentation(AccountRole role)
+    {
+        var roleBrush = (SolidColorBrush)FindResource(role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
+        ProfileHeaderCard.BorderBrush = roleBrush;
+        ProfileAvatarBorder.BorderBrush = roleBrush;
+        RoleText.Foreground = roleBrush;
+        ProfileHeaderCard.Effect = role switch
+        {
+            AccountRole.Admin => new DropShadowEffect
+            {
+                Color = roleBrush.Color,
+                BlurRadius = 18,
+                ShadowDepth = 0,
+                Opacity = 0.5
+            },
+            AccountRole.Standard => new DropShadowEffect
+            {
+                Color = roleBrush.Color,
+                BlurRadius = 8,
+                ShadowDepth = 0,
+                Opacity = 0.18
+            },
+            _ => null
+        };
     }
 
     public void SetStats(ProfileStatsSnapshot stats)
@@ -110,7 +146,7 @@ public partial class ProfileView : UserControl
             {
                 Padding = new Thickness(12),
                 Margin = new Thickness(0, 4, 0, 0),
-                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(9, 12, 18)),
+                Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
                 CornerRadius = new CornerRadius(9)
             };
             var stack = new StackPanel();
@@ -119,8 +155,8 @@ public partial class ProfileView : UserControl
                 Text = $"{source.DisplayName}  •  {(source.IsConnected ? "CONNECTED" : "UNAVAILABLE")}",
                 FontWeight = FontWeights.SemiBold,
                 Foreground = source.IsConnected
-                    ? (System.Windows.Media.Brush)FindResource("AccentBrush")
-                    : (System.Windows.Media.Brush)FindResource("MutedBrush")
+                    ? (Brush)FindResource("AccentBrush")
+                    : (Brush)FindResource("MutedBrush")
             });
             stack.Children.Add(new TextBlock
             {
@@ -129,7 +165,7 @@ public partial class ProfileView : UserControl
                     : source.Status,
                 Margin = new Thickness(0, 5, 0, 0),
                 FontSize = 12,
-                Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                Foreground = (Brush)FindResource("MutedBrush"),
                 TextWrapping = TextWrapping.Wrap
             });
             if (source.IsConnected)
@@ -139,7 +175,7 @@ public partial class ProfileView : UserControl
                     Text = source.Status,
                     Margin = new Thickness(0, 4, 0, 0),
                     FontSize = 11,
-                    Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                    Foreground = (Brush)FindResource("MutedBrush"),
                     TextWrapping = TextWrapping.Wrap
                 });
             }
@@ -156,7 +192,7 @@ public partial class ProfileView : UserControl
         {
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(0, 4, 0, 0),
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(9, 12, 18)),
+            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
             CornerRadius = new CornerRadius(9)
         };
         var grid = new Grid();
@@ -171,7 +207,7 @@ public partial class ProfileView : UserControl
         var detail = new TextBlock
         {
             Text = detailText,
-            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+            Foreground = (Brush)FindResource("MutedBrush"),
             Margin = new Thickness(12, 0, 0, 0)
         };
         Grid.SetColumn(detail, 1);
@@ -187,7 +223,7 @@ public partial class ProfileView : UserControl
         {
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 4, 0, 0),
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(9, 12, 18)),
+            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
             CornerRadius = new CornerRadius(9)
         };
         var stack = new StackPanel();
@@ -202,7 +238,7 @@ public partial class ProfileView : UserControl
             Text = detail,
             Margin = new Thickness(0, 4, 0, 0),
             FontSize = 11,
-            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+            Foreground = (Brush)FindResource("MutedBrush"),
             TextWrapping = TextWrapping.Wrap
         });
         row.Child = stack;
@@ -217,13 +253,13 @@ public partial class ProfileView : UserControl
             MinHeight = 92,
             Padding = new Thickness(12),
             Margin = new Thickness(4),
-            Background = new System.Windows.Media.SolidColorBrush(
+            Background = new SolidColorBrush(
                 milestone.IsEarned
-                    ? System.Windows.Media.Color.FromRgb(18, 29, 38)
-                    : System.Windows.Media.Color.FromRgb(9, 12, 18)),
+                    ? Color.FromRgb(18, 29, 38)
+                    : Color.FromRgb(9, 12, 18)),
             BorderBrush = milestone.IsEarned
-                ? (System.Windows.Media.Brush)FindResource("AccentBrush")
-                : new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 68)),
+                ? (Brush)FindResource("AccentBrush")
+                : new SolidColorBrush(Color.FromRgb(43, 51, 68)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10)
         };
@@ -233,8 +269,8 @@ public partial class ProfileView : UserControl
             Text = milestone.IsEarned ? $"✓ {milestone.Title}" : $"○ {milestone.Title}",
             FontWeight = FontWeights.SemiBold,
             Foreground = milestone.IsEarned
-                ? (System.Windows.Media.Brush)FindResource("AccentBrush")
-                : (System.Windows.Media.Brush)FindResource("MutedBrush")
+                ? (Brush)FindResource("AccentBrush")
+                : (Brush)FindResource("MutedBrush")
         });
         stack.Children.Add(new TextBlock
         {
@@ -249,7 +285,7 @@ public partial class ProfileView : UserControl
             Margin = new Thickness(0, 5, 0, 0),
             FontSize = 10,
             FontWeight = FontWeights.Bold,
-            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush")
+            Foreground = (Brush)FindResource("MutedBrush")
         });
         card.Child = stack;
         return card;
