@@ -97,6 +97,9 @@ public sealed class AppPaths
     public string GetProfileAppControllerProfileFile(string grevId, string appId) =>
         Path.Combine(GetProfileAppSettingsRoot(grevId, appId), "controller-profile.json");
 
+    public string GetProfileAppControllerGuidePreferenceFile(string grevId, string appId) =>
+        Path.Combine(GetProfileAppSettingsRoot(grevId, appId), "controller-guide.json");
+
     public string GetGlobalAppRoot(string appId) =>
         Path.Combine(GlobalApps, AppIdentity.ValidateAppId(appId));
 
