@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using GrevHome.Profiles;
 using GrevHome.Sessions;
 
 namespace GrevHome.Views;
@@ -12,6 +13,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? AppKillerRequested;
     public event EventHandler? SettingsRequested;
+    public event EventHandler? AdminConsoleRequested;
     public event EventHandler? FilesRequested;
     public event EventHandler? StoreRequested;
 
@@ -24,6 +26,9 @@ public partial class DashboardView : UserControl
     {
         var primary = session.PrimaryUser;
         WelcomeText.Text = primary is null ? "Welcome" : $"Welcome, {primary.DisplayName}";
+        AdminConsoleButton.Visibility = primary?.Role == AccountRole.Admin
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         if (!session.HasSignedInUsers)
         {
@@ -41,6 +46,8 @@ public partial class DashboardView : UserControl
         RunningAppsButton.Content = $"Running Apps\n{runningCount} active";
     }
 
+    public void ShowStatus(string message) => StatusText.Text = message;
+
     private void ManageUsers_Click(object sender, RoutedEventArgs e) =>
         ManageUsersRequested?.Invoke(this, EventArgs.Empty);
 
@@ -55,6 +62,9 @@ public partial class DashboardView : UserControl
 
     private void Settings_Click(object sender, RoutedEventArgs e) =>
         SettingsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void AdminConsole_Click(object sender, RoutedEventArgs e) =>
+        AdminConsoleRequested?.Invoke(this, EventArgs.Empty);
 
     private void Files_Click(object sender, RoutedEventArgs e) =>
         FilesRequested?.Invoke(this, EventArgs.Empty);
