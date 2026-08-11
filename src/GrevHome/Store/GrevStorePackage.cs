@@ -94,7 +94,8 @@ public sealed class GrevStoreCatalogService
                 Description: "Discord desktop for text, voice and video. The Windows-user Discord account/data stays native while Grev Home adds controller-first launch, navigation and app management."),
             Presentation: new AppPresentationDefaults(
                 DisplayName: "Discord",
-                TileColor: "#151923"),
+                TileColor: "#5865F2",
+                IconAsset: DefaultAppArtwork.DiscordIconAssetUri),
             ControllerProfile: new AppControllerProfileDefaults(
                 Enabled: true,
                 Mappings: DesktopMouseMappings(
