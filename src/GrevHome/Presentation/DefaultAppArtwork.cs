@@ -2,55 +2,6 @@ namespace GrevHome.Presentation;
 
 public static class DefaultAppArtwork
 {
-    public const string RetroArchIconDataUri =
-        "data:image/png;base64," +
-        "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";
+    public const string RetroArchIconAssetUri =
+        "pack://application:,,,/Assets/Apps/RetroArch/icon.png";
 }

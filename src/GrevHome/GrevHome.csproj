@@ -8,4 +8,8 @@
     <AssemblyName>GrevHome</AssemblyName>
     <RootNamespace>GrevHome</RootNamespace>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\Apps\RetroArch\icon.png" />
+  </ItemGroup>
 </Project>

@@ -55,7 +55,7 @@ public sealed class GrevStoreCatalogService
             Presentation: new AppPresentationDefaults(
                 DisplayName: "RetroArch",
                 TileColor: "#000000",
-                IconAsset: DefaultAppArtwork.RetroArchIconDataUri),
+                IconAsset: DefaultAppArtwork.RetroArchIconAssetUri),
             Featured: true,
             StoreDescription: "RetroArch is a multi-system emulation frontend that can run games from many classic consoles through individual emulator cores. Grev Home installs RetroArch as a Profile App so every GrevID can keep its own emulator environment, RetroAchievements identity, settings, saves and states without conflicting with another user on the same machine.",
             GrevHomeIntegrations:
