@@ -19,31 +19,55 @@ public sealed class ProcessWindowService
     private const int SwMaximize = 3;
     private const int SwRestore = 9;
     private const uint GwOwner = 4;
+    private const int GwlStyle = -16;
+    private const int GwlExStyle = -20;
+    private const uint WsDisabled = 0x08000000;
+    private const uint WsExTransparent = 0x00000020;
+    private const uint WsExToolWindow = 0x00000080;
+    private const uint WsExNoActivate = 0x08000000;
+    private const int MinimumInteractiveWidth = 240;
+    private const int MinimumInteractiveHeight = 140;
     private static readonly TimeSpan ProcessIdentityTolerance = TimeSpan.FromSeconds(1);
 
     public IReadOnlyList<RuntimeWindow> GetTopLevelWindows(IEnumerable<int> processIds) =>
         EnumerateTopLevelWindows(processIds, includeHidden: false)
+            .Where(IsInteractiveWindowCandidate)
             .Select(window => new RuntimeWindow(window.Handle, window.ProcessId, window.Title))
             .ToArray();
 
     public RuntimeWindowState GetWindowState(IEnumerable<int> processIds)
     {
-        var windows = EnumerateTopLevelWindows(processIds, includeHidden: false);
-        if (windows.Count == 0)
+        var windows = EnumerateTopLevelWindows(processIds, includeHidden: true)
+            .Where(IsInteractiveWindowCandidate)
+            .ToArray();
+        if (windows.Length == 0)
         {
             return RuntimeWindowState.HiddenOrUnavailable;
         }
 
-        return windows.Any(window => !window.IsMinimized)
-            ? RuntimeWindowState.Visible
-            : RuntimeWindowState.Minimized;
+        if (windows.Any(window => window.IsVisible && !window.IsMinimized))
+        {
+            return RuntimeWindowState.Visible;
+        }
+
+        if (windows.Any(window => window.IsVisible && window.IsMinimized))
+        {
+            return RuntimeWindowState.Minimized;
+        }
+
+        return RuntimeWindowState.HiddenOrUnavailable;
     }
 
     public bool TryActivate(IEnumerable<int> processIds, bool maximize = false)
     {
+        // Electron apps such as Discord can expose several hidden top-level utility surfaces.
+        // Never restore an arbitrary HWND just because it belongs to the right process. Only
+        // consider normal, titled, desktop-sized interactive windows and prefer the largest one.
         var window = EnumerateTopLevelWindows(processIds, includeHidden: true)
-            .OrderByDescending(candidate => candidate.IsVisible)
-            .ThenByDescending(candidate => !string.IsNullOrWhiteSpace(candidate.Title))
+            .Where(IsInteractiveWindowCandidate)
+            .OrderByDescending(candidate => candidate.Area)
+            .ThenByDescending(candidate => candidate.IsVisible)
+            .ThenBy(candidate => candidate.IsMinimized)
             .ThenBy(candidate => candidate.ProcessId)
             .FirstOrDefault();
         if (window is null)
@@ -57,18 +81,22 @@ public sealed class ProcessWindowService
         }
         else if (!window.IsVisible || window.IsMinimized)
         {
-            // Discord and similar tray apps usually retain a hidden top-level window after
-            // the title-bar X is pressed. Restoring that existing window is preferable to
-            // starting another app process/session.
             _ = ShowWindow(window.Handle, SwRestore);
+        }
+
+        // Revalidate after ShowWindow. If Windows exposed a transient/utility HWND that no longer
+        // qualifies, report failure so Grev Home remains visible rather than hiding behind it.
+        var restored = ReadCandidate(window.Handle, window.ProcessId);
+        if (restored is null || !restored.IsVisible || !IsInteractiveWindowCandidate(restored))
+        {
+            return false;
         }
 
         _ = BringWindowToTop(window.Handle);
         var foregrounded = SetForegroundWindow(window.Handle);
 
-        // Windows may deny SetForegroundWindow while still successfully restoring/showing the
-        // requested window. Returning true once it is visible lets Grev Home hide itself; the
-        // shell's activation retry can then finish foregrounding it without launching a duplicate.
+        // SetForegroundWindow can legitimately be denied by Windows focus-stealing rules. A real,
+        // validated visible app window is still safe: once Grev Home hides, that window is exposed.
         return foregrounded || IsWindowVisible(window.Handle);
     }
 
@@ -218,16 +246,81 @@ public sealed class ProcessWindowService
                 return true;
             }
 
-            windows.Add(new RuntimeWindowCandidate(
-                handle,
-                (int)processId,
-                GetWindowTitle(handle),
-                visible,
-                IsIconic(handle)));
+            var candidate = ReadCandidate(handle, (int)processId);
+            if (candidate is not null)
+            {
+                windows.Add(candidate);
+            }
             return true;
         }, nint.Zero);
 
         return windows;
+    }
+
+    private static RuntimeWindowCandidate? ReadCandidate(nint handle, int processId)
+    {
+        if (!IsWindow(handle))
+        {
+            return null;
+        }
+
+        var isMinimized = IsIconic(handle);
+        var rect = GetUsableWindowRect(handle, isMinimized);
+        if (rect is null)
+        {
+            return null;
+        }
+
+        var width = Math.Max(0, rect.Value.Right - rect.Value.Left);
+        var height = Math.Max(0, rect.Value.Bottom - rect.Value.Top);
+        var style = unchecked((uint)GetWindowLong(handle, GwlStyle));
+        var exStyle = unchecked((uint)GetWindowLong(handle, GwlExStyle));
+
+        return new RuntimeWindowCandidate(
+            handle,
+            processId,
+            GetWindowTitle(handle),
+            IsWindowVisible(handle),
+            isMinimized,
+            width,
+            height,
+            style,
+            exStyle);
+    }
+
+    private static RECT? GetUsableWindowRect(nint handle, bool isMinimized)
+    {
+        if (isMinimized)
+        {
+            var placement = new WINDOWPLACEMENT
+            {
+                Length = (uint)Marshal.SizeOf<WINDOWPLACEMENT>()
+            };
+            if (GetWindowPlacement(handle, ref placement))
+            {
+                return placement.NormalPosition;
+            }
+        }
+
+        return GetWindowRect(handle, out var rect) ? rect : null;
+    }
+
+    private static bool IsInteractiveWindowCandidate(RuntimeWindowCandidate candidate)
+    {
+        if (string.IsNullOrWhiteSpace(candidate.Title) ||
+            candidate.Width < MinimumInteractiveWidth ||
+            candidate.Height < MinimumInteractiveHeight)
+        {
+            return false;
+        }
+
+        if ((candidate.Style & WsDisabled) != 0)
+        {
+            return false;
+        }
+
+        var disallowedExStyles = WsExTransparent | WsExToolWindow | WsExNoActivate;
+        return (candidate.ExStyle & disallowedExStyles) == 0;
     }
 
     private static IReadOnlyList<RuntimeProcessIdentity> ResolveSessionIdentities(
@@ -332,13 +425,51 @@ public sealed class ProcessWindowService
         int ProcessId,
         string Title,
         bool IsVisible,
-        bool IsMinimized);
+        bool IsMinimized,
+        int Width,
+        int Height,
+        uint Style,
+        uint ExStyle)
+    {
+        public long Area => (long)Width * Height;
+    }
 
     private delegate bool EnumWindowsProc(nint handle, nint parameter);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct WINDOWPLACEMENT
+    {
+        public uint Length;
+        public uint Flags;
+        public uint ShowCmd;
+        public POINT MinPosition;
+        public POINT MaxPosition;
+        public RECT NormalPosition;
+    }
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool EnumWindows(EnumWindowsProc callback, nint parameter);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool IsWindow(nint handle);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -355,6 +486,17 @@ public sealed class ProcessWindowService
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern int GetWindowTextLength(nint handle);
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongW")]
+    private static extern int GetWindowLong(nint handle, int index);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowRect(nint handle, out RECT rect);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetWindowPlacement(nint handle, ref WINDOWPLACEMENT placement);
 
     [DllImport("user32.dll")]
     [return: MarshalAs(UnmanagedType.Bool)]
