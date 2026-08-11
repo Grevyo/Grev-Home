@@ -22,13 +22,25 @@
             </Setter>
         </Style>
 
-        <Style x:Key="SettingsSectionStyle" TargetType="Expander">
-            <Setter Property="Foreground" Value="White" />
-            <Setter Property="Background" Value="#11151E" />
-            <Setter Property="BorderBrush" Value="#2B3344" />
-            <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="Margin" Value="0,0,0,16" />
-            <Setter Property="Padding" Value="0" />
+        <Style x:Key="SettingsSectionHeaderButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource WrappedSettingsButtonStyle}">
+            <Setter Property="MinHeight" Value="56" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Left"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
         </Style>
     </UserControl.Resources>
 
@@ -53,11 +65,18 @@
                         Click="Back_Click" />
             </Grid>
 
-            <Expander x:Name="AccountSection"
-                      Header="ACCOUNT"
-                      IsExpanded="False"
-                      Style="{StaticResource SettingsSectionStyle}">
-                <Border Background="#11151E" Padding="22" CornerRadius="0,0,14,14">
+            <StackPanel Margin="0,0,0,16">
+                <Button x:Name="AccountSectionButton"
+                        Content="ACCOUNT  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="AccountSectionButton_Click" />
+                <Border x:Name="AccountSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -111,13 +130,20 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-            </Expander>
+            </StackPanel>
 
-            <Expander x:Name="ControllerShortcutsSection"
-                      Header="CONTROLLER SYSTEM SHORTCUTS"
-                      IsExpanded="False"
-                      Style="{StaticResource SettingsSectionStyle}">
-                <Border Background="#11151E" Padding="22" CornerRadius="0,0,14,14">
+            <StackPanel Margin="0,0,0,16">
+                <Button x:Name="ControllerShortcutsSectionButton"
+                        Content="CONTROLLER SYSTEM SHORTCUTS  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="ControllerShortcutsSectionButton_Click" />
+                <Border x:Name="ControllerShortcutsSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
                     <StackPanel>
                         <TextBlock Text="These shortcuts are machine-wide and continue working while external apps are running."
                                    Foreground="{StaticResource MutedBrush}"
@@ -175,13 +201,20 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-            </Expander>
+            </StackPanel>
 
-            <Expander x:Name="SystemStatusSection"
-                      Header="SYSTEM STATUS"
-                      IsExpanded="False"
-                      Style="{StaticResource SettingsSectionStyle}">
-                <Border Background="#11151E" Padding="22" CornerRadius="0,0,14,14">
+            <StackPanel Margin="0,0,0,16">
+                <Button x:Name="SystemStatusSectionButton"
+                        Content="SYSTEM STATUS  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="SystemStatusSectionButton_Click" />
+                <Border x:Name="SystemStatusSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -215,13 +248,20 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-            </Expander>
+            </StackPanel>
 
-            <Expander x:Name="PowerSection"
-                      Header="POWER"
-                      IsExpanded="False"
-                      Style="{StaticResource SettingsSectionStyle}">
-                <Border Background="#11151E" Padding="22" CornerRadius="0,0,14,14">
+            <StackPanel Margin="0,0,0,16">
+                <Button x:Name="PowerSectionButton"
+                        Content="POWER  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="PowerSectionButton_Click" />
+                <Border x:Name="PowerSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
                     <StackPanel>
                         <TextBlock Text="Power actions affect the whole Windows machine. Select an action once to arm it, then select the same action again within 8 seconds to confirm."
                                    Foreground="{StaticResource MutedBrush}"
@@ -241,7 +281,7 @@
                                    TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
-            </Expander>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
