@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
 
@@ -71,8 +72,8 @@ public partial class LoginView : UserControl
                     {
                         CreateAvatar(profile),
                         new TextBlock { Text = profile.DisplayName, FontSize = 21, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = signedIn is null ? "A / Enter to sign in" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
+                        new TextBlock { Text = $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
+                        new TextBlock { Text = signedIn is null ? "A / Enter to sign in" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
                     }
                 }
             };
@@ -85,11 +86,17 @@ public partial class LoginView : UserControl
 
     private Border CreateAvatar(LocalProfile profile)
     {
+        const double size = 54;
         var grid = new Grid();
         var imageSource = ProfileAvatarCatalog.TryLoadCustomImage(profile);
         if (imageSource is not null)
         {
-            grid.Children.Add(new Image { Source = imageSource, Stretch = System.Windows.Media.Stretch.UniformToFill });
+            grid.Children.Add(new Image
+            {
+                Source = imageSource,
+                Stretch = Stretch.UniformToFill,
+                Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+            });
         }
         else
         {
@@ -103,14 +110,23 @@ public partial class LoginView : UserControl
             });
         }
 
+        var roleBrush = (Brush)FindResource(profile.Role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
         return new Border
         {
-            Width = 54,
-            Height = 54,
-            CornerRadius = new CornerRadius(27),
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 2),
             Margin = new Thickness(0, 0, 0, 7),
             HorizontalAlignment = HorizontalAlignment.Center,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 40, 58)),
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(1.5),
             ClipToBounds = true,
             Child = grid
         };
