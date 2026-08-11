@@ -18,11 +18,15 @@ public partial class AppSettingsView : UserControl
     private bool _enabled;
     private bool _canSave;
     private bool _hasUserOverride;
-    private bool _generalSectionExpanded = true;
+    private bool _hasPresentationOverride;
+    private bool _generalSectionExpanded;
+    private bool _presentationSectionExpanded;
     private bool _controllerSectionExpanded;
 
     public event Action<AppControllerProfileDraft>? SaveRequested;
     public event EventHandler? ResetRequested;
+    public event EventHandler? ResetOnboardingRequested;
+    public event EventHandler? ResetPresentationRequested;
     public event EventHandler? BackRequested;
 
     public AppSettingsView()
@@ -36,11 +40,13 @@ public partial class AppSettingsView : UserControl
         GrevStorePackageDefinition? package,
         SessionUser? primaryUser,
         ResolvedAppControllerProfile profile,
+        ResolvedAppPresentation presentation,
         bool canSave)
     {
         _enabled = profile.Enabled;
         _canSave = canSave;
         _hasUserOverride = profile.HasUserOverride;
+        _hasPresentationOverride = presentation.HasUserOverrides;
         _outputs.Clear();
         foreach (var mapping in profile.Mappings)
         {
@@ -48,7 +54,7 @@ public partial class AppSettingsView : UserControl
         }
 
         var definition = entry.Manifest.Definition;
-        var displayName = package?.Presentation.DisplayName ?? definition.Name;
+        var displayName = presentation.DisplayName;
         AppNameText.Text = displayName;
         AppIdentityText.Text = primaryUser is null
             ? $"{displayName} • no Primary User"
@@ -59,6 +65,37 @@ public partial class AppSettingsView : UserControl
         NativeSupportText.Text = definition.SupportsController
             ? "This app declares native controller support. Its Grev controller profile can stay completely blank unless you want Grev Home to augment the app later."
             : "This app does not declare native controller support. Grev Home can use this profile as the standardized mapping contract for controller enhancement.";
+
+        var onboarding = package?.Onboarding;
+        OnboardingPanel.Visibility = onboarding is null ? Visibility.Collapsed : Visibility.Visible;
+        if (onboarding is not null)
+        {
+            OnboardingTitleText.Text = onboarding.Title;
+            OnboardingSummaryText.Text = onboarding.Summary;
+            ResetOnboardingButton.IsEnabled = canSave;
+            ResetOnboardingButton.Content = canSave
+                ? "Show Launch Guide Again"
+                : "Show Launch Guide Again (persistent GrevID required)";
+        }
+
+        var packageDefaults = package?.Presentation;
+        PresentationSourceText.Text = presentation.HasUserOverrides
+            ? $"Using {primaryUser?.DisplayName ?? "this user's"} per-GrevID presentation overrides."
+            : packageDefaults is null
+                ? "Using the installed app's built-in presentation because no Grev Store package defaults are registered."
+                : "Using the presentation defaults supplied by this Grev Home package.";
+        PresentationCurrentText.Text =
+            $"Current: {presentation.DisplayName} • tile {presentation.TileColor} • " +
+            $"icon {(string.IsNullOrWhiteSpace(presentation.IconPath) ? "default placeholder" : "configured")} • " +
+            $"tile media {(string.IsNullOrWhiteSpace(presentation.TileMediaPath) ? "none" : "configured")} • " +
+            $"hero media {(string.IsNullOrWhiteSpace(presentation.HeroMediaPath) ? "none" : "configured")}.";
+        PresentationDefaultText.Text = packageDefaults is null
+            ? "Package defaults: not registered for this app."
+            : $"Package default: {packageDefaults.DisplayName} • tile {packageDefaults.TileColor} • " +
+              $"icon {(string.IsNullOrWhiteSpace(packageDefaults.IconAsset) ? "neutral placeholder" : "supplied")}.";
+        ResetPresentationButton.IsEnabled = canSave &&
+                                            _hasPresentationOverride &&
+                                            package?.Supports(AppPackageCapability.PresentationOverrides) == true;
 
         var appDefaultsPopulated = package?.ControllerProfile?.Mappings?.Any(mapping =>
             mapping.Output.Kind != AppControllerOutputKind.None) == true;
@@ -72,7 +109,7 @@ public partial class AppSettingsView : UserControl
         ResetButton.IsEnabled = canSave && profile.HasUserOverride;
         ControllerProfileToggleButton.IsEnabled = canSave;
         StatusText.Text = canSave
-            ? "Open the section you want to change. Controller mappings are saved only for this GrevID; Reset removes this GrevID's override and reveals the app-supplied defaults again."
+            ? "All app-specific overrides are scoped to this GrevID. Controller, onboarding and presentation defaults can each be restored independently."
             : "A persistent local Primary GrevID is required to save app-specific settings. Current package defaults are shown read-only.";
 
         UpdateSectionPresentation();
@@ -183,6 +220,12 @@ public partial class AppSettingsView : UserControl
         UpdateSectionPresentation();
     }
 
+    private void PresentationSectionToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _presentationSectionExpanded = !_presentationSectionExpanded;
+        UpdateSectionPresentation();
+    }
+
     private void ControllerSectionToggle_Click(object sender, RoutedEventArgs e)
     {
         _controllerSectionExpanded = !_controllerSectionExpanded;
@@ -192,13 +235,11 @@ public partial class AppSettingsView : UserControl
     private void UpdateSectionPresentation()
     {
         GeneralSectionPanel.Visibility = _generalSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
+        PresentationSectionPanel.Visibility = _presentationSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
         ControllerSectionPanel.Visibility = _controllerSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
-        GeneralSectionToggleButton.Content = _generalSectionExpanded
-            ? "GENERAL  ▴"
-            : "GENERAL  ▾";
-        ControllerSectionToggleButton.Content = _controllerSectionExpanded
-            ? "CONTROLLER PROFILE  ▴"
-            : "CONTROLLER PROFILE  ▾";
+        GeneralSectionToggleButton.Content = _generalSectionExpanded ? "GENERAL  ▴" : "GENERAL  ▾";
+        PresentationSectionToggleButton.Content = _presentationSectionExpanded ? "PRESENTATION  ▴" : "PRESENTATION  ▾";
+        ControllerSectionToggleButton.Content = _controllerSectionExpanded ? "CONTROLLER PROFILE  ▴" : "CONTROLLER PROFILE  ▾";
     }
 
     private void ControllerProfileToggle_Click(object sender, RoutedEventArgs e)
@@ -279,6 +320,16 @@ public partial class AppSettingsView : UserControl
     private void Reset_Click(object sender, RoutedEventArgs e)
     {
         if (_canSave && _hasUserOverride) ResetRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ResetOnboarding_Click(object sender, RoutedEventArgs e)
+    {
+        if (_canSave) ResetOnboardingRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void ResetPresentation_Click(object sender, RoutedEventArgs e)
+    {
+        if (_canSave && _hasPresentationOverride) ResetPresentationRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
