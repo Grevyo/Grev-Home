@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using GrevHome.Apps;
+using GrevHome.Navigation;
 
 namespace GrevHome;
 
@@ -17,22 +18,39 @@ public partial class MainWindow
 
         _runtimeRecoveryIntegrationReady = true;
         _runningAppsView.RestartRequested += launchSessionId => _ = RestartRuntimeSessionAsync(launchSessionId);
+        _appKillerView.RestartRequested += launchSessionId => _ = RestartRuntimeSessionAsync(launchSessionId);
         _overlayWindow.RestartRequested += launchSessionId => _ = RestartRuntimeSessionAsync(launchSessionId);
     }
 
     private async Task RestartRuntimeSessionAsync(Guid launchSessionId)
     {
+        var requestedFromAppKiller = _navigation.Current == Route.AppKiller;
         var snapshot = _runtimeSessions.GetSession(launchSessionId);
         if (snapshot is null)
         {
-            _runningAppsView.ShowStatus("That app is no longer running.");
+            if (requestedFromAppKiller)
+            {
+                _appKillerView.ShowStatus("That app is no longer running.");
+            }
+            else
+            {
+                _runningAppsView.ShowStatus("That app is no longer running.");
+            }
+
             UpdateRuntimeSurfaces();
             return;
         }
 
         try
         {
-            _runningAppsView.ShowStatus($"Restarting {snapshot.AppName}…");
+            if (requestedFromAppKiller)
+            {
+                _appKillerView.ShowStatus($"Restarting {snapshot.AppName}…");
+            }
+            else
+            {
+                _runningAppsView.ShowStatus($"Restarting {snapshot.AppName}…");
+            }
 
             var installed = await _installedApps.GetInstalledForUserAsync(snapshot.PrimaryGrevId);
             var entry = installed.FirstOrDefault(candidate =>
@@ -57,11 +75,18 @@ public partial class MainWindow
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or Win32Exception)
         {
             UpdateRuntimeSurfaces();
-            _runningAppsView.ShowStatus($"Restart failed: {ex.Message}");
 
-            if (_session.HasSignedInUsers)
+            if (requestedFromAppKiller)
             {
-                OpenRunningApps();
+                _appKillerView.ShowStatus($"Restart failed: {ex.Message}");
+            }
+            else
+            {
+                _runningAppsView.ShowStatus($"Restart failed: {ex.Message}");
+                if (_session.HasSignedInUsers)
+                {
+                    OpenRunningApps();
+                }
             }
 
             RestoreWindowWithoutChangingRoute();
