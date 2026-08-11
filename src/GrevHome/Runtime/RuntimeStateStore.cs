@@ -14,7 +14,8 @@ public sealed record RuntimeSessionRecoveryRecord(
     DateTimeOffset LastObservedAliveAtUtc,
     LaunchSessionState State,
     int RootProcessId,
-    IReadOnlyList<RuntimeProcessIdentity> Processes);
+    IReadOnlyList<RuntimeProcessIdentity> Processes,
+    string? ProcessName = null);
 
 public sealed class RuntimeStateStore
 {
