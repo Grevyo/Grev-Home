@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media;
 using GrevHome.Apps;
 using GrevHome.Presentation;
 using GrevHome.Runtime;
@@ -76,41 +75,10 @@ public partial class InstalledLibraryView : UserControl
                 Tag = entry,
                 IsEnabled = entry.AvailableToCurrentUser,
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                VerticalContentAlignment = VerticalAlignment.Stretch
+                VerticalContentAlignment = VerticalAlignment.Stretch,
+                Content = AppArtworkFactory.CreateTile(displayName, icon, tileColor)
             };
 
-            var tile = new Border
-            {
-                Background = CreateTileBrush(tileColor),
-                CornerRadius = new CornerRadius(9),
-                Padding = new Thickness(14, 10, 14, 8)
-            };
-
-            var content = new Grid();
-            content.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-            content.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-
-            var artwork = AppArtworkFactory.Create(icon, tileColor, 88, 14);
-            artwork.HorizontalAlignment = HorizontalAlignment.Center;
-            artwork.VerticalAlignment = VerticalAlignment.Center;
-
-            var name = new TextBlock
-            {
-                Text = displayName,
-                Margin = new Thickness(0, 3, 0, 0),
-                FontSize = 18,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextAlignment = TextAlignment.Center,
-                TextTrimming = TextTrimming.CharacterEllipsis
-            };
-            Grid.SetRow(name, 1);
-
-            content.Children.Add(artwork);
-            content.Children.Add(name);
-            tile.Child = content;
-            button.Content = tile;
             button.Click += App_Click;
             AppsPanel.Children.Add(button);
         }
@@ -131,18 +99,6 @@ public partial class InstalledLibraryView : UserControl
             "Utility" => kind is AppKind.Utility or AppKind.SystemTool,
             _ => true
         };
-    }
-
-    private static Brush CreateTileBrush(string color)
-    {
-        try
-        {
-            return new SolidColorBrush((Color)ColorConverter.ConvertFromString(color)!);
-        }
-        catch
-        {
-            return new SolidColorBrush(Color.FromRgb(21, 25, 35));
-        }
     }
 
     private void App_Click(object sender, RoutedEventArgs e)
