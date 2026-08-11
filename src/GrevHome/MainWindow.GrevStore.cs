@@ -29,7 +29,7 @@ public partial class MainWindow
         _grevStoreView.PackageRequested += OpenStorePackage;
         _grevStoreAppView.DownloadRequested += package => _ = BeginStoreDownloadAsync(package);
         _grevStoreAppView.OpenRequested += entry => _ = LaunchInstalledAppAsync(entry);
-        _grevStoreAppView.UninstallRequested += BeginStoreUninstall;
+        _grevStoreAppView.UninstallRequested += package => _ = BeginStoreUninstallAsync(package);
         _navigation.RouteChanged += HandleGrevStoreRouteChanged;
         _session.Changed += (_, _) =>
         {
@@ -141,14 +141,7 @@ public partial class MainWindow
         _storeInstallBusy = true;
         try
         {
-            var progress = new Progress<PackageInstallProgress>(update =>
-            {
-                if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
-                {
-                    _grevStoreAppView.SetBusy(update.Stage, update.Message, update.Percent);
-                }
-            });
-
+            var progress = CreateStoreProgress(package);
             await _retroArchInstaller.InstallAsync(package, grevId!, progress);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or
@@ -167,11 +160,60 @@ public partial class MainWindow
         }
     }
 
-    private void BeginStoreUninstall(GrevStorePackageDefinition package)
+    private async Task BeginStoreUninstallAsync(GrevStorePackageDefinition package)
     {
         if (_storeInstallBusy) return;
-        _grevStoreAppView.ShowStatus(
-            $"Uninstall is reserved for trusted installer '{package.InstallerId}'. " +
-            "The package-specific uninstall workflow is the next installer action; Grev Home will not perform an unsafe generic folder deletion.");
+
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
+        {
+            _grevStoreAppView.ShowStatus("A persistent local Primary User is required to uninstall this Profile App.");
+            return;
+        }
+
+        if (!string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) ||
+            _retroArchInstaller is null)
+        {
+            _grevStoreAppView.ShowStatus($"Trusted installer '{package.InstallerId}' does not support uninstall yet.");
+            return;
+        }
+
+        var running = _runtimeSessions.GetActiveSessions().Any(session =>
+            string.Equals(session.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase));
+        if (running)
+        {
+            _grevStoreAppView.ShowStatus("Close RetroArch for this Primary GrevID before uninstalling it.");
+            return;
+        }
+
+        _storeInstallBusy = true;
+        try
+        {
+            var progress = CreateStoreProgress(package);
+            await _retroArchInstaller.UninstallAsync(package, grevId!, progress);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _grevStoreAppView.ShowStatus($"Uninstall failed: {ex.Message}");
+        }
+        finally
+        {
+            _storeInstallBusy = false;
+        }
+
+        if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
+        {
+            await RefreshSelectedStorePackageAsync();
+        }
     }
+
+    private IProgress<PackageInstallProgress> CreateStoreProgress(GrevStorePackageDefinition package) =>
+        new Progress<PackageInstallProgress>(update =>
+        {
+            if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
+            {
+                _grevStoreAppView.SetBusy(update.Stage, update.Message, update.Percent);
+            }
+        });
 }
