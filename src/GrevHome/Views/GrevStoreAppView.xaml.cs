@@ -160,7 +160,7 @@ public partial class GrevStoreAppView : UserControl
         {
             _uninstallArmed = true;
             UninstallButton.Content = "Confirm Uninstall";
-            StatusText.Text = "Press Confirm Uninstall again to remove this GrevID's app binaries. Profile configuration and saves will be preserved.";
+            StatusText.Text = "Press Confirm Uninstall again to continue to the final data-loss warning. Nothing has been removed yet.";
             return;
         }
 
