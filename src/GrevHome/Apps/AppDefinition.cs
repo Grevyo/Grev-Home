@@ -33,7 +33,8 @@ public sealed record AppLaunchDefinition(
     string Executable,
     string? Arguments = null,
     string? WorkingDirectory = null,
-    string? ProcessName = null);
+    string? ProcessName = null,
+    bool SingleInstance = false);
 
 public sealed record AppDefinition(
     string AppId,
