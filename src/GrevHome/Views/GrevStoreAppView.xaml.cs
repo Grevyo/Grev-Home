@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Apps;
+using GrevHome.Input;
 using GrevHome.Presentation;
 using GrevHome.Sessions;
 using GrevHome.Store;
@@ -15,6 +16,7 @@ public partial class GrevStoreAppView : UserControl
 
     public event Action<GrevStorePackageDefinition>? DownloadRequested;
     public event Action<InstalledAppEntry>? OpenRequested;
+    public event Action<InstalledAppEntry>? SettingsRequested;
     public event Action<GrevStorePackageDefinition>? UninstallRequested;
 
     public GrevStoreAppView()
@@ -42,7 +44,13 @@ public partial class GrevStoreAppView : UserControl
         AppNameText.Text = package.Presentation.DisplayName;
         AppTypeText.Text = $"{FormatCategory(package.Category)}  •  {package.App.Kind}";
         CategoryText.Text = FormatCategory(package.Category);
-        ControllerSupportText.Text = package.App.SupportsController ? "Supported" : "Not declared";
+        var hasGrevControllerDefaults = package.ControllerProfile?.Mappings?.Any(mapping =>
+            mapping.Output.Kind != AppControllerOutputKind.None) == true;
+        ControllerSupportText.Text = hasGrevControllerDefaults
+            ? "Grev Enhanced"
+            : package.App.SupportsController
+                ? "Native • Grev optional"
+                : "Grev profile available";
         InstallTypeText.Text = package.IsProfileInstall ? "Profile App" : "Global App";
         DataTypeText.Text = package.App.DataStrategy switch
         {
@@ -101,9 +109,11 @@ public partial class GrevStoreAppView : UserControl
         var installed = installedEntry is not null;
         DownloadButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
         OpenButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
+        SettingsButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         UninstallButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
         DownloadButton.IsEnabled = !package.IsProfileInstall || hasPersistentPrimary;
         OpenButton.IsEnabled = installedEntry?.AvailableToCurrentUser == true;
+        SettingsButton.IsEnabled = installedEntry?.AvailableToCurrentUser == true;
         UninstallButton.IsEnabled = installed;
 
         if (installedEntry is null)
@@ -125,7 +135,7 @@ public partial class GrevStoreAppView : UserControl
             InstallationMetadataText.Text = $"Installed {manifest.InstalledAtUtc.ToLocalTime():g}" +
                                                (string.IsNullOrWhiteSpace(manifest.OwnerGrevId) ? string.Empty : $"  •  Owner {manifest.OwnerGrevId}");
             StatusText.Text = installedEntry.AvailableToCurrentUser
-                ? "Open launches this installed app through the Grev Home runtime."
+                ? "Open launches through Grev Home. App Settings contains the standardized per-app controller profile for this GrevID."
                 : installedEntry.AvailabilityMessage ?? "This installation is not available to the current user.";
         }
     }
@@ -134,6 +144,7 @@ public partial class GrevStoreAppView : UserControl
     {
         DownloadButton.IsEnabled = false;
         OpenButton.IsEnabled = false;
+        SettingsButton.IsEnabled = false;
         UninstallButton.IsEnabled = false;
         StatusText.Text = progressPercent is null
             ? $"{action} • {message}"
@@ -150,6 +161,11 @@ public partial class GrevStoreAppView : UserControl
     private void Open_Click(object sender, RoutedEventArgs e)
     {
         if (_installedEntry is not null) OpenRequested?.Invoke(_installedEntry);
+    }
+
+    private void Settings_Click(object sender, RoutedEventArgs e)
+    {
+        if (_installedEntry is not null) SettingsRequested?.Invoke(_installedEntry);
     }
 
     private void Uninstall_Click(object sender, RoutedEventArgs e)
