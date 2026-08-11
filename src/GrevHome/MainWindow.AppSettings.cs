@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Store;
 using GrevHome.Views;
 
 namespace GrevHome;
@@ -12,6 +13,7 @@ public partial class MainWindow
 {
     private readonly AppSettingsView _appSettingsView = new();
     private AppControllerProfileService? _appControllerProfileService;
+    private AppPresentationService? _appPresentationService;
     private InstalledAppEntry? _appSettingsEntry;
     private bool _appSettingsIntegrationReady;
     private bool _installedLibraryActionMenuBackEntryArmed;
@@ -23,6 +25,7 @@ public partial class MainWindow
         _appSettingsIntegrationReady = true;
 
         _appControllerProfileService = new AppControllerProfileService(_paths);
+        _appPresentationService = new AppPresentationService(_paths);
 
         _installedLibraryView.SettingsRequested += entry =>
         {
@@ -73,6 +76,8 @@ public partial class MainWindow
         _grevStoreAppView.SettingsRequested += OpenAppSettings;
         _appSettingsView.SaveRequested += draft => _ = SaveAppControllerProfileAsync(draft);
         _appSettingsView.ResetRequested += (_, _) => _ = ResetAppControllerProfileAsync();
+        _appSettingsView.ResetOnboardingRequested += (_, _) => ResetAppOnboarding();
+        _appSettingsView.ResetPresentationRequested += (_, _) => _ = ResetAppPresentationAsync();
         _appSettingsView.BackRequested += (_, _) => _navigation.GoBack();
         _navigation.RouteChanged += HandleAppSettingsRouteChanged;
 
@@ -241,22 +246,35 @@ public partial class MainWindow
     private async Task RefreshAppSettingsAsync()
     {
         var entry = _appSettingsEntry;
-        var service = _appControllerProfileService;
-        if (entry is null || service is null || _navigation.Current != Route.AppSettings) return;
+        var controllerService = _appControllerProfileService;
+        var presentationService = _appPresentationService;
+        if (entry is null || controllerService is null || presentationService is null ||
+            _navigation.Current != Route.AppSettings)
+        {
+            return;
+        }
 
         var primary = _session.PrimaryUser;
         var grevId = primary?.GrevId;
         var package = _grevStoreCatalog.Find(entry.Manifest.Definition.AppId);
-        var defaults = package?.ControllerProfile ?? AppControllerProfileDefaults.Empty;
+        var controllerDefaults = package?.ControllerProfile ?? AppControllerProfileDefaults.Empty;
 
-        ResolvedAppControllerProfile resolved;
+        ResolvedAppControllerProfile controllerProfile;
+        ResolvedAppPresentation presentation;
         if (string.IsNullOrWhiteSpace(grevId))
         {
-            resolved = AppControllerProfileService.ResolveDefaults(defaults);
+            controllerProfile = AppControllerProfileService.ResolveDefaults(controllerDefaults);
+            presentation = ResolvePackagePresentationDefaults(entry, package);
         }
         else
         {
-            resolved = await service.ResolveAsync(grevId, entry.Manifest.Definition.AppId, defaults);
+            controllerProfile = await controllerService.ResolveAsync(
+                grevId,
+                entry.Manifest.Definition.AppId,
+                controllerDefaults);
+            presentation = package is null
+                ? ResolvePackagePresentationDefaults(entry, package)
+                : await presentationService.ResolveAsync(grevId, package);
         }
 
         if (_navigation.Current != Route.AppSettings || _appSettingsEntry != entry) return;
@@ -265,8 +283,23 @@ public partial class MainWindow
             entry,
             package,
             primary,
-            resolved,
+            controllerProfile,
+            presentation,
             canSave: !string.IsNullOrWhiteSpace(grevId));
+    }
+
+    private static ResolvedAppPresentation ResolvePackagePresentationDefaults(
+        InstalledAppEntry entry,
+        GrevStorePackageDefinition? package)
+    {
+        var defaults = package?.Presentation;
+        return new ResolvedAppPresentation(
+            defaults?.DisplayName ?? entry.Manifest.Definition.Name,
+            defaults?.TileColor ?? "#151923",
+            defaults?.IconAsset,
+            defaults?.TileMediaAsset,
+            defaults?.HeroMediaAsset,
+            HasUserOverrides: false);
     }
 
     private async Task SaveAppControllerProfileAsync(AppControllerProfileDraft draft)
@@ -312,6 +345,70 @@ public partial class MainWindow
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
         {
             _appSettingsView.ShowStatus($"Could not reset controller profile: {ex.Message}");
+        }
+    }
+
+    private void ResetAppOnboarding()
+    {
+        var entry = _appSettingsEntry;
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (entry is null || string.IsNullOrWhiteSpace(grevId))
+        {
+            _appSettingsView.ShowStatus("A persistent local Primary GrevID is required to reset app onboarding.");
+            return;
+        }
+
+        var package = _grevStoreCatalog.Find(entry.Manifest.Definition.AppId);
+        if (package?.Onboarding is null)
+        {
+            _appSettingsView.ShowStatus("This app does not declare a reusable launch guide.");
+            return;
+        }
+
+        try
+        {
+            _appControllerGuidePreferences ??= new AppControllerGuidePreferenceService(_paths);
+            _appControllerGuidePreferences.ResetForProfile(grevId, entry.Manifest.Definition.AppId);
+            foreach (var session in _runtimeSessions.GetActiveSessions().Where(session =>
+                         string.Equals(session.AppId, entry.Manifest.Definition.AppId, StringComparison.OrdinalIgnoreCase)))
+            {
+                _controllerGuideShownSessions.Remove(session.LaunchSessionId);
+            }
+            _appSettingsView.ShowStatus("Launch guide reset for this GrevID. It will be eligible to appear the next time Grev Home hands control to this app.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _appSettingsView.ShowStatus($"Could not reset launch guide: {ex.Message}");
+        }
+    }
+
+    private async Task ResetAppPresentationAsync()
+    {
+        var entry = _appSettingsEntry;
+        var service = _appPresentationService;
+        var grevId = _session.PrimaryUser?.GrevId;
+        var package = entry is null ? null : _grevStoreCatalog.Find(entry.Manifest.Definition.AppId);
+        if (entry is null || service is null || string.IsNullOrWhiteSpace(grevId) || package is null)
+        {
+            _appSettingsView.ShowStatus("A persistent local Primary GrevID and a Grev Store package are required to reset app presentation.");
+            return;
+        }
+
+        if (!package.Supports(AppPackageCapability.PresentationOverrides))
+        {
+            _appSettingsView.ShowStatus("This package does not declare per-GrevID presentation overrides.");
+            return;
+        }
+
+        try
+        {
+            await service.ResetAsync(grevId, entry.Manifest.Definition.AppId);
+            await RefreshAppSettingsAsync();
+            _appSettingsView.ShowStatus("App appearance reset. Grev Home is showing the package-supplied presentation defaults again.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+        {
+            _appSettingsView.ShowStatus($"Could not reset app appearance: {ex.Message}");
         }
     }
 }
