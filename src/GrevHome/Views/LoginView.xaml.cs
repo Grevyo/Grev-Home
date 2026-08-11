@@ -10,9 +10,6 @@ public sealed record ProfileSignInRequest(LocalProfile Profile, int? ControllerI
 public partial class LoginView : UserControl
 {
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
-    public event Action<int?>? GuestSignInRequested;
-    public event Action<Guid>? PrimaryUserRequested;
-    public event EventHandler? ClearSessionRequested;
     public event EventHandler? CreateProfileRequested;
     public event EventHandler? EnterHomeRequested;
 
