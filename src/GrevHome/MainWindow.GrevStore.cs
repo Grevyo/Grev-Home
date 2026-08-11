@@ -364,6 +364,17 @@ public partial class MainWindow
         _ = BeginStoreUninstallAsync(package);
     }
 
+    private void Window_Closing(object? sender, CancelEventArgs e)
+    {
+        if (!_storeInstallBusy)
+        {
+            return;
+        }
+
+        e.Cancel = true;
+        StoreProgressMessageText.Text = "This Store operation is still running. Grev Home can close after it finishes.";
+    }
+
     private enum StoreRouteTransition
     {
         None,
