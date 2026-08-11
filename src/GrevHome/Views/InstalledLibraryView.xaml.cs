@@ -34,6 +34,7 @@ public partial class InstalledLibraryView : UserControl
     public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
     public event Action<Guid>? ForceKillRequested;
+    public event EventHandler? AppKillerRequested;
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? ActionMenuOpened;
     public event EventHandler? ActionMenuCancelRequested;
@@ -284,6 +285,7 @@ public partial class InstalledLibraryView : UserControl
         AppActionRestartButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
         AppActionCloseButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
         AppActionForceKillButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
+        AppActionAppKillerButton.Visibility = matching.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         AppActionRunningAppsButton.Visibility = matching.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (matching.Length == 0)
@@ -304,7 +306,7 @@ public partial class InstalledLibraryView : UserControl
         }
         else
         {
-            AppActionStateText.Text = $"{matching.Length} managed sessions are running for this app. Use Running Apps to choose the exact session.";
+            AppActionStateText.Text = $"{matching.Length} managed sessions are running for this app. Use App Killer or Running Apps to choose the exact session.";
             _pendingForceKillSessionId = null;
         }
     }
@@ -330,6 +332,7 @@ public partial class InstalledLibraryView : UserControl
             AppActionRestartButton,
             AppActionCloseButton,
             AppActionForceKillButton,
+            AppActionAppKillerButton,
             AppActionRunningAppsButton,
             AppActionStoreButton,
             AppActionCancelButton
@@ -413,6 +416,9 @@ public partial class InstalledLibraryView : UserControl
         _pendingForceKillSessionId = null;
         ForceKillRequested?.Invoke(session.LaunchSessionId);
     }
+
+    private void AppActionAppKiller_Click(object sender, RoutedEventArgs e) =>
+        AppKillerRequested?.Invoke(this, EventArgs.Empty);
 
     private void AppActionRunningApps_Click(object sender, RoutedEventArgs e) =>
         RunningAppsRequested?.Invoke(this, EventArgs.Empty);
