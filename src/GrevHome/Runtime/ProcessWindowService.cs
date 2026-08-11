@@ -9,6 +9,7 @@ public sealed record RuntimeWindow(nint Handle, int ProcessId, string Title);
 public sealed class ProcessWindowService
 {
     private const uint WmClose = 0x0010;
+    private const int SwMaximize = 3;
     private const int SwRestore = 9;
     private const uint GwOwner = 4;
     private static readonly TimeSpan ProcessIdentityTolerance = TimeSpan.FromSeconds(1);
@@ -45,7 +46,7 @@ public sealed class ProcessWindowService
             .ToArray();
     }
 
-    public bool TryActivate(IEnumerable<int> processIds)
+    public bool TryActivate(IEnumerable<int> processIds, bool maximize = false)
     {
         var window = GetTopLevelWindows(processIds).FirstOrDefault();
         if (window is null)
@@ -53,7 +54,11 @@ public sealed class ProcessWindowService
             return false;
         }
 
-        if (IsIconic(window.Handle))
+        if (maximize)
+        {
+            _ = ShowWindow(window.Handle, SwMaximize);
+        }
+        else if (IsIconic(window.Handle))
         {
             _ = ShowWindow(window.Handle, SwRestore);
         }
