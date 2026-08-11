@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
 
@@ -31,6 +33,7 @@ public partial class ProfilePlayersView : UserControl
         _primarySessionUserId = primary?.SessionId;
         var primaryProfile = FindProfile(primary, profiles);
         ApplyPrimaryAvatar(primaryProfile);
+        ApplyPrimaryRole(primary?.Role ?? AccountRole.Guest);
 
         PrimaryNameText.Text = primary?.DisplayName ?? "No primary profile";
         PrimaryIdentityText.Text = primary is null ? "No user is signed in." : $"@{primary.Username}  •  {primary.Role}  •  Primary User";
@@ -60,29 +63,31 @@ public partial class ProfilePlayersView : UserControl
     private UIElement CreatePlayerCard(int playerNumber, SessionUser user, SessionContext session, IReadOnlyList<bool> connectedControllers, IReadOnlyList<LocalProfile> profiles, SessionUser? actor)
     {
         var profile = FindProfile(user, profiles);
+        var roleBrush = GetRoleBrush(user.Role);
         var card = new Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 30)),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 68)),
-            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(2),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(20),
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 0, 0, 12),
+            Effect = CreateRoleEffect(user.Role, roleBrush.Color)
         };
 
         var root = new Grid();
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        root.Children.Add(CreateAvatar(profile, 66));
+        root.Children.Add(CreateAvatar(profile, 66, user.Role));
 
         var details = new StackPanel();
         Grid.SetColumn(details, 1);
-        details.Children.Add(new TextBlock { Text = $"PLAYER {playerNumber}", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = (System.Windows.Media.Brush)FindResource("AccentBrush") });
+        details.Children.Add(new TextBlock { Text = $"PLAYER {playerNumber}", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("AccentBrush") });
         details.Children.Add(new TextBlock { Text = user.DisplayName, Margin = new Thickness(0, 5, 0, 0), FontSize = 23, FontWeight = FontWeights.SemiBold });
-        details.Children.Add(new TextBlock { Text = $"@{user.Username}  •  {user.Role}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush") });
+        details.Children.Add(new TextBlock { Text = $"@{user.Username}  •  {user.Role}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
         var assigned = session.GetControllersForUser(user.SessionId);
-        details.Children.Add(new TextBlock { Text = assigned.Count == 0 ? "No controller assigned" : $"Assigned: {string.Join(", ", assigned.Select(i => $"Controller {i + 1}"))}", Margin = new Thickness(0, 5, 0, 0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush") });
+        details.Children.Add(new TextBlock { Text = assigned.Count == 0 ? "No controller assigned" : $"Assigned: {string.Join(", ", assigned.Select(i => $"Controller {i + 1}"))}", Margin = new Thickness(0, 5, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
         root.Children.Add(details);
 
         var actions = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0) };
@@ -143,7 +148,7 @@ public partial class ProfilePlayersView : UserControl
 
         if (controllerButtons.Children.Count == 0)
         {
-            controllerButtons.Children.Add(new TextBlock { Text = "No controllers connected", Margin = new Thickness(4, 8, 4, 4), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush") });
+            controllerButtons.Children.Add(new TextBlock { Text = "No controllers connected", Margin = new Thickness(4, 8, 4, 4), Foreground = (Brush)FindResource("MutedBrush") });
         }
 
         actions.Children.Add(controllerButtons);
@@ -160,7 +165,15 @@ public partial class ProfilePlayersView : UserControl
         PrimaryAvatarText.Text = profile is null ? "?" : ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName);
     }
 
-    private static Border CreateAvatar(LocalProfile? profile, double size)
+    private void ApplyPrimaryRole(AccountRole role)
+    {
+        var roleBrush = GetRoleBrush(role);
+        PrimaryProfileCard.BorderBrush = roleBrush;
+        PrimaryAvatarBorder.BorderBrush = roleBrush;
+        PrimaryProfileCard.Effect = CreateRoleEffect(role, roleBrush.Color);
+    }
+
+    private Border CreateAvatar(LocalProfile? profile, double size, AccountRole role)
     {
         var imageSource = profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(profile);
         var grid = new Grid();
@@ -169,8 +182,8 @@ public partial class ProfilePlayersView : UserControl
             grid.Children.Add(new Image
             {
                 Source = imageSource,
-                Stretch = System.Windows.Media.Stretch.UniformToFill,
-                Clip = new System.Windows.Media.EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+                Stretch = Stretch.UniformToFill,
+                Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
             });
         }
         else
@@ -192,11 +205,40 @@ public partial class ProfilePlayersView : UserControl
             CornerRadius = new CornerRadius(size / 2),
             Margin = new Thickness(0, 0, 16, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 40, 58)),
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            BorderBrush = GetRoleBrush(role),
+            BorderThickness = new Thickness(1.5),
             ClipToBounds = true,
             Child = grid
         };
     }
+
+    private SolidColorBrush GetRoleBrush(AccountRole role) =>
+        (SolidColorBrush)FindResource(role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
+    private static DropShadowEffect? CreateRoleEffect(AccountRole role, Color color) => role switch
+    {
+        AccountRole.Admin => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 16,
+            ShadowDepth = 0,
+            Opacity = 0.48
+        },
+        AccountRole.Standard => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 7,
+            ShadowDepth = 0,
+            Opacity = 0.16
+        },
+        _ => null
+    };
 
     private static LocalProfile? FindProfile(SessionUser? user, IReadOnlyList<LocalProfile> profiles)
     {
