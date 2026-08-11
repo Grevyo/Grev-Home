@@ -36,7 +36,7 @@
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
                 <TextBlock x:Name="EmptyText"
-                           Text="Nothing is installed yet. Grev Store and package installation come later."
+                           Text="Nothing is installed yet. Install supported packages from Grev Store."
                            Margin="0,28,0,0"
                            HorizontalAlignment="Center"
                            FontSize="18"
@@ -53,9 +53,91 @@
                 BorderThickness="1"
                 CornerRadius="12">
             <TextBlock x:Name="StatusText"
-                       Text="0.3 reads installed app manifests from Global Apps and the current GrevID's Apps folder."
+                       Text="Select an app to open it. Hold A or right-click an app tile for more actions."
                        Foreground="{StaticResource MutedBrush}"
                        TextWrapping="Wrap" />
         </Border>
+
+        <Grid x:Name="AppActionOverlay"
+              Grid.RowSpan="4"
+              Panel.ZIndex="50"
+              Background="#CC080A0F"
+              Visibility="Collapsed">
+            <Border Width="430"
+                    Padding="24"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="#11151E"
+                    BorderBrush="#374158"
+                    BorderThickness="1"
+                    CornerRadius="18">
+                <StackPanel>
+                    <TextBlock Text="APP ACTIONS"
+                               FontSize="12"
+                               FontWeight="Bold"
+                               Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock x:Name="AppActionTitleText"
+                               Margin="0,6,0,0"
+                               FontSize="28"
+                               FontWeight="SemiBold"
+                               TextTrimming="CharacterEllipsis" />
+                    <TextBlock x:Name="AppActionStateText"
+                               Margin="0,5,0,18"
+                               FontSize="13"
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+
+                    <Button x:Name="AppActionOpenButton"
+                            Content="Open"
+                            Height="48"
+                            Click="AppActionOpen_Click" />
+                    <Button x:Name="AppActionSwitchButton"
+                            Content="Switch to App"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Visibility="Collapsed"
+                            Click="AppActionSwitch_Click" />
+                    <Button x:Name="AppActionSettingsButton"
+                            Content="App Settings"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Click="AppActionSettings_Click" />
+                    <Button x:Name="AppActionRestartButton"
+                            Content="Restart App"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Visibility="Collapsed"
+                            Click="AppActionRestart_Click" />
+                    <Button x:Name="AppActionCloseButton"
+                            Content="Close App"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Visibility="Collapsed"
+                            Click="AppActionClose_Click" />
+                    <Button x:Name="AppActionForceKillButton"
+                            Content="Force Kill App"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Visibility="Collapsed"
+                            Click="AppActionForceKill_Click" />
+                    <Button x:Name="AppActionRunningAppsButton"
+                            Content="Running Apps"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Visibility="Collapsed"
+                            Click="AppActionRunningApps_Click" />
+                    <Button x:Name="AppActionStoreButton"
+                            Content="View in Grev Store"
+                            Height="48"
+                            Margin="0,7,0,0"
+                            Click="AppActionStore_Click" />
+                    <Button x:Name="AppActionCancelButton"
+                            Content="Cancel"
+                            Height="48"
+                            Margin="0,14,0,0"
+                            Click="AppActionCancel_Click" />
+                </StackPanel>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>
