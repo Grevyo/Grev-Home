@@ -37,6 +37,7 @@ public sealed class ControllerInputService : IDisposable
 
     private static readonly TimeSpan RepeatDelay = TimeSpan.FromMilliseconds(320);
     private static readonly TimeSpan RepeatInterval = TimeSpan.FromMilliseconds(115);
+    private static readonly TimeSpan AcceptLongPressDelay = TimeSpan.FromMilliseconds(650);
     private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ControllerShortcutService _shortcutService;
@@ -46,6 +47,9 @@ public sealed class ControllerInputService : IDisposable
     private readonly InputAction?[] _heldDirection = new InputAction?[4];
     private readonly DateTimeOffset[] _heldDirectionStarted = new DateTimeOffset[4];
     private readonly DateTimeOffset[] _lastDirectionRaised = new DateTimeOffset[4];
+    private readonly bool[] _acceptTracking = new bool[4];
+    private readonly bool[] _acceptLongPressRaised = new bool[4];
+    private readonly DateTimeOffset[] _acceptStarted = new DateTimeOffset[4];
     private readonly Dictionary<(int ControllerIndex, string BindingId), ShortcutPressState> _shortcutStates = new();
     private readonly object _pollGate = new();
     private IReadOnlyList<ControllerShortcutBinding> _shortcutBindings = Array.Empty<ControllerShortcutBinding>();
@@ -53,6 +57,9 @@ public sealed class ControllerInputService : IDisposable
     private bool _disposed;
 
     public event Action<ControllerInputEventArgs>? ActionPressed;
+    public event Action<int>? AcceptLongPressed;
+    public event Action<int>? AcceptReleased;
+    public event Action<int>? AcceptCancelled;
     public event Action<ControllerConnectionEventArgs>? ConnectionChanged;
     public event Action<ControllerShortcutEventArgs>? ShortcutRequested;
     public event Action<ControllerShortcutCaptureEventArgs>? ShortcutCaptured;
@@ -96,6 +103,10 @@ public sealed class ControllerInputService : IDisposable
             _capture = new ShortcutCaptureState(DateTimeOffset.UtcNow);
             _shortcutStates.Clear();
             Array.Fill(_heldDirection, null);
+            for (var index = 0; index < _acceptTracking.Length; index++)
+            {
+                CancelAcceptTracking(index);
+            }
         }
     }
 
@@ -152,6 +163,7 @@ public sealed class ControllerInputService : IDisposable
                 var state = states[index];
                 var buttons = state.Gamepad.Buttons;
                 var shortcutActive = HandleShortcuts(index, state.Gamepad);
+                HandleAcceptHold(index, buttons, shortcutActive);
 
                 if (!shortcutActive)
                 {
@@ -179,6 +191,59 @@ public sealed class ControllerInputService : IDisposable
         {
             Monitor.Exit(_pollGate);
         }
+    }
+
+    private void HandleAcceptHold(int index, ushort buttons, bool shortcutActive)
+    {
+        if (shortcutActive)
+        {
+            if (_acceptTracking[index])
+            {
+                CancelAcceptTracking(index);
+            }
+            return;
+        }
+
+        var isDown = HasButton(buttons, AButton);
+        if (!isDown)
+        {
+            if (!_acceptTracking[index])
+            {
+                return;
+            }
+
+            _acceptTracking[index] = false;
+            _acceptLongPressRaised[index] = false;
+            AcceptReleased?.Invoke(index);
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (!_acceptTracking[index])
+        {
+            _acceptTracking[index] = true;
+            _acceptLongPressRaised[index] = false;
+            _acceptStarted[index] = now;
+            return;
+        }
+
+        if (!_acceptLongPressRaised[index] && now - _acceptStarted[index] >= AcceptLongPressDelay)
+        {
+            _acceptLongPressRaised[index] = true;
+            AcceptLongPressed?.Invoke(index);
+        }
+    }
+
+    private void CancelAcceptTracking(int index)
+    {
+        if (!_acceptTracking[index])
+        {
+            return;
+        }
+
+        _acceptTracking[index] = false;
+        _acceptLongPressRaised[index] = false;
+        AcceptCancelled?.Invoke(index);
     }
 
     private void HandleShortcutCapture(IReadOnlyList<XInputState> states)
@@ -407,6 +472,7 @@ public sealed class ControllerInputService : IDisposable
     {
         _previousButtons[index] = 0;
         _heldDirection[index] = null;
+        CancelAcceptTracking(index);
 
         foreach (var key in _shortcutStates.Keys.Where(key => key.ControllerIndex == index).ToArray())
         {
