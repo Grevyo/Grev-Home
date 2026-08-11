@@ -394,6 +394,11 @@ public partial class MainWindow : Window
 
     private void HandleSystemShortcut(ControllerShortcutEventArgs shortcut)
     {
+        if (IsStoreModalOpen)
+        {
+            return;
+        }
+
         switch (shortcut.Action)
         {
             case ControllerShortcutAction.ReturnHome:
@@ -407,6 +412,11 @@ public partial class MainWindow : Window
 
     private void OpenOverlay()
     {
+        if (IsStoreModalOpen)
+        {
+            return;
+        }
+
         var active = _runtimeSessions.GetActiveSessions();
         var foreground = _runtimeSessions.GetForegroundSession();
         if (foreground is null && _foregroundLaunchSessionId.HasValue)
@@ -578,6 +588,11 @@ public partial class MainWindow : Window
 
     private void HandleInput(InputAction action, int? controllerIndex)
     {
+        if (_storeInstallBusy)
+        {
+            return;
+        }
+
         if (_overlayWindow.IsOpen)
         {
             _overlayWindow.HandleControllerInput(action);
@@ -709,6 +724,11 @@ public partial class MainWindow : Window
 
     private void BringGrevHomeToFront()
     {
+        if (IsStoreModalOpen)
+        {
+            return;
+        }
+
         CancelShortcutRecording(showMessage: false);
         _overlayWindow.Dismiss();
         _foregroundLaunchSessionId = null;
