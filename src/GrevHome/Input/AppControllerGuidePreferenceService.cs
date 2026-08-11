@@ -8,6 +8,10 @@ public sealed record AppControllerGuidePreference(
     int Version,
     bool ShowOnLaunch);
 
+/// <summary>
+/// Per-GrevID preference for reusable app onboarding/controller guides. The historical class name
+/// is retained because the same storage contract now backs generic package onboarding.
+/// </summary>
 public sealed class AppControllerGuidePreferenceService
 {
     private const int CurrentVersion = 1;
@@ -52,12 +56,26 @@ public sealed class AppControllerGuidePreferenceService
         }
     }
 
-    public void DisableForProfile(string grevId, string appId)
+    public void DisableForProfile(string grevId, string appId) =>
+        WritePreference(grevId, appId, showOnLaunch: false);
+
+    public void ResetForProfile(string grevId, string appId)
+    {
+        var path = _paths.GetProfileAppControllerGuidePreferenceFile(grevId, appId);
+        if (!File.Exists(path))
+        {
+            return;
+        }
+
+        File.Delete(path);
+    }
+
+    private void WritePreference(string grevId, string appId, bool showOnLaunch)
     {
         var path = _paths.GetProfileAppControllerGuidePreferenceFile(grevId, appId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
-        var value = new AppControllerGuidePreference(CurrentVersion, ShowOnLaunch: false);
+        var value = new AppControllerGuidePreference(CurrentVersion, showOnLaunch);
         var temporary = path + ".tmp";
         try
         {
