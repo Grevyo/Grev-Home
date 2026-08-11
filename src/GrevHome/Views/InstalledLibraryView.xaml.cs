@@ -34,7 +34,7 @@ public partial class InstalledLibraryView : UserControl
     public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
     public event Action<Guid>? ForceKillRequested;
-    public event EventHandler? AppKillerRequested;
+    public event Action<InstalledAppEntry>? AppKillerRequested;
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? ActionMenuOpened;
     public event EventHandler? ActionMenuCancelRequested;
@@ -285,12 +285,14 @@ public partial class InstalledLibraryView : UserControl
         AppActionRestartButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
         AppActionCloseButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
         AppActionForceKillButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
-        AppActionAppKillerButton.Visibility = matching.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
+        AppActionAppKillerButton.Visibility = Visibility.Visible;
+        AppActionAppKillerButton.IsEnabled = matching.Length > 0;
         AppActionRunningAppsButton.Visibility = matching.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
 
         if (matching.Length == 0)
         {
-            AppActionStateText.Text = "Not running • Open launches this app through the Grev Home runtime.";
+            AppActionStateText.Text = "Not running • Open launches this app through the Grev Home runtime. App Killer is unavailable until Grev Home is tracking a running session for this app.";
+            AppActionAppKillerButton.Content = "App Killer";
         }
         else if (matching.Length == 1)
         {
@@ -303,11 +305,13 @@ public partial class InstalledLibraryView : UserControl
             AppActionForceKillButton.Content = _pendingForceKillSessionId == session.LaunchSessionId
                 ? "CONFIRM FORCE KILL APP"
                 : "Force Kill App";
+            AppActionAppKillerButton.Content = "App Killer";
         }
         else
         {
             AppActionStateText.Text = $"{matching.Length} managed sessions are running for this app. Use App Killer or Running Apps to choose the exact session.";
             _pendingForceKillSessionId = null;
+            AppActionAppKillerButton.Content = "App Killer";
         }
     }
 
@@ -417,8 +421,13 @@ public partial class InstalledLibraryView : UserControl
         ForceKillRequested?.Invoke(session.LaunchSessionId);
     }
 
-    private void AppActionAppKiller_Click(object sender, RoutedEventArgs e) =>
-        AppKillerRequested?.Invoke(this, EventArgs.Empty);
+    private void AppActionAppKiller_Click(object sender, RoutedEventArgs e)
+    {
+        if (_actionMenuEntry is not null && AppActionAppKillerButton.IsEnabled)
+        {
+            AppKillerRequested?.Invoke(_actionMenuEntry);
+        }
+    }
 
     private void AppActionRunningApps_Click(object sender, RoutedEventArgs e) =>
         RunningAppsRequested?.Invoke(this, EventArgs.Empty);
