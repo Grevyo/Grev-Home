@@ -166,7 +166,12 @@ public partial class ProfilePlayersView : UserControl
         var grid = new Grid();
         if (imageSource is not null)
         {
-            grid.Children.Add(new Image { Source = imageSource, Stretch = System.Windows.Media.Stretch.UniformToFill });
+            grid.Children.Add(new Image
+            {
+                Source = imageSource,
+                Stretch = System.Windows.Media.Stretch.UniformToFill,
+                Clip = new System.Windows.Media.EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+            });
         }
         else
         {
