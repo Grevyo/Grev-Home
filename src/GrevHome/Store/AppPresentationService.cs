@@ -15,17 +15,24 @@ public enum AppVisualAssetSlot
 
 public sealed record AppPresentationOverride(
     string? DisplayName = null,
+    string? TileColor = null,
     string? IconFile = null,
     string? TileMediaFile = null,
     string? HeroMediaFile = null);
 
 public sealed record ResolvedAppPresentation(
     string DisplayName,
+    string TileColor,
     string? IconPath,
     string? TileMediaPath,
     string? HeroMediaPath,
     bool HasUserOverrides);
 
+/// <summary>
+/// Resolves the locked presentation contract: package defaults first, then per-GrevID overrides.
+/// Presentation is independent from installer/runtime state and Reset always reveals the package
+/// defaults again.
+/// </summary>
 public sealed class AppPresentationService
 {
     public const long MaxVisualAssetBytes = 25L * 1024L * 1024L;
@@ -64,6 +71,20 @@ public sealed class AppPresentationService
         }
 
         await WriteOverrideAsync(grevId, appId, current with { DisplayName = normalized }, cancellationToken);
+    }
+
+    public async Task SaveTileColorAsync(
+        string grevId,
+        string appId,
+        string? tileColor,
+        CancellationToken cancellationToken = default)
+    {
+        var current = await ReadOverrideAsync(grevId, appId, cancellationToken);
+        await WriteOverrideAsync(
+            grevId,
+            appId,
+            current with { TileColor = NormalizeTileColor(tileColor) },
+            cancellationToken);
     }
 
     public async Task SaveCustomAssetAsync(
@@ -133,6 +154,7 @@ public sealed class AppPresentationService
         var root = _paths.GetProfileAppPresentationRoot(grevId, package.App.AppId);
         return new ResolvedAppPresentation(
             string.IsNullOrWhiteSpace(overrides.DisplayName) ? package.Presentation.DisplayName : overrides.DisplayName,
+            string.IsNullOrWhiteSpace(overrides.TileColor) ? package.Presentation.TileColor : overrides.TileColor,
             ResolveOverridePath(root, overrides.IconFile) ?? package.Presentation.IconAsset,
             ResolveOverridePath(root, overrides.TileMediaFile) ?? package.Presentation.TileMediaAsset,
             ResolveOverridePath(root, overrides.HeroMediaFile) ?? package.Presentation.HeroMediaAsset,
@@ -209,6 +231,23 @@ public sealed class AppPresentationService
         }
     }
 
+    private static string? NormalizeTileColor(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return null;
+        var normalized = value.Trim();
+        if (normalized.Length is not (7 or 9) || normalized[0] != '#')
+        {
+            throw new InvalidOperationException("Tile colour must be #RRGGBB or #AARRGGBB.");
+        }
+
+        if (!normalized[1..].All(character => Uri.IsHexDigit(character)))
+        {
+            throw new InvalidOperationException("Tile colour contains invalid hexadecimal characters.");
+        }
+
+        return normalized.ToUpperInvariant();
+    }
+
     private static string? ResolveOverridePath(string root, string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return null;
@@ -230,6 +269,7 @@ public sealed class AppPresentationService
 
     private static bool IsEmpty(AppPresentationOverride value) =>
         string.IsNullOrWhiteSpace(value.DisplayName) &&
+        string.IsNullOrWhiteSpace(value.TileColor) &&
         string.IsNullOrWhiteSpace(value.IconFile) &&
         string.IsNullOrWhiteSpace(value.TileMediaFile) &&
         string.IsNullOrWhiteSpace(value.HeroMediaFile);
