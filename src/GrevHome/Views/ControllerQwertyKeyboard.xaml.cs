@@ -23,12 +23,13 @@ public partial class ControllerQwertyKeyboard : UserControl
         BuildKeyboard();
     }
 
-    public void Open(string title, string initialValue, int maxLength)
+    public void Open(string title, string? initialValue, int maxLength)
     {
         _maxLength = Math.Max(1, maxLength);
-        Value = (initialValue ?? string.Empty).Length > _maxLength
-            ? initialValue[.._maxLength]
-            : initialValue ?? string.Empty;
+        var safeInitialValue = initialValue ?? string.Empty;
+        Value = safeInitialValue.Length > _maxLength
+            ? safeInitialValue[.._maxLength]
+            : safeInitialValue;
         _upperCase = true;
         TitleText.Text = title;
         Visibility = Visibility.Visible;
