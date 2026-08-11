@@ -18,6 +18,8 @@ public partial class AppSettingsView : UserControl
     private bool _enabled;
     private bool _canSave;
     private bool _hasUserOverride;
+    private bool _generalSectionExpanded = true;
+    private bool _controllerSectionExpanded;
 
     public event Action<AppControllerProfileDraft>? SaveRequested;
     public event EventHandler? ResetRequested;
@@ -26,6 +28,7 @@ public partial class AppSettingsView : UserControl
     public AppSettingsView()
     {
         InitializeComponent();
+        UpdateSectionPresentation();
     }
 
     public void SetApp(
@@ -69,9 +72,10 @@ public partial class AppSettingsView : UserControl
         ResetButton.IsEnabled = canSave && profile.HasUserOverride;
         ControllerProfileToggleButton.IsEnabled = canSave;
         StatusText.Text = canSave
-            ? "Change any mappings you want, then select Save App Settings. Reset removes only this GrevID's controller override and reveals the app-supplied defaults again."
+            ? "Open the section you want to change. Controller mappings are saved only for this GrevID; Reset removes this GrevID's override and reveals the app-supplied defaults again."
             : "A persistent local Primary GrevID is required to save app-specific settings. Current package defaults are shown read-only.";
 
+        UpdateSectionPresentation();
         UpdateTogglePresentation();
         RenderMappings();
     }
@@ -90,8 +94,9 @@ public partial class AppSettingsView : UserControl
 
             var row = new Border
             {
-                Padding = new Thickness(12, 8, 12, 8),
+                Padding = new Thickness(12, 9, 12, 9),
                 Margin = new Thickness(0, 0, 0, 6),
+                MinHeight = 58,
                 Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
                 BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
                 BorderThickness = new Thickness(1),
@@ -99,10 +104,10 @@ public partial class AppSettingsView : UserControl
             };
 
             var grid = new Grid();
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(218) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(178) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
-            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
 
             grid.Children.Add(new TextBlock
@@ -110,19 +115,20 @@ public partial class AppSettingsView : UserControl
                 Text = AppControllerProfileLayout.FormatControl(control),
                 VerticalAlignment = VerticalAlignment.Center,
                 FontWeight = FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 2, 10, 2)
             });
 
             var mappingText = new TextBlock
             {
                 Text = AppControllerOutputCatalog.Format(output),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 12, 0),
+                Margin = new Thickness(12, 2, 12, 2),
                 Foreground = output.Kind == AppControllerOutputKind.None
                     ? (Brush)FindResource("MutedBrush")
                     : (Brush)FindResource("AccentBrush"),
                 FontWeight = output.Kind == AppControllerOutputKind.None ? FontWeights.Normal : FontWeights.SemiBold,
-                TextTrimming = TextTrimming.CharacterEllipsis
+                TextWrapping = TextWrapping.Wrap
             };
             Grid.SetColumn(mappingText, 1);
             grid.Children.Add(mappingText);
@@ -130,10 +136,11 @@ public partial class AppSettingsView : UserControl
             var previous = new Button
             {
                 Content = "◀",
-                Height = 40,
+                MinHeight = 42,
                 Margin = new Thickness(4, 0, 4, 0),
                 Tag = control,
-                IsEnabled = _canSave
+                IsEnabled = _canSave,
+                VerticalAlignment = VerticalAlignment.Center
             };
             previous.Click += PreviousMapping_Click;
             Grid.SetColumn(previous, 2);
@@ -142,10 +149,11 @@ public partial class AppSettingsView : UserControl
             var next = new Button
             {
                 Content = "▶",
-                Height = 40,
+                MinHeight = 42,
                 Margin = new Thickness(4, 0, 4, 0),
                 Tag = control,
-                IsEnabled = _canSave
+                IsEnabled = _canSave,
+                VerticalAlignment = VerticalAlignment.Center
             };
             next.Click += NextMapping_Click;
             Grid.SetColumn(next, 3);
@@ -154,10 +162,11 @@ public partial class AppSettingsView : UserControl
             var clear = new Button
             {
                 Content = "Clear",
-                Height = 40,
+                MinHeight = 42,
                 Margin = new Thickness(4, 0, 0, 0),
                 Tag = control,
-                IsEnabled = _canSave && output.Kind != AppControllerOutputKind.None
+                IsEnabled = _canSave && output.Kind != AppControllerOutputKind.None,
+                VerticalAlignment = VerticalAlignment.Center
             };
             clear.Click += ClearMapping_Click;
             Grid.SetColumn(clear, 4);
@@ -166,6 +175,30 @@ public partial class AppSettingsView : UserControl
             row.Child = grid;
             MappingsPanel.Children.Add(row);
         }
+    }
+
+    private void GeneralSectionToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _generalSectionExpanded = !_generalSectionExpanded;
+        UpdateSectionPresentation();
+    }
+
+    private void ControllerSectionToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _controllerSectionExpanded = !_controllerSectionExpanded;
+        UpdateSectionPresentation();
+    }
+
+    private void UpdateSectionPresentation()
+    {
+        GeneralSectionPanel.Visibility = _generalSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
+        ControllerSectionPanel.Visibility = _controllerSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
+        GeneralSectionToggleButton.Content = _generalSectionExpanded
+            ? "GENERAL  ▴"
+            : "GENERAL  ▾";
+        ControllerSectionToggleButton.Content = _controllerSectionExpanded
+            ? "CONTROLLER PROFILE  ▴"
+            : "CONTROLLER PROFILE  ▾";
     }
 
     private void ControllerProfileToggle_Click(object sender, RoutedEventArgs e)
