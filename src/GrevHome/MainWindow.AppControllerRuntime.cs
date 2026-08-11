@@ -1,6 +1,7 @@
 using System.Windows;
 using GrevHome.Input;
 using GrevHome.Runtime;
+using GrevHome.Store;
 using GrevHome.Views;
 
 namespace GrevHome;
@@ -51,7 +52,7 @@ public partial class MainWindow
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
             {
-                _installedLibraryView.ShowStatus($"Could not save controller-guide preference: {ex.Message}");
+                _installedLibraryView.ShowStatus($"Could not save app-onboarding preference: {ex.Message}");
             }
         };
 
@@ -122,9 +123,8 @@ public partial class MainWindow
         }
 
         var package = _grevStoreCatalog.Find(snapshot.AppId);
-        return _appProcessWindows.TryActivate(
-            snapshot.ProcessIds,
-            maximize: package?.LaunchMaximized == true);
+        var maximize = package?.EffectiveRuntimePolicy.WindowMode == AppWindowMode.Maximized;
+        return _appProcessWindows.TryActivate(snapshot.ProcessIds, maximize);
     }
 
     private async Task MaybeOpenControllerGuideAsync(Guid launchSessionId)
@@ -143,8 +143,11 @@ public partial class MainWindow
         }
 
         var package = _grevStoreCatalog.Find(snapshot.AppId);
-        if (package is not { ShowControllerGuideOnLaunch: true } ||
-            package.ControllerGuideControls is not { Count: > 0 })
+        var onboarding = package?.Onboarding;
+        if (package is null ||
+            !package.Supports(AppPackageCapability.ControllerGuide) ||
+            onboarding is not { ShowOnFirstLaunch: true } ||
+            onboarding.ControllerGuideControls.Count == 0)
         {
             return;
         }
@@ -168,7 +171,7 @@ public partial class MainWindow
             return;
         }
 
-        var controls = package.ControllerGuideControls
+        var controls = onboarding.ControllerGuideControls
             .Take(12)
             .Select(control =>
             {
@@ -183,8 +186,9 @@ public partial class MainWindow
         _controllerGuideShownSessions.Add(launchSessionId);
         _overlayWindow.OpenControllerGuide(
             snapshot.AppId,
-            snapshot.AppName,
             snapshot.PrimaryGrevId,
+            onboarding.Title,
+            onboarding.Summary,
             FormatSystemShortcut(ControllerShortcutAction.ReturnHome),
             FormatSystemShortcut(ControllerShortcutAction.Overlay),
             controls);
@@ -279,10 +283,17 @@ public partial class MainWindow
                     return;
                 }
 
+                var package = _grevStoreCatalog.Find(snapshot.AppId);
+                var returnBehavior = package?.EffectiveRuntimePolicy.ReturnBehavior
+                                     ?? AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden;
                 var state = _appProcessWindows.GetWindowState(snapshot.ProcessIds);
                 if (state == RuntimeWindowState.Visible)
                 {
                     observedVisibleWindow = true;
+                    hiddenSince = null;
+                }
+                else if (returnBehavior == AppWindowReturnBehavior.KeepShellHidden)
+                {
                     hiddenSince = null;
                 }
                 else if (observedVisibleWindow)
