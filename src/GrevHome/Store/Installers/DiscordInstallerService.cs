@@ -10,9 +10,9 @@ namespace GrevHome.Store.Installers;
 /// <summary>
 /// Discord-specific Windows-user installer workflow. Discord owns its native account/update
 /// data under the signed-in Windows account; Grev Home owns only its Store registration,
-/// runtime launch contract and per-GrevID Grev settings.
+/// runtime launch contract, library membership and per-GrevID Grev settings.
 /// </summary>
-public sealed class DiscordInstallerService
+public sealed class DiscordInstallerService : ITrustedPackageInstaller
 {
     public const string InstallerId = "discord";
 
@@ -29,6 +29,79 @@ public sealed class DiscordInstallerService
         _paths = paths;
         _installedApps = installedApps;
     }
+
+    string ITrustedPackageInstaller.InstallerId => InstallerId;
+
+    public Task<PackageHealthSnapshot> InspectAsync(
+        PackageOperationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        ValidatePackage(context.Package);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (!TryGetInstalledDiscord(out var version))
+        {
+            return Task.FromResult(new PackageHealthSnapshot(
+                PackageHealthState.RepairRecommended,
+                "Discord is registered in Grev Home but its Windows-user installation could not be found."));
+        }
+
+        return Task.FromResult(new PackageHealthSnapshot(
+            PackageHealthState.Healthy,
+            "Discord Update.exe and a current Discord.exe are present for this Windows account.",
+            version));
+    }
+
+    Task ITrustedPackageInstaller.InstallAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken) =>
+        InstallAsync(context.Package, progress, cancellationToken);
+
+    Task ITrustedPackageInstaller.UpdateAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        ValidatePackage(context.Package);
+        throw new InvalidOperationException(
+            "Discord owns its Stable update lifecycle. Grev Home does not replace Discord's native updater with a second update mechanism.");
+    }
+
+    async Task ITrustedPackageInstaller.RepairAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        ValidatePackage(context.Package);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        if (TryGetInstalledDiscord(out var version))
+        {
+            progress?.Report(new PackageInstallProgress(
+                "Repair",
+                "Discord's Windows-user installation is healthy. Refreshing its Grev Home registration…",
+                75));
+            await RegisterAsync(context.Package, version, cancellationToken);
+            progress?.Report(new PackageInstallProgress(
+                "Complete",
+                $"Discord {version} passed its health check and its Grev Home registration was refreshed.",
+                100));
+            return;
+        }
+
+        progress?.Report(new PackageInstallProgress(
+            "Repair",
+            "Discord files are missing. Re-running the trusted Discord installation workflow…",
+            5));
+        await InstallAsync(context.Package, progress, cancellationToken);
+    }
+
+    Task ITrustedPackageInstaller.UninstallAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken) =>
+        UninstallAsync(context.Package, progress, cancellationToken);
 
     public async Task InstallAsync(
         GrevStorePackageDefinition package,
@@ -110,7 +183,7 @@ public sealed class DiscordInstallerService
 
         progress?.Report(new PackageInstallProgress(
             "Complete",
-            "Discord was uninstalled for this Windows account and its Grev Home registration was removed. GrevID controller-profile settings were left intact.",
+            "Discord was uninstalled for this Windows account and its Grev Home registration was removed. GrevID controller-profile and presentation settings were left intact.",
             100));
     }
 
@@ -290,7 +363,7 @@ public sealed class DiscordInstallerService
     private static HttpClient CreateHttpClient()
     {
         var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.11 DiscordInstaller");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.12 DiscordInstaller");
         return client;
     }
 
