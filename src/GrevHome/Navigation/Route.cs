@@ -16,5 +16,6 @@ public enum Route
     RunningApps,
     AppKiller,
     Settings,
+    AdminConsole,
     Files
 }
