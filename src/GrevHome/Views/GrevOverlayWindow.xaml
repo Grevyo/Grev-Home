@@ -11,8 +11,8 @@
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Grid Background="#A6000000">
-        <Border Width="860"
-                MaxHeight="820"
+        <Border Width="980"
+                MaxHeight="900"
                 Padding="34"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
@@ -32,7 +32,8 @@
                            Grid.Row="0"
                            Text="GREV OVERLAY"
                            FontSize="34"
-                           FontWeight="SemiBold" />
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
 
                 <TextBlock x:Name="SubtitleText"
                            Grid.Row="1"
@@ -42,7 +43,8 @@
                            TextWrapping="Wrap" />
 
                 <ScrollViewer Grid.Row="2"
-                              MaxHeight="560"
+                              MaxHeight="650"
+                              HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto">
                     <StackPanel x:Name="ActionPanel" />
                 </ScrollViewer>
@@ -52,7 +54,8 @@
                            Margin="0,24,0,0"
                            Foreground="{StaticResource MutedBrush}"
                            Text="A Select   •   B Back / Resume"
-                           FontSize="13" />
+                           FontSize="13"
+                           TextWrapping="Wrap" />
             </Grid>
         </Border>
     </Grid>
