@@ -10,6 +10,27 @@ public sealed record ProfileSignInRequest(LocalProfile Profile, int? ControllerI
 public partial class LoginView : UserControl
 {
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
+
+    // Compatibility-only event accessors retained while legacy MainWindow subscriptions are removed in a later shell cleanup.
+    // They intentionally keep no backing delegate and therefore cannot fire or produce CS0067 warnings.
+    public event Action<int?>? GuestSignInRequested
+    {
+        add { }
+        remove { }
+    }
+
+    public event Action<Guid>? PrimaryUserRequested
+    {
+        add { }
+        remove { }
+    }
+
+    public event EventHandler? ClearSessionRequested
+    {
+        add { }
+        remove { }
+    }
+
     public event EventHandler? CreateProfileRequested;
     public event EventHandler? EnterHomeRequested;
 
