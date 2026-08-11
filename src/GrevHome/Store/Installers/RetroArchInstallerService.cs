@@ -9,18 +9,14 @@ using GrevHome.Storage;
 
 namespace GrevHome.Store.Installers;
 
-public sealed record PackageInstallProgress(
-    string Stage,
-    string Message,
-    double? Percent = null);
-
 /// <summary>
 /// Trusted, RetroArch-specific package workflow. Grev Home downloads the official portable
 /// archive, verifies the pinned hash, installs only inside the owning GrevID app root, keeps
 /// profile data outside the binary root, and removes only that verified binary install during
-/// uninstall.
+/// uninstall. Update and repair replace only the package-owned binary root and preserve the
+/// GrevID-owned configuration/save roots.
 /// </summary>
-public sealed class RetroArchInstallerService
+public sealed class RetroArchInstallerService : ITrustedPackageInstaller
 {
     public const string InstallerId = "retroarch";
     public const string SupportedVersion = "1.22.2";
@@ -40,6 +36,65 @@ public sealed class RetroArchInstallerService
         _installedApps = installedApps;
     }
 
+    string ITrustedPackageInstaller.InstallerId => InstallerId;
+
+    public Task<PackageHealthSnapshot> InspectAsync(
+        PackageOperationContext context,
+        CancellationToken cancellationToken = default)
+    {
+        var grevId = RequireGrevId(context);
+        ValidatePackage(context.Package, grevId);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var binaryRoot = _paths.GetProfileAppRoot(grevId, context.Package.App.AppId);
+        var executable = Path.Combine(binaryRoot, "retroarch.exe");
+        if (!Directory.Exists(binaryRoot) || !File.Exists(executable))
+        {
+            return Task.FromResult(new PackageHealthSnapshot(
+                PackageHealthState.RepairRecommended,
+                "The RetroArch registration exists but its profile-owned executable is missing.",
+                SupportedVersion));
+        }
+
+        var config = Path.Combine(_paths.GetProfileAppDataRoot(grevId, context.Package.App.AppId), "retroarch.cfg");
+        if (!File.Exists(config))
+        {
+            return Task.FromResult(new PackageHealthSnapshot(
+                PackageHealthState.RepairRecommended,
+                "RetroArch binaries exist but the GrevID-owned configuration is missing. Repair can recreate the profile defaults without deleting saves.",
+                SupportedVersion));
+        }
+
+        return Task.FromResult(new PackageHealthSnapshot(
+            PackageHealthState.Healthy,
+            "RetroArch binaries and the GrevID-owned configuration are present.",
+            SupportedVersion));
+    }
+
+    Task ITrustedPackageInstaller.InstallAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken) =>
+        InstallAsync(context.Package, RequireGrevId(context), progress, cancellationToken);
+
+    Task ITrustedPackageInstaller.UpdateAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken) =>
+        ReplaceBinaryPackageAsync(context.Package, RequireGrevId(context), "Update", progress, cancellationToken);
+
+    Task ITrustedPackageInstaller.RepairAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken) =>
+        ReplaceBinaryPackageAsync(context.Package, RequireGrevId(context), "Repair", progress, cancellationToken);
+
+    Task ITrustedPackageInstaller.UninstallAsync(
+        PackageOperationContext context,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken) =>
+        UninstallAsync(context.Package, RequireGrevId(context), progress, cancellationToken);
+
     public async Task InstallAsync(
         GrevStorePackageDefinition package,
         string grevId,
@@ -56,38 +111,15 @@ public sealed class RetroArchInstallerService
                 "The RetroArch app folder already contains files. Grev Home will not overwrite an unverified existing folder during a fresh install.");
         }
 
-        var stagingRoot = Path.Combine(
-            Path.GetTempPath(),
-            "GrevHome",
-            "Installers",
-            "retroarch",
-            Guid.NewGuid().ToString("N"));
+        var stagingRoot = CreateStagingRoot();
         var archivePath = Path.Combine(stagingRoot, "RetroArch.7z");
         var extractRoot = Path.Combine(stagingRoot, "extract");
-
         Directory.CreateDirectory(stagingRoot);
         Directory.CreateDirectory(extractRoot);
 
         try
         {
-            progress?.Report(new PackageInstallProgress("Download", $"Downloading RetroArch {SupportedVersion}...", 0));
-            await DownloadArchiveAsync(archivePath, progress, cancellationToken);
-
-            progress?.Report(new PackageInstallProgress("Verify", "Verifying pinned SHA-256...", 72));
-            await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
-
-            progress?.Report(new PackageInstallProgress("Extract", "Checking archive paths...", 76));
-            await ValidateArchiveEntriesAsync(archivePath, cancellationToken);
-
-            progress?.Report(new PackageInstallProgress("Extract", "Extracting RetroArch without opening a setup window...", 80));
-            await ExtractArchiveAsync(archivePath, extractRoot, cancellationToken);
-
-            var extractedRoot = FindExtractedRetroArchRoot(extractRoot);
-            var executable = Path.Combine(extractedRoot, "retroarch.exe");
-            if (!File.Exists(executable))
-            {
-                throw new InvalidDataException("The verified RetroArch archive did not contain retroarch.exe in the expected package layout.");
-            }
+            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Install", "Moving verified files into this profile...", 90));
             MoveExtractedPackage(extractedRoot, targetRoot);
@@ -161,6 +193,116 @@ public sealed class RetroArchInstallerService
             "Complete",
             "RetroArch binaries were removed. Profile configuration, saves, states, screenshots, remaps and playlists were preserved.",
             100));
+    }
+
+    private async Task ReplaceBinaryPackageAsync(
+        GrevStorePackageDefinition package,
+        string grevId,
+        string operation,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        ValidatePackage(package, grevId);
+        _paths.EnsureProfileLayout(grevId);
+
+        var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
+        var backupRoot = targetRoot + $".grev-backup-{Guid.NewGuid():N}";
+        var stagingRoot = CreateStagingRoot();
+        var archivePath = Path.Combine(stagingRoot, "RetroArch.7z");
+        var extractRoot = Path.Combine(stagingRoot, "extract");
+        Directory.CreateDirectory(stagingRoot);
+        Directory.CreateDirectory(extractRoot);
+
+        var oldRootMoved = false;
+        try
+        {
+            progress?.Report(new PackageInstallProgress(operation, "Preserving GrevID-owned configuration and saves before replacing binaries…", 2));
+            PreserveLegacyBinaryConfig(targetRoot, grevId);
+
+            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+
+            progress?.Report(new PackageInstallProgress(operation, "Swapping the verified RetroArch binary package…", 90));
+            if (Directory.Exists(targetRoot))
+            {
+                Directory.Move(targetRoot, backupRoot);
+                oldRootMoved = true;
+            }
+
+            Directory.Move(extractedRoot, targetRoot);
+            ConfigureProfile(grevId);
+
+            await _installedApps.RegisterInstalledAsync(
+                package.App,
+                SupportedVersion,
+                grevId,
+                cancellationToken);
+
+            TryDeleteDirectory(backupRoot);
+            oldRootMoved = false;
+            progress?.Report(new PackageInstallProgress(
+                "Complete",
+                $"RetroArch {SupportedVersion} {operation.ToLowerInvariant()} completed. Profile configuration, saves and states were preserved.",
+                100));
+        }
+        catch
+        {
+            // A replacement is transactional at the package-owned binary-root level. If the new
+            // verified package cannot be committed, restore the old binaries when possible.
+            TryDeleteDirectory(targetRoot);
+            if (oldRootMoved && Directory.Exists(backupRoot) && !Directory.Exists(targetRoot))
+            {
+                Directory.Move(backupRoot, targetRoot);
+                oldRootMoved = false;
+            }
+            throw;
+        }
+        finally
+        {
+            TryDeleteDirectory(stagingRoot);
+            if (!oldRootMoved)
+            {
+                TryDeleteDirectory(backupRoot);
+            }
+        }
+    }
+
+    private async Task<string> PrepareVerifiedPackageAsync(
+        string archivePath,
+        string extractRoot,
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        progress?.Report(new PackageInstallProgress("Download", $"Downloading RetroArch {SupportedVersion}...", 0));
+        await DownloadArchiveAsync(archivePath, progress, cancellationToken);
+
+        progress?.Report(new PackageInstallProgress("Verify", "Verifying pinned SHA-256...", 72));
+        await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
+
+        progress?.Report(new PackageInstallProgress("Extract", "Checking archive paths...", 76));
+        await ValidateArchiveEntriesAsync(archivePath, cancellationToken);
+
+        progress?.Report(new PackageInstallProgress("Extract", "Extracting RetroArch without opening a setup window...", 80));
+        await ExtractArchiveAsync(archivePath, extractRoot, cancellationToken);
+
+        var extractedRoot = FindExtractedRetroArchRoot(extractRoot);
+        var executable = Path.Combine(extractedRoot, "retroarch.exe");
+        if (!File.Exists(executable))
+        {
+            throw new InvalidDataException("The verified RetroArch archive did not contain retroarch.exe in the expected package layout.");
+        }
+
+        return extractedRoot;
+    }
+
+    private static string RequireGrevId(PackageOperationContext context)
+    {
+        if (string.IsNullOrWhiteSpace(context.GrevId))
+        {
+            throw new InvalidOperationException("A persistent Primary GrevID is required to manage this Profile App.");
+        }
+
+        return context.GrevId;
     }
 
     private static void ValidatePackage(GrevStorePackageDefinition package, string grevId)
@@ -246,6 +388,13 @@ public sealed class RetroArchInstallerService
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
             Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
             StringComparison.OrdinalIgnoreCase);
+
+    private static string CreateStagingRoot() => Path.Combine(
+        Path.GetTempPath(),
+        "GrevHome",
+        "Installers",
+        "retroarch",
+        Guid.NewGuid().ToString("N"));
 
     private static async Task DownloadArchiveAsync(
         string destination,
@@ -443,7 +592,7 @@ public sealed class RetroArchInstallerService
         {
             Timeout = TimeSpan.FromMinutes(30)
         };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.11");
+        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.12");
         return client;
     }
 
