@@ -37,9 +37,7 @@ public sealed record GrevStorePackageDefinition(
     IReadOnlyList<string>? GrevHomeIntegrations = null)
 {
     public bool IsProfileInstall => App.InstallStrategy == InstallStrategy.GrevIdPortable;
-
-    public AppRuntimePolicy EffectiveRuntimePolicy => RuntimePolicy ?? new AppRuntimePolicy(
-        ReuseExistingSession: App.Launch.SingleInstance);
+    public AppRuntimePolicy EffectiveRuntimePolicy => RuntimePolicy ?? new AppRuntimePolicy();
 }
 
 public sealed class GrevStoreCatalogService
@@ -78,8 +76,7 @@ public sealed class GrevStoreCatalogService
             ControllerProfile: AppControllerProfileDefaults.Empty,
             RuntimePolicy: new AppRuntimePolicy(
                 AppWindowMode.Normal,
-                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden,
-                ReuseExistingSession: false),
+                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden),
             VersionPolicy: new AppVersionPolicy(
                 CurrentVersion: RetroArchInstallerService.SupportedVersion,
                 NativeAutoUpdate: false),
@@ -137,8 +134,7 @@ public sealed class GrevStoreCatalogService
                     new(AppControllerControl.LeftThumb, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
             RuntimePolicy: new AppRuntimePolicy(
                 AppWindowMode.Maximized,
-                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden,
-                ReuseExistingSession: true),
+                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden),
             VersionPolicy: new AppVersionPolicy(
                 CurrentVersion: null,
                 NativeAutoUpdate: true),
