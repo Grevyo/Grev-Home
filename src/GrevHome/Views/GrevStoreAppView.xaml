@@ -20,12 +20,8 @@
                     </Grid.ColumnDefinitions>
 
                     <Border x:Name="AppArtworkHost"
-                            Width="112"
-                            Height="112"
                             Margin="0,0,24,0"
-                            CornerRadius="20"
-                            Background="#1F283A"
-                            ClipToBounds="True" />
+                            Background="Transparent" />
 
                     <StackPanel Grid.Column="1" VerticalAlignment="Center">
                         <TextBlock x:Name="AppNameText" Text="App" FontSize="38" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
