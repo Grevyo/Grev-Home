@@ -6,6 +6,13 @@ namespace GrevHome.Runtime;
 
 public sealed record RuntimeWindow(nint Handle, int ProcessId, string Title);
 
+public enum RuntimeWindowState
+{
+    HiddenOrUnavailable,
+    Visible,
+    Minimized
+}
+
 public sealed class ProcessWindowService
 {
     private const uint WmClose = 0x0010;
@@ -14,41 +21,31 @@ public sealed class ProcessWindowService
     private const uint GwOwner = 4;
     private static readonly TimeSpan ProcessIdentityTolerance = TimeSpan.FromSeconds(1);
 
-    public IReadOnlyList<RuntimeWindow> GetTopLevelWindows(IEnumerable<int> processIds)
+    public IReadOnlyList<RuntimeWindow> GetTopLevelWindows(IEnumerable<int> processIds) =>
+        EnumerateTopLevelWindows(processIds, includeHidden: false)
+            .Select(window => new RuntimeWindow(window.Handle, window.ProcessId, window.Title))
+            .ToArray();
+
+    public RuntimeWindowState GetWindowState(IEnumerable<int> processIds)
     {
-        var allowed = processIds.Where(id => id > 0).ToHashSet();
-        if (allowed.Count == 0)
+        var windows = EnumerateTopLevelWindows(processIds, includeHidden: false);
+        if (windows.Count == 0)
         {
-            return Array.Empty<RuntimeWindow>();
+            return RuntimeWindowState.HiddenOrUnavailable;
         }
 
-        var windows = new List<RuntimeWindow>();
-        EnumWindows((handle, parameter) =>
-        {
-            if (!IsWindowVisible(handle) || GetWindow(handle, GwOwner) != nint.Zero)
-            {
-                return true;
-            }
-
-            _ = GetWindowThreadProcessId(handle, out var processId);
-            if (!allowed.Contains((int)processId))
-            {
-                return true;
-            }
-
-            windows.Add(new RuntimeWindow(handle, (int)processId, GetWindowTitle(handle)));
-            return true;
-        }, nint.Zero);
-
-        return windows
-            .OrderByDescending(window => !string.IsNullOrWhiteSpace(window.Title))
-            .ThenBy(window => window.ProcessId)
-            .ToArray();
+        return windows.Any(window => !window.IsMinimized)
+            ? RuntimeWindowState.Visible
+            : RuntimeWindowState.Minimized;
     }
 
     public bool TryActivate(IEnumerable<int> processIds, bool maximize = false)
     {
-        var window = GetTopLevelWindows(processIds).FirstOrDefault();
+        var window = EnumerateTopLevelWindows(processIds, includeHidden: true)
+            .OrderByDescending(candidate => candidate.IsVisible)
+            .ThenByDescending(candidate => !string.IsNullOrWhiteSpace(candidate.Title))
+            .ThenBy(candidate => candidate.ProcessId)
+            .FirstOrDefault();
         if (window is null)
         {
             return false;
@@ -58,13 +55,21 @@ public sealed class ProcessWindowService
         {
             _ = ShowWindow(window.Handle, SwMaximize);
         }
-        else if (IsIconic(window.Handle))
+        else if (!window.IsVisible || window.IsMinimized)
         {
+            // Discord and similar tray apps usually retain a hidden top-level window after
+            // the title-bar X is pressed. Restoring that existing window is preferable to
+            // starting another app process/session.
             _ = ShowWindow(window.Handle, SwRestore);
         }
 
         _ = BringWindowToTop(window.Handle);
-        return SetForegroundWindow(window.Handle);
+        var foregrounded = SetForegroundWindow(window.Handle);
+
+        // Windows may deny SetForegroundWindow while still successfully restoring/showing the
+        // requested window. Returning true once it is visible lets Grev Home hide itself; the
+        // shell's activation retry can then finish foregrounding it without launching a duplicate.
+        return foregrounded || IsWindowVisible(window.Handle);
     }
 
     public bool RequestGracefulClose(IEnumerable<RuntimeProcessIdentity> processIdentities)
@@ -188,6 +193,43 @@ public sealed class ProcessWindowService
         return processId == 0 ? null : (int)processId;
     }
 
+    private static IReadOnlyList<RuntimeWindowCandidate> EnumerateTopLevelWindows(
+        IEnumerable<int> processIds,
+        bool includeHidden)
+    {
+        var allowed = processIds.Where(id => id > 0).ToHashSet();
+        if (allowed.Count == 0)
+        {
+            return Array.Empty<RuntimeWindowCandidate>();
+        }
+
+        var windows = new List<RuntimeWindowCandidate>();
+        EnumWindows((handle, parameter) =>
+        {
+            var visible = IsWindowVisible(handle);
+            if ((!includeHidden && !visible) || GetWindow(handle, GwOwner) != nint.Zero)
+            {
+                return true;
+            }
+
+            _ = GetWindowThreadProcessId(handle, out var processId);
+            if (!allowed.Contains((int)processId))
+            {
+                return true;
+            }
+
+            windows.Add(new RuntimeWindowCandidate(
+                handle,
+                (int)processId,
+                GetWindowTitle(handle),
+                visible,
+                IsIconic(handle)));
+            return true;
+        }, nint.Zero);
+
+        return windows;
+    }
+
     private static IReadOnlyList<RuntimeProcessIdentity> ResolveSessionIdentities(
         IEnumerable<int> processIds,
         DateTimeOffset sessionStartedAtUtc)
@@ -284,6 +326,13 @@ public sealed class ProcessWindowService
         _ = GetWindowText(handle, builder, builder.Capacity);
         return builder.ToString();
     }
+
+    private sealed record RuntimeWindowCandidate(
+        nint Handle,
+        int ProcessId,
+        string Title,
+        bool IsVisible,
+        bool IsMinimized);
 
     private delegate bool EnumWindowsProc(nint handle, nint parameter);
 
