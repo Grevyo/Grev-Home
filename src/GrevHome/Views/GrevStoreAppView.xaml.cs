@@ -28,12 +28,12 @@ public partial class GrevStoreAppView : UserControl
         GrevStorePackageDefinition package,
         SessionUser? primaryUser,
         InstalledAppEntry? installedEntry,
-        string installLocation)
+        string installLocation,
+        bool isInCurrentUserLibrary = true)
     {
         _package = package;
         _installedEntry = installedEntry;
         _uninstallArmed = false;
-        UninstallButton.Content = "Uninstall";
 
         AppArtworkHost.Width = DefaultThemeMetrics.AppTileWidth;
         AppArtworkHost.Height = DefaultThemeMetrics.AppTileHeight;
@@ -65,14 +65,14 @@ public partial class GrevStoreAppView : UserControl
             ? hasPersistentPrimary
                 ? $"Installs only for {primaryUser!.DisplayName} • {primaryUser.GrevId}"
                 : "Requires a persistent local Primary User"
-            : "One machine-wide installation available to eligible profiles";
+            : "One machine installation • each GrevID chooses whether it appears in their library";
 
         DescriptionText.Text = package.StoreDescription ?? package.App.Description ?? "No Store description is available yet.";
         OwnershipDetailText.Text = package.IsProfileInstall
             ? hasPersistentPrimary
                 ? $"This package is owned by the current Primary GrevID. Installing it for {primaryUser!.DisplayName} does not install it for any other profile. Its app files and profile data remain isolated from other GrevIDs."
                 : "This package is profile-owned. Select a persistent local profile as Primary before downloading it."
-            : "This package installs once for the machine. Per-user data behavior is still controlled separately by the package's App Data strategy.";
+            : "This package is installed once for the Windows machine. Removing it from a normal GrevID only removes it from that user's Grev Home library. A real machine-wide uninstall is restricted to the Admin Console.";
         InstallPathText.Text = $"Install location: {installLocation}";
 
         IntegrationsPanel.Children.Clear();
@@ -106,15 +106,31 @@ public partial class GrevStoreAppView : UserControl
             });
         }
 
-        var installed = installedEntry is not null;
-        DownloadButton.Visibility = installed ? Visibility.Collapsed : Visibility.Visible;
-        OpenButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
-        SettingsButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
-        UninstallButton.Visibility = installed ? Visibility.Visible : Visibility.Collapsed;
-        DownloadButton.IsEnabled = !package.IsProfileInstall || hasPersistentPrimary;
-        OpenButton.IsEnabled = installedEntry?.AvailableToCurrentUser == true;
-        SettingsButton.IsEnabled = installedEntry?.AvailableToCurrentUser == true;
-        UninstallButton.IsEnabled = installed;
+        var machineInstalled = installedEntry is not null;
+        var availableInLibrary = package.IsProfileInstall
+            ? machineInstalled
+            : machineInstalled && isInCurrentUserLibrary;
+        var canRemoveFromLibrary = !package.IsProfileInstall && machineInstalled && hasPersistentPrimary && isInCurrentUserLibrary;
+
+        DownloadButton.Content = !package.IsProfileInstall && machineInstalled && !isInCurrentUserLibrary
+            ? "Add to Library"
+            : "Download";
+        UninstallButton.Content = package.IsProfileInstall ? "Uninstall" : "Remove from Library";
+
+        DownloadButton.Visibility = !machineInstalled || (!package.IsProfileInstall && !isInCurrentUserLibrary)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        OpenButton.Visibility = availableInLibrary ? Visibility.Visible : Visibility.Collapsed;
+        SettingsButton.Visibility = availableInLibrary ? Visibility.Visible : Visibility.Collapsed;
+        UninstallButton.Visibility = package.IsProfileInstall
+            ? machineInstalled ? Visibility.Visible : Visibility.Collapsed
+            : canRemoveFromLibrary ? Visibility.Visible : Visibility.Collapsed;
+
+        DownloadButton.IsEnabled = (!package.IsProfileInstall || hasPersistentPrimary) &&
+                                   (!machineInstalled || !package.IsProfileInstall);
+        OpenButton.IsEnabled = availableInLibrary && installedEntry?.AvailableToCurrentUser == true;
+        SettingsButton.IsEnabled = availableInLibrary && installedEntry?.AvailableToCurrentUser == true;
+        UninstallButton.IsEnabled = package.IsProfileInstall ? machineInstalled : canRemoveFromLibrary;
 
         if (installedEntry is null)
         {
@@ -123,21 +139,32 @@ public partial class GrevStoreAppView : UserControl
                 : "Not installed";
             InstallationMetadataText.Text = package.IsProfileInstall
                 ? "Download will create a separate installation for the current Primary GrevID."
-                : "Download will create the package's machine-wide installation.";
+                : "Download will create the package's machine-wide installation and add it to this user's library.";
             StatusText.Text = DownloadButton.IsEnabled
                 ? "Ready to download."
                 : "Choose a persistent local Primary User before downloading this Profile App.";
+            return;
         }
-        else
+
+        var manifest = installedEntry.Manifest;
+        if (!package.IsProfileInstall && !isInCurrentUserLibrary)
         {
-            var manifest = installedEntry.Manifest;
-            InstallationStateText.Text = $"Installed • v{manifest.Version}";
-            InstallationMetadataText.Text = $"Installed {manifest.InstalledAtUtc.ToLocalTime():g}" +
-                                               (string.IsNullOrWhiteSpace(manifest.OwnerGrevId) ? string.Empty : $"  •  Owner {manifest.OwnerGrevId}");
-            StatusText.Text = installedEntry.AvailableToCurrentUser
-                ? "Open launches through Grev Home. App Settings contains the standardized per-app controller profile for this GrevID."
-                : installedEntry.AvailabilityMessage ?? "This installation is not available to the current user.";
+            InstallationStateText.Text = $"Installed on machine • v{manifest.Version} • not in your library";
+            InstallationMetadataText.Text = $"Machine installation registered {manifest.InstalledAtUtc.ToLocalTime():g}.";
+            StatusText.Text = hasPersistentPrimary
+                ? "Add to Library makes this existing machine installation available to the current GrevID without downloading it again."
+                : "A persistent local Primary User is required to save library membership.";
+            return;
         }
+
+        InstallationStateText.Text = $"Installed • v{manifest.Version}";
+        InstallationMetadataText.Text = $"Installed {manifest.InstalledAtUtc.ToLocalTime():g}" +
+                                           (string.IsNullOrWhiteSpace(manifest.OwnerGrevId) ? string.Empty : $"  •  Owner {manifest.OwnerGrevId}");
+        StatusText.Text = installedEntry.AvailableToCurrentUser
+            ? package.IsProfileInstall
+                ? "Open launches through Grev Home. App Settings contains the standardized per-app controller profile for this GrevID."
+                : "Open launches through Grev Home. Remove from Library affects only this GrevID; machine uninstall is Admin Console only."
+            : installedEntry.AvailabilityMessage ?? "This installation is not available to the current user.";
     }
 
     public void SetBusy(string action, string message, double? progressPercent = null)
@@ -175,13 +202,21 @@ public partial class GrevStoreAppView : UserControl
         if (!_uninstallArmed)
         {
             _uninstallArmed = true;
-            UninstallButton.Content = "Confirm Uninstall";
-            StatusText.Text = "Press Confirm Uninstall again to continue to the final data-loss warning. Nothing has been removed yet.";
+            if (_package.IsProfileInstall)
+            {
+                UninstallButton.Content = "Confirm Uninstall";
+                StatusText.Text = "Press Confirm Uninstall again to continue to the final data-loss warning. Nothing has been removed yet.";
+            }
+            else
+            {
+                UninstallButton.Content = "Confirm Remove from Library";
+                StatusText.Text = "Press again to remove this Global App from the current GrevID's library. The app will remain installed on the machine.";
+            }
             return;
         }
 
         _uninstallArmed = false;
-        UninstallButton.Content = "Uninstall";
+        UninstallButton.Content = _package.IsProfileInstall ? "Uninstall" : "Remove from Library";
         UninstallRequested?.Invoke(_package);
     }
 
