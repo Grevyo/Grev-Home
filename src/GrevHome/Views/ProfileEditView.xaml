@@ -9,7 +9,12 @@
                 <TextBlock Text="Edit Profile" FontSize="40" FontWeight="SemiBold" />
                 <TextBlock x:Name="IdentityText" Margin="0,6,0,22" FontSize="15" Foreground="{StaticResource MutedBrush}" />
 
-                <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="24">
+                <Border x:Name="ProfileEditCard"
+                        Background="#11151E"
+                        BorderBrush="{StaticResource GuestRoleBrush}"
+                        BorderThickness="2"
+                        CornerRadius="16"
+                        Padding="24">
                     <StackPanel>
                         <TextBlock Text="PROFILE PICTURE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
                         <Grid Margin="0,10,0,10">
@@ -17,9 +22,21 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Border Width="96" Height="96" CornerRadius="48" Background="#1F283A" Margin="0,0,18,0" ClipToBounds="True">
+                            <Border x:Name="AvatarPreviewBorder"
+                                    Width="96"
+                                    Height="96"
+                                    CornerRadius="48"
+                                    Background="#1F283A"
+                                    BorderBrush="{StaticResource GuestRoleBrush}"
+                                    BorderThickness="2"
+                                    Margin="0,0,18,0"
+                                    ClipToBounds="True">
                                 <Grid>
-                                    <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                                    <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed">
+                                        <Image.Clip>
+                                            <EllipseGeometry Center="48,48" RadiusX="48" RadiusY="48" />
+                                        </Image.Clip>
+                                    </Image>
                                     <TextBlock x:Name="AvatarPreviewText" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                 </Grid>
                             </Border>
@@ -77,16 +94,21 @@
                         </Grid>
 
                         <StackPanel x:Name="RolePanel">
-                            <TextBlock Text="ACCOUNT ROLE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                            <TextBlock Text="ACCOUNT ROLE &amp; PROFILE BORDER" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
                             <TextBlock x:Name="RoleDescriptionText" Margin="0,6,0,8" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                             <WrapPanel>
-                                <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" Click="Role_Click" />
-                                <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" Click="Role_Click" />
-                                <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" Click="Role_Click" />
+                                <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource AdminRoleBrush}" Click="Role_Click" />
+                                <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource StandardRoleBrush}" Click="Role_Click" />
+                                <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource GuestRoleBrush}" Click="Role_Click" />
                             </WrapPanel>
+                            <TextBlock Text="Admin profiles use a gold glow, Standard profiles use a red border, and Guest profiles use a fixed grey border."
+                                       Margin="3,8,0,0"
+                                       FontSize="12"
+                                       Foreground="{StaticResource MutedBrush}"
+                                       TextWrapping="Wrap" />
                         </StackPanel>
 
-                        <TextBlock x:Name="RoleLockedText" Visibility="Collapsed" Margin="0,0,0,6" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="RoleLockedText" Visibility="Collapsed" Margin="3,8,0,6" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
 
                         <Button Content="Save Profile" Width="190" Height="56" Margin="0,26,0,0" HorizontalAlignment="Left" Click="Save_Click" />
                         <TextBlock x:Name="StatusText" Margin="0,12,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
