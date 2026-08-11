@@ -16,10 +16,13 @@ public partial class MainWindow
     private readonly GrevStoreView _grevStoreView = new();
     private readonly GrevStoreAppView _grevStoreAppView = new();
     private readonly GrevStoreCatalogService _grevStoreCatalog = new();
+    private readonly Dictionary<string, AppLifecycleState> _storeOperationStates = new(StringComparer.OrdinalIgnoreCase);
     private GrevStorePackageDefinition? _selectedStorePackage;
     private GrevStorePackageDefinition? _storeUninstallWarningPackage;
     private RetroArchInstallerService? _retroArchInstaller;
     private DiscordInstallerService? _discordInstaller;
+    private TrustedPackageInstallerRegistry? _packageInstallers;
+    private AppLifecycleService? _appLifecycle;
     private StoreRouteTransition _storeRouteTransition;
     private bool _grevStoreIntegrationReady;
     private bool _storeInstallBusy;
@@ -34,9 +37,18 @@ public partial class MainWindow
 
         _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
+        _packageInstallers = new TrustedPackageInstallerRegistry(
+        [
+            _retroArchInstaller,
+            _discordInstaller
+        ]);
+        _appLifecycle = new AppLifecycleService(_installedApps, _packageInstallers, _runtimeSessions);
+
         _dashboardView.StoreRequested += (_, _) => OpenGrevStore();
         _grevStoreView.PackageRequested += OpenStorePackage;
         _grevStoreAppView.DownloadRequested += package => _ = BeginStoreDownloadAsync(package);
+        _grevStoreAppView.UpdateRequested += package => _ = BeginStoreUpdateAsync(package);
+        _grevStoreAppView.RepairRequested += package => _ = BeginStoreRepairAsync(package);
         _grevStoreAppView.OpenRequested += entry => _ = LaunchInstalledAppAsync(entry);
         _grevStoreAppView.UninstallRequested += package =>
         {
@@ -57,6 +69,20 @@ public partial class MainWindow
                 Dispatcher.BeginInvoke(new Action(RefreshGrevStore));
             }
             else if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy && _storeUninstallWarningPackage is null)
+            {
+                Dispatcher.BeginInvoke(new Action(() => _ = RefreshSelectedStorePackageAsync()));
+            }
+        };
+        _runtimeSessions.SessionChanged += _ =>
+        {
+            if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy)
+            {
+                Dispatcher.BeginInvoke(new Action(() => _ = RefreshSelectedStorePackageAsync()));
+            }
+        };
+        _runtimeSessions.SessionEnded += _ =>
+        {
+            if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy)
             {
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshSelectedStorePackageAsync()));
             }
@@ -127,37 +153,36 @@ public partial class MainWindow
     private async Task RefreshSelectedStorePackageAsync()
     {
         var package = _selectedStorePackage;
-        if (package is null || _navigation.Current != Route.GrevStoreApp || _storeInstallBusy || _storeUninstallWarningPackage is not null) return;
+        var lifecycleService = _appLifecycle;
+        if (package is null || lifecycleService is null ||
+            _navigation.Current != Route.GrevStoreApp ||
+            _storeUninstallWarningPackage is not null)
+        {
+            return;
+        }
 
         var primary = _session.PrimaryUser;
         var grevId = primary?.GrevId;
-        InstalledAppEntry? installedEntry = null;
-        var isInCurrentUserLibrary = true;
+        _storeOperationStates.TryGetValue(package.App.AppId, out var operationState);
+        var operation = _storeOperationStates.ContainsKey(package.App.AppId)
+            ? operationState
+            : (AppLifecycleState?)null;
 
+        AppLifecycleSnapshot lifecycle;
         try
         {
-            if (package.IsProfileInstall)
-            {
-                var entries = await _installedApps.GetInstalledForUserAsync(grevId);
-                installedEntry = entries.FirstOrDefault(entry =>
-                    string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase) &&
-                    !string.IsNullOrWhiteSpace(grevId) &&
-                    string.Equals(entry.Manifest.OwnerGrevId, grevId, StringComparison.OrdinalIgnoreCase));
-            }
-            else
-            {
-                var machineEntries = await _installedApps.GetMachineInstalledAsync();
-                installedEntry = machineEntries.FirstOrDefault(entry =>
-                    string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase));
-                isInCurrentUserLibrary = await _installedApps.IsGlobalAppInUserLibraryAsync(grevId, package.App.AppId);
-            }
+            lifecycle = await lifecycleService.ResolveAsync(package, grevId, operation);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
             _grevStoreAppView.ShowStatus($"Installed-state check failed: {ex.Message}");
+            return;
         }
 
-        if (_navigation.Current != Route.GrevStoreApp || _selectedStorePackage != package || _storeInstallBusy || _storeUninstallWarningPackage is not null) return;
+        if (_navigation.Current != Route.GrevStoreApp || _selectedStorePackage != package || _storeUninstallWarningPackage is not null)
+        {
+            return;
+        }
 
         var installLocation = package.App.InstallStrategy switch
         {
@@ -170,17 +195,17 @@ public partial class MainWindow
             _ => _paths.GetGlobalAppRoot(package.App.AppId)
         };
 
-        _grevStoreAppView.SetPackage(
-            package,
-            primary,
-            installedEntry,
-            installLocation,
-            isInCurrentUserLibrary);
+        _grevStoreAppView.SetPackage(package, primary, lifecycle, installLocation);
     }
 
     private async Task BeginStoreDownloadAsync(GrevStorePackageDefinition package)
     {
         if (_storeInstallBusy || IsStoreModalOpen) return;
+        if (!package.Supports(AppPackageCapability.Install))
+        {
+            _grevStoreAppView.ShowStatus("This package does not declare a trusted install capability.");
+            return;
+        }
 
         var grevId = _session.PrimaryUser?.GrevId;
         if (package.IsProfileInstall && string.IsNullOrWhiteSpace(grevId))
@@ -189,84 +214,202 @@ public partial class MainWindow
             return;
         }
 
-        if (!package.IsProfileInstall)
+        var lifecycle = await ResolveLifecycleForOperationAsync(package, grevId);
+        if (lifecycle is null) return;
+
+        if (!package.IsProfileInstall && lifecycle.IsInstalled && !lifecycle.IsInCurrentUserLibrary)
         {
+            if (!package.Supports(AppPackageCapability.LibraryMembership) || string.IsNullOrWhiteSpace(grevId))
+            {
+                _grevStoreAppView.ShowStatus("A persistent local Primary User is required to save Global App library membership.");
+                return;
+            }
+
             try
             {
-                var existing = (await _installedApps.GetMachineInstalledAsync()).FirstOrDefault(entry =>
-                    string.Equals(entry.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase));
-                if (existing is not null)
-                {
-                    if (string.IsNullOrWhiteSpace(grevId))
-                    {
-                        _grevStoreAppView.ShowStatus("This Global App is already installed on the machine. Choose a persistent local Primary User to save library membership.");
-                        return;
-                    }
-
-                    await _installedApps.RestoreGlobalAppToUserLibraryAsync(grevId, package.App.AppId);
-                    await RefreshSelectedStorePackageAsync();
-                    _grevStoreAppView.ShowStatus($"{package.Presentation.DisplayName} was added back to this GrevID's library. No download was needed.");
-                    return;
-                }
+                await _installedApps.RestoreGlobalAppToUserLibraryAsync(grevId, package.App.AppId);
+                await RefreshSelectedStorePackageAsync();
+                _grevStoreAppView.ShowStatus($"{package.Presentation.DisplayName} was added back to this GrevID's library. No download was needed.");
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
             {
                 _grevStoreAppView.ShowStatus($"Library update failed: {ex.Message}");
-                return;
             }
+            return;
+        }
+
+        if (lifecycle.IsInstalled)
+        {
+            _grevStoreAppView.ShowStatus("This package is already installed for the relevant scope.");
+            return;
+        }
+
+        var completed = await RunStoreOperationAsync(
+            package,
+            AppLifecycleState.Installing,
+            "Installing",
+            "Preparing trusted installer…",
+            (installer, context, progress) => installer.InstallAsync(context, progress));
+
+        if (completed && !package.IsProfileInstall && !string.IsNullOrWhiteSpace(grevId))
+        {
+            await _installedApps.RestoreGlobalAppToUserLibraryAsync(grevId, package.App.AppId);
+        }
+
+        await RefreshAfterStoreOperationAsync(package,
+            completed ? $"{package.Presentation.DisplayName} is installed and available in this library." : null);
+    }
+
+    private async Task BeginStoreUpdateAsync(GrevStorePackageDefinition package)
+    {
+        if (_storeInstallBusy || IsStoreModalOpen) return;
+        if (!package.Supports(AppPackageCapability.Update))
+        {
+            _grevStoreAppView.ShowStatus("This package does not declare a Grev Home update operation.");
+            return;
+        }
+
+        var grevId = _session.PrimaryUser?.GrevId;
+        var lifecycle = await ResolveLifecycleForOperationAsync(package, grevId);
+        if (lifecycle is null || !lifecycle.IsInstalled)
+        {
+            _grevStoreAppView.ShowStatus("Install the app before updating it.");
+            return;
+        }
+        if (lifecycle.IsRunning)
+        {
+            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} before updating it.");
+            return;
+        }
+        if (!lifecycle.UpdateAvailable)
+        {
+            _grevStoreAppView.ShowStatus("This installation already matches the package's declared Grev Home version.");
+            return;
+        }
+
+        var completed = await RunStoreOperationAsync(
+            package,
+            AppLifecycleState.Updating,
+            "Updating",
+            "Preparing package-specific update…",
+            (installer, context, progress) => installer.UpdateAsync(context, progress));
+        await RefreshAfterStoreOperationAsync(package,
+            completed ? $"{package.Presentation.DisplayName} update completed." : null);
+    }
+
+    private async Task BeginStoreRepairAsync(GrevStorePackageDefinition package)
+    {
+        if (_storeInstallBusy || IsStoreModalOpen) return;
+        if (!package.Supports(AppPackageCapability.Repair))
+        {
+            _grevStoreAppView.ShowStatus("This package does not declare a trusted repair operation.");
+            return;
+        }
+
+        var grevId = _session.PrimaryUser?.GrevId;
+        var lifecycle = await ResolveLifecycleForOperationAsync(package, grevId);
+        if (lifecycle is null || !lifecycle.IsInstalled)
+        {
+            _grevStoreAppView.ShowStatus("Install the app before repairing it.");
+            return;
+        }
+        if (lifecycle.IsRunning)
+        {
+            _grevStoreAppView.ShowStatus($"Close {package.Presentation.DisplayName} before repairing it.");
+            return;
+        }
+
+        var completed = await RunStoreOperationAsync(
+            package,
+            AppLifecycleState.Repairing,
+            "Repairing",
+            "Preparing package-specific repair…",
+            (installer, context, progress) => installer.RepairAsync(context, progress));
+        await RefreshAfterStoreOperationAsync(package,
+            completed ? $"{package.Presentation.DisplayName} repair completed." : null);
+    }
+
+    private async Task<AppLifecycleSnapshot?> ResolveLifecycleForOperationAsync(
+        GrevStorePackageDefinition package,
+        string? grevId)
+    {
+        if (_appLifecycle is null)
+        {
+            _grevStoreAppView.ShowStatus("The app lifecycle service is not initialized.");
+            return null;
+        }
+
+        try
+        {
+            return await _appLifecycle.ResolveAsync(package, grevId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _grevStoreAppView.ShowStatus($"Could not resolve app lifecycle: {ex.Message}");
+            return null;
+        }
+    }
+
+    private async Task<bool> RunStoreOperationAsync(
+        GrevStorePackageDefinition package,
+        AppLifecycleState lifecycleState,
+        string action,
+        string initialMessage,
+        Func<ITrustedPackageInstaller, PackageOperationContext, IProgress<PackageInstallProgress>, Task> operation)
+    {
+        var installers = _packageInstallers;
+        if (installers is null)
+        {
+            _grevStoreAppView.ShowStatus("Trusted package installers are not initialized.");
+            return false;
         }
 
         _storeInstallBusy = true;
-        ShowStoreOperation(package, "Installing", "Preparing trusted installer…");
-        var installedSuccessfully = false;
+        _storeOperationStates[package.App.AppId] = lifecycleState;
+        ShowStoreOperation(package, action, initialMessage);
         try
         {
+            var installer = installers.Require(package);
             var progress = CreateStoreProgress(package);
-            if (string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
-                _retroArchInstaller is not null)
-            {
-                await _retroArchInstaller.InstallAsync(package, grevId!, progress);
-            }
-            else if (string.Equals(package.InstallerId, DiscordInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
-                     _discordInstaller is not null)
-            {
-                await _discordInstaller.InstallAsync(package, progress);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' is not implemented yet.");
-            }
-
-            installedSuccessfully = true;
-            if (!package.IsProfileInstall && !string.IsNullOrWhiteSpace(grevId))
-            {
-                await _installedApps.RestoreGlobalAppToUserLibraryAsync(grevId, package.App.AppId);
-            }
+            var context = new PackageOperationContext(package, _session.PrimaryUser?.GrevId);
+            await operation(installer, context, progress);
+            return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or
                                    InvalidOperationException or InvalidDataException or Win32Exception)
         {
-            _grevStoreAppView.ShowStatus($"Install failed: {ex.Message}");
+            _grevStoreAppView.ShowStatus($"{action} failed: {ex.Message}");
+            return false;
         }
         finally
         {
+            _storeOperationStates.Remove(package.App.AppId);
             _storeInstallBusy = false;
             HideStoreOperation();
         }
+    }
 
+    private async Task RefreshAfterStoreOperationAsync(GrevStorePackageDefinition package, string? successMessage)
+    {
         if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
         {
             await RefreshSelectedStorePackageAsync();
-            if (installedSuccessfully)
+            if (!string.IsNullOrWhiteSpace(successMessage))
             {
-                _grevStoreAppView.ShowStatus($"{package.Presentation.DisplayName} is installed and available in this library.");
+                _grevStoreAppView.ShowStatus(successMessage);
             }
         }
+        RefreshGrevStore();
     }
 
     private async Task RemoveGlobalAppFromLibraryAsync(GrevStorePackageDefinition package)
     {
         if (_storeInstallBusy || IsStoreModalOpen || package.IsProfileInstall) return;
+        if (!package.Supports(AppPackageCapability.LibraryMembership))
+        {
+            _grevStoreAppView.ShowStatus("This Global App does not declare per-GrevID library membership.");
+            return;
+        }
 
         var grevId = _session.PrimaryUser?.GrevId;
         if (string.IsNullOrWhiteSpace(grevId))
@@ -294,6 +437,12 @@ public partial class MainWindow
         if (!package.IsProfileInstall)
         {
             _ = RemoveGlobalAppFromLibraryAsync(package);
+            return;
+        }
+
+        if (!package.Supports(AppPackageCapability.ProfileUninstall))
+        {
+            _grevStoreAppView.ShowStatus("This Profile App does not declare a trusted uninstall operation.");
             return;
         }
 
@@ -330,6 +479,11 @@ public partial class MainWindow
             _grevStoreAppView.ShowStatus("Global Apps can only be removed from a user's library here. Machine-wide uninstall is restricted to the Admin Console.");
             return;
         }
+        if (!package.Supports(AppPackageCapability.ProfileUninstall))
+        {
+            _grevStoreAppView.ShowStatus("This Profile App does not declare a trusted uninstall operation.");
+            return;
+        }
 
         var grevId = _session.PrimaryUser?.GrevId;
         if (string.IsNullOrWhiteSpace(grevId))
@@ -344,35 +498,15 @@ public partial class MainWindow
             return;
         }
 
-        _storeInstallBusy = true;
-        ShowStoreOperation(package, "Uninstalling", "Preparing package-specific uninstall…");
-        try
-        {
-            var progress = CreateStoreProgress(package);
-            if (string.Equals(package.InstallerId, RetroArchInstallerService.InstallerId, StringComparison.OrdinalIgnoreCase) &&
-                _retroArchInstaller is not null)
-            {
-                await _retroArchInstaller.UninstallAsync(package, grevId, progress);
-            }
-            else
-            {
-                throw new InvalidOperationException($"Trusted installer '{package.InstallerId}' does not support Profile App uninstall yet.");
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or Win32Exception)
-        {
-            _grevStoreAppView.ShowStatus($"Uninstall failed: {ex.Message}");
-        }
-        finally
-        {
-            _storeInstallBusy = false;
-            HideStoreOperation();
-        }
+        var completed = await RunStoreOperationAsync(
+            package,
+            AppLifecycleState.Uninstalling,
+            "Uninstalling",
+            "Preparing package-specific uninstall…",
+            (installer, context, progress) => installer.UninstallAsync(context, progress));
 
-        if (_navigation.Current == Route.GrevStoreApp && _selectedStorePackage == package)
-        {
-            await RefreshSelectedStorePackageAsync();
-        }
+        await RefreshAfterStoreOperationAsync(package,
+            completed ? $"{package.Presentation.DisplayName} binaries were uninstalled for this GrevID." : null);
     }
 
     private bool IsStorePackageRunning(GrevStorePackageDefinition package, string? grevId) =>
