@@ -36,6 +36,7 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <Button x:Name="ShellBackButton"
@@ -58,18 +59,17 @@
                     <Button x:Name="ProfileBubbleButton"
                             Grid.Column="3"
                             Visibility="Collapsed"
-                            MinWidth="260"
-                            MaxWidth="620"
-                            Height="52"
+                            MinWidth="220"
+                            MaxWidth="820"
+                            Height="56"
                             Margin="14,0,10,0"
-                            Padding="14,8"
+                            Padding="10,5"
+                            HorizontalContentAlignment="Stretch"
                             VerticalAlignment="Center"
                             Click="ShellProfileMenu_Click">
-                        <TextBlock x:Name="ControllerStatusText"
-                                   Text="No signed-in players"
-                                   FontSize="13"
-                                   TextTrimming="CharacterEllipsis"
-                                   TextWrapping="NoWrap" />
+                        <StackPanel x:Name="HeaderPlayersPanel"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center" />
                     </Button>
 
                     <Button x:Name="ShellSettingsButton"
@@ -79,6 +79,16 @@
                             Height="48"
                             VerticalAlignment="Center"
                             Click="ShellSettings_Click" />
+
+                    <Button x:Name="ShellPowerButton"
+                            Grid.Column="5"
+                            Content="⏻"
+                            Width="54"
+                            Height="48"
+                            Margin="10,0,0,0"
+                            VerticalAlignment="Center"
+                            FontSize="22"
+                            Click="ShellPower_Click" />
                 </Grid>
             </Border>
 
@@ -99,6 +109,75 @@
                            Foreground="{StaticResource MutedBrush}" />
             </Grid>
         </Grid>
+
+        <Border x:Name="PowerMenuOverlay"
+                Visibility="Collapsed"
+                Background="#88090C12"
+                Panel.ZIndex="90">
+            <Grid>
+                <Border Width="360"
+                        Margin="0,76,28,0"
+                        Padding="22"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Background="#11151E"
+                        BorderBrush="#3A465F"
+                        BorderThickness="1"
+                        CornerRadius="16">
+                    <StackPanel>
+                        <TextBlock Text="POWER &amp; SYSTEM"
+                                   FontSize="13"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBrush}" />
+                        <TextBlock x:Name="PowerMenuStatusText"
+                                   Text="Select an action. Power actions require a second press to confirm."
+                                   Margin="0,7,0,14"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <Button x:Name="PowerAppKillerButton"
+                                Content="App Killer"
+                                Height="48"
+                                Margin="0,0,0,7"
+                                Click="PowerAppKiller_Click" />
+                        <Button x:Name="PowerRunningAppsButton"
+                                Content="Running Apps"
+                                Height="48"
+                                Margin="0,0,0,14"
+                                Click="PowerRunningApps_Click" />
+
+                        <Border Height="1" Background="#2B3344" Margin="0,0,0,14" />
+
+                        <Button x:Name="PowerSleepButton"
+                                Content="Sleep"
+                                Height="48"
+                                Margin="0,0,0,7"
+                                Click="PowerSleep_Click" />
+                        <Button x:Name="PowerRestartButton"
+                                Content="Restart"
+                                Height="48"
+                                Margin="0,0,0,7"
+                                Click="PowerRestart_Click" />
+                        <Button x:Name="PowerShutdownButton"
+                                Content="Shut Down"
+                                Height="48"
+                                Margin="0,0,0,7"
+                                Click="PowerShutdown_Click" />
+                        <Button x:Name="PowerCloseGrevHomeButton"
+                                Content="Close Grev Home"
+                                Height="48"
+                                Margin="0,0,0,14"
+                                Click="PowerCloseGrevHome_Click" />
+
+                        <Button x:Name="PowerMenuCancelButton"
+                                Content="Cancel"
+                                Height="46"
+                                Click="PowerMenuCancel_Click" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+        </Border>
 
         <Border x:Name="StoreModalOverlay"
                 Visibility="Collapsed"
