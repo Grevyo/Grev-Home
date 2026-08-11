@@ -15,6 +15,13 @@ public enum InputAction
 public sealed record ControllerInputEventArgs(int ControllerIndex, InputAction Action);
 public sealed record ControllerConnectionEventArgs(int ControllerIndex, bool IsConnected);
 public sealed record ControllerShortcutCaptureEventArgs(int ControllerIndex, IReadOnlyList<ControllerButton> Buttons);
+public sealed record ControllerAppControlEventArgs(int ControllerIndex, AppControllerControl Control);
+public sealed record ControllerAnalogEventArgs(
+    int ControllerIndex,
+    short LeftX,
+    short LeftY,
+    short RightX,
+    short RightY);
 
 public sealed class ControllerInputService : IDisposable
 {
@@ -43,6 +50,8 @@ public sealed class ControllerInputService : IDisposable
     private readonly ControllerShortcutService _shortcutService;
     private readonly Timer _timer;
     private readonly ushort[] _previousButtons = new ushort[4];
+    private readonly byte[] _previousLeftTriggers = new byte[4];
+    private readonly byte[] _previousRightTriggers = new byte[4];
     private readonly bool[] _connected = new bool[4];
     private readonly InputAction?[] _heldDirection = new InputAction?[4];
     private readonly DateTimeOffset[] _heldDirectionStarted = new DateTimeOffset[4];
@@ -64,6 +73,8 @@ public sealed class ControllerInputService : IDisposable
     public event Action<ControllerShortcutEventArgs>? ShortcutRequested;
     public event Action<ControllerShortcutCaptureEventArgs>? ShortcutCaptured;
     public event Action? ShortcutCaptureTimedOut;
+    public event Action<ControllerAppControlEventArgs>? AppControlPressed;
+    public event Action<ControllerAnalogEventArgs>? AnalogChanged;
 
     public ControllerInputService(ControllerShortcutService shortcutService)
     {
@@ -178,6 +189,13 @@ public sealed class ControllerInputService : IDisposable
                     }
 
                     HandleDirectionalInput(index, GetDirectionalAction(buttons, state.Gamepad));
+                    RaiseExtendedAppControls(index, state.Gamepad);
+                    AnalogChanged?.Invoke(new ControllerAnalogEventArgs(
+                        index,
+                        state.Gamepad.ThumbLX,
+                        state.Gamepad.ThumbLY,
+                        state.Gamepad.ThumbRX,
+                        state.Gamepad.ThumbRY));
                 }
                 else
                 {
@@ -185,11 +203,43 @@ public sealed class ControllerInputService : IDisposable
                 }
 
                 _previousButtons[index] = buttons;
+                _previousLeftTriggers[index] = state.Gamepad.LeftTrigger;
+                _previousRightTriggers[index] = state.Gamepad.RightTrigger;
             }
         }
         finally
         {
             Monitor.Exit(_pollGate);
+        }
+    }
+
+    private void RaiseExtendedAppControls(int index, XInputGamepad gamepad)
+    {
+        RaiseAppIfPressed(index, gamepad.Buttons, XButton, AppControllerControl.X);
+        RaiseAppIfPressed(index, gamepad.Buttons, YButton, AppControllerControl.Y);
+        RaiseAppIfPressed(index, gamepad.Buttons, LeftShoulder, AppControllerControl.LeftShoulder);
+        RaiseAppIfPressed(index, gamepad.Buttons, RightShoulder, AppControllerControl.RightShoulder);
+        RaiseAppIfPressed(index, gamepad.Buttons, StartButton, AppControllerControl.Menu);
+        RaiseAppIfPressed(index, gamepad.Buttons, BackButton, AppControllerControl.View);
+        RaiseAppIfPressed(index, gamepad.Buttons, LeftThumb, AppControllerControl.LeftThumb);
+        RaiseAppIfPressed(index, gamepad.Buttons, RightThumb, AppControllerControl.RightThumb);
+
+        if (gamepad.LeftTrigger >= CaptureTriggerThreshold && _previousLeftTriggers[index] < CaptureTriggerThreshold)
+        {
+            AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, AppControllerControl.LeftTrigger));
+        }
+
+        if (gamepad.RightTrigger >= CaptureTriggerThreshold && _previousRightTriggers[index] < CaptureTriggerThreshold)
+        {
+            AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, AppControllerControl.RightTrigger));
+        }
+    }
+
+    private void RaiseAppIfPressed(int index, ushort buttons, ushort mask, AppControllerControl control)
+    {
+        if (WasPressed(index, buttons, mask))
+        {
+            AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, control));
         }
     }
 
@@ -471,6 +521,8 @@ public sealed class ControllerInputService : IDisposable
     private void ResetController(int index)
     {
         _previousButtons[index] = 0;
+        _previousLeftTriggers[index] = 0;
+        _previousRightTriggers[index] = 0;
         _heldDirection[index] = null;
         CancelAcceptTracking(index);
 
