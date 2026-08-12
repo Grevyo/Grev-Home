@@ -84,10 +84,10 @@ Mouse/keyboard modal completion must use the same Back transition as controller 
 
 The persistent shell Back button reflects navigation history rather than page-specific guesswork.
 
-- Dashboard/root normally has no Back action.
-- Forward routes/content have Back when history exists.
-- Login retains its signed-in escape to Dashboard for legacy/reset cases.
-- modal/action-menu history may temporarily add one same-route Back entry.
+- Dashboard/root normally has no Back action and therefore does not show a disabled Back control;
+- Forward routes/content show Back when history exists;
+- Login retains its signed-in escape to Dashboard for legacy/reset cases;
+- modal/action-menu history may temporarily add one same-route Back entry;
 - nested Files directories create normal Forward history even though they share `Route.Files`.
 
 Page-specific Back buttons and controller B/Escape must call the same navigation/history behavior; they must not invent unrelated route destinations.
@@ -130,11 +130,12 @@ Normalized 0.15 modal surfaces so far:
 - Store install progress;
 - Store uninstall warning;
 - Installed Apps action menu;
-- Files rename/create editor;
+- Files rename/create through the shared `ControllerQwertyKeyboard`;
 - Files delete confirmation;
-- external-app controller guide from the preceding controller-guide redesign.
+- external-app controller guide from the preceding controller-guide redesign;
+- external-app App Killer as an overlay mode, so opening it does not expose the full shell or disable the active app controller context.
 
-The header Power/System menu intentionally remains a compact top-right flyout rather than pretending every popup has the same physical composition.
+The header Power/System menu intentionally remains a compact top-right flyout rather than pretending every popup has the same physical composition. Its idle state contains only the title/actions; status text appears only when a confirmation is armed or Windows reports useful feedback.
 
 ## Files same-route rules
 
@@ -154,11 +155,53 @@ The shell treats that as normal Forward:
 
 Files calls `Navigate(Route.Files, allowSameRoute: true)`.
 
-- rename/create explicitly focuses the first controller keyboard key;
+- rename/create uses the same reusable controller QWERTY keyboard as the newer account/profile flows;
 - delete explicitly focuses Cancel;
 - the underlying Files toolbar does not become the modal landing target;
 - controller B closes the modal through `SameRouteBack`;
 - modal Cancel/save/delete completion also returns through the matching navigation Back entry so the originating Files control is restored.
+
+## Dashboard contract
+
+Dashboard is a real console Home screen, not a development roadmap.
+
+Only implemented destinations appear as tiles. Milestone/foundation status cards and placeholder destinations are not part of the shipped Home surface.
+
+Current groups are:
+
+### Apps & Content
+
+- Installed Apps;
+- Grev Store;
+- Files.
+
+### System
+
+- Running Apps, including the live managed-session count;
+- App Killer;
+- Settings;
+- Admin Console when the current Primary User is an Admin.
+
+Dashboard may expose a small status line for real runtime/permission feedback such as an Admin Console authorization failure. That line is collapsed when there is no message; it must never become a replacement development-status panel.
+
+## Header contract
+
+The persistent header contains only shell-level actions/status that make sense across routes:
+
+- Grev Home identity;
+- Back only when Back is actually available;
+- signed-in profile/controller identity surface;
+- Settings;
+- Power/System.
+
+The profile/controller area has a bounded width so identity content cannot push Settings or Power off-screen. Detailed multi-user/profile presentation remains a Milestone 0.16 responsibility; 0.15 only guarantees the permanent shell safely contains it.
+
+Directional navigation follows the same controller contract as route content:
+
+- moving Up from the top reachable route row enters the nearest header action;
+- Left/Right traverses available header actions;
+- moving Down returns to the nearest selectable route control;
+- hidden/unavailable Back is not part of the controller focus order.
 
 ## Route audit inventory
 
@@ -217,7 +260,10 @@ Implemented/under physical validation:
 - fixed action footers where needed;
 - controller-safe modal focus/Back contract;
 - compact horizontal/wrapped action rows;
-- Store, Installed Apps and Files popup cleanup.
+- Store, Installed Apps and Files popup cleanup;
+- shared Files/profile controller keyboard;
+- external-app App Killer overlay mode;
+- clean Power/System idle flyout.
 
 ### Pass 3 — route-by-route controller audit
 
@@ -227,7 +273,15 @@ Static audit should avoid dragging Profile-specific layout/detail work into 0.15
 
 ### Pass 4 — shell/header/dashboard finalisation
 
-Finalize dashboard ordering/content, persistent header behaviour and any remaining root-navigation decisions before moving to Milestone 0.16 Profiles/Accounts.
+Implemented/under physical validation:
+
+- development/placeholder Dashboard content removed;
+- Dashboard grouped around real Apps & Content/System destinations;
+- live Running Apps count retained without changing the whole tile label;
+- Admin Console remains role-gated;
+- root Back control collapses when unavailable;
+- header profile area is bounded so persistent actions remain reachable;
+- Power/System idle description removed while real confirmation/error feedback remains.
 
 ## Physical validation boundary
 
