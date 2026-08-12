@@ -40,7 +40,7 @@ public partial class MainWindow
         _fileExplorerView.RefreshRequested += (_, _) => RenderFiles();
         _fileExplorerView.NavigateRequested += NavigateFilesPath;
         _fileExplorerView.ModalOpened += (_, _) => PushFileModalHistory();
-        _fileExplorerView.ModalClosed += (_, _) => _navigation.DiscardBackEntry(Route.Files);
+        _fileExplorerView.ModalClosed += (_, _) => CompleteFileModalHistory();
         _fileExplorerView.NameRequested += request => _ = HandleFileNameRequestAsync(request);
         _fileExplorerView.DeleteRequested += path => _ = DeleteFileItemAsync(path);
         _fileExplorerView.CopyRequested += path => BeginFileTransfer(path, FileTransferMode.Copy);
@@ -72,19 +72,27 @@ public partial class MainWindow
         }
 
         RouteHost.Content = _fileExplorerView;
+        var transition = _fileRouteTransition;
 
-        switch (_fileRouteTransition)
+        switch (transition)
         {
             case FileRouteTransition.Open:
             case FileRouteTransition.ForwardPath:
                 RenderFiles();
                 break;
             case FileRouteTransition.ModalPush:
-                // Keep the current editor/delete overlay intact. This route entry exists so B cancels it first.
+                // Keep the current editor/delete overlay intact. This route entry exists so B
+                // cancels it first, and the modal itself owns controller focus.
+                break;
+            case FileRouteTransition.ModalDismiss:
+                // The modal has already closed through its own action. The matching same-route Back
+                // transition restores the exact parent focus bookmark at shell ApplicationIdle.
                 break;
             case FileRouteTransition.None:
                 if (_fileExplorerView.IsModalOpen)
                 {
+                    // B/Escape reached the same-route modal Back entry. Close the overlay without
+                    // raising ModalClosed again; shell history already owns this Back transition.
                     _fileExplorerView.CloseModals();
                     _fileExplorerView.ShowStatus("Action cancelled.");
                 }
@@ -102,7 +110,17 @@ public partial class MainWindow
         }
 
         _fileRouteTransition = FileRouteTransition.None;
-        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+
+        if (transition == FileRouteTransition.ModalPush)
+        {
+            _fileExplorerView.RefocusModal();
+        }
+        else if (transition != FileRouteTransition.ModalDismiss)
+        {
+            // Legacy route focus remains as a ContextIdle fallback. The 0.15 shell performs the
+            // final history-aware landing at ApplicationIdle, after this callback.
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+        }
     }
 
     private void NavigateFilesPath(string path)
@@ -148,13 +166,28 @@ public partial class MainWindow
         _filePathHistory.Push(_fileCurrentPath);
         _fileCurrentPath = path;
         _fileRouteTransition = FileRouteTransition.ForwardPath;
-        _navigation.Navigate(Route.Files, allowSameRoute: true);
+        _navigation.NavigateWithinRoute(Route.Files);
     }
 
     private void PushFileModalHistory()
     {
         _fileRouteTransition = FileRouteTransition.ModalPush;
         _navigation.Navigate(Route.Files, allowSameRoute: true);
+    }
+
+    private void CompleteFileModalHistory()
+    {
+        if (_navigation.Current != Route.Files)
+        {
+            return;
+        }
+
+        _fileRouteTransition = FileRouteTransition.ModalDismiss;
+        if (!_navigation.GoBack())
+        {
+            _fileRouteTransition = FileRouteTransition.None;
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+        }
     }
 
     private void CloseFilesToDashboard()
@@ -326,6 +359,7 @@ public partial class MainWindow
         None,
         Open,
         ForwardPath,
-        ModalPush
+        ModalPush,
+        ModalDismiss
     }
 }
