@@ -130,7 +130,8 @@ public sealed class RuntimeSessionManager : IDisposable
         }
 
         var killed = _processWindows.ForceTerminate(
-            GetValidatedProcessIdentities(tracked));
+            GetValidatedProcessIdentities(tracked),
+            tracked.ForceKillEntireProcessTree);
         if (!killed)
         {
             return false;
@@ -284,14 +285,18 @@ public sealed class RuntimeSessionManager : IDisposable
         var rootIdentity = _processTree.TryGetProcessIdentity(process.Id)
             ?? new RuntimeProcessIdentity(process.Id, process.StartTime.ToUniversalTime());
         var startedAtUtc = DateTimeOffset.UtcNow;
-        var declaredProcessName = entry.Manifest.Definition.InstallStrategy == InstallStrategy.SystemInstalled
-            ? entry.Manifest.Definition.Launch.ProcessName
-            : null;
+        var launch = entry.Manifest.Definition.Launch;
+        var systemInstalled = entry.Manifest.Definition.InstallStrategy == InstallStrategy.SystemInstalled;
+        var declaredProcessName = systemInstalled ? launch.ProcessName : null;
+        var additionalProcessNames = systemInstalled ? launch.AdditionalProcessNames : null;
         var tracked = new TrackedLaunchSession(
             entry.Manifest.Definition.AppId,
             entry.Manifest.Definition.Name,
             primaryGrevId,
             declaredProcessName,
+            additionalProcessNames,
+            launch.EffectiveTrackDescendantProcesses,
+            launch.EffectiveForceKillEntireProcessTree,
             participants.ToArray(),
             rootIdentity,
             startedAtUtc);
@@ -342,9 +347,16 @@ public sealed class RuntimeSessionManager : IDisposable
             }
 
             var aliveProcesses = _processTree.GetAliveProcessIdentities(record.Processes);
-            if (aliveProcesses.Count == 0 && !string.IsNullOrWhiteSpace(record.ProcessName))
+            if (aliveProcesses.Count == 0)
             {
-                aliveProcesses = _processTree.GetProcessIdentitiesByName(record.ProcessName);
+                foreach (var processName in GetDeclaredProcessNames(record.ProcessName, record.AdditionalProcessNames))
+                {
+                    aliveProcesses = aliveProcesses
+                        .Concat(_processTree.GetProcessIdentitiesByName(processName))
+                        .GroupBy(identity => identity.ProcessId)
+                        .Select(group => group.First())
+                        .ToArray();
+                }
             }
             if (aliveProcesses.Count == 0)
             {
@@ -359,6 +371,9 @@ public sealed class RuntimeSessionManager : IDisposable
                 record.AppName,
                 record.PrimaryGrevId,
                 record.ProcessName,
+                record.AdditionalProcessNames,
+                record.TrackDescendantProcesses ?? true,
+                record.ForceKillEntireProcessTree ?? true,
                 record.Participants ?? Array.Empty<LaunchParticipant>(),
                 record.RootProcessId,
                 aliveProcesses,
@@ -375,8 +390,8 @@ public sealed class RuntimeSessionManager : IDisposable
         }
 
         // Older Discord builds could persist multiple Grev launch records that all adopted the
-        // same Discord.exe process group. Keep the oldest canonical session and discard any later
-        // records that overlap the same live Windows processes before monitors/playtime start.
+        // same app process group. Keep the oldest canonical session and discard any later records
+        // that overlap the same live Windows processes before monitors/playtime start.
         DeduplicateActiveSessions();
 
         foreach (var tracked in _active.Values)
@@ -408,14 +423,17 @@ public sealed class RuntimeSessionManager : IDisposable
 
                 RefreshDeclaredProcesses(tracked);
 
-                var aliveKnown = _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
-                var discoveredIds = _processTree.DiscoverDescendants(aliveKnown.Select(process => process.ProcessId));
-                var discoveredIdentities = discoveredIds
-                    .Select(_processTree.TryGetProcessIdentity)
-                    .Where(identity => identity is not null)
-                    .Select(identity => identity!)
-                    .ToArray();
-                tracked.AddProcessIdentities(discoveredIdentities);
+                if (tracked.TrackDescendantProcesses)
+                {
+                    var aliveKnown = _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
+                    var discoveredIds = _processTree.DiscoverDescendants(aliveKnown.Select(process => process.ProcessId));
+                    var discoveredIdentities = discoveredIds
+                        .Select(_processTree.TryGetProcessIdentity)
+                        .Where(identity => identity is not null)
+                        .Select(identity => identity!)
+                        .ToArray();
+                    tracked.AddProcessIdentities(discoveredIdentities);
+                }
 
                 var currentKnown = tracked.GetKnownProcessIdentities();
                 if (currentKnown.Count != lastKnownCount)
@@ -447,7 +465,7 @@ public sealed class RuntimeSessionManager : IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Grev Home is shutting down. Active state was persisted before cancellation.
+            // Expected when Grev Home shuts down.
         }
         catch (Exception ex)
         {
@@ -532,16 +550,26 @@ public sealed class RuntimeSessionManager : IDisposable
         var definition = entry.Manifest.Definition;
         return definition.Launch.SingleInstance ||
                (definition.InstallStrategy == InstallStrategy.SystemInstalled &&
-                !string.IsNullOrWhiteSpace(definition.Launch.ProcessName));
+                definition.Launch.DeclaredProcessNames.Count > 0);
     }
 
     private void RefreshDeclaredProcesses(TrackedLaunchSession tracked)
     {
-        if (!string.IsNullOrWhiteSpace(tracked.ProcessName))
+        foreach (var processName in tracked.DeclaredProcessNames)
         {
-            tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(tracked.ProcessName));
+            tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(processName));
         }
     }
+
+    private static IReadOnlyList<string> GetDeclaredProcessNames(
+        string? primary,
+        IReadOnlyList<string>? additional) =>
+        new[] { primary }
+            .Concat(additional ?? Array.Empty<string>())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
 
     private void DeduplicateActiveSessions()
     {
@@ -610,7 +638,10 @@ public sealed class RuntimeSessionManager : IDisposable
                         snapshot.State,
                         snapshot.RootProcessId,
                         tracked.GetKnownProcessIdentities(),
-                        tracked.ProcessName);
+                        tracked.ProcessName,
+                        tracked.AdditionalProcessNames,
+                        tracked.TrackDescendantProcesses,
+                        tracked.ForceKillEntireProcessTree);
                 })
                 .OrderByDescending(record => record.StartedAtUtc)
                 .ToArray();
