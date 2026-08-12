@@ -2,57 +2,112 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False">
-    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="72,42">
-            <Grid Margin="0,0,0,26">
-                <StackPanel>
-                    <TextBlock x:Name="WelcomeText"
-                               Text="Welcome"
-                               FontSize="38"
-                               FontWeight="SemiBold"
-                               TextWrapping="Wrap" />
-                    <TextBlock x:Name="SessionUsersText"
-                               Margin="0,6,0,0"
-                               FontSize="16"
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Grid>
+    <UserControl.Resources>
+        <Style x:Key="DashboardTileStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="285" />
+            <Setter Property="Height" Value="145" />
+            <Setter Property="Margin" Value="8" />
+            <Setter Property="Padding" Value="22,18" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style x:Key="DashboardTileTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="20" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+        <Style x:Key="DashboardTileDetailStyle" TargetType="TextBlock">
+            <Setter Property="Margin" Value="0,8,0,0" />
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
 
-            <TextBlock Text="YOUR DASHBOARD" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" Margin="2,0,0,10" />
-            <WrapPanel>
-                <Button Width="285" Height="145" Margin="8" Click="InstalledApps_Click" Content="Installed Apps" />
-                <Button x:Name="RunningAppsButton" Width="285" Height="145" Margin="8" Click="RunningApps_Click" Content="Running Apps&#x0a;0 active" />
-                <Button Width="285" Height="145" Margin="8" Click="AppKiller_Click" Content="App Killer" />
-                <Button Width="285" Height="145" Margin="8" Click="Settings_Click" Content="Settings &amp; System" />
-                <Button x:Name="AdminConsoleButton"
-                        Width="285"
-                        Height="145"
-                        Margin="8"
-                        Visibility="Collapsed"
-                        Click="AdminConsole_Click"
-                        Content="Admin Console" />
-                <Button Width="285" Height="145" Margin="8" Click="Files_Click" Content="Files" />
-                <Button Tag="Recently Used" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Recently Used" />
-                <Button Tag="Emulators" Width="285" Height="145" Margin="8" Click="Placeholder_Click" Content="Emulators" />
-                <Button Width="285" Height="145" Margin="8" Click="Store_Click" Content="Grev Store" />
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  PanningMode="VerticalOnly"
+                  CanContentScroll="False">
+        <StackPanel Margin="64,38,64,46">
+            <StackPanel Margin="8,0,8,28">
+                <TextBlock x:Name="WelcomeText"
+                           Text="Welcome"
+                           FontSize="38"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="SessionUsersText"
+                           Margin="0,6,0,0"
+                           FontSize="15"
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap" />
+            </StackPanel>
+
+            <TextBlock Text="APPS &amp; CONTENT"
+                       Margin="10,0,0,8"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource MutedBrush}" />
+            <WrapPanel Margin="0,0,0,22">
+                <Button Style="{StaticResource DashboardTileStyle}" Click="InstalledApps_Click">
+                    <StackPanel>
+                        <TextBlock Text="Installed Apps" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock Text="Your Grev Home library" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource DashboardTileStyle}" Click="Store_Click">
+                    <StackPanel>
+                        <TextBlock Text="Grev Store" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock Text="Browse supported apps" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource DashboardTileStyle}" Click="Files_Click">
+                    <StackPanel>
+                        <TextBlock Text="Files" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock Text="Browse local files and folders" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
             </WrapPanel>
 
-            <Border Margin="8,28,8,0"
-                    Padding="22"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
-                    BorderThickness="1"
-                    CornerRadius="12">
-                <StackPanel>
-                    <TextBlock Text="Foundation status" FontSize="15" FontWeight="SemiBold" />
-                    <TextBlock x:Name="StatusText"
-                               Margin="0,8,0,0"
-                               Text="0.11 begins trusted app-specific installers and Grev Store package discovery while keeping the current controller-first dashboard baseline."
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+            <TextBlock Text="SYSTEM"
+                       Margin="10,0,0,8"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource MutedBrush}" />
+            <WrapPanel>
+                <Button x:Name="RunningAppsButton"
+                        Style="{StaticResource DashboardTileStyle}"
+                        Click="RunningApps_Click">
+                    <StackPanel>
+                        <TextBlock Text="Running Apps" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock x:Name="RunningCountText"
+                                   Text="0 active"
+                                   Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource DashboardTileStyle}" Click="AppKiller_Click">
+                    <StackPanel>
+                        <TextBlock Text="App Killer" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock Text="Manage or force-close a stuck app" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource DashboardTileStyle}" Click="Settings_Click">
+                    <StackPanel>
+                        <TextBlock Text="Settings" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock Text="Grev Home and controller settings" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
+                <Button x:Name="AdminConsoleButton"
+                        Style="{StaticResource DashboardTileStyle}"
+                        Visibility="Collapsed"
+                        Click="AdminConsole_Click">
+                    <StackPanel>
+                        <TextBlock Text="Admin Console" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock Text="Machine, apps and account administration" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
+            </WrapPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>
