@@ -1,18 +1,18 @@
-# Grev Home App Platform Backbone — Milestone 0.12
+# Grev Home App Platform Backbone — Milestone 0.12+
 
-Milestone 0.12 turns the proven RetroArch Profile App and Discord Global App integrations into a reusable Grev Home application platform before more emulators are added.
+Milestone 0.12 turned the proven RetroArch Profile App and Discord Global App integrations into a reusable Grev Home application platform. PCSX2 and Steam then pressure-tested that platform with profile-isolated emulator setup and game-launcher process ownership respectively.
 
 The goal is not a generic arbitrary installer scripting system. Every supported application still receives its own trusted installer/manager because download, install, update, repair, configuration and uninstall behavior differs per app. The shared platform standardises **how Grev Home describes and invokes those app-specific workflows**.
 
 ## Ownership models
 
-Grev Home currently has two proven package ownership models.
+Grev Home currently has two package ownership models.
 
 ### Profile App
 
 A Profile App belongs to one persistent GrevID.
 
-RetroArch is the reference implementation:
+RetroArch and PCSX2 are reference implementations:
 
 - binaries are under the owning GrevID;
 - mutable app data/saves are GrevID-owned;
@@ -24,16 +24,18 @@ RetroArch is the reference implementation:
 
 A Global App has one Windows/machine installation but independent GrevID library membership.
 
-Discord is the reference implementation:
+Discord and Steam are reference implementations:
 
-- Discord is installed once for the Windows user/machine context;
-- each persistent GrevID can include or remove Discord from its own Grev Home library;
+- the app is installed once for the relevant Windows/machine context;
+- each persistent GrevID can include or remove it from its own Grev Home library;
 - **Remove from Library is not machine uninstall**;
 - adding it back to a GrevID library does not redownload the app when the machine installation still exists;
-- machine uninstall is an Admin Console action only;
-- native Discord account/update data stays owned by Discord.
+- machine uninstall is Admin-only **and only exists when that package explicitly declares `MachineUninstall`**;
+- native account/update data stays owned by the native app.
 
 Machine installation state and GrevID library membership are deliberately separate pieces of state.
+
+Steam is the explicit example of a Global App which does **not** currently allow machine uninstall in Grev Home because its installed game-library implications require a Steam-specific destructive workflow rather than the generic Global App assumption.
 
 ## Lifecycle model
 
@@ -66,7 +68,7 @@ A machine-installed Global App can therefore be `RemovedFromLibrary` for one Gre
 
 Every `GrevStorePackageDefinition` declares the capabilities that its trusted implementation actually supports.
 
-Initial `AppPackageCapability` values are:
+Current `AppPackageCapability` values are:
 
 - `Install`
 - `Update`
@@ -80,12 +82,13 @@ Initial `AppPackageCapability` values are:
 - `PresentationOverrides`
 - `AdminManagement`
 
-Store, App Settings and Admin Console should derive available actions from these declarations rather than hardcoding an app name.
+Store, App Settings and Admin Console derive available actions from these declarations rather than hardcoding an app name.
 
 Examples:
 
-- RetroArch declares Install/Update/Repair/ProfileUninstall but not MachineUninstall.
+- RetroArch/PCSX2 declare Install/Update/Repair/ProfileUninstall but not MachineUninstall.
 - Discord declares Install/Repair/MachineUninstall/LibraryMembership but not Grev Home Update because Discord owns its native updater.
+- Steam declares Install/Repair/LibraryMembership/AdminManagement but deliberately omits both Grev Home Update and MachineUninstall.
 
 ## Trusted installer registry
 
@@ -107,14 +110,16 @@ This removes shell code such as:
 if RetroArch ...
 else if Discord ...
 else if PCSX2 ...
+else if Steam ...
 ```
 
 while preserving individual trusted implementations such as:
 
 ```text
 RetroArchInstallerService
-DiscordInstallerService
 PCSX2InstallerService
+DiscordInstallerService
+SteamInstallerService
 DolphinInstallerService
 ```
 
@@ -130,17 +135,17 @@ Package-specific `InspectAsync` returns a common `PackageHealthSnapshot`:
 
 The Store product page can show health and expose Repair only when the package declares that capability.
 
-### RetroArch
+### Profile-managed applications
 
-RetroArch has a Grev-owned pinned supported version. Update/Repair may replace the verified profile-owned binary package while preserving configuration, saves and states outside the binary root.
+RetroArch/PCSX2 have Grev-owned pinned supported versions. Update/Repair may replace the verified profile-owned binary package while preserving GrevID configuration/data outside the replaceable binary boundary.
 
-The replacement is transactional at the binary-root level: the old binary root is moved to a backup, the verified new package is committed, and the backup is restored if commit fails.
+Where binary replacement is transactional, the old binary root is moved to a backup, the verified new package is committed, and the backup is restored if commit fails.
 
-### Discord
+### Native-updating Global Apps
 
-Discord owns its native Stable update lifecycle, so Grev Home does not implement a competing Update button.
+Discord and Steam own their native client update lifecycle, so Grev Home does not implement a competing Update button.
 
-Discord Repair validates the Windows-user installation and Grev Home registration. If the installation is missing, Repair can re-run the trusted Discord install workflow; if healthy, it refreshes the Grev Home registration.
+Repair validates the native Windows installation and Grev Home registration. If an existing installation has moved/is non-default, the package-specific repair may refresh Grev Home's registered executable path without altering native account data.
 
 ## Admin Console boundary
 
@@ -159,33 +164,66 @@ Every machine-changing operation must re-check Admin role/permission at executio
 
 Normal user Store/Installed Apps surfaces never machine-uninstall a Global App.
 
-Machine uninstall remains two-stage confirmation and is blocked while Grev Home is tracking the target app as running.
+Machine uninstall is blocked while Grev Home is tracking the target app as running and must use the package's own trusted destructive workflow. A Global App does not gain machine-uninstall merely because it is Admin-managed.
 
-## Runtime policy
+## Runtime policy and process ownership
 
 Runtime behavior has one source of truth for each concern.
 
-`AppLaunchDefinition` owns process/session launch behavior such as:
+`AppLaunchDefinition` owns launch/process behavior such as:
 
 - executable/arguments;
-- process name used for tracking/adoption;
-- `SingleInstance`, consumed by `RuntimeSessionManager` for session reuse.
+- primary process name used for tracking/adoption;
+- optional additional launcher/UI process names;
+- `SingleInstance`, consumed by `RuntimeSessionManager` for session reuse;
+- whether descendant processes belong to the managed app session;
+- whether Force Kill may recursively terminate a tracked process tree.
 
 `AppRuntimePolicy` owns shell/window behavior such as:
 
 - normal versus maximized activation;
 - whether Grev Home should return when the app window becomes minimized/hidden.
 
-Do not duplicate `SingleInstance` in the Store runtime policy.
+Do not duplicate `SingleInstance` or process-ownership rules in Store UI logic.
 
-The current runtime continues to guarantee:
+### Ordinary app default
 
-- only Grev-launched/adopted tracked processes appear in Running Apps/App Killer;
+For ordinary apps, older manifests and package definitions retain the established default:
+
+```text
+TrackDescendantProcesses = true
+ForceKillEntireProcessTree = true
+```
+
+This is appropriate when child processes are genuinely part of the app Grev Home owns as one runtime session.
+
+### Launcher-safe ownership
+
+A game launcher can explicitly opt out of that assumption.
+
+Steam is the reference launcher:
+
+```text
+ProcessName = steam
+AdditionalProcessNames = steamwebhelper
+TrackDescendantProcesses = false
+ForceKillEntireProcessTree = false
+```
+
+Grev Home therefore tracks/adopts the explicitly declared launcher/UI process groups but does not automatically claim every game Steam starts as part of the Steam launcher session. Force Kill is process-only for the tracked launcher processes rather than recursively killing arbitrary descendants.
+
+This boundary prevents Grev Home itself from treating a launched game as owned by the launcher session. It does not promise that a game can necessarily continue if its native launcher is deliberately closed.
+
+Steam also uses `KeepShellHidden` because Big Picture may hide/minimize while a game takes foreground. Grev Home must not jump back over the running game merely because the launcher UI is no longer visible. The system Return Home shortcut remains the deliberate escape path.
+
+The runtime continues to guarantee:
+
+- only Grev-launched/adopted tracked process identities appear in Running Apps/App Killer;
 - process identity is PID + start-time validated;
 - Switch must activate a real interactive app window, not a hidden utility surface;
-- tray/minimized apps can remain running while Grev Home returns;
+- tray/minimized apps can follow package-specific shell return behavior;
 - explicit Close can escalate only against the same tracked session;
-- Force Kill remains the immediate tracked-process-tree fallback;
+- Force Kill respects the package/session process-ownership policy;
 - system Return Home/Overlay shortcuts keep higher priority than app mappings.
 
 ## Reusable onboarding
@@ -195,13 +233,17 @@ Packages may declare `AppOnboardingDefinition` containing:
 - title;
 - summary;
 - controller controls to show;
-- whether the guide should appear on first launch.
+- whether the guide should appear on first launch;
+- optional user-facing controller-profile name;
+- optional quick action to disable a temporary controller profile after setup.
 
 The guide is rendered inside the existing Grev Overlay architecture, not as another independent WPF application window.
 
 The current controller mappings are resolved at display time, so the guide reflects a GrevID's actual mappings rather than stale hardcoded text.
 
 A persistent GrevID can choose `Don't Show Again`. App Settings exposes `Show Launch Guide Again`, which clears that per-GrevID preference.
+
+PCSX2 and Steam use the same reusable setup pattern: temporary `Emulated Keyboard & Mouse` controls make first-run/login/configuration controller-accessible, then the popup or App Settings can disable only Grev Home's translation while leaving the native application's controller support untouched.
 
 ## Presentation contract
 
@@ -227,6 +269,8 @@ Reset deletes the GrevID override layer and immediately reveals the package defa
 
 Visual assets are presentation data, not theme data. Theme changes must not rewrite them.
 
+Current branded defaults include Discord purple + Discord artwork, PCSX2 dark PS2 blue + the supplied transparent PCSX2 artwork, and Steam dark blue + its built-in Steam glyph.
+
 ## Controller profile contract
 
 The existing standard 18-control mapping layout remains the only app-controller mapping system.
@@ -237,20 +281,29 @@ Resolution order remains:
 package default -> GrevID override -> Reset to package default
 ```
 
-Native-controller apps can ship a blank/disabled Grev profile. Desktop apps can ship populated mappings. System Return Home/Overlay shortcuts remain separate and higher priority.
+Native-controller apps can ship a blank/disabled Grev profile. Apps which need temporary first-run desktop input can ship an enabled setup profile and expose a reversible disable helper. System Return Home/Overlay shortcuts remain separate and higher priority.
 
-## Future package sequence
+## Platform freeze / next phase
 
-After this backbone is physically validated, the planned emulator sequence is:
+Steam is intended to be the final new application shape before further catalogue expansion.
 
-1. PCSX2
-2. Dolphin
-3. RPCS3
-4. PPSSPP
-5. DuckStation
-6. Cemu
-7. Xenia
+After Steam is physically validated:
 
-Each emulator gets an individual trusted package workflow and uses the same lifecycle/capability/Store/runtime/settings/presentation infrastructure.
+1. freeze these app/package/runtime ownership contracts unless a proven bug requires a change;
+2. finalise the wider Grev Home shell: dashboard/navigation, profiles/roles, Admin Console, Settings, controller UX, runtime recovery, presentation, power/system workflows and remaining backbone;
+3. only then resume adding more applications/emulators.
 
-Do not pre-generalise emulator-specific installation/configuration details that have not yet been proven by a real package.
+Future emulator/app additions should mostly be individual trusted download/install/update/repair/configuration implementations on top of this platform rather than new shell architecture.
+
+Likely later emulator sequence remains:
+
+1. Dolphin
+2. RPCS3
+3. PPSSPP
+4. DuckStation
+5. Cemu
+6. Xenia
+
+Do not pre-generalise package-specific installation/configuration details that have not yet been proven by a real package.
+
+See `STEAM.md`, `PCSX2.md`, `RETROARCH.md` and `GREV_STORE.md` for package/surface-specific contracts.
