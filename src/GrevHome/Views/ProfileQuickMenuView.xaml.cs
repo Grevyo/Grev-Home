@@ -26,6 +26,9 @@ public partial class ProfileQuickMenuView : UserControl
     public ProfileQuickMenuView()
     {
         InitializeComponent();
+        TrackPersistentFooterButton(AddPlayerButton, "footer:add-player");
+        TrackPersistentFooterButton(ManagePlayersButton, "footer:manage-players");
+        TrackPersistentFooterButton(CloseButton, "footer:close");
     }
 
     public void SetState(
@@ -69,13 +72,13 @@ public partial class ProfileQuickMenuView : UserControl
         RegisterFooterButton(ManagePlayersButton, "footer:manage-players");
         RegisterFooterButton(CloseButton, "footer:close");
 
-        if (!string.IsNullOrWhiteSpace(previousKey))
+        if (IsVisible && !string.IsNullOrWhiteSpace(previousKey))
         {
             if (_actionButtonsByKey.TryGetValue(previousKey, out var restore) && restore.IsEnabled)
             {
                 Dispatcher.BeginInvoke(new Action(() => restore.Focus()));
             }
-            else if (IsVisible)
+            else
             {
                 Dispatcher.BeginInvoke(new Action(FocusInitial));
             }
@@ -266,15 +269,26 @@ public partial class ProfileQuickMenuView : UserControl
         return button;
     }
 
+    private void TrackPersistentFooterButton(Button button, string key)
+    {
+        button.Tag = key;
+        button.GotKeyboardFocus += (_, _) => _lastFocusedActionKey = key;
+    }
+
     private void RegisterFooterButton(Button button, string key)
+    {
+        button.Tag = key;
+        _actionButtons.Add(button);
+        _actionButtonsByKey[key] = button;
+    }
+
+    private void RegisterActionButton(Button button, string key)
     {
         button.Tag = key;
         button.GotKeyboardFocus += (_, _) => _lastFocusedActionKey = key;
         _actionButtons.Add(button);
         _actionButtonsByKey[key] = button;
     }
-
-    private void RegisterActionButton(Button button, string key) => RegisterFooterButton(button, key);
 
     private Border CreateAvatar(LocalProfile? profile, double size, AccountRole role)
     {
