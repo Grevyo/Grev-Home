@@ -10,10 +10,12 @@ public partial class MainWindow
 {
     private static readonly TimeSpan ForegroundWindowPollInterval = TimeSpan.FromMilliseconds(200);
     private static readonly TimeSpan ForegroundWindowHiddenGrace = TimeSpan.FromMilliseconds(650);
+    private static readonly TimeSpan GameLauncherWindowHiddenGrace = TimeSpan.FromSeconds(2);
     private static readonly TimeSpan ManagedCloseEscalationDelay = TimeSpan.FromSeconds(3);
 
     private readonly AppControllerRuntimeService _appControllerRuntime = new();
     private readonly ProcessWindowService _appProcessWindows = new();
+    private readonly ProcessTreeService _appProcessTree = new();
     private readonly HashSet<Guid> _controllerGuideShownSessions = [];
     private readonly HashSet<Guid> _scheduledCloseEscalations = [];
     private readonly object _closeEscalationGate = new();
@@ -36,8 +38,8 @@ public partial class MainWindow
         IsVisibleChanged += (_, _) => HandleShellVisibilityChanged();
 
         // Explicit user Close requests must end the managed session even when an app interprets
-        // WM_CLOSE as "hide to tray" (Discord does this). Give the app a short graceful window,
-        // then terminate only the same Grev-tracked process identities if they are still alive.
+        // WM_CLOSE as "hide to tray" (Discord/Steam can do this). Give the app a short graceful
+        // window, then terminate only the same Grev-tracked process identities if they remain.
         // Restart is intentionally not wired here; it keeps its own longer graceful/recovery timing.
         _runningAppsView.CloseRequested += ScheduleManagedCloseEscalation;
         _appKillerView.CloseRequested += ScheduleManagedCloseEscalation;
@@ -303,17 +305,32 @@ public partial class MainWindow
                 }
                 else if (observedVisibleWindow)
                 {
-                    hiddenSince ??= DateTimeOffset.UtcNow;
-                    if (DateTimeOffset.UtcNow - hiddenSince.Value >= ForegroundWindowHiddenGrace)
+                    // Game launchers are different from ordinary tray apps. When a launcher UI
+                    // disappears because one of its descendants has taken foreground, keep Grev
+                    // Home hidden so it never jumps over the game. If no launched child owns the
+                    // foreground, treat the hidden/minimized launcher like Discord and return home.
+                    if (package?.App.Kind == Apps.AppKind.GameLauncher &&
+                        IsForegroundLauncherDescendant(snapshot.ProcessIds))
                     {
-                        _foregroundLaunchSessionId = null;
-                        _overlayWindow.Dismiss();
-                        RestoreWindowWithoutChangingRoute();
+                        hiddenSince = null;
+                    }
+                    else
+                    {
+                        hiddenSince ??= DateTimeOffset.UtcNow;
+                        var hiddenGrace = package?.App.Kind == Apps.AppKind.GameLauncher
+                            ? GameLauncherWindowHiddenGrace
+                            : ForegroundWindowHiddenGrace;
+                        if (DateTimeOffset.UtcNow - hiddenSince.Value >= hiddenGrace)
+                        {
+                            _foregroundLaunchSessionId = null;
+                            _overlayWindow.Dismiss();
+                            RestoreWindowWithoutChangingRoute();
 
-                        var reason = state == RuntimeWindowState.Minimized ? "minimized" : "hidden";
-                        _installedLibraryView.ShowStatus(
-                            $"{snapshot.AppName} is {reason} but still running. Use Running Apps or Switch to return to it.");
-                        return;
+                            var reason = state == RuntimeWindowState.Minimized ? "minimized" : "hidden";
+                            _installedLibraryView.ShowStatus(
+                                $"{snapshot.AppName} is {reason} but still running. Use Running Apps or Switch to return to it.");
+                            return;
+                        }
                     }
                 }
 
@@ -324,6 +341,18 @@ public partial class MainWindow
         {
             // Expected when Grev Home becomes visible again or control moves to another app.
         }
+    }
+
+    private bool IsForegroundLauncherDescendant(IReadOnlyList<int> managedProcessIds)
+    {
+        var foregroundProcessId = _appProcessWindows.GetForegroundProcessId();
+        if (!foregroundProcessId.HasValue || managedProcessIds.Contains(foregroundProcessId.Value))
+        {
+            return false;
+        }
+
+        return _appProcessTree.DiscoverDescendants(managedProcessIds)
+            .Contains(foregroundProcessId.Value);
     }
 
     private void UpdateForegroundAppInputMode()
