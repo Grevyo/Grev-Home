@@ -24,6 +24,7 @@ public partial class MainWindow
         base.OnInitialized(e);
         _navigation.RouteChanging += HandleShellRouteChanging;
         _navigation.RouteChanged += HandleShellRouteChanged;
+        _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(UpdateShellBackButtonState));
     }
 
     private void HandleShellRouteChanging(NavigationTransition transition)
@@ -34,10 +35,7 @@ public partial class MainWindow
 
     private void HandleShellRouteChanged(Route route)
     {
-        // History is the normal source of truth. Login keeps its legacy escape back to Dashboard
-        // when users are signed in even if a caller intentionally reset navigation to Login.
-        ShellBackButton.IsEnabled = _navigation.CanGoBack ||
-                                    (route == Route.Login && _session.HasSignedInUsers);
+        UpdateShellBackButtonState();
 
         var transition = _pendingShellNavigationTransition;
         var requestVersion = ++_shellFocusRequestVersion;
@@ -48,6 +46,16 @@ public partial class MainWindow
         Dispatcher.BeginInvoke(
             DispatcherPriority.ApplicationIdle,
             new Action(() => ApplyShellNavigationLanding(route, transition, requestVersion)));
+    }
+
+    private void UpdateShellBackButtonState()
+    {
+        var route = _navigation.Current;
+
+        // History is the normal source of truth. Login keeps its legacy escape back to Dashboard
+        // when users are signed in even if a caller intentionally reset navigation to Login.
+        ShellBackButton.IsEnabled = _navigation.CanGoBack ||
+                                    (route == Route.Login && _session.HasSignedInUsers);
     }
 
     private void ApplyShellNavigationLanding(
