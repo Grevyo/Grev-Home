@@ -45,6 +45,9 @@ internal sealed class TrackedLaunchSession
     public string AppName { get; }
     public string? PrimaryGrevId { get; }
     public string? ProcessName { get; }
+    public IReadOnlyList<string> AdditionalProcessNames { get; }
+    public bool TrackDescendantProcesses { get; }
+    public bool ForceKillEntireProcessTree { get; }
     public IReadOnlyList<LaunchParticipant> Participants { get; }
     public DateTimeOffset StartedAtUtc { get; }
     public DateTimeOffset LastObservedAliveAtUtc { get; private set; }
@@ -53,11 +56,22 @@ internal sealed class TrackedLaunchSession
     public int RootProcessId { get; }
     public string? FailureMessage { get; private set; }
 
+    public IReadOnlyList<string> DeclaredProcessNames =>
+        new[] { ProcessName }
+            .Concat(AdditionalProcessNames)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
     public TrackedLaunchSession(
         string appId,
         string appName,
         string? primaryGrevId,
         string? processName,
+        IReadOnlyList<string>? additionalProcessNames,
+        bool trackDescendantProcesses,
+        bool forceKillEntireProcessTree,
         IReadOnlyList<LaunchParticipant> participants,
         RuntimeProcessIdentity rootProcess,
         DateTimeOffset startedAtUtc)
@@ -67,6 +81,9 @@ internal sealed class TrackedLaunchSession
             appName,
             primaryGrevId,
             processName,
+            additionalProcessNames,
+            trackDescendantProcesses,
+            forceKillEntireProcessTree,
             participants,
             rootProcess.ProcessId,
             new[] { rootProcess },
@@ -82,6 +99,9 @@ internal sealed class TrackedLaunchSession
         string appName,
         string? primaryGrevId,
         string? processName,
+        IReadOnlyList<string>? additionalProcessNames,
+        bool trackDescendantProcesses,
+        bool forceKillEntireProcessTree,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -94,6 +114,14 @@ internal sealed class TrackedLaunchSession
         AppName = appName;
         PrimaryGrevId = primaryGrevId;
         ProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
+        AdditionalProcessNames = (additionalProcessNames ?? Array.Empty<string>())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Where(name => !string.Equals(name, ProcessName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        TrackDescendantProcesses = trackDescendantProcesses;
+        ForceKillEntireProcessTree = forceKillEntireProcessTree;
         Participants = participants;
         RootProcessId = rootProcessId;
         StartedAtUtc = startedAtUtc;
@@ -112,6 +140,9 @@ internal sealed class TrackedLaunchSession
         string appName,
         string? primaryGrevId,
         string? processName,
+        IReadOnlyList<string>? additionalProcessNames,
+        bool trackDescendantProcesses,
+        bool forceKillEntireProcessTree,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -124,6 +155,9 @@ internal sealed class TrackedLaunchSession
             appName,
             primaryGrevId,
             processName,
+            additionalProcessNames,
+            trackDescendantProcesses,
+            forceKillEntireProcessTree,
             participants,
             rootProcessId,
             processes,
