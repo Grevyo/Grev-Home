@@ -190,16 +190,21 @@ public partial class MainWindow
             return;
         }
 
-        var installLocation = package.App.InstallStrategy switch
-        {
-            InstallStrategy.GrevIdPortable when string.IsNullOrWhiteSpace(grevId) =>
-                $"Profiles\\<GrevID>\\Apps\\{package.App.AppId}",
-            InstallStrategy.GrevIdPortable => _paths.GetProfileAppRoot(grevId!, package.App.AppId),
-            InstallStrategy.SystemInstalled =>
-                Path.GetDirectoryName(Environment.ExpandEnvironmentVariables(package.App.Launch.Executable))
-                ?? Environment.ExpandEnvironmentVariables(package.App.Launch.Executable),
-            _ => _paths.GetGlobalAppRoot(package.App.AppId)
-        };
+        var installLocation = lifecycle.InstalledEntry?.Manifest.Definition.InstallStrategy == InstallStrategy.SystemInstalled &&
+                              lifecycle.InstalledEntry is not null
+            ? Path.GetDirectoryName(Environment.ExpandEnvironmentVariables(
+                  lifecycle.InstalledEntry.Manifest.Definition.Launch.Executable))
+              ?? Environment.ExpandEnvironmentVariables(lifecycle.InstalledEntry.Manifest.Definition.Launch.Executable)
+            : package.App.InstallStrategy switch
+            {
+                InstallStrategy.GrevIdPortable when string.IsNullOrWhiteSpace(grevId) =>
+                    $"Profiles\\<GrevID>\\Apps\\{package.App.AppId}",
+                InstallStrategy.GrevIdPortable => _paths.GetProfileAppRoot(grevId!, package.App.AppId),
+                InstallStrategy.SystemInstalled =>
+                    Path.GetDirectoryName(Environment.ExpandEnvironmentVariables(package.App.Launch.Executable))
+                    ?? Environment.ExpandEnvironmentVariables(package.App.Launch.Executable),
+                _ => _paths.GetGlobalAppRoot(package.App.AppId)
+            };
 
         var dataLocation = package.App.DataStrategy switch
         {
@@ -274,6 +279,40 @@ public partial class MainWindow
 
         await RefreshAfterStoreOperationAsync(package,
             completed ? $"{package.Presentation.DisplayName} is installed and available in this library." : null);
+
+        // Game launchers are expected to become the console surface immediately after their first
+        // successful install/adoption. Launch through the normal Grev runtime rather than directly
+        // from the installer so Big Picture/controller onboarding/session tracking all start together.
+        if (completed && package.App.Kind == AppKind.GameLauncher)
+        {
+            await LaunchInstalledGameLauncherAfterInstallAsync(package, grevId);
+        }
+    }
+
+    private async Task LaunchInstalledGameLauncherAfterInstallAsync(
+        GrevStorePackageDefinition package,
+        string? grevId)
+    {
+        try
+        {
+            var installed = await _installedApps.GetInstalledForUserAsync(grevId);
+            var entry = installed.FirstOrDefault(candidate =>
+                candidate.AvailableToCurrentUser &&
+                string.Equals(candidate.Manifest.Definition.AppId, package.App.AppId, StringComparison.OrdinalIgnoreCase));
+            if (entry is null)
+            {
+                _grevStoreAppView.ShowStatus(
+                    $"{package.Presentation.DisplayName} installed successfully, but Grev Home could not resolve its new runtime entry for automatic launch. Use Open to retry.");
+                return;
+            }
+
+            await LaunchInstalledAppAsync(entry);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _grevStoreAppView.ShowStatus(
+                $"{package.Presentation.DisplayName} installed successfully, but automatic launch failed: {ex.Message}");
+        }
     }
 
     private async Task BeginStoreUpdateAsync(GrevStorePackageDefinition package)
