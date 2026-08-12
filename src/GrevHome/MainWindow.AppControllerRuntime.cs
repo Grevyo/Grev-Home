@@ -56,6 +56,9 @@ public partial class MainWindow
             }
         };
 
+        _overlayWindow.ControllerGuideDisableControllerProfileRequested += (grevId, appId) =>
+            _ = DisableAppControllerProfileFromGuideAsync(grevId, appId);
+
         _runtimeSessions.SessionEnded += snapshot =>
         {
             Dispatcher.BeginInvoke(new Action(() =>
@@ -191,7 +194,9 @@ public partial class MainWindow
             onboarding.Summary,
             FormatSystemShortcut(ControllerShortcutAction.ReturnHome),
             FormatSystemShortcut(ControllerShortcutAction.Overlay),
-            controls);
+            controls,
+            onboarding.QuickDisableControllerProfileLabel,
+            onboarding.QuickDisableControllerProfileDescription);
     }
 
     private string FormatSystemShortcut(ControllerShortcutAction action)
