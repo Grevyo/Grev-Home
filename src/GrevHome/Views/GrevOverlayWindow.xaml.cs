@@ -25,6 +25,7 @@ public partial class GrevOverlayWindow : Window
     public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
     public event Action<string, string>? ControllerGuideDontShowAgainRequested;
+    public event Action<string, string>? ControllerGuideDisableControllerProfileRequested;
 
     public GrevOverlayWindow()
     {
@@ -59,7 +60,9 @@ public partial class GrevOverlayWindow : Window
         string summary,
         string returnHomeShortcut,
         string overlayShortcut,
-        IReadOnlyList<ControllerGuideItem> controls)
+        IReadOnlyList<ControllerGuideItem> controls,
+        string? quickDisableControllerProfileLabel = null,
+        string? quickDisableControllerProfileDescription = null)
     {
         _controllerGuide = new ControllerGuideContent(
             appId,
@@ -68,7 +71,9 @@ public partial class GrevOverlayWindow : Window
             summary,
             returnHomeShortcut,
             overlayShortcut,
-            controls);
+            controls,
+            quickDisableControllerProfileLabel,
+            quickDisableControllerProfileDescription);
         _mode = OverlayMode.ControllerGuide;
         Render();
         ShowAndFocus();
@@ -260,6 +265,37 @@ public partial class GrevOverlayWindow : Window
             controlGrid.Children.Add(CreateGuideCard(item.Control, item.Action, emphasize: false));
         }
         ActionPanel.Children.Add(controlGrid);
+
+        if (!string.IsNullOrWhiteSpace(guide.QuickDisableControllerProfileLabel))
+        {
+            AddSectionHeading("SETUP HELPER");
+            if (!string.IsNullOrWhiteSpace(guide.QuickDisableControllerProfileDescription))
+            {
+                ActionPanel.Children.Add(new TextBlock
+                {
+                    Text = guide.QuickDisableControllerProfileDescription,
+                    Margin = new Thickness(0, 0, 0, 12),
+                    FontSize = 14,
+                    Foreground = (Brush)FindResource("MutedBrush"),
+                    TextWrapping = TextWrapping.Wrap
+                });
+            }
+
+            AddAction(
+                string.IsNullOrWhiteSpace(guide.GrevId)
+                    ? $"{guide.QuickDisableControllerProfileLabel} (persistent profile required)"
+                    : guide.QuickDisableControllerProfileLabel,
+                !string.IsNullOrWhiteSpace(guide.GrevId),
+                () =>
+                {
+                    if (!string.IsNullOrWhiteSpace(guide.GrevId))
+                    {
+                        ControllerGuideDisableControllerProfileRequested?.Invoke(guide.GrevId, guide.AppId);
+                    }
+                    Dismiss();
+                },
+                minimumHeight: 58);
+        }
 
         AddAction("Close", true, Dismiss, minimumHeight: 54);
         AddAction(
@@ -490,7 +526,9 @@ public partial class GrevOverlayWindow : Window
         string Summary,
         string ReturnHomeShortcut,
         string OverlayShortcut,
-        IReadOnlyList<ControllerGuideItem> Controls);
+        IReadOnlyList<ControllerGuideItem> Controls,
+        string? QuickDisableControllerProfileLabel,
+        string? QuickDisableControllerProfileDescription);
 
     private enum OverlayMode
     {
