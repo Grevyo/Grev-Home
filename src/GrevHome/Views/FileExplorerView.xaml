@@ -49,7 +49,8 @@
                                Text="This folder is empty."
                                Visibility="Collapsed"
                                Margin="8"
-                               Foreground="{StaticResource MutedBrush}" />
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
                     <StackPanel x:Name="EntriesPanel" />
                 </StackPanel>
             </ScrollViewer>
@@ -67,11 +68,16 @@
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <StackPanel>
-                        <TextBlock x:Name="SelectedNameText" Text="No item selected" FontSize="17" FontWeight="SemiBold" />
+                        <TextBlock x:Name="SelectedNameText"
+                                   Text="No item selected"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   TextWrapping="Wrap" />
                         <TextBlock x:Name="SelectedDetailText"
                                    Margin="0,4,0,0"
                                    Foreground="{StaticResource MutedBrush}"
-                                   Text="Choose an item, then use the actions on the right." />
+                                   Text="Choose an item, then use the actions on the right."
+                                   TextWrapping="Wrap" />
                     </StackPanel>
                     <WrapPanel Grid.Column="1" Margin="16,0,0,0" VerticalAlignment="Center">
                         <Button x:Name="OpenButton" Content="Open" Width="90" Height="44" Margin="4" Click="Open_Click" IsEnabled="False" />
@@ -95,61 +101,151 @@
                        TextWrapping="Wrap" />
         </StackPanel>
 
+        <!-- Rename/create is a bounded shell modal. The keyboard may scroll independently while
+             its command row remains fixed and visible. -->
         <Border x:Name="EditorOverlay"
                 Grid.RowSpan="4"
                 Visibility="Collapsed"
-                Background="#F0080B11"
-                CornerRadius="14"
-                Padding="36"
+                Background="#E6080B11"
                 Panel.ZIndex="10">
-            <StackPanel Width="820" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock x:Name="EditorTitleText" Text="Name" FontSize="30" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBox x:Name="NameTextBox"
-                         Height="54"
-                         Margin="0,18,0,10"
-                         Padding="14,8"
-                         FontSize="21"
-                         MaxLength="120" />
-                <TextBlock x:Name="EditorStatusText"
-                           Margin="0,0,0,12"
-                           Foreground="{StaticResource MutedBrush}"
-                           Text="Use the controller keyboard or a physical keyboard." />
-                <UniformGrid x:Name="NameKeyboard" Columns="10" />
-                <WrapPanel HorizontalAlignment="Center" Margin="0,10,0,0">
-                    <Button x:Name="CaseButton" Content="Aa" Width="90" Height="48" Margin="4" Click="ToggleCase_Click" />
-                    <Button Content="Space" Width="170" Height="48" Margin="4" Click="NameSpace_Click" />
-                    <Button Content="Backspace" Width="145" Height="48" Margin="4" Click="NameBackspace_Click" />
-                    <Button Content="Save" Width="120" Height="48" Margin="4" Click="SaveName_Click" />
-                    <Button Content="Cancel" Width="120" Height="48" Margin="4" Click="CancelEditor_Click" />
-                </WrapPanel>
-            </StackPanel>
+            <Border MinWidth="620"
+                    MaxWidth="980"
+                    MaxHeight="760"
+                    Margin="32"
+                    Style="{StaticResource ShellModalCardStyle}">
+                <Grid KeyboardNavigation.DirectionalNavigation="Contained">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,14">
+                        <TextBlock x:Name="EditorTitleText"
+                                   Text="Name"
+                                   FontSize="30"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" />
+                        <TextBox x:Name="NameTextBox"
+                                 MinHeight="54"
+                                 Height="Auto"
+                                 Margin="0,16,0,10"
+                                 Padding="14,8"
+                                 FontSize="21"
+                                 MaxLength="120" />
+                        <TextBlock x:Name="EditorStatusText"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   Text="Use the controller keyboard or a physical keyboard."
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1"
+                                  MaxHeight="430"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <UniformGrid x:Name="NameKeyboard" Columns="10" />
+                    </ScrollViewer>
+
+                    <Border Grid.Row="2"
+                            Margin="0,14,0,0"
+                            Padding="0,14,0,0"
+                            BorderBrush="#2B3344"
+                            BorderThickness="0,1,0,0">
+                        <WrapPanel HorizontalAlignment="Center">
+                            <Button x:Name="CaseButton"
+                                    Content="Aa"
+                                    MinWidth="90"
+                                    Style="{StaticResource ShellModalActionButtonStyle}"
+                                    Click="ToggleCase_Click" />
+                            <Button Content="Space"
+                                    MinWidth="170"
+                                    Style="{StaticResource ShellModalActionButtonStyle}"
+                                    Click="NameSpace_Click" />
+                            <Button Content="Backspace"
+                                    MinWidth="145"
+                                    Style="{StaticResource ShellModalActionButtonStyle}"
+                                    Click="NameBackspace_Click" />
+                            <Button Content="Save"
+                                    MinWidth="120"
+                                    Style="{StaticResource ShellModalActionButtonStyle}"
+                                    Click="SaveName_Click" />
+                            <Button x:Name="EditorCancelButton"
+                                    Content="Cancel"
+                                    MinWidth="120"
+                                    Style="{StaticResource ShellModalActionButtonStyle}"
+                                    Click="CancelEditor_Click" />
+                        </WrapPanel>
+                    </Border>
+                </Grid>
+            </Border>
         </Border>
 
+        <!-- Delete is intentionally safer: information scrolls independently and Cancel is the
+             first controller target in the fixed footer. -->
         <Border x:Name="DeleteOverlay"
                 Grid.RowSpan="4"
                 Visibility="Collapsed"
-                Background="#F0080B11"
-                CornerRadius="14"
-                Padding="36"
+                Background="#E6080B11"
                 Panel.ZIndex="11">
-            <StackPanel Width="650" HorizontalAlignment="Center" VerticalAlignment="Center">
-                <TextBlock Text="Delete this item?" FontSize="31" FontWeight="SemiBold" HorizontalAlignment="Center" />
-                <TextBlock x:Name="DeleteTargetText"
-                           Margin="0,14,0,0"
-                           FontSize="18"
-                           HorizontalAlignment="Center"
-                           TextWrapping="Wrap" />
-                <TextBlock Text="Folders are deleted recursively. This does not use the Recycle Bin in 0.8."
-                           Margin="0,10,0,20"
-                           Foreground="{StaticResource MutedBrush}"
-                           HorizontalAlignment="Center"
-                           TextAlignment="Center"
-                           TextWrapping="Wrap" />
-                <WrapPanel HorizontalAlignment="Center">
-                    <Button Content="CONFIRM DELETE" Width="190" Height="54" Margin="6" Click="ConfirmDelete_Click" />
-                    <Button Content="Cancel" Width="140" Height="54" Margin="6" Click="CancelDelete_Click" />
-                </WrapPanel>
-            </StackPanel>
+            <Border MinWidth="520"
+                    MaxWidth="720"
+                    MaxHeight="620"
+                    Margin="32"
+                    Style="{StaticResource ShellModalCardStyle}">
+                <Grid KeyboardNavigation.DirectionalNavigation="Contained">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <ScrollViewer Grid.Row="0"
+                                  MaxHeight="430"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel>
+                            <TextBlock Text="Delete this item?"
+                                       FontSize="31"
+                                       FontWeight="SemiBold"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap" />
+                            <TextBlock x:Name="DeleteTargetText"
+                                       Margin="0,14,0,0"
+                                       FontSize="18"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="Folders are deleted recursively. This does not use the Recycle Bin."
+                                       Margin="0,10,0,0"
+                                       Foreground="{StaticResource MutedBrush}"
+                                       HorizontalAlignment="Center"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="1"
+                            Margin="0,18,0,0"
+                            Padding="0,14,0,0"
+                            BorderBrush="#2B3344"
+                            BorderThickness="0,1,0,0">
+                        <WrapPanel HorizontalAlignment="Center">
+                            <Button x:Name="DeleteCancelButton"
+                                    Content="Cancel"
+                                    MinWidth="150"
+                                    Style="{StaticResource ShellModalActionButtonStyle}"
+                                    Click="CancelDelete_Click" />
+                            <Button Content="CONFIRM DELETE"
+                                    MinWidth="210"
+                                    Style="{StaticResource ShellModalDangerActionButtonStyle}"
+                                    Click="ConfirmDelete_Click" />
+                        </WrapPanel>
+                    </Border>
+                </Grid>
+            </Border>
         </Border>
     </Grid>
 </UserControl>
