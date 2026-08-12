@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -90,8 +91,10 @@ public partial class MainWindow
 
         // History is the normal source of truth. Login keeps its legacy escape back to Dashboard
         // when users are signed in even if a caller intentionally reset navigation to Login.
-        ShellBackButton.IsEnabled = _navigation.CanGoBack ||
-                                    (route == Route.Login && _session.HasSignedInUsers);
+        var canGoBack = _navigation.CanGoBack ||
+                        (route == Route.Login && _session.HasSignedInUsers);
+        ShellBackButton.IsEnabled = canGoBack;
+        ShellBackButton.Visibility = canGoBack ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void ApplyShellNavigationLanding(
