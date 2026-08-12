@@ -14,8 +14,9 @@ namespace GrevHome;
 /// </summary>
 public partial class MainWindow
 {
-    private readonly Dictionary<Route, RouteFocusBookmark> _routeFocusBookmarks = new();
+    private readonly Dictionary<int, RouteFocusBookmark> _historyFocusBookmarks = new();
     private NavigationTransition? _pendingShellNavigationTransition;
+    private RouteFocusBookmark? _pendingBackFocusBookmark;
     private long _shellFocusRequestVersion;
     private bool _shellNavigationFinalizationReady;
 
@@ -34,12 +35,33 @@ public partial class MainWindow
 
     private void HandleShellRouteChanging(NavigationTransition transition)
     {
-        // A same-route modal/action-menu push captures the parent route's current focus before the
-        // modal takes it. When Back later closes that modal, do not overwrite the saved parent
-        // bookmark with the modal button that currently has focus.
-        if (!(transition.Kind == NavigationTransitionKind.Back && transition.From == transition.To))
+        _pendingBackFocusBookmark = null;
+
+        switch (transition.Kind)
         {
-            CaptureRouteFocus(transition.From);
+            case NavigationTransitionKind.Reset:
+                _historyFocusBookmarks.Clear();
+                break;
+
+            case NavigationTransitionKind.Forward:
+            case NavigationTransitionKind.SameRoutePush:
+                if (TryCaptureRouteFocus(out var bookmark))
+                {
+                    // RouteChanging runs before NavigationService pushes the history entry. The
+                    // bookmark therefore belongs to the depth we are about to enter.
+                    _historyFocusBookmarks[_navigation.HistoryDepth + 1] = bookmark;
+                }
+                break;
+
+            case NavigationTransitionKind.Back:
+            case NavigationTransitionKind.SameRouteBack:
+                // Never capture the currently focused modal/child-page control while leaving it.
+                // Restore the exact parent bookmark that was saved when this history entry opened.
+                if (_historyFocusBookmarks.Remove(_navigation.HistoryDepth, out var returningBookmark))
+                {
+                    _pendingBackFocusBookmark = returningBookmark;
+                }
+                break;
         }
 
         _pendingShellNavigationTransition = transition;
@@ -50,6 +72,8 @@ public partial class MainWindow
         UpdateShellBackButtonState();
 
         var transition = _pendingShellNavigationTransition;
+        var backBookmark = _pendingBackFocusBookmark;
+        _pendingBackFocusBookmark = null;
         var requestVersion = ++_shellFocusRequestVersion;
 
         // Existing page integrations render synchronously from RouteChanged and most schedule their
@@ -57,7 +81,7 @@ public partial class MainWindow
         // the controller focus/viewport contract.
         Dispatcher.BeginInvoke(
             DispatcherPriority.ApplicationIdle,
-            new Action(() => ApplyShellNavigationLanding(route, transition, requestVersion)));
+            new Action(() => ApplyShellNavigationLanding(route, transition, backBookmark, requestVersion)));
     }
 
     private void UpdateShellBackButtonState()
@@ -73,6 +97,7 @@ public partial class MainWindow
     private void ApplyShellNavigationLanding(
         Route route,
         NavigationTransition? transition,
+        RouteFocusBookmark? backBookmark,
         long requestVersion)
     {
         if (requestVersion != _shellFocusRequestVersion || _navigation.Current != route)
@@ -92,13 +117,20 @@ public partial class MainWindow
             return;
         }
 
-        if (transition?.Kind == NavigationTransitionKind.Back && TryRestoreRouteFocus(route))
+        if (transition?.Kind is NavigationTransitionKind.Back or NavigationTransitionKind.SameRouteBack)
         {
+            if (backBookmark is not null && TryRestoreRouteFocus(backBookmark))
+            {
+                return;
+            }
+
+            // Back preserves the existing viewport even if the original control no longer exists.
+            FocusFirstRouteControl();
             return;
         }
 
-        // A fresh route starts predictably at its beginning. Back intentionally does not reset the
-        // viewport, so returning from a detail/settings page feels like returning to the same place.
+        // A fresh route starts predictably at its beginning. This includes same-route content
+        // navigation such as entering a Files directory through NavigateWithinRoute.
         if (transition?.Kind is NavigationTransitionKind.Forward or NavigationTransitionKind.Reset)
         {
             ScrollRouteToTop();
@@ -107,36 +139,34 @@ public partial class MainWindow
         FocusFirstRouteControl();
     }
 
-    private void CaptureRouteFocus(Route route)
+    private bool TryCaptureRouteFocus(out RouteFocusBookmark bookmark)
     {
+        bookmark = default!;
+
         // Grev Home's route boundary is controller-first. Remember actual selectable Buttons rather
         // than generic Focusable FrameworkElements so a ScrollViewer or text surface can never
         // become the accidental landing target of a new controller route.
         if (Keyboard.FocusedElement is not Button focused ||
             !RouteHost.IsAncestorOf(focused))
         {
-            return;
+            return false;
         }
 
         var focusables = GetRouteFocusableElements();
         var index = focusables.IndexOf(focused);
         if (index < 0)
         {
-            return;
-        }
-
-        _routeFocusBookmarks[route] = new RouteFocusBookmark(
-            new WeakReference<Button>(focused),
-            index);
-    }
-
-    private bool TryRestoreRouteFocus(Route route)
-    {
-        if (!_routeFocusBookmarks.TryGetValue(route, out var bookmark))
-        {
             return false;
         }
 
+        bookmark = new RouteFocusBookmark(
+            new WeakReference<Button>(focused),
+            index);
+        return true;
+    }
+
+    private bool TryRestoreRouteFocus(RouteFocusBookmark bookmark)
+    {
         var focusables = GetRouteFocusableElements();
         if (focusables.Count == 0)
         {
@@ -150,8 +180,8 @@ public partial class MainWindow
             return previous.Focus();
         }
 
-        // Dynamic Store/library/profile lists can recreate their buttons while a detail page is
-        // open. Falling back to the same focusable index restores the user's approximate position
+        // Dynamic Store/library/profile/file lists can recreate their buttons while a child route
+        // is open. Falling back to the same focusable index restores the user's approximate position
         // instead of dumping controller focus at the first tile.
         var fallbackIndex = Math.Clamp(bookmark.FocusableIndex, 0, focusables.Count - 1);
         return focusables[fallbackIndex].Focus();
