@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Security.Cryptography;
+using System.Text;
 using GrevHome.Apps;
 using GrevHome.Storage;
 
@@ -10,10 +11,11 @@ namespace GrevHome.Store.Installers;
 
 /// <summary>
 /// Trusted PCSX2 Profile App workflow. Grev Home installs the official Stable Windows x64 Qt
-/// portable package into the owning GrevID's replaceable binary root and launches it with
-/// -datapath so PCSX2 configuration, BIOS files, memory cards and other mutable application data
-/// remain in the persistent GrevID AppData root. Update/repair replace binaries only; uninstall
-/// removes binaries only and deliberately preserves the GrevID data root.
+/// portable package into the owning GrevID's replaceable binary root. PCSX2 Stable 2.6.3 does
+/// not support the later -datapath command-line option, so Grev Home uses PCSX2's native
+/// portable.txt relative-path mechanism to redirect DataRoot into persistent GrevID AppData.
+/// Update/repair replace binaries only; uninstall removes binaries only and deliberately
+/// preserves the GrevID data root.
 /// </summary>
 public sealed class PCSX2InstallerService : ITrustedPackageInstaller
 {
@@ -74,6 +76,14 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
                 SupportedVersion));
         }
 
+        if (!PortableDataRedirectMatches(binaryRoot, dataRoot))
+        {
+            return Task.FromResult(new PackageHealthSnapshot(
+                PackageHealthState.RepairRecommended,
+                "PCSX2's portable data redirect is missing or points somewhere other than this GrevID's AppData. Repair can recreate it without deleting profile data.",
+                SupportedVersion));
+        }
+
         var runtimeSuffix = string.IsNullOrWhiteSpace(runtimeVersion)
             ? string.Empty
             : $" Visual C++ runtime {runtimeVersion} is present.";
@@ -81,8 +91,8 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         return Task.FromResult(new PackageHealthSnapshot(
             PackageHealthState.Healthy,
             hasBiosFiles
-                ? $"PCSX2 binaries and the GrevID-owned BIOS/data folder are present.{runtimeSuffix}"
-                : $"PCSX2 is installed and its Windows runtime prerequisite is present.{runtimeSuffix} A BIOS dumped from a PlayStation 2 you own still needs to be placed in the BIOS folder and selected in PCSX2.",
+                ? $"PCSX2 binaries, portable GrevID data redirect and BIOS/data folder are present.{runtimeSuffix}"
+                : $"PCSX2 is installed and its portable GrevID data redirect is healthy.{runtimeSuffix} A BIOS dumped from a PlayStation 2 you own still needs to be placed in the BIOS folder and selected in PCSX2.",
             SupportedVersion));
     }
 
@@ -141,11 +151,11 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             progress?.Report(new PackageInstallProgress("Install", "Moving verified PCSX2 files into this GrevID profile…", 90));
             MoveExtractedPackage(extractedRoot, targetRoot);
 
-            progress?.Report(new PackageInstallProgress("Configure", "Creating the persistent GrevID PCSX2 data and BIOS folder…", 94));
-            ConfigureProfile(grevId);
+            progress?.Report(new PackageInstallProgress("Configure", "Creating the GrevID PCSX2 data/BIOS folder and portable redirect…", 94));
+            ConfigurePortableProfile(targetRoot, grevId);
 
             progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test before registration…", 96));
-            await SmokeTestAsync(targetRoot, grevId, cancellationToken);
+            await SmokeTestAsync(targetRoot, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Register", "Registering the validated PCSX2 installation with Grev Home…", 99));
             await _installedApps.RegisterInstalledAsync(
@@ -162,7 +172,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         catch
         {
             // A fresh install is registered only after PCSX2 itself passes its startup/config test.
-            // Roll back only package binaries; the GrevID data root remains persistent.
+            // Roll back only package binaries; persistent GrevID AppData remains untouched.
             TryDeleteDirectory(targetRoot);
             throw;
         }
@@ -200,10 +210,10 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         cancellationToken.ThrowIfCancellationRequested();
         progress?.Report(new PackageInstallProgress(
             "Preserve",
-            "Preserving this GrevID's PCSX2 BIOS, configuration, memory cards and other application data…",
+            "Preserving this GrevID's PCSX2 BIOS, configuration, memory cards and other AppData…",
             35));
 
-        progress?.Report(new PackageInstallProgress("Uninstall", "Removing only this GrevID's PCSX2 binaries…", 70));
+        progress?.Report(new PackageInstallProgress("Uninstall", "Removing only this GrevID's PCSX2 binaries and portable redirect…", 70));
         if (Directory.Exists(targetRoot))
         {
             await Task.Run(() => Directory.Delete(targetRoot, recursive: true), cancellationToken);
@@ -211,12 +221,12 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
 
         if (Directory.Exists(targetRoot))
         {
-            throw new IOException("PCSX2 binary removal did not complete. GrevID data was not deleted.");
+            throw new IOException("PCSX2 binary removal did not complete. GrevID AppData was not deleted.");
         }
 
         progress?.Report(new PackageInstallProgress(
             "Complete",
-            "PCSX2 binaries were removed. This GrevID's BIOS, configuration, memory cards and other PCSX2 data were preserved for a future reinstall.",
+            "PCSX2 binaries were removed. This GrevID's BIOS, configuration, memory cards and other PCSX2 AppData were preserved for a future reinstall.",
             100));
     }
 
@@ -229,7 +239,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
     {
         ValidatePackage(package, grevId);
         _paths.EnsureProfileLayout(grevId);
-        ConfigureProfile(grevId);
+        EnsurePersistentDataRoot(grevId);
 
         await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken);
 
@@ -246,7 +256,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         {
             progress?.Report(new PackageInstallProgress(
                 operation,
-                "Keeping GrevID PCSX2 data separate while preparing replacement binaries…",
+                "Keeping GrevID PCSX2 AppData separate while preparing replacement binaries…",
                 6));
 
             var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
@@ -260,10 +270,10 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             }
 
             Directory.Move(extractedRoot, targetRoot);
-            ConfigureProfile(grevId);
+            ConfigurePortableProfile(targetRoot, grevId);
 
             progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test…", 96));
-            await SmokeTestAsync(targetRoot, grevId, cancellationToken);
+            await SmokeTestAsync(targetRoot, cancellationToken);
 
             await _installedApps.RegisterInstalledAsync(
                 package.App,
@@ -281,7 +291,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         catch
         {
             // Do not commit replacement binaries which cannot actually start. Restore the previous
-            // package root whenever one existed; persistent GrevID data is never rolled back.
+            // package root whenever one existed; persistent GrevID AppData is never rolled back.
             TryDeleteDirectory(targetRoot);
             if (oldRootMoved && Directory.Exists(backupRoot) && !Directory.Exists(targetRoot))
             {
@@ -327,23 +337,75 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         return extractedRoot;
     }
 
-    private void ConfigureProfile(string grevId)
+    private void EnsurePersistentDataRoot(string grevId)
     {
         var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
         Directory.CreateDirectory(dataRoot);
         Directory.CreateDirectory(Path.Combine(dataRoot, "bios"));
     }
 
-    private async Task SmokeTestAsync(
+    private void ConfigurePortableProfile(string binaryRoot, string grevId)
+    {
+        EnsurePersistentDataRoot(grevId);
+
+        var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
+        var relativeDataRoot = Path.GetRelativePath(binaryRoot, dataRoot);
+        if (string.IsNullOrWhiteSpace(relativeDataRoot) || Path.IsPathRooted(relativeDataRoot))
+        {
+            throw new InvalidOperationException("Grev Home could not create a safe relative PCSX2 portable data path for this GrevID.");
+        }
+
+        var resolved = Path.GetFullPath(Path.Combine(binaryRoot, relativeDataRoot));
+        if (!PathsEqual(resolved, dataRoot))
+        {
+            throw new InvalidOperationException("The generated PCSX2 portable data redirect does not resolve to this GrevID's AppData root.");
+        }
+
+        Directory.CreateDirectory(binaryRoot);
+        File.WriteAllText(
+            Path.Combine(binaryRoot, "portable.txt"),
+            relativeDataRoot,
+            new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    private static bool PortableDataRedirectMatches(string binaryRoot, string dataRoot)
+    {
+        var portableFile = Path.Combine(binaryRoot, "portable.txt");
+        if (!File.Exists(portableFile))
+        {
+            return false;
+        }
+
+        try
+        {
+            var configured = File.ReadAllText(portableFile).Trim();
+            if (string.IsNullOrWhiteSpace(configured))
+            {
+                return false;
+            }
+
+            var resolved = Path.GetFullPath(Path.Combine(binaryRoot, configured));
+            return PathsEqual(resolved, dataRoot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
+
+    private static async Task SmokeTestAsync(
         string binaryRoot,
-        string grevId,
         CancellationToken cancellationToken)
     {
         var executable = Path.Combine(binaryRoot, "pcsx2-qt.exe");
-        var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
         if (!File.Exists(executable))
         {
             throw new InvalidDataException("PCSX2 startup validation could not find pcsx2-qt.exe.");
+        }
+
+        if (!File.Exists(Path.Combine(binaryRoot, "portable.txt")))
+        {
+            throw new InvalidDataException("PCSX2 startup validation could not find the Grev Home portable data redirect.");
         }
 
         var startInfo = new ProcessStartInfo
@@ -356,8 +418,6 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             RedirectStandardError = true
         };
         startInfo.ArgumentList.Add("-testconfig");
-        startInfo.ArgumentList.Add("-datapath");
-        startInfo.ArgumentList.Add(dataRoot);
 
         Process process;
         try
