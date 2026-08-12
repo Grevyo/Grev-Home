@@ -496,8 +496,12 @@ public partial class GrevOverlayWindow : Window
 
     private void FocusFirstButton()
     {
-        var first = FindVisualChildren<Button>(ActionPanel)
-            .FirstOrDefault(button => button.IsVisible && button.IsEnabled);
+        var buttons = FindVisualChildren<Button>(ActionPanel)
+            .Where(button => button.IsVisible && button.IsEnabled)
+            .ToArray();
+        var first = _mode == OverlayMode.ControllerGuide
+            ? buttons.FirstOrDefault(button => button.Content is TextBlock { Text: "Close" }) ?? buttons.FirstOrDefault()
+            : buttons.FirstOrDefault();
         first?.Focus();
     }
 
