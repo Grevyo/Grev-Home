@@ -38,15 +38,15 @@ public partial class DashboardView : UserControl
 
         var signedIn = string.Join(", ", session.SignedInUsers.Select(user =>
             user.IsPrimary ? $"★ {user.DisplayName}" : user.DisplayName));
-        SessionUsersText.Text = $"Signed in: {signedIn}";
+        SessionUsersText.Text = session.SignedInUsers.Count == 1
+            ? $"Signed in: {signedIn}"
+            : $"{session.SignedInUsers.Count} players signed in: {signedIn}";
     }
 
     public void SetRunningCount(int runningCount)
     {
-        RunningAppsButton.Content = $"Running Apps\n{runningCount} active";
+        RunningCountText.Text = $"{runningCount} active";
     }
-
-    public void ShowStatus(string message) => StatusText.Text = message;
 
     private void ManageUsers_Click(object sender, RoutedEventArgs e) =>
         ManageUsersRequested?.Invoke(this, EventArgs.Empty);
@@ -74,12 +74,4 @@ public partial class DashboardView : UserControl
 
     private void Logout_Click(object sender, RoutedEventArgs e) =>
         LogoutRequested?.Invoke(this, EventArgs.Empty);
-
-    private void Placeholder_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: string feature })
-        {
-            StatusText.Text = $"{feature} is still a dashboard placeholder while Grev Home's backbone is built first.";
-        }
-    }
 }
