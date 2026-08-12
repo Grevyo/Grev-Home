@@ -13,24 +13,32 @@
             <TextBlock x:Name="HeadingText"
                        Text="Who's playing?"
                        HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
                        FontSize="46"
                        FontWeight="SemiBold" />
             <TextBlock x:Name="SubheadingText"
                        Text="Choose your profile to enter Grev Home."
                        HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
                        Margin="0,8,0,22"
                        FontSize="16"
                        Foreground="{StaticResource MutedBrush}" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Width="1120" HorizontalAlignment="Center">
+        <ScrollViewer Grid.Row="1"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel MaxWidth="1120" HorizontalAlignment="Stretch">
                 <TextBlock Text="PROFILES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
                 <WrapPanel x:Name="ProfilesPanel" Margin="0,8,0,12" />
                 <TextBlock x:Name="NoProfilesText"
                            Text="No accounts yet. Create the first Grev Home account below."
                            Margin="0,4,0,10"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center" />
             </StackPanel>
         </ScrollViewer>
 
