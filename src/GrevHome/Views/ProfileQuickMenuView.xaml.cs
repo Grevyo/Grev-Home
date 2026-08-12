@@ -12,6 +12,7 @@ public partial class ProfileQuickMenuView : UserControl
 {
     private readonly List<Button> _actionButtons = new();
     private readonly Dictionary<string, Button> _actionButtonsByKey = new(StringComparer.OrdinalIgnoreCase);
+    private string? _lastFocusedActionKey;
 
     public event Action<Guid>? ViewProfileRequested;
     public event Action<Guid>? SetPrimaryRequested;
@@ -35,7 +36,7 @@ public partial class ProfileQuickMenuView : UserControl
         var previousKey = Keyboard.FocusedElement is Button focused && focused.Tag is string key &&
                           _actionButtonsByKey.TryGetValue(key, out var tracked) && tracked == focused
             ? key
-            : null;
+            : _lastFocusedActionKey;
 
         _actionButtons.Clear();
         _actionButtonsByKey.Clear();
@@ -268,6 +269,7 @@ public partial class ProfileQuickMenuView : UserControl
     private void RegisterFooterButton(Button button, string key)
     {
         button.Tag = key;
+        button.GotKeyboardFocus += (_, _) => _lastFocusedActionKey = key;
         _actionButtons.Add(button);
         _actionButtonsByKey[key] = button;
     }
