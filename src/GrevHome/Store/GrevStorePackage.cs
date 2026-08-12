@@ -34,6 +34,7 @@ public sealed record GrevStorePackageDefinition(
     AppOnboardingDefinition? Onboarding = null,
     bool Featured = false,
     string? StoreDescription = null,
+    string? SetupNotice = null,
     IReadOnlyList<string>? GrevHomeIntegrations = null)
 {
     public bool IsProfileInstall => App.InstallStrategy == InstallStrategy.GrevIdPortable;
@@ -89,6 +90,52 @@ public sealed class GrevStoreCatalogService
                 "Launch through the Grev Home runtime for Return Home, Overlay, Running Apps, restart/recovery and tracked playtime.",
                 "Grev Home sessions and playtime can feed the owning profile's activity, level and stats.",
                 "Controller-first discovery, launch and app management inside the permanent Grev Home shell."
+            ]),
+
+        new GrevStorePackageDefinition(
+            PackageId: "pcsx2",
+            InstallerId: PCSX2InstallerService.InstallerId,
+            Category: GrevStoreCategory.Emulator,
+            App: new AppDefinition(
+                AppId: "pcsx2",
+                Name: "PCSX2",
+                Kind: AppKind.Emulator,
+                InstallStrategy: InstallStrategy.GrevIdPortable,
+                DataStrategy: DataStrategy.GrevId,
+                Launch: new AppLaunchDefinition(
+                    Executable: "pcsx2-qt.exe",
+                    Arguments: "-datapath \"{DataRoot}\"",
+                    WorkingDirectory: "{BinaryRoot}",
+                    ProcessName: "pcsx2-qt"),
+                SupportsController: true,
+                Description: "Profile-isolated PlayStation 2 emulator with independent configuration, BIOS selection and application data per GrevID."),
+            Presentation: new AppPresentationDefaults(
+                DisplayName: "PCSX2"),
+            Capabilities:
+                AppPackageCapability.Install |
+                AppPackageCapability.Update |
+                AppPackageCapability.Repair |
+                AppPackageCapability.ProfileUninstall |
+                AppPackageCapability.ControllerProfile |
+                AppPackageCapability.AppSettings |
+                AppPackageCapability.PresentationOverrides,
+            ControllerProfile: AppControllerProfileDefaults.Empty,
+            RuntimePolicy: new AppRuntimePolicy(
+                AppWindowMode.Maximized,
+                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden),
+            VersionPolicy: new AppVersionPolicy(
+                CurrentVersion: PCSX2InstallerService.SupportedVersion,
+                NativeAutoUpdate: false),
+            Featured: true,
+            StoreDescription: "PCSX2 is a PlayStation 2 emulator. Grev Home installs the official Stable Windows x64 portable build as a Profile App and gives each GrevID a separate PCSX2 data path so configuration, BIOS selection, memory cards and other emulator data do not silently mix between profiles.",
+            SetupNotice: "BIOS required: PCSX2 cannot run games until a PlayStation 2 BIOS dumped from a console you own has been configured. Put the BIOS files in {DataLocation}\\bios, open PCSX2 and select/configure that BIOS. Once this is done, PCSX2 is ready to run your PS2 game dumps.",
+            GrevHomeIntegrations:
+            [
+                "Official PCSX2 Stable Windows x64 Qt portable package, pinned and SHA-256 verified before extraction.",
+                "Profile-owned binaries for the current GrevID with PCSX2 launched using its -datapath option for persistent GrevID application data.",
+                "The BIOS folder is created automatically inside the GrevID PCSX2 data root; Grev Home never supplies proprietary PlayStation 2 BIOS files.",
+                "Trusted update and repair replace only PCSX2 binaries while preserving the GrevID's PCSX2 data and BIOS folder.",
+                "Native controller support remains untouched while Grev Home provides Return Home, Overlay, Running Apps, App Killer and tracked playtime around the emulator."
             ]),
 
         new GrevStorePackageDefinition(
