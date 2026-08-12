@@ -65,11 +65,20 @@ public sealed record AppVersionPolicy(
     string? CurrentVersion = null,
     bool NativeAutoUpdate = false);
 
+/// <summary>
+/// Reusable first-launch help for an app. Packages can optionally name their controller profile
+/// in user-facing language and expose a one-press onboarding action which disables that profile
+/// after temporary keyboard/mouse setup is complete. The profile remains editable/reversible in
+/// normal App Settings; onboarding is only a shortcut to the same per-GrevID setting.
+/// </summary>
 public sealed record AppOnboardingDefinition(
     string Title,
     string Summary,
     IReadOnlyList<AppControllerControl> ControllerGuideControls,
-    bool ShowOnFirstLaunch = true);
+    bool ShowOnFirstLaunch = true,
+    string? ControllerProfileDisplayName = null,
+    string? QuickDisableControllerProfileLabel = null,
+    string? QuickDisableControllerProfileDescription = null);
 
 public enum PackageHealthState
 {
