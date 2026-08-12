@@ -109,9 +109,18 @@ public partial class MainWindow
     {
         if (!_profilePlayersIntegrationReady) return;
         _profilePlayersView.SetState(_session, _controllers, _profiles);
-        ProfileQuickMenu.SetState(_session, _controllers, _profiles);
+        if (PowerMenuOverlay.Visibility == Visibility.Visible && ProfileQuickMenuCard.Visibility == Visibility.Visible)
+        {
+            ProfileQuickMenu.SetState(_session, _controllers, _profiles);
+        }
         if (_navigation.Current == Route.ProfileView) RenderProfileTarget();
         else if (_navigation.Current == Route.ProfileEdit && !_profileEditView.IsKeyboardOpen) RenderProfileEditor();
+    }
+
+    private void RefreshProfileQuickMenu()
+    {
+        if (!_profilePlayersIntegrationReady) return;
+        ProfileQuickMenu.SetState(_session, _controllers, _profiles);
     }
 
     private void ShellProfileMenu_Click(object sender, RoutedEventArgs e)
@@ -119,7 +128,7 @@ public partial class MainWindow
         if (!_session.HasSignedInUsers || IsStoreModalOpen || IsPowerMenuOpen) return;
 
         _profileTargetGrevId = _session.PrimaryUser?.GrevId;
-        RefreshProfilePlayerViews();
+        RefreshProfileQuickMenu();
         ResetHeaderPowerConfirmation();
         _headerFlyoutReturnButton = ProfileBubbleButton;
         PowerMenuCard.Visibility = Visibility.Collapsed;
@@ -200,7 +209,6 @@ public partial class MainWindow
         }
 
         _profileTargetGrevId = _session.PrimaryUser?.GrevId;
-        RefreshProfilePlayerViews();
     }
 
     private void SetPrimaryFromProfileMenu(Guid sessionUserId)
@@ -209,7 +217,6 @@ public partial class MainWindow
         if (actor is null || !AccountAuthorizationService.Allows(actor.Role, AccountPermission.ChangePrimaryUser)) return;
         _session.SetPrimary(sessionUserId);
         _profileTargetGrevId = _session.PrimaryUser?.GrevId;
-        RefreshProfilePlayerViews();
     }
 
     private void AssignControllerFromProfileMenu(PlayerControllerAssignmentRequest request)
@@ -218,7 +225,6 @@ public partial class MainWindow
         var target = FindSessionUser(request.SessionUserId);
         if (!CanManageController(actor, target)) return;
         _session.AssignController(request.ControllerIndex, request.SessionUserId);
-        RefreshProfilePlayerViews();
     }
 
     private void UnassignControllerFromProfileMenu(PlayerControllerAssignmentRequest request)
@@ -227,7 +233,6 @@ public partial class MainWindow
         var target = FindSessionUser(request.SessionUserId);
         if (!CanManageController(actor, target)) return;
         _session.UnassignController(request.ControllerIndex, request.SessionUserId);
-        RefreshProfilePlayerViews();
     }
 
     private static bool CanManageController(SessionUser? actor, SessionUser? target)
