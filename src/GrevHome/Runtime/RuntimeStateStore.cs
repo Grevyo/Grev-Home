@@ -15,7 +15,10 @@ public sealed record RuntimeSessionRecoveryRecord(
     LaunchSessionState State,
     int RootProcessId,
     IReadOnlyList<RuntimeProcessIdentity> Processes,
-    string? ProcessName = null);
+    string? ProcessName = null,
+    IReadOnlyList<string>? AdditionalProcessNames = null,
+    bool? TrackDescendantProcesses = null,
+    bool? ForceKillEntireProcessTree = null);
 
 public sealed class RuntimeStateStore
 {
