@@ -15,6 +15,8 @@ public partial class GrevOverlayWindow : Window
     private IReadOnlyList<LaunchSessionSnapshot> _sessions = Array.Empty<LaunchSessionSnapshot>();
     private Guid? _foregroundSessionId;
     private ControllerGuideContent? _controllerGuide;
+    private Guid? _pendingAppKillerForceClose;
+    private readonly Dictionary<Guid, Button> _appKillerForceButtons = new();
     private OverlayMode _mode = OverlayMode.Home;
 
     public event Action<Guid>? ResumeRequested;
@@ -24,6 +26,8 @@ public partial class GrevOverlayWindow : Window
     public event Action<Guid>? SwitchRequested;
     public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
+    public event Action<Guid>? AppKillerCloseRequested;
+    public event Action<Guid>? AppKillerForceCloseRequested;
     public event Action<string, string>? ControllerGuideDontShowAgainRequested;
     public event Action<string, string>? ControllerGuideDisableControllerProfileRequested;
 
@@ -48,6 +52,7 @@ public partial class GrevOverlayWindow : Window
         _sessions = sessions;
         _foregroundSessionId = foregroundSession?.LaunchSessionId;
         _controllerGuide = null;
+        _pendingAppKillerForceClose = null;
         _mode = OverlayMode.Home;
         Render();
         ShowAndFocus();
@@ -74,6 +79,7 @@ public partial class GrevOverlayWindow : Window
             controls,
             quickDisableControllerProfileLabel,
             quickDisableControllerProfileDescription);
+        _pendingAppKillerForceClose = null;
         _mode = OverlayMode.ControllerGuide;
         Render();
         ShowAndFocus();
@@ -85,6 +91,12 @@ public partial class GrevOverlayWindow : Window
         if (_foregroundSessionId.HasValue && _sessions.All(session => session.LaunchSessionId != _foregroundSessionId.Value))
         {
             _foregroundSessionId = null;
+        }
+
+        if (_pendingAppKillerForceClose.HasValue &&
+            _sessions.All(session => session.LaunchSessionId != _pendingAppKillerForceClose.Value))
+        {
+            _pendingAppKillerForceClose = null;
         }
 
         if (IsVisible)
@@ -143,6 +155,7 @@ public partial class GrevOverlayWindow : Window
         ActionPanel.Children.Clear();
         GuideActionPanel.Children.Clear();
         GuideActionPanel.Visibility = Visibility.Collapsed;
+        _appKillerForceButtons.Clear();
 
         if (_mode == OverlayMode.ControllerGuide)
         {
@@ -153,6 +166,12 @@ public partial class GrevOverlayWindow : Window
         if (_mode == OverlayMode.Switcher)
         {
             RenderSwitcher();
+            return;
+        }
+
+        if (_mode == OverlayMode.AppKiller)
+        {
+            RenderAppKiller();
             return;
         }
 
@@ -217,10 +236,14 @@ public partial class GrevOverlayWindow : Window
             RunningAppsRequested?.Invoke(this, EventArgs.Empty);
         });
 
+        // App Killer is part of the external-app overlay now. Do not make MainWindow visible just
+        // to manage a running session; doing so intentionally disables external-app input mode.
         AddAction("App Killer", true, () =>
         {
-            Dismiss();
-            AppKillerRequested?.Invoke(this, EventArgs.Empty);
+            _pendingAppKillerForceClose = null;
+            _mode = OverlayMode.AppKiller;
+            Render();
+            FocusFirstButton();
         });
 
         AddAction("Return to Grev Home", true, () =>
@@ -231,6 +254,173 @@ public partial class GrevOverlayWindow : Window
 
         ContentScrollViewer.ScrollToTop();
         HintText.Text = "A Select   •   B Resume / Close Overlay";
+    }
+
+    private void RenderAppKiller()
+    {
+        TitleText.Text = "APP KILLER";
+        SubtitleText.Text = _sessions.Count == 0
+            ? "Nothing launched through Grev Home is currently running."
+            : "Manage tracked apps without leaving the active app/controller session. Close Normally is the safe first choice; Force Kill needs a second press.";
+
+        var ordered = _sessions
+            .OrderByDescending(session => session.LaunchSessionId == _foregroundSessionId)
+            .ThenByDescending(session => session.StartedAtUtc)
+            .ToArray();
+
+        if (ordered.Length == 0)
+        {
+            ActionPanel.Children.Add(new TextBlock
+            {
+                Text = "No active Grev Home sessions.",
+                Margin = new Thickness(0, 8, 0, 18),
+                Foreground = (Brush)FindResource("MutedBrush"),
+                FontSize = 16,
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+
+        foreach (var session in ordered)
+        {
+            ActionPanel.Children.Add(CreateAppKillerSessionCard(session));
+        }
+
+        AddAction("Back to Overlay", true, () =>
+        {
+            _pendingAppKillerForceClose = null;
+            _mode = OverlayMode.Home;
+            Render();
+            FocusFirstButton();
+        }, minimumHeight: 56);
+
+        ContentScrollViewer.ScrollToTop();
+        HintText.Text = _pendingAppKillerForceClose.HasValue
+            ? "A Confirm Force Kill   •   B Back   •   Force Kill can interrupt saves/config writes"
+            : "A Select   •   B Back to Overlay";
+    }
+
+    private Border CreateAppKillerSessionCard(LaunchSessionSnapshot session)
+    {
+        var foreground = session.LaunchSessionId == _foregroundSessionId;
+        var participants = session.Participants.Count == 0
+            ? "No participants recorded"
+            : string.Join(", ", session.Participants.Select(participant => participant.DisplayName));
+
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = foreground ? $"{session.AppName}  •  CURRENT" : session.AppName,
+            FontSize = 22,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = foreground ? (Brush)FindResource("AccentBrush") : Brushes.White,
+            TextWrapping = TextWrapping.Wrap
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"{session.State}  •  {FormatElapsed(session.Elapsed)}  •  {session.ProcessIds.Count} tracked process{(session.ProcessIds.Count == 1 ? string.Empty : "es")}  •  {participants}",
+            Margin = new Thickness(0, 6, 0, 0),
+            FontSize = 12,
+            Foreground = (Brush)FindResource("MutedBrush"),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var actions = new WrapPanel { Margin = new Thickness(-4, 14, -4, -4) };
+        actions.Children.Add(CreateAppKillerActionButton(
+            "Switch to App",
+            () =>
+            {
+                _pendingAppKillerForceClose = null;
+                Dismiss();
+                SwitchRequested?.Invoke(session.LaunchSessionId);
+            },
+            enabled: session.State is LaunchSessionState.Running or LaunchSessionState.Closing));
+        actions.Children.Add(CreateAppKillerActionButton(
+            "Restart App",
+            () =>
+            {
+                _pendingAppKillerForceClose = null;
+                Dismiss();
+                RestartRequested?.Invoke(session.LaunchSessionId);
+            },
+            enabled: session.State == LaunchSessionState.Running));
+        actions.Children.Add(CreateAppKillerActionButton(
+            session.State == LaunchSessionState.Closing ? "Closing…" : "Close Normally",
+            () =>
+            {
+                _pendingAppKillerForceClose = null;
+                AppKillerCloseRequested?.Invoke(session.LaunchSessionId);
+            },
+            enabled: session.State != LaunchSessionState.Closing));
+
+        var forceButton = CreateAppKillerActionButton(
+            _pendingAppKillerForceClose == session.LaunchSessionId
+                ? "CONFIRM FORCE KILL APP"
+                : "Force Kill App",
+            () => ArmOrForceKillFromOverlay(session.LaunchSessionId));
+        _appKillerForceButtons[session.LaunchSessionId] = forceButton;
+        actions.Children.Add(forceButton);
+        content.Children.Add(actions);
+
+        return new Border
+        {
+            Margin = new Thickness(0, 0, 0, 14),
+            Padding = new Thickness(18),
+            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            BorderBrush = foreground
+                ? (Brush)FindResource("AccentBrush")
+                : new SolidColorBrush(Color.FromRgb(49, 59, 78)),
+            BorderThickness = new Thickness(foreground ? 2 : 1),
+            CornerRadius = new CornerRadius(12),
+            Child = content
+        };
+    }
+
+    private Button CreateAppKillerActionButton(string label, Action action, bool enabled = true)
+    {
+        var button = new Button
+        {
+            Content = new TextBlock
+            {
+                Text = label,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            },
+            MinWidth = 190,
+            MaxWidth = 230,
+            MinHeight = 54,
+            Height = double.NaN,
+            Margin = new Thickness(4),
+            Padding = new Thickness(12, 9, 12, 9),
+            IsEnabled = enabled,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            Tag = action
+        };
+        button.Click += ActionButton_Click;
+        return button;
+    }
+
+    private void ArmOrForceKillFromOverlay(Guid launchSessionId)
+    {
+        if (_pendingAppKillerForceClose != launchSessionId)
+        {
+            _pendingAppKillerForceClose = launchSessionId;
+            Render();
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (_appKillerForceButtons.TryGetValue(launchSessionId, out var confirm) &&
+                    confirm.IsVisible && confirm.IsEnabled)
+                {
+                    confirm.Focus();
+                }
+            }));
+            return;
+        }
+
+        _pendingAppKillerForceClose = null;
+        AppKillerForceCloseRequested?.Invoke(launchSessionId);
     }
 
     private void RenderControllerGuide()
@@ -580,8 +770,9 @@ public partial class GrevOverlayWindow : Window
             return;
         }
 
-        if (_mode == OverlayMode.Switcher)
+        if (_mode is OverlayMode.Switcher or OverlayMode.AppKiller)
         {
+            _pendingAppKillerForceClose = null;
             _mode = OverlayMode.Home;
             Render();
             FocusFirstButton();
@@ -671,6 +862,7 @@ public partial class GrevOverlayWindow : Window
     {
         Home,
         Switcher,
+        AppKiller,
         ControllerGuide
     }
 }
