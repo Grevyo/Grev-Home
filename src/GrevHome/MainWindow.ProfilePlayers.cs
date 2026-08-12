@@ -49,6 +49,15 @@ public partial class MainWindow
         _profilePlayersView.AssignControllerRequested += AssignControllerFromProfileMenu;
         _profilePlayersView.UnassignControllerRequested += UnassignControllerFromProfileMenu;
 
+        ProfileQuickMenu.ViewProfileRequested += OpenProfileViewFromQuickMenu;
+        ProfileQuickMenu.SetPrimaryRequested += SetPrimaryFromProfileMenu;
+        ProfileQuickMenu.SignOutPlayerRequested += SignOutPlayer;
+        ProfileQuickMenu.AssignControllerRequested += AssignControllerFromProfileMenu;
+        ProfileQuickMenu.UnassignControllerRequested += UnassignControllerFromProfileMenu;
+        ProfileQuickMenu.AddPlayerRequested += (_, _) => OpenAdditionalPlayerLoginFromQuickMenu();
+        ProfileQuickMenu.ManagePlayersRequested += (_, _) => OpenFullProfilePlayersFromQuickMenu();
+        ProfileQuickMenu.CloseRequested += (_, _) => ClosePowerMenu();
+
         _profileView.EditProfileRequested += (_, _) => OpenProfileEditorForTarget();
         _profileEditView.SaveRequested += request => _ = SaveProfileEditAsync(request);
         _profileEditView.ChooseCustomPhotoRequested += (_, _) => OpenProfilePhotoPicker();
@@ -111,16 +120,44 @@ public partial class MainWindow
     {
         if (!_profilePlayersIntegrationReady) return;
         _profilePlayersView.SetState(_session, _controllers, _profiles);
+        ProfileQuickMenu.SetState(_session, _controllers, _profiles);
         if (_navigation.Current == Route.ProfileView) RenderProfileTarget();
         else if (_navigation.Current == Route.ProfileEdit && !_profileEditView.IsKeyboardOpen) RenderProfileEditor();
     }
 
     private void ShellProfileMenu_Click(object sender, RoutedEventArgs e)
     {
-        if (!_session.HasSignedInUsers) return;
+        if (!_session.HasSignedInUsers || IsStoreModalOpen || IsPowerMenuOpen) return;
+
+        _profileTargetGrevId = _session.PrimaryUser?.GrevId;
+        RefreshProfilePlayerViews();
+        ResetHeaderPowerConfirmation();
+        _headerFlyoutReturnButton = ProfileBubbleButton;
+        PowerMenuCard.Visibility = Visibility.Collapsed;
+        ProfileQuickMenuCard.Visibility = Visibility.Visible;
+        ShellInteractionHost.IsEnabled = false;
+        PowerMenuOverlay.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(new Action(ProfileQuickMenu.FocusInitial));
+    }
+
+    private void OpenFullProfilePlayersFromQuickMenu()
+    {
+        ClosePowerMenu(returnFocusToHeader: false);
         _profileTargetGrevId = _session.PrimaryUser?.GrevId;
         RefreshProfilePlayerViews();
         _navigation.Navigate(Route.ProfilePlayers);
+    }
+
+    private void OpenAdditionalPlayerLoginFromQuickMenu()
+    {
+        ClosePowerMenu(returnFocusToHeader: false);
+        OpenAdditionalPlayerLogin();
+    }
+
+    private void OpenProfileViewFromQuickMenu(Guid sessionUserId)
+    {
+        ClosePowerMenu(returnFocusToHeader: false);
+        OpenProfileView(sessionUserId);
     }
 
     private void OpenProfileView(Guid sessionUserId)
@@ -167,13 +204,14 @@ public partial class MainWindow
         _session.SignOut(sessionUserId);
         if (!_session.HasSignedInUsers)
         {
+            ClosePowerMenu(returnFocusToHeader: false);
             _profileTargetGrevId = null;
             _navigation.Reset(Route.Login);
             return;
         }
+
         _profileTargetGrevId = _session.PrimaryUser?.GrevId;
         RefreshProfilePlayerViews();
-        _navigation.Reset(Route.Dashboard);
     }
 
     private void SetPrimaryFromProfileMenu(Guid sessionUserId)
