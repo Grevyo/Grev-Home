@@ -14,6 +14,7 @@ namespace GrevHome.Presentation;
 /// </summary>
 public static class AppArtworkFactory
 {
+    private const string SteamBuiltInAsset = "builtin://steam";
     private static readonly Color DefaultBackground = Color.FromRgb(31, 40, 58);
 
     public static FrameworkElement Create(string? assetPath, double size, double cornerRadius = 16) =>
@@ -44,8 +45,9 @@ public static class AppArtworkFactory
             Padding = new Thickness(Math.Max(4, referenceSize * 0.08))
         };
 
-        var image = TryCreateImage(assetPath);
-        host.Child = image ?? CreateNeutralGraphic(referenceSize);
+        var builtIn = TryCreateBuiltInGraphic(assetPath, referenceSize);
+        var image = builtIn is null ? TryCreateImage(assetPath) : null;
+        host.Child = builtIn ?? image ?? CreateNeutralGraphic(referenceSize);
         return host;
     }
 
@@ -89,6 +91,35 @@ public static class AppArtworkFactory
         content.Children.Add(name);
         tile.Child = content;
         return tile;
+    }
+
+    private static FrameworkElement? TryCreateBuiltInGraphic(string? assetPath, double size)
+    {
+        if (!string.Equals(assetPath, SteamBuiltInAsset, StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        // Steam's package tile needs a default before Steam exists on disk. This vector is kept
+        // inside the shared artwork factory so presentation still flows through the same package
+        // defaults / GrevID override / Reset to App Default contract as every other app.
+        var geometry = Geometry.Parse(
+            "M11.979,0 C5.678,0 .511,4.86 .022,11.037 L6.454,13.695 C6.999,13.324 7.657,13.105 8.366,13.105 C8.429,13.105 8.491,13.109 8.554,13.111 L11.415,8.969 L11.415,8.91 C11.415,6.415 13.443,4.386 15.939,4.386 C18.433,4.386 20.463,6.417 20.463,8.913 C20.463,11.409 18.433,13.438 15.939,13.438 L15.834,13.438 L11.758,16.349 C11.758,16.401 11.762,16.454 11.762,16.508 C11.762,18.383 10.247,19.904 8.372,19.904 C6.737,19.904 5.356,18.731 5.041,17.177 L.436,15.27 C1.862,20.307 6.486,24 11.979,24 C18.606,24 23.978,18.627 23.978,12 C23.978,5.373 18.605,0 11.979,0 Z M7.54,18.21 L6.067,17.6 C6.329,18.143 6.781,18.599 7.381,18.85 C8.678,19.389 10.174,18.774 10.713,17.475 C10.976,16.845 10.977,16.156 10.718,15.526 C10.459,14.896 9.968,14.405 9.341,14.143 C8.717,13.883 8.051,13.894 7.463,14.113 L8.986,14.743 C9.942,15.143 10.395,16.243 9.995,17.198 C9.598,18.155 8.498,18.608 7.541,18.21 Z M18.955,8.907 C18.955,7.245 17.602,5.892 15.94,5.892 C14.275,5.892 12.925,7.245 12.925,8.907 C12.925,10.572 14.275,11.922 15.94,11.922 C17.603,11.922 18.955,10.572 18.955,8.907 Z M13.682,8.902 C13.682,7.65 14.695,6.636 15.947,6.636 C17.196,6.636 18.213,7.65 18.213,8.902 C18.213,10.153 17.196,11.167 15.947,11.167 C14.694,11.167 13.682,10.153 13.682,8.902 Z");
+
+        return new Viewbox
+        {
+            Width = size * 0.72,
+            Height = size * 0.72,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Stretch = Stretch.Uniform,
+            Child = new System.Windows.Shapes.Path
+            {
+                Data = geometry,
+                Fill = Brushes.White,
+                Stretch = Stretch.Uniform
+            }
+        };
     }
 
     private static Image? TryCreateImage(string? assetPath)
