@@ -117,15 +117,42 @@ public sealed class GrevStoreCatalogService
                 AppPackageCapability.Repair |
                 AppPackageCapability.ProfileUninstall |
                 AppPackageCapability.ControllerProfile |
+                AppPackageCapability.ControllerGuide |
                 AppPackageCapability.AppSettings |
                 AppPackageCapability.PresentationOverrides,
-            ControllerProfile: AppControllerProfileDefaults.Empty,
+            ControllerProfile: new AppControllerProfileDefaults(
+                Enabled: true,
+                Mappings: DesktopMouseMappings(
+                    new(AppControllerControl.A, new(AppControllerOutputKind.KeyboardShortcut, "ENTER")),
+                    new(AppControllerControl.LeftShoulder, new(AppControllerOutputKind.KeyboardShortcut, "SHIFT TAB")),
+                    new(AppControllerControl.RightShoulder, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
             RuntimePolicy: new AppRuntimePolicy(
                 AppWindowMode.Maximized,
                 AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden),
             VersionPolicy: new AppVersionPolicy(
                 CurrentVersion: PCSX2InstallerService.SupportedVersion,
                 NativeAutoUpdate: false),
+            Onboarding: new AppOnboardingDefinition(
+                Title: "PCSX2 Setup Controls",
+                Summary: "Emulated keyboard and mouse controls are temporarily enabled so PCSX2 can be configured from the controller before its native gamepad setup is finished. Complete the PCSX2 setup wizard, BIOS selection and controller configuration, then disable this Grev control layer below so PCSX2 receives only its normal native controller input. You can turn it back on at any time from PCSX2 App Settings.",
+                ControllerGuideControls:
+                [
+                    AppControllerControl.RightTrigger,
+                    AppControllerControl.LeftTrigger,
+                    AppControllerControl.RightStick,
+                    AppControllerControl.LeftStick,
+                    AppControllerControl.X,
+                    AppControllerControl.A,
+                    AppControllerControl.B,
+                    AppControllerControl.DPadUp,
+                    AppControllerControl.DPadDown,
+                    AppControllerControl.DPadLeft,
+                    AppControllerControl.DPadRight,
+                    AppControllerControl.RightShoulder
+                ],
+                ControllerProfileDisplayName: "Emulated Keyboard & Mouse",
+                QuickDisableControllerProfileLabel: "Disable Emulated Keyboard & Mouse",
+                QuickDisableControllerProfileDescription: "Use this after PCSX2 is configured. It only disables Grev Home's temporary keyboard/mouse translation for this GrevID; it does not disable PCSX2's native controller support or delete any mappings. The same switch remains available in App Settings."),
             Featured: true,
             StoreDescription: "PCSX2 is a PlayStation 2 emulator. Grev Home installs the official Stable Windows x64 portable build as a Profile App and gives each GrevID a separate PCSX2 data path so configuration, BIOS selection, memory cards and other emulator data do not silently mix between profiles.",
             SetupNotice: "BIOS required: PCSX2 cannot run games until a PlayStation 2 BIOS dumped from a console you own has been configured. Put the BIOS files in {DataLocation}\\bios, open PCSX2 and select/configure that BIOS. Once this is done, PCSX2 is ready to run your PS2 game dumps.",
@@ -135,7 +162,8 @@ public sealed class GrevStoreCatalogService
                 "Profile-owned binaries for the current GrevID; PCSX2 Stable portable.txt redirects its DataRoot into persistent GrevID AppData.",
                 "The BIOS folder is created automatically inside the GrevID PCSX2 data root; Grev Home never supplies proprietary PlayStation 2 BIOS files.",
                 "Trusted update and repair replace only PCSX2 binaries while preserving the GrevID's PCSX2 data and BIOS folder.",
-                "Native controller support remains untouched while Grev Home provides Return Home, Overlay, Running Apps, App Killer and tracked playtime around the emulator."
+                "Temporary per-GrevID Grev Desktop controls make the PCSX2 first-run wizard keyboard/mouse-accessible from a controller, with a one-press disable helper once native controller setup is complete.",
+                "PCSX2 native controller support remains intact while Grev Home provides Return Home, Overlay, Running Apps, App Killer and tracked playtime around the emulator."
             ]),
 
         new GrevStorePackageDefinition(
