@@ -108,6 +108,13 @@
                     </StackPanel>
                 </Button>
             </WrapPanel>
+
+            <TextBlock x:Name="DashboardStatusText"
+                       Visibility="Collapsed"
+                       Margin="10,18,10,0"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontSize="13"
+                       TextWrapping="Wrap" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>
