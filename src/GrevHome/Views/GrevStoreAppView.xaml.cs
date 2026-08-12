@@ -30,7 +30,8 @@ public partial class GrevStoreAppView : UserControl
         GrevStorePackageDefinition package,
         SessionUser? primaryUser,
         AppLifecycleSnapshot lifecycle,
-        string installLocation)
+        string installLocation,
+        string dataLocation)
     {
         _package = package;
         _installedEntry = lifecycle.InstalledEntry;
@@ -71,13 +72,24 @@ public partial class GrevStoreAppView : UserControl
                 : "Requires a persistent local Primary User"
             : "One machine installation • each GrevID has independent library membership";
 
-        DescriptionText.Text = package.StoreDescription ?? package.App.Description ?? "No Store description is available yet.";
+        var description = package.StoreDescription ?? package.App.Description ?? "No Store description is available yet.";
+        if (!string.IsNullOrWhiteSpace(package.SetupNotice))
+        {
+            var setupNotice = package.SetupNotice
+                .Replace("{InstallLocation}", installLocation, StringComparison.Ordinal)
+                .Replace("{DataLocation}", dataLocation, StringComparison.Ordinal);
+            description = $"{description}\n\n{setupNotice}";
+        }
+        DescriptionText.Text = description;
+
         OwnershipDetailText.Text = package.IsProfileInstall
             ? hasPersistentPrimary
                 ? $"This package is owned by the current Primary GrevID. Install, update, repair and uninstall are scoped to {primaryUser!.DisplayName}; profile data is never silently shared with another GrevID."
                 : "This package is profile-owned. Select a persistent local profile as Primary before managing it."
             : "This package is installed once for the Windows machine. A normal GrevID can add or remove it from their own Grev Home library without uninstalling the Windows application. Machine uninstall remains Admin Console only.";
-        InstallPathText.Text = $"Install location: {installLocation}";
+        InstallPathText.Text = package.App.DataStrategy == DataStrategy.NativeAccount
+            ? $"Install location: {installLocation}\nApp data: managed by the native Windows/app account"
+            : $"Install location: {installLocation}\nData location: {dataLocation}";
 
         RenderIntegrations(package);
         RenderActions(package, lifecycle, hasPersistentPrimary);
