@@ -18,10 +18,16 @@ public partial class MainWindow
     private readonly Dictionary<Route, RouteFocusBookmark> _routeFocusBookmarks = new();
     private NavigationTransition? _pendingShellNavigationTransition;
     private long _shellFocusRequestVersion;
+    private bool _shellNavigationFinalizationReady;
 
-    protected override void OnInitialized(EventArgs e)
+    private void InitializeShellNavigationFinalization()
     {
-        base.OnInitialized(e);
+        if (_shellNavigationFinalizationReady)
+        {
+            return;
+        }
+
+        _shellNavigationFinalizationReady = true;
         _navigation.RouteChanging += HandleShellRouteChanging;
         _navigation.RouteChanged += HandleShellRouteChanged;
         _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(UpdateShellBackButtonState));
@@ -29,7 +35,14 @@ public partial class MainWindow
 
     private void HandleShellRouteChanging(NavigationTransition transition)
     {
-        CaptureRouteFocus(transition.From);
+        // A same-route modal/action-menu push captures the parent route's current focus before the
+        // modal takes it. When Back later closes that modal, do not overwrite the saved parent
+        // bookmark with the modal button that currently has focus.
+        if (!(transition.Kind == NavigationTransitionKind.Back && transition.From == transition.To))
+        {
+            CaptureRouteFocus(transition.From);
+        }
+
         _pendingShellNavigationTransition = transition;
     }
 
@@ -69,6 +82,13 @@ public partial class MainWindow
         }
 
         if (IsStoreModalOpen || IsPowerMenuOpen || _overlayWindow.IsOpen)
+        {
+            return;
+        }
+
+        // Same-route pushes are used to put an in-page modal/action menu on the Back stack. The
+        // local modal owns its own initial focus; shell landing must not steal focus back to page 1.
+        if (transition?.Kind == NavigationTransitionKind.SameRoutePush)
         {
             return;
         }
