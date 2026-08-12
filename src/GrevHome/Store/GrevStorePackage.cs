@@ -186,7 +186,8 @@ public sealed class GrevStoreCatalogService
                     SingleInstance: true,
                     AdditionalProcessNames: ["steamwebhelper"],
                     TrackDescendantProcesses: false,
-                    ForceKillEntireProcessTree: false),
+                    ForceKillEntireProcessTree: false,
+                    ActivationUri: "steam://open/bigpicture"),
                 SupportsController: true,
                 Description: "Steam game launcher opened directly into its controller-focused Big Picture interface, with native Steam account and game-library data left under Steam's control."),
             Presentation: new AppPresentationDefaults(
@@ -242,7 +243,8 @@ public sealed class GrevStoreCatalogService
             [
                 "Official Steam Windows bootstrap installer with existing-install detection and native Steam self-updating left intact.",
                 "Global App library membership is per GrevID even though the Steam Windows installation and game libraries are shared.",
-                "A successful first install/adoption launches through the Grev Home runtime immediately, so Steam enters -gamepadui/Big Picture without requiring a second Open action.",
+                "Every Grev Home Open requests Steam's Big Picture surface explicitly, including when the single-instance Steam client is already running in the tray; -gamepadui remains the cold-start preference.",
+                "A successful first install/adoption launches through the Grev Home runtime immediately, so the same Big Picture activation runs without requiring a second Open action.",
                 "Closing or minimizing the Steam UI returns to Grev Home like Discord; when a Steam-launched child game owns foreground, launcher-aware monitoring keeps Grev Home hidden so it does not jump over the game.",
                 "Temporary per-GrevID Emulated Keyboard & Mouse controls support first-run updates, login, Steam Guard and setup, with the same reversible switch in App Settings.",
                 "Launcher-safe runtime tracking follows Steam and steamwebhelper without adopting arbitrary game descendants, so Grev Home Close/Force Kill does not recursively kill a launched game process tree."
