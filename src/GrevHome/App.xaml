@@ -41,5 +41,51 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+
+        <!-- Milestone 0.15 shell-modal primitives. Content regions may scroll independently, but
+             action rows should remain outside those ScrollViewers so controller focus cannot drag
+             explanatory content away from its start. -->
+        <Style x:Key="ShellModalCardStyle" TargetType="Border">
+            <Setter Property="Padding" Value="28" />
+            <Setter Property="Background" Value="#11151E" />
+            <Setter Property="BorderBrush" Value="#3A465F" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="18" />
+            <Setter Property="HorizontalAlignment" Value="Center" />
+            <Setter Property="VerticalAlignment" Value="Center" />
+        </Style>
+
+        <Style x:Key="ShellModalActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="Auto" />
+            <Setter Property="MinHeight" Value="50" />
+            <Setter Property="MinWidth" Value="150" />
+            <Setter Property="Padding" Value="16,10" />
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ShellModalDangerActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource ShellModalActionButtonStyle}">
+            <Setter Property="BorderBrush" Value="#A84F59" />
+        </Style>
+
+        <Style x:Key="ShellModalEyebrowStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        </Style>
     </Application.Resources>
 </Application>
