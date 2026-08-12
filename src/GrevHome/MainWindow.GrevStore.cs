@@ -21,6 +21,7 @@ public partial class MainWindow
     private GrevStorePackageDefinition? _storeUninstallWarningPackage;
     private RetroArchInstallerService? _retroArchInstaller;
     private PCSX2InstallerService? _pcsx2Installer;
+    private SteamInstallerService? _steamInstaller;
     private DiscordInstallerService? _discordInstaller;
     private TrustedPackageInstallerRegistry? _packageInstallers;
     private AppLifecycleService? _appLifecycle;
@@ -38,11 +39,13 @@ public partial class MainWindow
 
         _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
         _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps);
+        _steamInstaller = new SteamInstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
         _packageInstallers = new TrustedPackageInstallerRegistry(
         [
             _retroArchInstaller,
             _pcsx2Installer,
+            _steamInstaller,
             _discordInstaller
         ]);
         _appLifecycle = new AppLifecycleService(_installedApps, _packageInstallers, _runtimeSessions);
