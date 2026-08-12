@@ -209,83 +209,107 @@
                 Background="#E6090C12"
                 Panel.ZIndex="100">
             <Grid>
-                <Border Width="720"
-                        Padding="34"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Background="#11151E"
-                        BorderBrush="#3A465F"
-                        BorderThickness="1"
-                        CornerRadius="18">
-                    <StackPanel>
+                <Border MinWidth="560"
+                        MaxWidth="820"
+                        MaxHeight="720"
+                        Margin="36"
+                        Style="{StaticResource ShellModalCardStyle}">
+                    <Grid KeyboardNavigation.DirectionalNavigation="Contained">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
                         <TextBlock x:Name="StoreModalTitleText"
+                                   Grid.Row="0"
                                    Text="Grev Store"
-                                   FontSize="32"
+                                   FontSize="30"
                                    FontWeight="SemiBold"
                                    HorizontalAlignment="Center"
-                                   TextAlignment="Center" />
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" />
 
-                        <StackPanel x:Name="StoreProgressPanel" Margin="0,24,0,0">
-                            <TextBlock x:Name="StoreProgressStageText"
-                                       Text="Preparing"
-                                       FontSize="14"
-                                       FontWeight="Bold"
-                                       Foreground="{StaticResource AccentBrush}"
-                                       HorizontalAlignment="Center" />
-                            <ProgressBar x:Name="StoreProgressBar"
-                                         Height="24"
-                                         Margin="0,16,0,0"
-                                         Minimum="0"
-                                         Maximum="100"
-                                         Value="0" />
-                            <TextBlock x:Name="StoreProgressPercentText"
-                                       Text="0%"
-                                       Margin="0,8,0,0"
-                                       FontSize="14"
-                                       FontWeight="SemiBold"
-                                       HorizontalAlignment="Center" />
-                            <TextBlock x:Name="StoreProgressMessageText"
-                                       Text="Preparing operation…"
-                                       Margin="0,14,0,0"
-                                       FontSize="16"
-                                       Foreground="#D7DCE7"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center" />
-                            <TextBlock Text="Grev Home is locked until this operation finishes. Do not close the app or interrupt the process."
-                                       Margin="0,16,0,0"
-                                       FontSize="13"
-                                       Foreground="{StaticResource MutedBrush}"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center" />
-                        </StackPanel>
+                        <Grid Grid.Row="1" Margin="0,22,0,0">
+                            <!-- Progress text can grow or wrap without forcing the whole modal off-screen. -->
+                            <ScrollViewer Visibility="{Binding Visibility, ElementName=StoreProgressPanel}"
+                                          MaxHeight="500"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="StoreProgressPanel">
+                                    <TextBlock x:Name="StoreProgressStageText"
+                                               Text="Preparing"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               HorizontalAlignment="Center" />
+                                    <ProgressBar x:Name="StoreProgressBar"
+                                                 Height="24"
+                                                 Margin="0,16,0,0"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Value="0" />
+                                    <TextBlock x:Name="StoreProgressPercentText"
+                                               Text="0%"
+                                               Margin="0,8,0,0"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="StoreProgressMessageText"
+                                               Text="Preparing operation…"
+                                               Margin="0,14,0,0"
+                                               FontSize="16"
+                                               Foreground="#D7DCE7"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                    <TextBlock Text="Grev Home is locked until this operation finishes. Do not close the app or interrupt the process."
+                                               Margin="0,16,0,0"
+                                               FontSize="13"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                </StackPanel>
+                            </ScrollViewer>
 
-                        <StackPanel x:Name="StoreWarningPanel" Margin="0,22,0,0" Visibility="Collapsed">
-                            <TextBlock Text="All data associated with this app can be lost by performing this action. Make sure anything you want to keep is backed up before continuing."
-                                       FontSize="18"
-                                       FontWeight="SemiBold"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center" />
-                            <TextBlock Text="Grev Home preserves profile-owned data where this package supports it, but a backup is the only safe guarantee."
-                                       Margin="0,14,0,0"
-                                       FontSize="14"
-                                       Foreground="{StaticResource MutedBrush}"
-                                       TextWrapping="Wrap"
-                                       TextAlignment="Center" />
-                            <WrapPanel Margin="0,24,0,0" HorizontalAlignment="Center">
+                            <!-- Warning information scrolls independently; its action footer never moves. -->
+                            <ScrollViewer Visibility="{Binding Visibility, ElementName=StoreWarningPanel}"
+                                          MaxHeight="430"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="StoreWarningPanel" Visibility="Collapsed">
+                                    <TextBlock Text="All data associated with this app can be lost by performing this action. Make sure anything you want to keep is backed up before continuing."
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                    <TextBlock Text="Grev Home preserves profile-owned data where this package supports it, but a backup is the only safe guarantee."
+                                               Margin="0,14,0,0"
+                                               FontSize="14"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <Border Grid.Row="2"
+                                Margin="0,20,0,0"
+                                Padding="0,14,0,0"
+                                BorderBrush="#2B3344"
+                                BorderThickness="0,1,0,0"
+                                Visibility="{Binding Visibility, ElementName=StoreWarningPanel}">
+                            <WrapPanel HorizontalAlignment="Center">
                                 <Button x:Name="StoreWarningCancelButton"
                                         Content="Cancel"
-                                        Width="150"
-                                        Height="54"
-                                        Margin="6"
+                                        Style="{StaticResource ShellModalActionButtonStyle}"
                                         Click="StoreWarningCancel_Click" />
                                 <Button Content="UNINSTALL ANYWAY"
-                                        Width="220"
-                                        Height="54"
-                                        Margin="6"
+                                        MinWidth="220"
+                                        Style="{StaticResource ShellModalDangerActionButtonStyle}"
                                         Click="StoreWarningConfirm_Click" />
                             </WrapPanel>
-                        </StackPanel>
-                    </StackPanel>
+                        </Border>
+                    </Grid>
                 </Border>
             </Grid>
         </Border>
