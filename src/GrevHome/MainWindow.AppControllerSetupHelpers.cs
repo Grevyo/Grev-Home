@@ -1,5 +1,6 @@
 using System.IO;
 using GrevHome.Input;
+using GrevHome.Store;
 
 namespace GrevHome;
 
@@ -19,7 +20,9 @@ public partial class MainWindow
         }
 
         var package = _grevStoreCatalog.Find(appId);
-        if (package is null || !package.Supports(Store.AppPackageCapability.ControllerProfile))
+        if (package is null ||
+            !package.Supports(AppPackageCapability.ControllerProfile) ||
+            package.ControllerProfile is null)
         {
             _installedLibraryView.ShowStatus("This app does not expose a Grev controller profile to disable.");
             return;
