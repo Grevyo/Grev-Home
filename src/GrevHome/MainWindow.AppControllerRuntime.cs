@@ -85,8 +85,41 @@ public partial class MainWindow
         }
 
         var launchSessionId = _foregroundLaunchSessionId.Value;
+        RequestAppActivationUri(launchSessionId);
         StartForegroundWindowWatch(launchSessionId);
         _ = EnsureForegroundAppActivatedAsync(launchSessionId);
+    }
+
+    private void RequestAppActivationUri(Guid launchSessionId)
+    {
+        var snapshot = _runtimeSessions.GetSession(launchSessionId);
+        var package = snapshot is null ? null : _grevStoreCatalog.Find(snapshot.AppId);
+        var configured = package?.App.Launch.ActivationUri;
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            return;
+        }
+
+        if (!Uri.TryCreate(configured.Trim(), UriKind.Absolute, out var uri) || uri.IsFile)
+        {
+            _installedLibraryView.ShowStatus(
+                $"{package!.Presentation.DisplayName} has an invalid activation URI. The app process remains tracked.");
+            return;
+        }
+
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = uri.AbsoluteUri,
+                UseShellExecute = true
+            });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            _installedLibraryView.ShowStatus(
+                $"Could not request {package!.Presentation.DisplayName}'s launch surface: {ex.Message}");
+        }
     }
 
     private async Task EnsureForegroundAppActivatedAsync(Guid launchSessionId)
