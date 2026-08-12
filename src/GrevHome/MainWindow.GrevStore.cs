@@ -73,14 +73,14 @@ public partial class MainWindow
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshSelectedStorePackageAsync()));
             }
         };
-        _runtimeSessions.SessionChanged += _ =>
+        _runtimeSessions.SessionChanged += snapshot =>
         {
             if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy)
             {
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshSelectedStorePackageAsync()));
             }
         };
-        _runtimeSessions.SessionEnded += _ =>
+        _runtimeSessions.SessionEnded += snapshot =>
         {
             if (_navigation.Current == Route.GrevStoreApp && !_storeInstallBusy)
             {
