@@ -167,7 +167,34 @@ Uninstall must never affect another GrevID.
 
 ## Controller/runtime behavior
 
-PCSX2 declares native controller support, so its default Grev controller profile remains blank. Grev Home does not translate normal gamepad controls into keyboard/mouse events over PCSX2 by default.
+PCSX2 declares native controller support, but the first-run Qt setup still needs mouse/keyboard-style interaction before the emulator and gamepad mappings are fully configured. Grev Home therefore ships an **enabled temporary per-GrevID controller profile** named `Emulated Keyboard & Mouse`.
+
+Default temporary setup mappings:
+
+- D-pad -> keyboard arrow navigation;
+- A -> Enter;
+- B -> Escape;
+- X -> Grev on-screen keyboard;
+- LT -> right mouse click;
+- RT -> left mouse click;
+- Left Stick -> mouse scroll;
+- Right Stick -> mouse cursor;
+- LB -> Shift+Tab;
+- RB -> Tab.
+
+These mappings augment PCSX2 only while the Grev controller profile is enabled. They do not disable, replace or rewrite PCSX2's own native controller configuration.
+
+On the first eligible PCSX2 app activation, Grev Home opens the reusable controller guide. It explains why the emulated keyboard/mouse layer is enabled, displays the resolved setup controls and exposes a `Disable Emulated Keyboard & Mouse` helper. The helper:
+
+- applies only to the current persistent GrevID;
+- saves the same controller profile with `Enabled = false`;
+- preserves all mappings so the layer can be re-enabled later;
+- does not alter PCSX2 native controller support;
+- does not change BIOS, emulator or gamepad configuration;
+- dismisses the guide after the request;
+- is mirrored by the normal App Settings controller-profile toggle.
+
+The guide keeps `Close` as its initially focused action so an accidental first A press cannot disable the setup controls. If the temporary controller profile is disabled, future launch guides are naturally suppressed because the resolved Grev controller profile is no longer active. Re-enabling `Emulated Keyboard & Mouse` from App Settings restores the saved/default mappings without rebuilding them.
 
 Grev Home still owns the surrounding console-shell behavior:
 
@@ -201,10 +228,13 @@ Milestone 0.13 is not physically accepted until the target Grev Home Windows mac
 6. `Apps\pcsx2\portable.txt` resolves PCSX2 Stable DataRoot into the current GrevID's AppData folder.
 7. PCSX2 passes its `-testconfig` startup validation before install/repair is accepted.
 8. Open launches PCSX2 without unsupported command-line options.
-9. PCSX2 native controller input remains functional.
-10. Return Home/Overlay continue to work.
-11. Another GrevID does not automatically inherit this PCSX2 install.
-12. Repair preserves the AppData/BIOS folder.
-13. Profile uninstall removes binaries but preserves AppData/BIOS.
+9. The first-run `Emulated Keyboard & Mouse` mappings can operate the PCSX2 setup UI from a controller.
+10. The PCSX2 setup guide is controller-accessible and explains why temporary desktop controls are active.
+11. `Disable Emulated Keyboard & Mouse` disables only the Grev layer for the current GrevID and PCSX2 native controller input remains functional.
+12. App Settings can re-enable/disable the same `Emulated Keyboard & Mouse` profile.
+13. Return Home/Overlay continue to work.
+14. Another GrevID does not automatically inherit this PCSX2 install or controller-profile override.
+15. Repair preserves the AppData/BIOS folder.
+16. Profile uninstall removes binaries but preserves AppData/BIOS.
 
 Do not mark physical acceptance from CI alone.
