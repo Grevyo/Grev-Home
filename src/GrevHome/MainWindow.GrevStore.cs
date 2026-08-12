@@ -20,6 +20,7 @@ public partial class MainWindow
     private GrevStorePackageDefinition? _selectedStorePackage;
     private GrevStorePackageDefinition? _storeUninstallWarningPackage;
     private RetroArchInstallerService? _retroArchInstaller;
+    private PCSX2InstallerService? _pcsx2Installer;
     private DiscordInstallerService? _discordInstaller;
     private TrustedPackageInstallerRegistry? _packageInstallers;
     private AppLifecycleService? _appLifecycle;
@@ -36,10 +37,12 @@ public partial class MainWindow
         InitializeAppControllerRuntimeIntegration();
 
         _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
+        _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
         _packageInstallers = new TrustedPackageInstallerRegistry(
         [
             _retroArchInstaller,
+            _pcsx2Installer,
             _discordInstaller
         ]);
         _appLifecycle = new AppLifecycleService(_installedApps, _packageInstallers, _runtimeSessions);
@@ -195,7 +198,17 @@ public partial class MainWindow
             _ => _paths.GetGlobalAppRoot(package.App.AppId)
         };
 
-        _grevStoreAppView.SetPackage(package, primary, lifecycle, installLocation);
+        var dataLocation = package.App.DataStrategy switch
+        {
+            DataStrategy.GrevId when string.IsNullOrWhiteSpace(grevId) =>
+                $"Profiles\\<GrevID>\\AppData\\{package.App.AppId}",
+            DataStrategy.GrevId => _paths.GetProfileAppDataRoot(grevId!, package.App.AppId),
+            DataStrategy.Global => _paths.GetGlobalAppDataRoot(package.App.AppId),
+            DataStrategy.NativeAccount => "Native Windows/app account",
+            _ => "App managed"
+        };
+
+        _grevStoreAppView.SetPackage(package, primary, lifecycle, installLocation, dataLocation);
     }
 
     private async Task BeginStoreDownloadAsync(GrevStorePackageDefinition package)
