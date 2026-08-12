@@ -26,6 +26,10 @@ public partial class MainWindow
             return;
         }
 
+        // Shell navigation/focus finalisation must be subscribed before specialist route handlers.
+        // Its landing callback runs at ApplicationIdle, after the page integrations have rendered.
+        InitializeShellNavigationFinalization();
+
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
         InitializeProfilePlayersIntegration();
         InitializeGrevStoreIntegration();
