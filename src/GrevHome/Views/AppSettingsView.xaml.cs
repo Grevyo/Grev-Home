@@ -22,6 +22,7 @@ public partial class AppSettingsView : UserControl
     private bool _generalSectionExpanded;
     private bool _presentationSectionExpanded;
     private bool _controllerSectionExpanded;
+    private string _controllerProfileDisplayName = "Controller Profile";
 
     public event Action<AppControllerProfileDraft>? SaveRequested;
     public event EventHandler? ResetRequested;
@@ -47,6 +48,9 @@ public partial class AppSettingsView : UserControl
         _canSave = canSave;
         _hasUserOverride = profile.HasUserOverride;
         _hasPresentationOverride = presentation.HasUserOverrides;
+        _controllerProfileDisplayName = string.IsNullOrWhiteSpace(package?.Onboarding?.ControllerProfileDisplayName)
+            ? "Controller Profile"
+            : package!.Onboarding!.ControllerProfileDisplayName!;
         _outputs.Clear();
         foreach (var mapping in profile.Mappings)
         {
@@ -55,6 +59,8 @@ public partial class AppSettingsView : UserControl
 
         var definition = entry.Manifest.Definition;
         var displayName = presentation.DisplayName;
+        var appDefaultsPopulated = package?.ControllerProfile?.Mappings?.Any(mapping =>
+            mapping.Output.Kind != AppControllerOutputKind.None) == true;
         AppNameText.Text = displayName;
         AppIdentityText.Text = primaryUser is null
             ? $"{displayName} • no Primary User"
@@ -63,7 +69,9 @@ public partial class AppSettingsView : UserControl
                 : $"{displayName} • {primaryUser.DisplayName} • {primaryUser.GrevId}";
 
         NativeSupportText.Text = definition.SupportsController
-            ? "This app declares native controller support. Its Grev controller profile can stay completely blank unless you want Grev Home to augment the app later."
+            ? appDefaultsPopulated
+                ? $"This app declares native controller support, while Grev Home also supplies an optional {_controllerProfileDisplayName} layer for setup/navigation. Disable that Grev layer after setup if you want only the app's native controller input."
+                : "This app declares native controller support. Its Grev controller profile can stay completely blank unless you want Grev Home to augment the app later."
             : "This app does not declare native controller support. Grev Home can use this profile as the standardized mapping contract for controller enhancement.";
 
         var onboarding = package?.Onboarding;
@@ -97,12 +105,10 @@ public partial class AppSettingsView : UserControl
                                             _hasPresentationOverride &&
                                             package?.Supports(AppPackageCapability.PresentationOverrides) == true;
 
-        var appDefaultsPopulated = package?.ControllerProfile?.Mappings?.Any(mapping =>
-            mapping.Output.Kind != AppControllerOutputKind.None) == true;
         ControllerSourceText.Text = profile.HasUserOverride
-            ? $"Using {primaryUser?.DisplayName ?? "this user's"} custom controller profile."
+            ? $"Using {primaryUser?.DisplayName ?? "this user's"} custom {_controllerProfileDisplayName.ToLowerInvariant()} setting."
             : appDefaultsPopulated
-                ? "Using the controller profile supplied by this Grev Home package."
+                ? $"Using the {_controllerProfileDisplayName.ToLowerInvariant()} profile supplied by this Grev Home package."
                 : "No Grev controller mappings are supplied by this app. The standardized layout is available and currently blank.";
 
         SaveButton.IsEnabled = canSave;
@@ -248,8 +254,8 @@ public partial class AppSettingsView : UserControl
         _enabled = !_enabled;
         UpdateTogglePresentation();
         StatusText.Text = _enabled
-            ? "Controller profile enabled. Configured mappings will be available to this app's Grev controller integration."
-            : "Controller profile disabled. Mappings are kept but will remain inactive until the profile is enabled again.";
+            ? $"{_controllerProfileDisplayName} enabled. Configured Grev mappings will be available to this app."
+            : $"{_controllerProfileDisplayName} disabled. Mappings are kept but inactive; native app controller support is not changed.";
     }
 
     private void PreviousMapping_Click(object sender, RoutedEventArgs e) => MoveMapping(sender, -1);
@@ -295,8 +301,8 @@ public partial class AppSettingsView : UserControl
     private void UpdateTogglePresentation()
     {
         ControllerProfileToggleButton.Content = _enabled
-            ? "Controller Profile: Enabled"
-            : "Controller Profile: Disabled";
+            ? $"{_controllerProfileDisplayName}: Enabled"
+            : $"{_controllerProfileDisplayName}: Disabled";
         ControllerProfileToggleButton.BorderBrush = _enabled
             ? (Brush)FindResource("AccentBrush")
             : new SolidColorBrush(Color.FromRgb(52, 61, 81));
