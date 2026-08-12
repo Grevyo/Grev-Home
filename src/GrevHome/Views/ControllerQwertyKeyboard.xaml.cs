@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using GrevHome.Input;
 
 namespace GrevHome.Views;
 
@@ -35,7 +37,63 @@ public partial class ControllerQwertyKeyboard : UserControl
         Visibility = Visibility.Visible;
         UpdatePresentation();
         Opened?.Invoke(this, EventArgs.Empty);
-        Dispatcher.BeginInvoke(new Action(() => _keyButtons.FirstOrDefault()?.Focus()));
+        Dispatcher.BeginInvoke(new Action(FocusInitial));
+    }
+
+    public void FocusInitial()
+    {
+        var first = _keyButtons.FirstOrDefault(button => button.IsVisible && button.IsEnabled);
+        if (first is null)
+        {
+            return;
+        }
+
+        if (!first.Focus())
+        {
+            Dispatcher.BeginInvoke(new Action(() => first.Focus()));
+        }
+    }
+
+    /// <summary>
+    /// Owns controller navigation while this keyboard is visible. The MainWindow shell routes all
+    /// controller actions here before normal page/header navigation, so the form behind a keyboard
+    /// cannot accidentally keep moving or activating controls.
+    /// </summary>
+    public bool HandleControllerInput(InputAction action)
+    {
+        if (!IsOpen)
+        {
+            return false;
+        }
+
+        if (!IsKeyboardFocusWithin)
+        {
+            FocusInitial();
+        }
+
+        switch (action)
+        {
+            case InputAction.Up:
+                MoveFocus(FocusNavigationDirection.Up);
+                break;
+            case InputAction.Down:
+                MoveFocus(FocusNavigationDirection.Down);
+                break;
+            case InputAction.Left:
+                MoveFocus(FocusNavigationDirection.Left);
+                break;
+            case InputAction.Right:
+                MoveFocus(FocusNavigationDirection.Right);
+                break;
+            case InputAction.Accept:
+                ActivateFocusedButton();
+                break;
+            case InputAction.Back:
+                Cancel();
+                break;
+        }
+
+        return true;
     }
 
     public void Cancel()
@@ -142,6 +200,25 @@ public partial class ControllerQwertyKeyboard : UserControl
     {
         Visibility = Visibility.Collapsed;
         Closed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private static void MoveFocus(FocusNavigationDirection direction)
+    {
+        if (Keyboard.FocusedElement is UIElement focused)
+        {
+            focused.MoveFocus(new TraversalRequest(direction));
+        }
+    }
+
+    private void ActivateFocusedButton()
+    {
+        if (!IsKeyboardFocusWithin || Keyboard.FocusedElement is not Button button || !button.IsEnabled)
+        {
+            FocusInitial();
+            return;
+        }
+
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
     }
 
     private void UpdatePresentation()
