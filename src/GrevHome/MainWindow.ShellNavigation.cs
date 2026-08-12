@@ -1,4 +1,3 @@
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
@@ -110,7 +109,10 @@ public partial class MainWindow
 
     private void CaptureRouteFocus(Route route)
     {
-        if (Keyboard.FocusedElement is not FrameworkElement focused ||
+        // Grev Home's route boundary is controller-first. Remember actual selectable Buttons rather
+        // than generic Focusable FrameworkElements so a ScrollViewer or text surface can never
+        // become the accidental landing target of a new controller route.
+        if (Keyboard.FocusedElement is not Button focused ||
             !RouteHost.IsAncestorOf(focused))
         {
             return;
@@ -124,7 +126,7 @@ public partial class MainWindow
         }
 
         _routeFocusBookmarks[route] = new RouteFocusBookmark(
-            new WeakReference<FrameworkElement>(focused),
+            new WeakReference<Button>(focused),
             index);
     }
 
@@ -143,7 +145,7 @@ public partial class MainWindow
 
         if (bookmark.Target.TryGetTarget(out var previous) &&
             focusables.Contains(previous) &&
-            IsRouteFocusable(previous))
+            IsFocusableButton(previous))
         {
             return previous.Focus();
         }
@@ -170,19 +172,12 @@ public partial class MainWindow
         GetRouteFocusableElements().FirstOrDefault()?.Focus();
     }
 
-    private List<FrameworkElement> GetRouteFocusableElements() =>
-        FindVisualChildren<FrameworkElement>(RouteHost)
-            .Where(IsRouteFocusable)
+    private List<Button> GetRouteFocusableElements() =>
+        FindVisualChildren<Button>(RouteHost)
+            .Where(IsFocusableButton)
             .ToList();
 
-    private static bool IsRouteFocusable(FrameworkElement element) =>
-        element.IsVisible &&
-        element.IsEnabled &&
-        element.Focusable &&
-        element.ActualWidth > 0 &&
-        element.ActualHeight > 0;
-
     private sealed record RouteFocusBookmark(
-        WeakReference<FrameworkElement> Target,
+        WeakReference<Button> Target,
         int FocusableIndex);
 }
