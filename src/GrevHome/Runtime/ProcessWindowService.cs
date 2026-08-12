@@ -154,7 +154,9 @@ public sealed class ProcessWindowService
         return requested;
     }
 
-    public bool ForceTerminate(IEnumerable<RuntimeProcessIdentity> processIdentities)
+    public bool ForceTerminate(
+        IEnumerable<RuntimeProcessIdentity> processIdentities,
+        bool entireProcessTree = true)
     {
         var identities = processIdentities
             .Where(identity => identity.ProcessId > 0)
@@ -174,7 +176,10 @@ public sealed class ProcessWindowService
                     continue;
                 }
 
-                process.Kill(entireProcessTree: true);
+                // Launchers such as Steam can own unrelated game descendants. Their package can
+                // explicitly request process-only termination so closing the launcher never turns
+                // into an implicit force-kill of a running game.
+                process.Kill(entireProcessTree);
                 killed = true;
             }
             catch (ArgumentException)
