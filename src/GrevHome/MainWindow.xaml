@@ -42,10 +42,11 @@
                     <Button x:Name="ShellBackButton"
                             Grid.Column="0"
                             Content="← Back"
-                            Width="112"
+                            Width="108"
                             Height="48"
                             Margin="0,0,14,0"
                             VerticalAlignment="Center"
+                            Visibility="Collapsed"
                             IsEnabled="False"
                             Click="ShellBack_Click" />
 
@@ -59,12 +60,13 @@
                     <Button x:Name="ProfileBubbleButton"
                             Grid.Column="3"
                             Visibility="Collapsed"
-                            MinWidth="220"
-                            MaxWidth="820"
+                            MinWidth="0"
+                            MaxWidth="520"
                             Height="56"
                             Margin="14,0,10,0"
                             Padding="10,5"
-                            HorizontalContentAlignment="Stretch"
+                            ClipToBounds="True"
+                            HorizontalContentAlignment="Left"
                             VerticalAlignment="Center"
                             Click="ShellProfileMenu_Click">
                         <StackPanel x:Name="HeaderPlayersPanel"
@@ -74,8 +76,8 @@
 
                     <Button x:Name="ShellSettingsButton"
                             Grid.Column="4"
-                            Content="⚙ Settings"
-                            Width="132"
+                            Content="Settings"
+                            Width="118"
                             Height="48"
                             VerticalAlignment="Center"
                             Click="ShellSettings_Click" />
@@ -83,7 +85,7 @@
                     <Button x:Name="ShellPowerButton"
                             Grid.Column="5"
                             Content="⏻"
-                            Width="62"
+                            Width="58"
                             Height="Auto"
                             MinHeight="50"
                             Margin="10,0,0,0"
@@ -153,10 +155,12 @@
                         <TextBlock Text="POWER &amp; SYSTEM"
                                    FontSize="13"
                                    FontWeight="Bold"
-                                   Foreground="{StaticResource AccentBrush}" />
+                                   Foreground="{StaticResource AccentBrush}"
+                                   Margin="0,0,0,14" />
                         <TextBlock x:Name="PowerMenuStatusText"
-                                   Text="Select an action. Power actions require a second press to confirm."
-                                   Margin="0,7,0,14"
+                                   Text=""
+                                   Visibility="Collapsed"
+                                   Margin="0,0,0,14"
                                    FontSize="12"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
