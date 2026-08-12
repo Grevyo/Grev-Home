@@ -108,6 +108,14 @@ public partial class MainWindow
             return;
         }
 
+        // A shared controller keyboard is a real modal. It owns the route's landing focus even if
+        // the route itself has just opened and the shell's delayed focus pass runs afterwards.
+        if (GetOpenControllerKeyboard() is { } controllerKeyboard)
+        {
+            controllerKeyboard.FocusInitial();
+            return;
+        }
+
         if (IsStoreModalOpen || IsPowerMenuOpen || _overlayWindow.IsOpen)
         {
             return;
@@ -202,6 +210,12 @@ public partial class MainWindow
 
     private void FocusFirstRouteControl()
     {
+        if (GetOpenControllerKeyboard() is { } controllerKeyboard)
+        {
+            controllerKeyboard.FocusInitial();
+            return;
+        }
+
         GetRouteFocusableElements().FirstOrDefault()?.Focus();
     }
 
