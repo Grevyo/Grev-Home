@@ -12,9 +12,9 @@
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown">
     <Grid Background="#B8000000">
-        <Border Width="1120"
-                MaxHeight="940"
-                Padding="38"
+        <Border Width="1040"
+                MaxHeight="820"
+                Padding="30"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
                 Background="#FA171B25"
@@ -27,37 +27,46 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock x:Name="TitleText"
                            Grid.Row="0"
                            Text="GREV OVERLAY"
                            Foreground="White"
-                           FontSize="38"
+                           FontSize="32"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap" />
 
                 <TextBlock x:Name="SubtitleText"
                            Grid.Row="1"
-                           Margin="0,10,0,26"
+                           Margin="0,7,0,18"
                            Foreground="#E2E7F0"
-                           FontSize="17"
+                           FontSize="15"
                            TextWrapping="Wrap" />
 
-                <ScrollViewer Grid.Row="2"
-                              MaxHeight="680"
+                <ScrollViewer x:Name="ContentScrollViewer"
+                              Grid.Row="2"
+                              MaxHeight="520"
                               HorizontalScrollBarVisibility="Disabled"
                               VerticalScrollBarVisibility="Auto"
-                              PanningMode="VerticalOnly">
+                              PanningMode="VerticalOnly"
+                              CanContentScroll="False">
                     <StackPanel x:Name="ActionPanel" />
                 </ScrollViewer>
 
+                <UniformGrid x:Name="GuideActionPanel"
+                             Grid.Row="3"
+                             Rows="1"
+                             Margin="-5,18,-5,0"
+                             Visibility="Collapsed" />
+
                 <TextBlock x:Name="HintText"
-                           Grid.Row="3"
-                           Margin="0,24,0,0"
+                           Grid.Row="4"
+                           Margin="0,16,0,0"
                            Foreground="#EEF1F7"
                            Text="A Select   •   B Back / Resume"
-                           FontSize="15"
+                           FontSize="14"
                            FontWeight="SemiBold"
                            TextWrapping="Wrap" />
             </Grid>
