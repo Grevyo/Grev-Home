@@ -104,7 +104,7 @@ public sealed class GrevStoreCatalogService
                 DataStrategy: DataStrategy.GrevId,
                 Launch: new AppLaunchDefinition(
                     Executable: "pcsx2-qt.exe",
-                    Arguments: "-datapath \"{DataRoot}\"",
+                    Arguments: "",
                     WorkingDirectory: "{BinaryRoot}",
                     ProcessName: "pcsx2-qt"),
                 SupportsController: true,
@@ -132,7 +132,7 @@ public sealed class GrevStoreCatalogService
             GrevHomeIntegrations:
             [
                 "Official PCSX2 Stable Windows x64 Qt portable package, pinned and SHA-256 verified before extraction.",
-                "Profile-owned binaries for the current GrevID with PCSX2 launched using its -datapath option for persistent GrevID application data.",
+                "Profile-owned binaries for the current GrevID; PCSX2 Stable portable.txt redirects its DataRoot into persistent GrevID AppData.",
                 "The BIOS folder is created automatically inside the GrevID PCSX2 data root; Grev Home never supplies proprietary PlayStation 2 BIOS files.",
                 "Trusted update and repair replace only PCSX2 binaries while preserving the GrevID's PCSX2 data and BIOS folder.",
                 "Native controller support remains untouched while Grev Home provides Return Home, Overlay, Running Apps, App Killer and tracked playtime around the emulator."
