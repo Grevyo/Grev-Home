@@ -19,11 +19,18 @@ Normal Grev Home navigation stays inside the permanent `MainWindow` shell.
 `NavigationService` now distinguishes:
 
 - `Reset` — replace the navigation root and clear history;
-- `Forward` — push the current route and enter a new route;
-- `Back` — restore the previous route from history;
-- `SameRoutePush` — add a back entry without visually leaving the route, used by modal/action-menu history patterns.
+- `Forward` — push the current content and enter new content;
+- `Back` — restore the previous content from history;
+- `SameRoutePush` — add modal/action-menu history without visually changing the route enum;
+- `SameRouteBack` — close that same-route modal/action-menu history entry without treating the parent as a fresh page.
 
-`RouteChanging` fires while the outgoing route is still presented. This lets the shell capture controller focus/viewport state before page content changes.
+Normal cross-route navigation uses `Navigate(route)`.
+
+Same-route **modal** history uses `Navigate(route, allowSameRoute: true)`. This is reserved for overlays/action menus where the route itself does not change but B/Back must close the overlay before leaving the parent page.
+
+Same-route **content** navigation uses `NavigateWithinRoute(route)`. This is for real child content that happens to share one route enum, such as entering another Files directory. It behaves like normal Forward/Back navigation: the child starts at the top and Back restores the exact parent history entry.
+
+`RouteChanging` fires while the outgoing route/content is still presented. This lets the shell capture controller focus state before page content changes.
 
 `RouteChanged` remains the existing compatibility event used by page integrations.
 
@@ -33,44 +40,55 @@ Controller focus is shell-owned at route boundaries.
 
 ### Forward / Reset
 
-A fresh page opens predictably:
+Fresh content opens predictably:
 
-1. route viewport starts at the top/left;
-2. first enabled visible focusable route control receives focus;
+1. visible route ScrollViewers start at the top/left;
+2. first enabled visible controller-selectable Button receives focus;
 3. header navigation can still be reached by moving up from the top route row.
 
-A fresh page must never inherit an arbitrary old scroll position merely because its persistent WPF view object was previously visited.
+The shell deliberately bookmarks Buttons rather than arbitrary `Focusable` WPF elements. A ScrollViewer, text surface or other implementation detail must never become the accidental controller landing target.
+
+Fresh content must not inherit an arbitrary old scroll position merely because its persistent WPF view object was previously visited.
 
 ### Back
 
 Back means "return to where I was" rather than "reopen the page from the beginning".
 
-Before leaving a route the shell records:
+Focus is stored **per navigation history entry**, not merely per Route enum. This matters for nested same-route content such as Files directories and for multiple stacked child pages.
 
-- the actual focused route control through a weak reference;
-- that control's index among current focusable route elements.
+When a Forward or SameRoutePush history entry is created, the shell records:
 
-When Back returns:
+- the actual focused Button through a weak reference;
+- that Button's index among current controller-selectable route Buttons;
+- the navigation history depth that owns that bookmark.
 
-1. the existing route viewport is preserved;
-2. the same control is focused if it still exists;
-3. if a dynamic list rebuilt its buttons, the shell falls back to the same focusable index;
-4. only if neither is possible does it fall back to the first focusable route control.
+When Back or SameRouteBack returns:
 
-This is especially important for Store/library/profile grids where returning from a detail page should not dump the user back onto the first tile.
+1. the matching history-entry bookmark is removed and restored;
+2. the existing parent viewport is preserved;
+3. the same Button is focused if it still exists;
+4. if a dynamic list rebuilt its Buttons, the shell falls back to the same controller-selectable Button index;
+5. only if neither is possible does it fall back to the first route Button.
+
+This is especially important for Store/library/profile/file grids where returning from detail/child content should not dump the user back onto the first tile.
 
 ### Same-route modal history
 
-A same-route push does not apply fresh-page focus/scroll rules. The modal/action-menu integration owns its modal focus while open. When Back closes the modal, the previously captured route bookmark can be restored.
+A `SameRoutePush` does not apply fresh-page scroll/focus rules. The modal/action-menu integration owns its own initial controller focus while open.
+
+`SameRouteBack` restores the parent history-entry bookmark. The shell deliberately does not capture the modal's currently focused button while closing it, so a Cancel/confirm button can never overwrite the parent tile/action that originally opened the modal.
+
+Mouse/keyboard modal completion must use the same Back transition as controller B where possible. Discarding history silently is not enough because it skips parent focus restoration.
 
 ## Back button contract
 
 The persistent shell Back button reflects navigation history rather than page-specific guesswork.
 
 - Dashboard/root normally has no Back action.
-- Forward routes have Back when history exists.
+- Forward routes/content have Back when history exists.
 - Login retains its signed-in escape to Dashboard for legacy/reset cases.
 - modal/action-menu history may temporarily add one same-route Back entry.
+- nested Files directories create normal Forward history even though they share `Route.Files`.
 
 Page-specific Back buttons and controller B/Escape must call the same navigation/history behavior; they must not invent unrelated route destinations.
 
@@ -81,7 +99,7 @@ Dynamic text/content must use wrapping and Auto/MinHeight rather than fixed heig
 Route scrolling follows two rules:
 
 - **fresh Forward/Reset** -> top/left;
-- **Back** -> preserve the route's existing viewport.
+- **Back/SameRouteBack** -> preserve the parent route/content viewport.
 
 Focus and scrolling are separate concerns. Focusable footer actions must not live inside a help-content ScrollViewer when focusing them would drag the help content away from its start. The controller-guide redesign is the reference pattern: scrollable information plus a fixed action footer.
 
@@ -90,7 +108,7 @@ Focus and scrolling are separate concerns. Focusable footer actions must not liv
 All shell modals should converge on one reusable behaviour:
 
 - current route remains visually underneath;
-- shell interaction underneath is disabled;
+- interaction underneath is not the controller focus target while the modal is open;
 - modal has a bounded responsive card, not a fixed giant surface;
 - dynamic text wraps;
 - content may scroll independently when necessary;
@@ -100,14 +118,47 @@ All shell modals should converge on one reusable behaviour:
 - B/Escape closes/cancels where safe;
 - opening/closing a modal must not corrupt route history or parent-route focus.
 
-Current modal surfaces to normalize during 0.15:
+Reusable application resources now include:
 
-- header Power/System menu;
+- `ShellModalCardStyle`;
+- `ShellModalActionButtonStyle`;
+- `ShellModalDangerActionButtonStyle`;
+- `ShellModalEyebrowStyle`.
+
+Normalized 0.15 modal surfaces so far:
+
 - Store install progress;
 - Store uninstall warning;
 - Installed Apps action menu;
-- profile/edit keyboards/pickers where they behave modally;
-- external-app controller guide in the existing overlay window.
+- Files rename/create editor;
+- Files delete confirmation;
+- external-app controller guide from the preceding controller-guide redesign.
+
+The header Power/System menu intentionally remains a compact top-right flyout rather than pretending every popup has the same physical composition.
+
+## Files same-route rules
+
+`Route.Files` contains both real child content and in-page modals, so it is the reference case for the two same-route navigation modes.
+
+### Entering Home/folder/parent content
+
+Files pushes its own path state, then calls `NavigateWithinRoute(Route.Files)`.
+
+The shell treats that as normal Forward:
+
+- new directory begins at the top;
+- first controller Button receives initial focus;
+- Back restores the previous directory and its matching history-entry focus bookmark.
+
+### Rename/create/delete modal
+
+Files calls `Navigate(Route.Files, allowSameRoute: true)`.
+
+- rename/create explicitly focuses the first controller keyboard key;
+- delete explicitly focuses Cancel;
+- the underlying Files toolbar does not become the modal landing target;
+- controller B closes the modal through `SameRouteBack`;
+- modal Cancel/save/delete completion also returns through the matching navigation Back entry so the originating Files control is restored.
 
 ## Route audit inventory
 
@@ -148,23 +199,31 @@ Every route must be checked for:
 
 ### Pass 1 — route/focus foundation
 
+Implemented:
+
 - transition kinds and pre-change event;
 - shell Back-state ownership;
-- focus bookmarks;
+- per-history-entry Button focus bookmarks;
 - fresh-route scroll reset;
-- Back focus restoration;
-- dynamic-list focus-index fallback.
+- Back/SameRouteBack focus restoration;
+- dynamic-list focus-index fallback;
+- separate same-route content and modal history semantics.
 
 ### Pass 2 — modal normalization
 
+Implemented/under physical validation:
+
 - common shell-modal layout/styles;
 - fixed action footers where needed;
-- one controller-safe modal focus/Back contract;
-- eliminate page-specific popup quirks.
+- controller-safe modal focus/Back contract;
+- compact horizontal/wrapped action rows;
+- Store, Installed Apps and Files popup cleanup.
 
 ### Pass 3 — route-by-route controller audit
 
 Walk every route physically with controller and keyboard, fixing directional dead ends and inconsistent Back behavior.
+
+Static audit should avoid dragging Profile-specific layout/detail work into 0.15; deeper Profile/Accounts surfaces belong to Milestone 0.16.
 
 ### Pass 4 — shell/header/dashboard finalisation
 
