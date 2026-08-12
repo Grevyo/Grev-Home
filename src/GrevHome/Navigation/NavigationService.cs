@@ -5,7 +5,8 @@ public enum NavigationTransitionKind
     Reset,
     Forward,
     Back,
-    SameRoutePush
+    SameRoutePush,
+    SameRouteBack
 }
 
 public sealed record NavigationTransition(
@@ -15,7 +16,7 @@ public sealed record NavigationTransition(
 
 public sealed class NavigationService
 {
-    private readonly Stack<Route> _history = new();
+    private readonly Stack<NavigationHistoryEntry> _history = new();
 
     public Route Current { get; private set; } = Route.Login;
     public bool CanGoBack => _history.Count > 0;
@@ -44,6 +45,11 @@ public sealed class NavigationService
         RouteChanged?.Invoke(route);
     }
 
+    /// <summary>
+    /// Navigates to another route. allowSameRoute is reserved for same-route modal/action-menu
+    /// history: Back from that entry is reported as SameRouteBack so the shell can restore the
+    /// parent page focus without applying fresh-page behavior.
+    /// </summary>
     public void Navigate(Route route, bool allowSameRoute = false)
     {
         if (Current == route && !allowSameRoute)
@@ -51,23 +57,49 @@ public sealed class NavigationService
             return;
         }
 
-        var kind = Current == route
+        var sameRoute = Current == route;
+        var kind = sameRoute
             ? NavigationTransitionKind.SameRoutePush
             : NavigationTransitionKind.Forward;
+        var returnKind = sameRoute
+            ? NavigationTransitionKind.SameRouteBack
+            : NavigationTransitionKind.Back;
         var transition = new NavigationTransition(Current, route, kind);
         RouteChanging?.Invoke(transition);
 
-        _history.Push(Current);
+        _history.Push(new NavigationHistoryEntry(Current, returnKind));
         Current = route;
         LastTransition = transition;
         RouteChanged?.Invoke(route);
     }
 
-    public void PushCurrentBackEntry() => _history.Push(Current);
+    /// <summary>
+    /// Pushes a new piece of content that intentionally lives on the same shell route, such as
+    /// entering another Files directory. It behaves like normal Forward/Back navigation rather
+    /// than like a modal even though the Route enum value itself does not change.
+    /// </summary>
+    public void NavigateWithinRoute(Route route)
+    {
+        if (Current != route)
+        {
+            throw new InvalidOperationException(
+                $"NavigateWithinRoute can only be used for the current route. Current={Current}, requested={route}.");
+        }
+
+        var transition = new NavigationTransition(Current, route, NavigationTransitionKind.Forward);
+        RouteChanging?.Invoke(transition);
+
+        _history.Push(new NavigationHistoryEntry(Current, NavigationTransitionKind.Back));
+        LastTransition = transition;
+        RouteChanged?.Invoke(route);
+    }
+
+    public void PushCurrentBackEntry() =>
+        _history.Push(new NavigationHistoryEntry(Current, NavigationTransitionKind.Back));
 
     public bool DiscardBackEntry(Route expectedRoute)
     {
-        if (_history.Count == 0 || _history.Peek() != expectedRoute)
+        if (_history.Count == 0 || _history.Peek().Route != expectedRoute)
         {
             return false;
         }
@@ -84,12 +116,16 @@ public sealed class NavigationService
         }
 
         var target = _history.Peek();
-        var transition = new NavigationTransition(Current, target, NavigationTransitionKind.Back);
+        var transition = new NavigationTransition(Current, target.Route, target.ReturnKind);
         RouteChanging?.Invoke(transition);
 
-        Current = _history.Pop();
+        Current = _history.Pop().Route;
         LastTransition = transition;
         RouteChanged?.Invoke(Current);
         return true;
     }
+
+    private sealed record NavigationHistoryEntry(
+        Route Route,
+        NavigationTransitionKind ReturnKind);
 }
