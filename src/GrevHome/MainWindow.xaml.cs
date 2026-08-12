@@ -594,6 +594,12 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (GetOpenControllerKeyboard() is { } controllerKeyboard)
+        {
+            controllerKeyboard.HandleControllerInput(action);
+            return;
+        }
+
         if (IsPowerMenuOpen)
         {
             switch (action)
@@ -701,11 +707,21 @@ public partial class MainWindow : Window
 
     private void FocusFirstButton()
     {
+        if (GetOpenControllerKeyboard() is { } controllerKeyboard)
+        {
+            controllerKeyboard.FocusInitial();
+            return;
+        }
+
         var firstButton = FindVisualChildren<Button>(RouteHost)
             .FirstOrDefault(button => button.IsVisible && button.IsEnabled && button.Focusable);
 
         firstButton?.Focus();
     }
+
+    private ControllerQwertyKeyboard? GetOpenControllerKeyboard() =>
+        FindVisualChildren<ControllerQwertyKeyboard>(RouteHost)
+            .FirstOrDefault(keyboard => keyboard.IsOpen);
 
     private void UpdateControllerStatus(ControllerConnectionEventArgs change)
     {
