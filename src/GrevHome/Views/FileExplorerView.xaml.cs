@@ -118,6 +118,39 @@ public partial class FileExplorerView : UserControl
         DeleteOverlay.Visibility = Visibility.Collapsed;
     }
 
+    /// <summary>
+    /// Gives every Files modal an explicit controller landing target. Delete intentionally starts
+    /// on Cancel; rename/create starts on the first on-screen keyboard key rather than allowing the
+    /// underlying Files toolbar to keep focus behind the overlay.
+    /// </summary>
+    public void RefocusModal()
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (DeleteOverlay.Visibility == Visibility.Visible)
+            {
+                DeleteCancelButton.Focus();
+                return;
+            }
+
+            if (EditorOverlay.Visibility != Visibility.Visible)
+            {
+                return;
+            }
+
+            var firstKey = NameKeyboard.Children.OfType<Button>()
+                .FirstOrDefault(button => button.IsVisible && button.IsEnabled && button.Focusable);
+            if (firstKey is not null)
+            {
+                firstKey.Focus();
+            }
+            else
+            {
+                EditorCancelButton.Focus();
+            }
+        }));
+    }
+
     private Button CreateHomeLocationButton(FileHomeLocation location)
     {
         var button = CreateEntryShell(location.Name, location.Detail, location.Kind);
