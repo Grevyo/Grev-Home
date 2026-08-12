@@ -5,21 +5,8 @@
     <UserControl.Resources>
         <Style x:Key="InstalledActionButtonStyle"
                TargetType="Button"
-               BasedOn="{StaticResource {x:Type Button}}">
-            <Setter Property="Height" Value="Auto" />
-            <Setter Property="MinHeight" Value="50" />
-            <Setter Property="Padding" Value="16,10" />
-            <Setter Property="ContentTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}"
-                                   TextWrapping="Wrap"
-                                   TextAlignment="Center"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
+               BasedOn="{StaticResource ShellModalActionButtonStyle}">
+            <Setter Property="Width" Value="190" />
         </Style>
     </UserControl.Resources>
 
@@ -88,90 +75,99 @@
               Panel.ZIndex="50"
               Background="#CC080A0F"
               Visibility="Collapsed">
-            <Border Width="520"
-                    MaxHeight="780"
-                    Padding="24"
-                    HorizontalAlignment="Center"
-                    VerticalAlignment="Center"
-                    Background="#11151E"
-                    BorderBrush="#374158"
-                    BorderThickness="1"
-                    CornerRadius="18">
-                <ScrollViewer VerticalScrollBarVisibility="Auto"
-                              HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel>
+            <Border MinWidth="620"
+                    MaxWidth="860"
+                    MaxHeight="720"
+                    Margin="36"
+                    Style="{StaticResource ShellModalCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <!-- Information never moves just because a lower action receives focus. -->
+                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
                         <TextBlock Text="APP ACTIONS"
-                                   FontSize="12"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource AccentBrush}" />
+                                   Style="{StaticResource ShellModalEyebrowStyle}" />
                         <TextBlock x:Name="AppActionTitleText"
-                                   Margin="0,6,0,0"
+                                   Margin="0,5,0,0"
                                    FontSize="28"
                                    FontWeight="SemiBold"
                                    TextWrapping="Wrap" />
                         <TextBlock x:Name="AppActionStateText"
-                                   Margin="0,5,0,18"
+                                   Margin="0,5,0,0"
                                    FontSize="13"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
+                    </StackPanel>
 
-                        <Button x:Name="AppActionOpenButton"
-                                Content="Open"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionOpen_Click" />
-                        <Button x:Name="AppActionSwitchButton"
-                                Content="Switch to App"
-                                Margin="0,7,0,0"
-                                Visibility="Collapsed"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionSwitch_Click" />
-                        <Button x:Name="AppActionSettingsButton"
-                                Content="App Settings"
-                                Margin="0,7,0,0"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionSettings_Click" />
-                        <Button x:Name="AppActionRestartButton"
-                                Content="Restart App"
-                                Margin="0,7,0,0"
-                                Visibility="Collapsed"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionRestart_Click" />
-                        <Button x:Name="AppActionCloseButton"
-                                Content="Close App"
-                                Margin="0,7,0,0"
-                                Visibility="Collapsed"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionClose_Click" />
-                        <Button x:Name="AppActionForceKillButton"
-                                Content="Force Kill App"
-                                Margin="0,7,0,0"
-                                Visibility="Collapsed"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionForceKill_Click" />
-                        <Button x:Name="AppActionAppKillerButton"
-                                Content="App Killer"
-                                Margin="0,7,0,0"
-                                Visibility="Collapsed"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionAppKiller_Click" />
-                        <Button x:Name="AppActionRunningAppsButton"
-                                Content="Running Apps"
-                                Margin="0,7,0,0"
-                                Visibility="Collapsed"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionRunningApps_Click" />
-                        <Button x:Name="AppActionStoreButton"
-                                Content="View in Grev Store"
-                                Margin="0,7,0,0"
-                                Style="{StaticResource InstalledActionButtonStyle}"
-                                Click="AppActionStore_Click" />
+                    <!-- Actions are horizontal and wrap into compact rows rather than one tall list. -->
+                    <ScrollViewer Grid.Row="1"
+                                  MaxHeight="430"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel HorizontalAlignment="Center">
+                            <Button x:Name="AppActionOpenButton"
+                                    Content="Open"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionOpen_Click" />
+                            <Button x:Name="AppActionSwitchButton"
+                                    Content="Switch to App"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionSwitch_Click" />
+                            <Button x:Name="AppActionSettingsButton"
+                                    Content="App Settings"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionSettings_Click" />
+                            <Button x:Name="AppActionRestartButton"
+                                    Content="Restart App"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionRestart_Click" />
+                            <Button x:Name="AppActionCloseButton"
+                                    Content="Close App"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionClose_Click" />
+                            <Button x:Name="AppActionForceKillButton"
+                                    Content="Force Kill App"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionForceKill_Click" />
+                            <Button x:Name="AppActionAppKillerButton"
+                                    Content="App Killer"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionAppKiller_Click" />
+                            <Button x:Name="AppActionRunningAppsButton"
+                                    Content="Running Apps"
+                                    Visibility="Collapsed"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionRunningApps_Click" />
+                            <Button x:Name="AppActionStoreButton"
+                                    Content="View in Grev Store"
+                                    Style="{StaticResource InstalledActionButtonStyle}"
+                                    Click="AppActionStore_Click" />
+                        </WrapPanel>
+                    </ScrollViewer>
+
+                    <!-- Cancel remains visible even if a future package adds enough actions to scroll. -->
+                    <Border Grid.Row="2"
+                            Margin="0,16,0,0"
+                            Padding="0,14,0,0"
+                            BorderBrush="#2B3344"
+                            BorderThickness="0,1,0,0">
                         <Button x:Name="AppActionCancelButton"
                                 Content="Cancel"
-                                Margin="0,14,0,0"
-                                Style="{StaticResource InstalledActionButtonStyle}"
+                                MinWidth="190"
+                                HorizontalAlignment="Center"
+                                Style="{StaticResource ShellModalActionButtonStyle}"
                                 Click="AppActionCancel_Click" />
-                    </StackPanel>
-                </ScrollViewer>
+                    </Border>
+                </Grid>
             </Border>
         </Grid>
     </Grid>
