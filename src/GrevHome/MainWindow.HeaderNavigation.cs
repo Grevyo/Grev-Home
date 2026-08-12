@@ -16,6 +16,7 @@ public partial class MainWindow
     private DateTimeOffset _headerPowerExpiresAt;
     private bool _headerCloseGrevHomeArmed;
     private bool _headerNavigationHooked;
+    private Button? _headerFlyoutReturnButton;
 
     private bool IsPowerMenuOpen => PowerMenuOverlay.Visibility == Visibility.Visible;
 
@@ -208,6 +209,9 @@ public partial class MainWindow
     private void OpenPowerMenu()
     {
         ResetHeaderPowerConfirmation();
+        _headerFlyoutReturnButton = ShellPowerButton;
+        ProfileQuickMenuCard.Visibility = Visibility.Collapsed;
+        PowerMenuCard.Visibility = Visibility.Visible;
         PowerAppKillerButton.IsEnabled = _session.HasSignedInUsers;
         PowerRunningAppsButton.IsEnabled = _session.HasSignedInUsers;
         ShellInteractionHost.IsEnabled = false;
@@ -221,12 +225,20 @@ public partial class MainWindow
 
     private void ClosePowerMenu(bool returnFocusToHeader = true)
     {
+        var returnButton = _headerFlyoutReturnButton;
+        _headerFlyoutReturnButton = null;
         ResetHeaderPowerConfirmation();
+        ProfileQuickMenuCard.Visibility = Visibility.Collapsed;
+        PowerMenuCard.Visibility = Visibility.Collapsed;
         PowerMenuOverlay.Visibility = Visibility.Collapsed;
         ShellInteractionHost.IsEnabled = true;
         if (returnFocusToHeader)
         {
-            Dispatcher.BeginInvoke(new Action(() => ShellPowerButton.Focus()));
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (returnButton is { IsVisible: true, IsEnabled: true }) returnButton.Focus();
+                else if (ShellPowerButton.IsVisible && ShellPowerButton.IsEnabled) ShellPowerButton.Focus();
+            }));
         }
     }
 
