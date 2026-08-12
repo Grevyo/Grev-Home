@@ -28,6 +28,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
+    private readonly VisualCppRuntimePrerequisiteService _visualCppRuntime = new();
 
     public PCSX2InstallerService(AppPaths paths, InstalledAppService installedApps)
     {
@@ -55,6 +56,14 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
                 SupportedVersion));
         }
 
+        if (!_visualCppRuntime.IsInstalled(out var runtimeVersion))
+        {
+            return Task.FromResult(new PackageHealthSnapshot(
+                PackageHealthState.RepairRecommended,
+                "PCSX2 requires the Microsoft Visual C++ x64 runtime, but Grev Home could not detect it. Repair can install the prerequisite and validate PCSX2 startup.",
+                SupportedVersion));
+        }
+
         var dataRoot = _paths.GetProfileAppDataRoot(grevId, context.Package.App.AppId);
         var biosRoot = Path.Combine(dataRoot, "bios");
         if (!Directory.Exists(dataRoot) || !Directory.Exists(biosRoot))
@@ -65,12 +74,15 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
                 SupportedVersion));
         }
 
+        var runtimeSuffix = string.IsNullOrWhiteSpace(runtimeVersion)
+            ? string.Empty
+            : $" Visual C++ runtime {runtimeVersion} is present.";
         var hasBiosFiles = Directory.EnumerateFiles(biosRoot, "*", SearchOption.TopDirectoryOnly).Any();
         return Task.FromResult(new PackageHealthSnapshot(
             PackageHealthState.Healthy,
             hasBiosFiles
-                ? "PCSX2 binaries and the GrevID-owned BIOS/data folder are present."
-                : "PCSX2 is installed and healthy. A BIOS dumped from a PlayStation 2 you own still needs to be placed in the BIOS folder and selected in PCSX2.",
+                ? $"PCSX2 binaries and the GrevID-owned BIOS/data folder are present.{runtimeSuffix}"
+                : $"PCSX2 is installed and its Windows runtime prerequisite is present.{runtimeSuffix} A BIOS dumped from a PlayStation 2 you own still needs to be placed in the BIOS folder and selected in PCSX2.",
             SupportedVersion));
     }
 
@@ -107,6 +119,8 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         ValidatePackage(package, grevId);
         _paths.EnsureProfileLayout(grevId);
 
+        await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken);
+
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
         if (Directory.Exists(targetRoot) && Directory.EnumerateFileSystemEntries(targetRoot).Any())
         {
@@ -127,10 +141,13 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             progress?.Report(new PackageInstallProgress("Install", "Moving verified PCSX2 files into this GrevID profile…", 90));
             MoveExtractedPackage(extractedRoot, targetRoot);
 
-            progress?.Report(new PackageInstallProgress("Configure", "Creating the persistent GrevID PCSX2 data and BIOS folder…", 95));
+            progress?.Report(new PackageInstallProgress("Configure", "Creating the persistent GrevID PCSX2 data and BIOS folder…", 94));
             ConfigureProfile(grevId);
 
-            progress?.Report(new PackageInstallProgress("Register", "Registering PCSX2 with Grev Home…", 98));
+            progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test before registration…", 96));
+            await SmokeTestAsync(targetRoot, grevId, cancellationToken);
+
+            progress?.Report(new PackageInstallProgress("Register", "Registering the validated PCSX2 installation with Grev Home…", 99));
             await _installedApps.RegisterInstalledAsync(
                 package.App,
                 SupportedVersion,
@@ -139,13 +156,13 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
 
             progress?.Report(new PackageInstallProgress(
                 "Complete",
-                $"PCSX2 {SupportedVersion} is installed for this GrevID. Add your own dumped PS2 BIOS to the profile BIOS folder, then select it in PCSX2.",
+                $"PCSX2 {SupportedVersion} is installed and passed its startup self-test. Add your own dumped PS2 BIOS to the profile BIOS folder, then select it in PCSX2.",
                 100));
         }
         catch
         {
-            // Fresh-install rollback removes only the new package binary root. The GrevID data
-            // root is persistent and is never treated as disposable package content.
+            // A fresh install is registered only after PCSX2 itself passes its startup/config test.
+            // Roll back only package binaries; the GrevID data root remains persistent.
             TryDeleteDirectory(targetRoot);
             throw;
         }
@@ -214,6 +231,8 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         _paths.EnsureProfileLayout(grevId);
         ConfigureProfile(grevId);
 
+        await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken);
+
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
         var backupRoot = targetRoot + $".grev-backup-{Guid.NewGuid():N}";
         var stagingRoot = CreateStagingRoot();
@@ -228,7 +247,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             progress?.Report(new PackageInstallProgress(
                 operation,
                 "Keeping GrevID PCSX2 data separate while preparing replacement binaries…",
-                2));
+                6));
 
             var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
@@ -243,6 +262,9 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             Directory.Move(extractedRoot, targetRoot);
             ConfigureProfile(grevId);
 
+            progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test…", 96));
+            await SmokeTestAsync(targetRoot, grevId, cancellationToken);
+
             await _installedApps.RegisterInstalledAsync(
                 package.App,
                 SupportedVersion,
@@ -253,11 +275,13 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
             oldRootMoved = false;
             progress?.Report(new PackageInstallProgress(
                 "Complete",
-                $"PCSX2 {SupportedVersion} {operation.ToLowerInvariant()} completed. GrevID BIOS/configuration/application data were preserved.",
+                $"PCSX2 {SupportedVersion} {operation.ToLowerInvariant()} completed and passed its startup self-test. GrevID BIOS/configuration/application data were preserved.",
                 100));
         }
         catch
         {
+            // Do not commit replacement binaries which cannot actually start. Restore the previous
+            // package root whenever one existed; persistent GrevID data is never rolled back.
             TryDeleteDirectory(targetRoot);
             if (oldRootMoved && Directory.Exists(backupRoot) && !Directory.Exists(targetRoot))
             {
@@ -282,7 +306,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
-        progress?.Report(new PackageInstallProgress("Download", $"Downloading PCSX2 Stable {SupportedVersion}…", 0));
+        progress?.Report(new PackageInstallProgress("Download", $"Downloading PCSX2 Stable {SupportedVersion}…", 6));
         await DownloadArchiveAsync(archivePath, progress, cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Verify", "Verifying the official release SHA-256…", 72));
@@ -291,7 +315,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         progress?.Report(new PackageInstallProgress("Extract", "Checking archive paths before extraction…", 76));
         await ValidateArchiveEntriesAsync(archivePath, cancellationToken);
 
-        progress?.Report(new PackageInstallProgress("Extract", "Extracting PCSX2 without opening a setup wizard…", 80));
+        progress?.Report(new PackageInstallProgress("Extract", "Extracting the complete PCSX2 portable package…", 80));
         await ExtractArchiveAsync(archivePath, extractRoot, cancellationToken);
 
         var extractedRoot = FindExtractedPCSX2Root(extractRoot);
@@ -308,6 +332,98 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
         Directory.CreateDirectory(dataRoot);
         Directory.CreateDirectory(Path.Combine(dataRoot, "bios"));
+    }
+
+    private async Task SmokeTestAsync(
+        string binaryRoot,
+        string grevId,
+        CancellationToken cancellationToken)
+    {
+        var executable = Path.Combine(binaryRoot, "pcsx2-qt.exe");
+        var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
+        if (!File.Exists(executable))
+        {
+            throw new InvalidDataException("PCSX2 startup validation could not find pcsx2-qt.exe.");
+        }
+
+        var startInfo = new ProcessStartInfo
+        {
+            FileName = executable,
+            WorkingDirectory = binaryRoot,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("-testconfig");
+        startInfo.ArgumentList.Add("-datapath");
+        startInfo.ArgumentList.Add(dataRoot);
+
+        Process process;
+        try
+        {
+            process = Process.Start(startInfo)
+                      ?? throw new InvalidOperationException("Windows could not start PCSX2 for its startup self-test.");
+        }
+        catch (Win32Exception ex)
+        {
+            throw new InvalidOperationException(
+                $"PCSX2 could not start during Grev Home's startup self-test: {ex.Message}",
+                ex);
+        }
+
+        using (process)
+        {
+            var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
+            var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(TimeSpan.FromSeconds(30));
+
+            try
+            {
+                await process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                try { process.Kill(entireProcessTree: true); } catch { }
+                throw new InvalidOperationException(
+                    "PCSX2 did not complete its startup self-test within 30 seconds. Grev Home did not accept the replacement as healthy.");
+            }
+
+            var standardOutput = await outputTask;
+            var standardError = await errorTask;
+            if (process.ExitCode == 0)
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(BuildSmokeTestFailure(process.ExitCode, standardError, standardOutput));
+        }
+    }
+
+    private static string BuildSmokeTestFailure(int exitCode, string standardError, string standardOutput)
+    {
+        var unsignedCode = unchecked((uint)exitCode);
+        var explanation = unsignedCode switch
+        {
+            0xC0000135 => "Windows reported a missing DLL. The Microsoft Visual C++ x64 runtime or another required PCSX2 runtime component is unavailable.",
+            0xC000007B => "Windows reported an invalid/incompatible executable or DLL architecture.",
+            0xC0000142 => "Windows reported that a required DLL could not initialize.",
+            _ => $"PCSX2 returned exit code {exitCode} (0x{unsignedCode:X8})."
+        };
+
+        var details = string.Join(
+            " ",
+            new[] { standardError.Trim(), standardOutput.Trim() }
+                .Where(value => !string.IsNullOrWhiteSpace(value)));
+        if (details.Length > 700)
+        {
+            details = details[..700];
+        }
+
+        return string.IsNullOrWhiteSpace(details)
+            ? $"PCSX2 startup self-test failed. {explanation}"
+            : $"PCSX2 startup self-test failed. {explanation} {details}";
     }
 
     private static string RequireGrevId(PackageOperationContext context)
@@ -387,7 +503,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
                 progress?.Report(new PackageInstallProgress(
                     "Download",
                     $"{FormatBytes(received)} / {FormatBytes(total.Value)}",
-                    downloadPercent * 0.70));
+                    6 + (downloadPercent * 0.64)));
             }
         }
 
