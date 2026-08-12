@@ -210,7 +210,6 @@ public partial class MainWindow
         ResetHeaderPowerConfirmation();
         PowerAppKillerButton.IsEnabled = _session.HasSignedInUsers;
         PowerRunningAppsButton.IsEnabled = _session.HasSignedInUsers;
-        PowerMenuStatusText.Text = "Select an action. Power actions require a second press within 8 seconds to confirm.";
         ShellInteractionHost.IsEnabled = false;
         PowerMenuOverlay.Visibility = Visibility.Visible;
         Dispatcher.BeginInvoke(new Action(() =>
@@ -240,20 +239,20 @@ public partial class MainWindow
             _headerCloseGrevHomeArmed = false;
             _headerPowerExpiresAt = now.AddSeconds(8);
             UpdatePowerMenuButtons();
-            PowerMenuStatusText.Text = $"{FormatHeaderPowerAction(action)} armed. Select it again within 8 seconds to confirm.";
+            ShowPowerMenuStatus($"{FormatHeaderPowerAction(action)} armed. Select it again within 8 seconds to confirm.");
             return;
         }
 
         ResetHeaderPowerConfirmation();
         try
         {
-            PowerMenuStatusText.Text = $"Requesting {FormatHeaderPowerAction(action).ToLowerInvariant()} from Windows…";
+            ShowPowerMenuStatus($"Requesting {FormatHeaderPowerAction(action).ToLowerInvariant()} from Windows…");
             _headerPowerService.Execute(action);
             ClosePowerMenu(returnFocusToHeader: false);
         }
         catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or UnauthorizedAccessException)
         {
-            PowerMenuStatusText.Text = $"Windows did not complete the power action: {ex.Message}";
+            ShowPowerMenuStatus($"Windows did not complete the power action: {ex.Message}");
         }
     }
 
@@ -266,7 +265,7 @@ public partial class MainWindow
             _headerCloseGrevHomeArmed = true;
             _headerPowerExpiresAt = now.AddSeconds(8);
             UpdatePowerMenuButtons();
-            PowerMenuStatusText.Text = "Close Grev Home armed. Select it again within 8 seconds to confirm.";
+            ShowPowerMenuStatus("Close Grev Home armed. Select it again within 8 seconds to confirm.");
             return;
         }
 
@@ -280,6 +279,19 @@ public partial class MainWindow
         _headerCloseGrevHomeArmed = false;
         _headerPowerExpiresAt = DateTimeOffset.MinValue;
         UpdatePowerMenuButtons();
+        ClearPowerMenuStatus();
+    }
+
+    private void ShowPowerMenuStatus(string message)
+    {
+        PowerMenuStatusText.Text = message;
+        PowerMenuStatusText.Visibility = Visibility.Visible;
+    }
+
+    private void ClearPowerMenuStatus()
+    {
+        PowerMenuStatusText.Text = string.Empty;
+        PowerMenuStatusText.Visibility = Visibility.Collapsed;
     }
 
     private void UpdatePowerMenuButtons()
