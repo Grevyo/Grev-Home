@@ -1,7 +1,6 @@
 using System.IO;
 using System.Windows;
 using System.Windows.Threading;
-using GrevHome.Input;
 using GrevHome.Navigation;
 using GrevHome.Profiles;
 using GrevHome.Runtime;
@@ -21,7 +20,6 @@ public partial class MainWindow
     private string? _profilePhotoCurrentPath;
     private ProfileEditRequest? _profileEditDraftBeforePhotoPicker;
     private Route? _profileKeyboardModalRoute;
-    private bool _profileKeyboardClosingForBack;
     private bool _profilePlayersIntegrationReady;
 
     private void InitializeProfilePlayersIntegration()
@@ -38,7 +36,6 @@ public partial class MainWindow
         _navigation.RouteChanged += HandleProfileRouteChanged;
         _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(RefreshProfilePlayerViews));
         _controllerInput.ConnectionChanged += _ => Dispatcher.BeginInvoke(new Action(RefreshProfilePlayerViews));
-        _controllerInput.ActionPressed += HandleProfileModalControllerInput;
 
         _profilePlayersView.ViewProfileRequested += OpenProfileView;
         _profilePlayersView.EditProfileRequested += OpenProfileEditor;
@@ -76,14 +73,6 @@ public partial class MainWindow
     private void HandleProfileRouteChanged(Route route)
     {
         ShellBackButton.IsEnabled = route != Route.Dashboard && !(route == Route.Login && !_session.HasSignedInUsers);
-
-        if (route == Route.CreateProfile && _createProfileView.IsKeyboardOpen && _profileKeyboardModalRoute == Route.CreateProfile)
-        {
-            _profileKeyboardClosingForBack = true;
-            _createProfileView.CancelKeyboard();
-            _profileKeyboardClosingForBack = false;
-            _profileKeyboardModalRoute = null;
-        }
 
         switch (route)
         {
@@ -357,23 +346,8 @@ public partial class MainWindow
     private void ProfileKeyboardClosed(Route route)
     {
         if (_profileKeyboardModalRoute != route) return;
-        if (!_profileKeyboardClosingForBack) _navigation.DiscardBackEntry(route);
+        _navigation.DiscardBackEntry(route);
         _profileKeyboardModalRoute = null;
-    }
-
-    private void HandleProfileModalControllerInput(ControllerInputEventArgs input)
-    {
-        if (input.Action != InputAction.Back || !_profileKeyboardModalRoute.HasValue) return;
-        void CloseForBack()
-        {
-            _profileKeyboardClosingForBack = true;
-            if (_profileKeyboardModalRoute == Route.CreateProfile) _createProfileView.CancelKeyboard();
-            else if (_profileKeyboardModalRoute == Route.ProfileEdit) _profileEditView.CancelKeyboard();
-            _profileKeyboardClosingForBack = false;
-            _profileKeyboardModalRoute = null;
-        }
-        if (Dispatcher.CheckAccess()) CloseForBack();
-        else Dispatcher.Invoke(CloseForBack);
     }
 
     private void RenderProfileTarget()
