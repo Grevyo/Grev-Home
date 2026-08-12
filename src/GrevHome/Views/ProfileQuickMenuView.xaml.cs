@@ -53,10 +53,6 @@ public partial class ProfileQuickMenuView : UserControl
                                     AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManagePlayers);
         ManagePlayersButton.IsEnabled = session.HasSignedInUsers;
 
-        RegisterFooterButton(AddPlayerButton, "footer:add-player");
-        RegisterFooterButton(ManagePlayersButton, "footer:manage-players");
-        RegisterFooterButton(CloseButton, "footer:close");
-
         for (var index = 0; index < session.SignedInUsers.Count; index++)
         {
             PlayersPanel.Children.Add(CreatePlayerCard(
@@ -68,17 +64,31 @@ public partial class ProfileQuickMenuView : UserControl
                 primary));
         }
 
-        if (!string.IsNullOrWhiteSpace(previousKey) &&
-            _actionButtonsByKey.TryGetValue(previousKey, out var restore) &&
-            restore.IsEnabled)
+        RegisterFooterButton(AddPlayerButton, "footer:add-player");
+        RegisterFooterButton(ManagePlayersButton, "footer:manage-players");
+        RegisterFooterButton(CloseButton, "footer:close");
+
+        if (!string.IsNullOrWhiteSpace(previousKey))
         {
-            Dispatcher.BeginInvoke(new Action(() => restore.Focus()));
+            if (_actionButtonsByKey.TryGetValue(previousKey, out var restore) && restore.IsEnabled)
+            {
+                Dispatcher.BeginInvoke(new Action(() => restore.Focus()));
+            }
+            else if (IsVisible)
+            {
+                Dispatcher.BeginInvoke(new Action(FocusInitial));
+            }
         }
     }
 
     public void FocusInitial()
     {
-        var first = _actionButtons.FirstOrDefault(button => button.IsVisible && button.IsEnabled);
+        var firstPlayerAction = _actionButtons.FirstOrDefault(button =>
+            button.IsVisible &&
+            button.IsEnabled &&
+            button.Tag is string tag &&
+            !tag.StartsWith("footer:", StringComparison.OrdinalIgnoreCase));
+        var first = firstPlayerAction ?? _actionButtons.FirstOrDefault(button => button.IsVisible && button.IsEnabled);
         first?.Focus();
     }
 
@@ -171,15 +181,14 @@ public partial class ProfileQuickMenuView : UserControl
         actionRow.Children.Add(signOutButton);
         root.Children.Add(actionRow);
 
-        var controllerHeading = new TextBlock
+        root.Children.Add(new TextBlock
         {
             Text = "CONTROLLER",
             Margin = new Thickness(0, 6, 0, 5),
             FontSize = 10,
             FontWeight = FontWeights.Bold,
             Foreground = (Brush)FindResource("MutedBrush")
-        };
-        root.Children.Add(controllerHeading);
+        });
 
         var controllerRow = new WrapPanel();
         var assignedToUser = session.GetControllersForUser(user.SessionId).ToHashSet();
