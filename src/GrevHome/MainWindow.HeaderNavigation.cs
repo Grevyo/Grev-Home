@@ -43,7 +43,7 @@ public partial class MainWindow
 
     private void HandleHeaderNavigationInput(ControllerInputEventArgs input)
     {
-        if (IsStoreModalOpen || IsPowerMenuOpen ||
+        if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
             input.Action is not (InputAction.Up or InputAction.Down or InputAction.Left or InputAction.Right))
         {
             return;
@@ -61,7 +61,8 @@ public partial class MainWindow
 
     private void CorrectHeaderNavigation(InputAction action, Button originalFocus)
     {
-        if (IsStoreModalOpen || IsPowerMenuOpen || _overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
+        if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
+            _overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
         {
             return;
         }
