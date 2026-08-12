@@ -48,6 +48,14 @@ public partial class DashboardView : UserControl
         RunningCountText.Text = $"{runningCount} active";
     }
 
+    public void ShowStatus(string message)
+    {
+        DashboardStatusText.Text = message;
+        DashboardStatusText.Visibility = string.IsNullOrWhiteSpace(message)
+            ? Visibility.Collapsed
+            : Visibility.Visible;
+    }
+
     private void ManageUsers_Click(object sender, RoutedEventArgs e) =>
         ManageUsersRequested?.Invoke(this, EventArgs.Empty);
 
