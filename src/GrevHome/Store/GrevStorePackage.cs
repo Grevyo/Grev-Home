@@ -110,7 +110,9 @@ public sealed class GrevStoreCatalogService
                 SupportsController: true,
                 Description: "Profile-isolated PlayStation 2 emulator with independent configuration, BIOS selection and application data per GrevID."),
             Presentation: new AppPresentationDefaults(
-                DisplayName: "PCSX2"),
+                DisplayName: "PCSX2",
+                TileColor: "#0F2F6E",
+                IconAsset: PackageBrandingAssets.PCSX2IconAssetUri),
             Capabilities:
                 AppPackageCapability.Install |
                 AppPackageCapability.Update |
@@ -164,6 +166,86 @@ public sealed class GrevStoreCatalogService
                 "Trusted update and repair replace only PCSX2 binaries while preserving the GrevID's PCSX2 data and BIOS folder.",
                 "Temporary per-GrevID Grev Desktop controls make the PCSX2 first-run wizard keyboard/mouse-accessible from a controller, with a one-press disable helper once native controller setup is complete.",
                 "PCSX2 native controller support remains intact while Grev Home provides Return Home, Overlay, Running Apps, App Killer and tracked playtime around the emulator."
+            ]),
+
+        new GrevStorePackageDefinition(
+            PackageId: "steam",
+            InstallerId: SteamInstallerService.InstallerId,
+            Category: GrevStoreCategory.Gaming,
+            App: new AppDefinition(
+                AppId: "steam",
+                Name: "Steam",
+                Kind: AppKind.GameLauncher,
+                InstallStrategy: InstallStrategy.SystemInstalled,
+                DataStrategy: DataStrategy.NativeAccount,
+                Launch: new AppLaunchDefinition(
+                    Executable: "%ProgramFiles(x86)%\\Steam\\steam.exe",
+                    Arguments: "-gamepadui",
+                    WorkingDirectory: "%ProgramFiles(x86)%\\Steam",
+                    ProcessName: "steam",
+                    SingleInstance: true,
+                    AdditionalProcessNames: ["steamwebhelper"],
+                    TrackDescendantProcesses: false,
+                    ForceKillEntireProcessTree: false),
+                SupportsController: true,
+                Description: "Steam game launcher opened directly into its controller-focused Big Picture interface, with native Steam account and game-library data left under Steam's control."),
+            Presentation: new AppPresentationDefaults(
+                DisplayName: "Steam",
+                TileColor: "#1B2838",
+                IconAsset: "builtin://steam"),
+            Capabilities:
+                AppPackageCapability.Install |
+                AppPackageCapability.Repair |
+                AppPackageCapability.LibraryMembership |
+                AppPackageCapability.ControllerProfile |
+                AppPackageCapability.ControllerGuide |
+                AppPackageCapability.AppSettings |
+                AppPackageCapability.PresentationOverrides |
+                AppPackageCapability.AdminManagement,
+            ControllerProfile: new AppControllerProfileDefaults(
+                Enabled: true,
+                Mappings: DesktopMouseMappings(
+                    new(AppControllerControl.A, new(AppControllerOutputKind.KeyboardShortcut, "ENTER")),
+                    new(AppControllerControl.LeftShoulder, new(AppControllerOutputKind.KeyboardShortcut, "SHIFT TAB")),
+                    new(AppControllerControl.RightShoulder, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
+            RuntimePolicy: new AppRuntimePolicy(
+                AppWindowMode.Maximized,
+                AppWindowReturnBehavior.KeepShellHidden),
+            VersionPolicy: new AppVersionPolicy(
+                CurrentVersion: null,
+                NativeAutoUpdate: true),
+            Onboarding: new AppOnboardingDefinition(
+                Title: "Steam Setup Controls",
+                Summary: "Emulated keyboard and mouse controls are temporarily enabled so Steam can be updated, signed in and configured without reaching for a physical keyboard or mouse. Grev Home never stores your Steam username, password or Steam Guard details. Once Steam Big Picture is working with the controller, disable this Grev control layer below so Steam receives its normal native controller input. You can turn it back on at any time from Steam App Settings.",
+                ControllerGuideControls:
+                [
+                    AppControllerControl.RightTrigger,
+                    AppControllerControl.LeftTrigger,
+                    AppControllerControl.RightStick,
+                    AppControllerControl.LeftStick,
+                    AppControllerControl.X,
+                    AppControllerControl.A,
+                    AppControllerControl.B,
+                    AppControllerControl.DPadUp,
+                    AppControllerControl.DPadDown,
+                    AppControllerControl.DPadLeft,
+                    AppControllerControl.DPadRight,
+                    AppControllerControl.RightShoulder
+                ],
+                ControllerProfileDisplayName: "Emulated Keyboard & Mouse",
+                QuickDisableControllerProfileLabel: "Disable Emulated Keyboard & Mouse",
+                QuickDisableControllerProfileDescription: "Use this after Steam is signed in and Big Picture works with the controller. It only disables Grev Home's temporary keyboard/mouse translation for this GrevID; Steam's own native controller and Steam Input support remain untouched. The same switch stays available in App Settings."),
+            Featured: true,
+            StoreDescription: "Install or adopt Steam as a Global App and launch it from Grev Home directly into Steam's controller-focused Big Picture interface. Steam keeps its own Windows installation, account state, game libraries and self-updater; each GrevID independently decides whether Steam appears in their Grev Home library.",
+            SetupNotice: "First launch: Steam may update itself and ask you to sign in or complete Steam Guard. Grev Home's temporary Emulated Keyboard & Mouse controls are enabled for setup, but Grev Home never stores Steam credentials. Once Big Picture is configured, use the setup popup or Steam App Settings to disable the emulated desktop controls.",
+            GrevHomeIntegrations:
+            [
+                "Official Steam Windows bootstrap installer with existing-install detection and native Steam self-updating left intact.",
+                "Global App library membership is per GrevID even though the Steam Windows installation and game libraries are shared.",
+                "Open launches steam.exe with -gamepadui so the normal Grev Home entry targets Steam's controller-focused Big Picture interface.",
+                "Temporary per-GrevID Emulated Keyboard & Mouse controls support first-run updates, login, Steam Guard and setup, with the same reversible switch in App Settings.",
+                "Launcher-safe runtime tracking follows Steam and steamwebhelper without adopting arbitrary game descendants, so Grev Home Close/Force Kill does not recursively kill a launched game process tree.",
+                "Steam keeps Grev Home hidden while its launcher session is alive, preventing Big Picture hiding itself during a game launch from pulling Grev Home over the running game."
             ]),
 
         new GrevStorePackageDefinition(
