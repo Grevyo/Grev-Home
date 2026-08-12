@@ -141,6 +141,8 @@ public partial class GrevOverlayWindow : Window
     private void Render()
     {
         ActionPanel.Children.Clear();
+        GuideActionPanel.Children.Clear();
+        GuideActionPanel.Visibility = Visibility.Collapsed;
 
         if (_mode == OverlayMode.ControllerGuide)
         {
@@ -227,6 +229,7 @@ public partial class GrevOverlayWindow : Window
             ReturnHomeRequested?.Invoke(this, EventArgs.Empty);
         });
 
+        ContentScrollViewer.ScrollToTop();
         HintText.Text = "A Select   •   B Resume / Close Overlay";
     }
 
@@ -242,65 +245,43 @@ public partial class GrevOverlayWindow : Window
 
         TitleText.Text = guide.Title;
         SubtitleText.Text = guide.Summary;
+        GuideActionPanel.Visibility = Visibility.Visible;
 
         AddSectionHeading("SYSTEM SHORTCUTS");
         var shortcutGrid = new UniformGrid
         {
             Columns = 2,
-            Margin = new Thickness(-5, 0, -5, 16)
+            Margin = new Thickness(-4, 0, -4, 10)
         };
-        shortcutGrid.Children.Add(CreateGuideCard("Return Home", guide.ReturnHomeShortcut, emphasize: true));
-        shortcutGrid.Children.Add(CreateGuideCard("Grev Overlay", guide.OverlayShortcut, emphasize: true));
+        shortcutGrid.Children.Add(CreateShortcutCard("Return Home", guide.ReturnHomeShortcut));
+        shortcutGrid.Children.Add(CreateShortcutCard("Grev Overlay", guide.OverlayShortcut));
         ActionPanel.Children.Add(shortcutGrid);
 
         AddSectionHeading("CONTROLLER");
         var controlGrid = new UniformGrid
         {
-            Columns = 3,
-            Margin = new Thickness(-5, 0, -5, 18)
+            Columns = 4,
+            Margin = new Thickness(-4, 0, -4, 10)
         };
 
         foreach (var item in guide.Controls.Take(12))
         {
-            controlGrid.Children.Add(CreateGuideCard(item.Control, item.Action, emphasize: false));
+            controlGrid.Children.Add(CreateControllerGuideCard(item));
         }
         ActionPanel.Children.Add(controlGrid);
 
-        if (!string.IsNullOrWhiteSpace(guide.QuickDisableControllerProfileLabel))
+        if (!string.IsNullOrWhiteSpace(guide.QuickDisableControllerProfileDescription))
         {
             AddSectionHeading("SETUP HELPER");
-            if (!string.IsNullOrWhiteSpace(guide.QuickDisableControllerProfileDescription))
-            {
-                ActionPanel.Children.Add(new TextBlock
-                {
-                    Text = guide.QuickDisableControllerProfileDescription,
-                    Margin = new Thickness(0, 0, 0, 12),
-                    FontSize = 14,
-                    Foreground = (Brush)FindResource("MutedBrush"),
-                    TextWrapping = TextWrapping.Wrap
-                });
-            }
-
-            AddAction(
-                string.IsNullOrWhiteSpace(guide.GrevId)
-                    ? $"{guide.QuickDisableControllerProfileLabel} (persistent profile required)"
-                    : guide.QuickDisableControllerProfileLabel,
-                !string.IsNullOrWhiteSpace(guide.GrevId),
-                () =>
-                {
-                    if (!string.IsNullOrWhiteSpace(guide.GrevId))
-                    {
-                        ControllerGuideDisableControllerProfileRequested?.Invoke(guide.GrevId, guide.AppId);
-                    }
-                    Dismiss();
-                },
-                minimumHeight: 58);
+            ActionPanel.Children.Add(CreateSetupHelperCard(guide.QuickDisableControllerProfileDescription));
         }
 
-        AddAction("Close", true, Dismiss, minimumHeight: 54);
-        AddAction(
+        // Guide actions live outside the ScrollViewer. Controller focus therefore cannot drag
+        // the help content to the bottom merely because the first actionable control is focused.
+        AddGuideFooterAction("Close", true, Dismiss);
+        AddGuideFooterAction(
             string.IsNullOrWhiteSpace(guide.GrevId)
-                ? "Don't Show Again (requires a persistent profile)"
+                ? "Don't Show Again\nPersistent profile required"
                 : "Don't Show Again",
             !string.IsNullOrWhiteSpace(guide.GrevId),
             () =>
@@ -310,10 +291,27 @@ public partial class GrevOverlayWindow : Window
                     ControllerGuideDontShowAgainRequested?.Invoke(guide.GrevId, guide.AppId);
                 }
                 Dismiss();
-            },
-            minimumHeight: 54);
+            });
 
-        HintText.Text = "A Select   •   B Close Guide   •   Right Stick / Triggers Pointer";
+        if (!string.IsNullOrWhiteSpace(guide.QuickDisableControllerProfileLabel))
+        {
+            AddGuideFooterAction(
+                string.IsNullOrWhiteSpace(guide.GrevId)
+                    ? $"{guide.QuickDisableControllerProfileLabel}\nPersistent profile required"
+                    : guide.QuickDisableControllerProfileLabel,
+                !string.IsNullOrWhiteSpace(guide.GrevId),
+                () =>
+                {
+                    if (!string.IsNullOrWhiteSpace(guide.GrevId))
+                    {
+                        ControllerGuideDisableControllerProfileRequested?.Invoke(guide.GrevId, guide.AppId);
+                    }
+                    Dismiss();
+                });
+        }
+
+        ContentScrollViewer.ScrollToTop();
+        HintText.Text = "D-Pad / A Select   •   B Close Guide   •   Left Stick Scroll   •   Right Stick / Triggers Pointer";
     }
 
     private void RenderSwitcher()
@@ -344,6 +342,7 @@ public partial class GrevOverlayWindow : Window
             FocusFirstButton();
         });
 
+        ContentScrollViewer.ScrollToTop();
         HintText.Text = "A Switch   •   B Back";
     }
 
@@ -352,45 +351,172 @@ public partial class GrevOverlayWindow : Window
         ActionPanel.Children.Add(new TextBlock
         {
             Text = text,
-            Margin = new Thickness(0, 0, 0, 8),
-            FontSize = 13,
+            Margin = new Thickness(0, 0, 0, 6),
+            FontSize = 12,
             FontWeight = FontWeights.SemiBold,
             Foreground = (Brush)FindResource("AccentBrush")
         });
     }
 
-    private Border CreateGuideCard(string title, string value, bool emphasize)
+    private Border CreateShortcutCard(string title, string value)
     {
         var content = new StackPanel();
         content.Children.Add(new TextBlock
         {
             Text = title,
-            FontSize = 14,
+            FontSize = 13,
             FontWeight = FontWeights.SemiBold,
+            Foreground = (Brush)FindResource("AccentBrush"),
             TextWrapping = TextWrapping.Wrap
         });
         content.Children.Add(new TextBlock
         {
             Text = value,
-            Margin = new Thickness(0, 6, 0, 0),
-            FontSize = 13,
-            Foreground = emphasize
-                ? (Brush)FindResource("AccentBrush")
-                : (Brush)FindResource("MutedBrush"),
+            Margin = new Thickness(0, 4, 0, 0),
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(226, 231, 240)),
             TextWrapping = TextWrapping.Wrap
         });
 
         return new Border
         {
-            MinHeight = 82,
-            Margin = new Thickness(5),
-            Padding = new Thickness(13, 11, 13, 11),
+            MinHeight = 62,
+            Margin = new Thickness(4),
+            Padding = new Thickness(11, 9, 11, 9),
             Background = new SolidColorBrush(Color.FromRgb(19, 24, 34)),
             BorderBrush = new SolidColorBrush(Color.FromRgb(49, 59, 78)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(10),
             Child = content
         };
+    }
+
+    private Border CreateControllerGuideCard(ControllerGuideItem item)
+    {
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var badge = CreateControllerBadge(item.Control);
+        Grid.SetColumn(badge, 0);
+        grid.Children.Add(badge);
+
+        var actionText = new TextBlock
+        {
+            Text = item.Action,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            FontSize = 12,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = new SolidColorBrush(Color.FromRgb(231, 235, 243)),
+            TextWrapping = TextWrapping.Wrap
+        };
+        Grid.SetColumn(actionText, 1);
+        grid.Children.Add(actionText);
+
+        return new Border
+        {
+            MinHeight = 62,
+            Margin = new Thickness(4),
+            Padding = new Thickness(9, 8, 9, 8),
+            Background = new SolidColorBrush(Color.FromRgb(19, 24, 34)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(49, 59, 78)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(10),
+            Child = grid
+        };
+    }
+
+    private Border CreateControllerBadge(string control)
+    {
+        var label = GetControllerBadgeText(control);
+        var circular = label is "A" or "B" or "X" or "Y" or "LS" or "RS" or "L3" or "R3";
+
+        return new Border
+        {
+            Width = circular ? 40 : 54,
+            Height = 36,
+            CornerRadius = new CornerRadius(circular ? 20 : 8),
+            Background = new SolidColorBrush(Color.FromRgb(34, 42, 59)),
+            BorderBrush = (Brush)FindResource("AccentBrush"),
+            BorderThickness = new Thickness(1.5),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new TextBlock
+            {
+                Text = label,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = label.Length >= 4 ? 10 : 12,
+                FontWeight = FontWeights.Bold,
+                Foreground = Brushes.White
+            }
+        };
+    }
+
+    private static string GetControllerBadgeText(string control) => control switch
+    {
+        "A" => "A",
+        "B" => "B",
+        "X" => "X",
+        "Y" => "Y",
+        "D-Pad Up" => "D↑",
+        "D-Pad Down" => "D↓",
+        "D-Pad Left" => "D←",
+        "D-Pad Right" => "D→",
+        "LB / Left Shoulder" => "LB",
+        "RB / Right Shoulder" => "RB",
+        "LT / Left Trigger" => "LT",
+        "RT / Right Trigger" => "RT",
+        "Menu / Start" => "MENU",
+        "View / Back" => "VIEW",
+        "Left Stick Click / L3" => "L3",
+        "Right Stick Click / R3" => "R3",
+        "Left Stick" => "LS",
+        "Right Stick" => "RS",
+        _ => control.Length <= 5 ? control.ToUpperInvariant() : control[..5].ToUpperInvariant()
+    };
+
+    private Border CreateSetupHelperCard(string description) => new()
+    {
+        Margin = new Thickness(4, 0, 4, 2),
+        Padding = new Thickness(12, 10, 12, 10),
+        Background = new SolidColorBrush(Color.FromRgb(12, 16, 24)),
+        BorderBrush = new SolidColorBrush(Color.FromRgb(49, 59, 78)),
+        BorderThickness = new Thickness(1),
+        CornerRadius = new CornerRadius(10),
+        Child = new TextBlock
+        {
+            Text = description,
+            FontSize = 12,
+            Foreground = new SolidColorBrush(Color.FromRgb(204, 211, 225)),
+            TextWrapping = TextWrapping.Wrap
+        }
+    };
+
+    private void AddGuideFooterAction(string label, bool isEnabled, Action action)
+    {
+        var button = new Button
+        {
+            Content = new TextBlock
+            {
+                Text = label,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontWeight = FontWeights.SemiBold
+            },
+            MinHeight = 60,
+            Padding = new Thickness(12, 9, 12, 9),
+            Margin = new Thickness(5, 0, 5, 0),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Center,
+            IsEnabled = isEnabled,
+            BorderThickness = new Thickness(2),
+            Tag = action
+        };
+        button.Click += ActionButton_Click;
+        GuideActionPanel.Children.Add(button);
     }
 
     private void AddAction(string label, bool isEnabled, Action action, double minimumHeight = 64)
@@ -496,13 +622,20 @@ public partial class GrevOverlayWindow : Window
 
     private void FocusFirstButton()
     {
-        var buttons = FindVisualChildren<Button>(ActionPanel)
-            .Where(button => button.IsVisible && button.IsEnabled)
-            .ToArray();
-        var first = _mode == OverlayMode.ControllerGuide
-            ? buttons.FirstOrDefault(button => button.Content is TextBlock { Text: "Close" }) ?? buttons.FirstOrDefault()
-            : buttons.FirstOrDefault();
+        var parent = _mode == OverlayMode.ControllerGuide
+            ? (DependencyObject)GuideActionPanel
+            : ActionPanel;
+        var first = FindVisualChildren<Button>(parent)
+            .FirstOrDefault(button => button.IsVisible && button.IsEnabled);
         first?.Focus();
+
+        if (_mode == OverlayMode.ControllerGuide)
+        {
+            // The footer is outside the scroll region, so focus stays independent from content.
+            // Explicitly keep the guide content at the top as an extra guard against WPF focus
+            // bring-into-view behavior on unusually small displays.
+            ContentScrollViewer.ScrollToTop();
+        }
     }
 
     private static IEnumerable<T> FindVisualChildren<T>(DependencyObject parent)
