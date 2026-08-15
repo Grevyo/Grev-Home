@@ -33,7 +33,6 @@ public partial class LoginView : UserControl
     }
 
     public event EventHandler? CreateProfileRequested;
-    public event EventHandler? EnterHomeRequested;
 
     public int? ActivationControllerIndex { get; set; }
     public Button CreateAccountFocusTarget => CreateAccountButton;
@@ -47,13 +46,19 @@ public partial class LoginView : UserControl
     public void Refresh(IReadOnlyList<LocalProfile> profiles, SessionContext session, IReadOnlyList<bool> connectedControllers)
     {
         var addingPlayer = session.HasSignedInUsers;
-        HeadingText.Text = addingPlayer ? $"Player {session.SignedInUsers.Count + 1} Sign In" : "Who's playing?";
+        var slotsFull = session.SignedInUsers.Count >= 4;
+        HeadingText.Text = addingPlayer
+            ? slotsFull ? "All player slots are in use" : $"Player {session.SignedInUsers.Count + 1} Sign In"
+            : "Who's playing?";
         SubheadingText.Text = addingPlayer
-            ? "Choose a profile that is not already signed in. The controller used to select it will be assigned to that player."
+            ? slotsFull
+                ? "Four players are already signed in. Go back to Who's Playing or Manage Players to change the current session."
+                : "Choose a profile that is not already signed in. Use an unassigned controller to join, or use keyboard/mouse to sign in without assigning a controller."
             : "Choose your profile to enter Grev Home.";
+        BackHintText.Visibility = addingPlayer ? Visibility.Visible : Visibility.Collapsed;
 
         var canCreateAccount = profiles.Count == 0 || session.PrimaryUser is { } primary && AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManageProfiles);
-        CreateAccountButton.Visibility = canCreateAccount ? Visibility.Visible : Visibility.Collapsed;
+        CreateAccountButton.Visibility = canCreateAccount && !slotsFull ? Visibility.Visible : Visibility.Collapsed;
 
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
@@ -65,7 +70,7 @@ public partial class LoginView : UserControl
                 Height = 176,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
-                IsEnabled = !addingPlayer || signedIn is null,
+                IsEnabled = !slotsFull && (!addingPlayer || signedIn is null),
                 Content = new StackPanel
                 {
                     Children =
@@ -73,7 +78,7 @@ public partial class LoginView : UserControl
                         CreateAvatar(profile),
                         new TextBlock { Text = profile.DisplayName, FontSize = 21, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
                         new TextBlock { Text = $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = signedIn is null ? "A / Enter to sign in" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
+                        new TextBlock { Text = signedIn is null ? slotsFull ? "SESSION FULL" : addingPlayer ? "A / Enter to join" : "A / Enter to sign in" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
                     }
                 }
             };
@@ -83,6 +88,14 @@ public partial class LoginView : UserControl
 
         NoProfilesText.Visibility = profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
+
+    public void ShowStatus(string message)
+    {
+        StatusText.Text = message;
+        StatusText.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    public void ClearStatus() => ShowStatus(string.Empty);
 
     private Border CreateAvatar(LocalProfile profile)
     {
@@ -143,7 +156,6 @@ public partial class LoginView : UserControl
     {
         if (sender is not Button { Tag: LocalProfile profile }) return;
         LocalProfileSignInRequested?.Invoke(new ProfileSignInRequest(profile, ActivationControllerIndex));
-        EnterHomeRequested?.Invoke(this, EventArgs.Empty);
     }
 
     private void CreateProfile_Click(object sender, RoutedEventArgs e) => CreateProfileRequested?.Invoke(this, EventArgs.Empty);
