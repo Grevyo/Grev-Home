@@ -65,7 +65,6 @@ public partial class MainWindow : Window
         _loginView.GuestSignInRequested += controllerIndex => _session.SignInGuest(controllerIndex);
         _loginView.PrimaryUserRequested += sessionUserId => _session.SetPrimary(sessionUserId);
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
-        _loginView.EnterHomeRequested += (_, _) => EnterHome();
         _loginView.ClearSessionRequested += (_, _) => _session.SignOutAll();
 
         _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
@@ -153,8 +152,37 @@ public partial class MainWindow : Window
         FocusFirstButton();
     }
 
-    private void SignInLocal(ProfileSignInRequest request) =>
+    private void SignInLocal(ProfileSignInRequest request)
+    {
+        var addingPlayer = _session.HasSignedInUsers;
+        if (addingPlayer && _session.SignedInUsers.Count >= 4)
+        {
+            _loginView.ShowStatus("Four players are already signed in. Return to Who's Playing or Manage Players to change the current session.");
+            return;
+        }
+
+        if (addingPlayer && request.ControllerIndex is int controllerIndex)
+        {
+            var currentOwner = _session.GetUserForController(controllerIndex);
+            if (currentOwner is not null)
+            {
+                _loginView.ShowStatus(
+                    $"Controller {controllerIndex + 1} is already assigned to {currentOwner.DisplayName}. Use an unassigned controller to join, or reassign it deliberately from Who's Playing.");
+                return;
+            }
+        }
+
+        _loginView.ClearStatus();
         _session.SignInLocal(request.Profile, request.ControllerIndex);
+
+        if (!addingPlayer)
+        {
+            EnterHome();
+            return;
+        }
+
+        CloseSessionLobby();
+    }
 
     private void EnterHome()
     {
@@ -485,8 +513,18 @@ public partial class MainWindow : Window
 
     private void OpenSessionLobby()
     {
+        _loginView.ClearStatus();
         RefreshSessionSurfaces();
         _navigation.Navigate(Route.Login);
+    }
+
+    private void CloseSessionLobby()
+    {
+        _loginView.ClearStatus();
+        if (!_navigation.GoBack())
+        {
+            _navigation.Reset(Route.Dashboard);
+        }
     }
 
     private void OpenCreateProfile()
@@ -523,6 +561,7 @@ public partial class MainWindow : Window
     private void Logout()
     {
         CancelShortcutRecording(showMessage: false);
+        _loginView.ClearStatus();
         _session.SignOutAll();
         _navigation.Reset(Route.Login);
     }
@@ -670,7 +709,7 @@ public partial class MainWindow : Window
             case Route.Login:
                 if (_session.HasSignedInUsers)
                 {
-                    _navigation.Reset(Route.Dashboard);
+                    CloseSessionLobby();
                 }
                 break;
             default:
