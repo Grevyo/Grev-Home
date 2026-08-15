@@ -7,6 +7,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
@@ -42,13 +43,33 @@
             </StackPanel>
         </ScrollViewer>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="2"
+                   Visibility="Collapsed"
+                   MaxWidth="900"
+                   Margin="0,10,0,2"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   FontSize="13"
+                   Foreground="{StaticResource AccentBrush}" />
+
+        <StackPanel Grid.Row="3" HorizontalAlignment="Center" Margin="0,14,0,0">
             <Button x:Name="CreateAccountButton"
                     Content="＋ Create Account"
                     Width="240"
                     Height="60"
+                    HorizontalAlignment="Center"
                     Margin="6"
                     Click="CreateProfile_Click" />
+            <TextBlock x:Name="BackHintText"
+                       Visibility="Collapsed"
+                       Margin="0,5,0,0"
+                       Text="B / Esc — cancel adding a player"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       FontSize="12"
+                       Foreground="{StaticResource MutedBrush}" />
         </StackPanel>
     </Grid>
 </UserControl>
