@@ -43,14 +43,26 @@ public partial class MainWindow
 
     private void HandleHeaderNavigationInput(ControllerInputEventArgs input)
     {
-        if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
-            input.Action is not (InputAction.Up or InputAction.Down or InputAction.Left or InputAction.Right))
+        // ControllerInputService raises ActionPressed from its polling thread. Never inspect WPF
+        // dependency objects on that thread. Capture the pre-movement focus synchronously through
+        // the Dispatcher, then keep the existing delayed correction so the normal HandleInput pass
+        // gets first chance to perform standard WPF directional navigation.
+        if (input.Action is not (InputAction.Up or InputAction.Down or InputAction.Left or InputAction.Right))
         {
             return;
         }
 
         Button? originalFocus = null;
-        Dispatcher.Invoke(() => originalFocus = Keyboard.FocusedElement as Button);
+        Dispatcher.Invoke(() =>
+        {
+            if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null)
+            {
+                return;
+            }
+
+            originalFocus = Keyboard.FocusedElement as Button;
+        });
+
         if (originalFocus is null)
         {
             return;
