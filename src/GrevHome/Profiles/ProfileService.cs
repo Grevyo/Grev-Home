@@ -54,9 +54,22 @@ public sealed class ProfileService
                 if (profile is null || !string.Equals(folderName, profile.GrevId, StringComparison.OrdinalIgnoreCase)) continue;
 
                 var needsUpgrade = false;
+                if (string.IsNullOrWhiteSpace(profile.Username) && string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    // Do not invent permanent identity for a damaged profile. Leaving it out of Login is
+                    // safer than creating a username/display-name value that was never actually chosen.
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(profile.Username))
                 {
                     profile = profile with { Username = profile.DisplayName };
+                    needsUpgrade = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    profile = profile with { DisplayName = profile.Username };
                     needsUpgrade = true;
                 }
 
@@ -100,6 +113,14 @@ public sealed class ProfileService
             catch (ArgumentException)
             {
                 // Invalid or legacy profile-folder identities are ignored rather than trusted as paths.
+            }
+            catch (IOException)
+            {
+                // One unreadable/locked profile must not take down every other local account at Login.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Treat an inaccessible profile as unavailable rather than crashing the Grev Home shell.
             }
         }
 
