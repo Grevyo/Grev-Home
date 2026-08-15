@@ -56,8 +56,8 @@ public partial class ProfilePlayersView : UserControl
         }
 
         StatusText.Text = connectedControllers.Any(isConnected => isConnected)
-            ? "Select an assigned C button to unassign that controller without signing the player out. Controllers can then be assigned again at any time."
-            : "No XInput controllers are currently connected. Players stay signed in even with no controller assigned.";
+            ? "Assigned controllers remain owned by their player if they disconnect. Reconnecting the same controller slot restores it automatically; select its C button to unassign it deliberately."
+            : "No XInput controllers are currently connected. Existing assignments remain visible and players stay signed in; reconnect the same controller slot or unassign it deliberately.";
     }
 
     private UIElement CreatePlayerCard(int playerNumber, SessionUser user, SessionContext session, IReadOnlyList<bool> connectedControllers, IReadOnlyList<LocalProfile> profiles, SessionUser? actor)
@@ -87,7 +87,14 @@ public partial class ProfilePlayersView : UserControl
         details.Children.Add(new TextBlock { Text = user.DisplayName, Margin = new Thickness(0, 5, 0, 0), FontSize = 23, FontWeight = FontWeights.SemiBold });
         details.Children.Add(new TextBlock { Text = $"@{user.Username}  •  {user.Role}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
         var assigned = session.GetControllersForUser(user.SessionId);
-        details.Children.Add(new TextBlock { Text = assigned.Count == 0 ? "No controller assigned" : $"Assigned: {string.Join(", ", assigned.Select(i => $"Controller {i + 1}"))}", Margin = new Thickness(0, 5, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
+        details.Children.Add(new TextBlock
+        {
+            Text = assigned.Count == 0
+                ? "No controller assigned"
+                : $"Assigned: {string.Join(", ", assigned.Select(i => i >= 0 && i < connectedControllers.Count && connectedControllers[i] ? $"Controller {i + 1}" : $"Controller {i + 1} disconnected"))}",
+            Margin = new Thickness(0, 5, 0, 0),
+            Foreground = (Brush)FindResource("MutedBrush")
+        });
         root.Children.Add(details);
 
         var actions = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0) };
@@ -125,17 +132,23 @@ public partial class ProfilePlayersView : UserControl
         }
 
         var controllerButtons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        for (var controllerIndex = 0; controllerIndex < connectedControllers.Count; controllerIndex++)
+        for (var controllerIndex = 0; controllerIndex < 4; controllerIndex++)
         {
-            if (!connectedControllers[controllerIndex]) continue;
-
+            var connected = controllerIndex < connectedControllers.Count && connectedControllers[controllerIndex];
             var assignedUser = session.GetUserForController(controllerIndex);
             var assignedToThisUser = assignedUser?.SessionId == user.SessionId;
+            if (!connected && !assignedToThisUser) continue;
+
             var canAssign = actor is not null && AccountAuthorizationService.Allows(actor.Role, AccountPermission.AssignControllers) && (canManagePlayers || actor.SessionId == user.SessionId);
             var request = new PlayerControllerAssignmentRequest(user.SessionId, controllerIndex);
+            var label = assignedToThisUser
+                ? connected ? $"C{controllerIndex + 1} ✓ Unassign" : $"C{controllerIndex + 1} offline • Unassign"
+                : assignedUser is null
+                    ? $"C{controllerIndex + 1}"
+                    : $"C{controllerIndex + 1} • {assignedUser.DisplayName}";
             var button = new Button
             {
-                Content = assignedToThisUser ? $"C{controllerIndex + 1} ✓ Unassign" : assignedUser is null ? $"C{controllerIndex + 1}" : $"C{controllerIndex + 1} • {assignedUser.DisplayName}",
+                Content = label,
                 MinWidth = assignedToThisUser ? 132 : 72,
                 Height = 42,
                 Margin = new Thickness(4),
@@ -148,7 +161,7 @@ public partial class ProfilePlayersView : UserControl
 
         if (controllerButtons.Children.Count == 0)
         {
-            controllerButtons.Children.Add(new TextBlock { Text = "No controllers connected", Margin = new Thickness(4, 8, 4, 4), Foreground = (Brush)FindResource("MutedBrush") });
+            controllerButtons.Children.Add(new TextBlock { Text = "No connected controller available", Margin = new Thickness(4, 8, 4, 4), Foreground = (Brush)FindResource("MutedBrush") });
         }
 
         actions.Children.Add(controllerButtons);
