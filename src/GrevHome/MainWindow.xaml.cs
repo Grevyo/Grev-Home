@@ -62,10 +62,8 @@ public partial class MainWindow : Window
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
 
         _loginView.LocalProfileSignInRequested += SignInLocal;
-        _loginView.GuestSignInRequested += controllerIndex => _session.SignInGuest(controllerIndex);
-        _loginView.PrimaryUserRequested += sessionUserId => _session.SetPrimary(sessionUserId);
+        _loginView.GuestSignInRequested += SignInTemporaryGuest;
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
-        _loginView.ClearSessionRequested += (_, _) => _session.SignOutAll();
 
         _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
@@ -109,11 +107,6 @@ public partial class MainWindow : Window
             OpenRunningApps();
             RestoreWindowWithoutChangingRoute();
         };
-        _overlayWindow.AppKillerRequested += (_, _) =>
-        {
-            OpenAppKiller();
-            RestoreWindowWithoutChangingRoute();
-        };
 
         _runtimeSessions.SessionChanged += _ =>
             Dispatcher.BeginInvoke(new Action(UpdateRuntimeSurfaces));
@@ -149,7 +142,6 @@ public partial class MainWindow : Window
         RefreshSessionSurfaces();
         UpdateRuntimeSurfaces();
         _navigation.Reset(Route.Login);
-        FocusFirstButton();
     }
 
     private void SignInLocal(ProfileSignInRequest request)
@@ -584,19 +576,34 @@ public partial class MainWindow : Window
 
     private void ShowRoute(Route route)
     {
-        RouteHost.Content = route switch
+        switch (route)
         {
-            Route.Login => _loginView,
-            Route.CreateProfile => _createProfileView,
-            Route.Dashboard => _dashboardView,
-            Route.InstalledLibrary => _installedLibraryView,
-            Route.RunningApps => _runningAppsView,
-            Route.AppKiller => _appKillerView,
-            Route.Settings => _settingsView,
-            _ => _loginView
-        };
-
-        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+            case Route.Login:
+                RouteHost.Content = _loginView;
+                break;
+            case Route.CreateProfile:
+                RouteHost.Content = _createProfileView;
+                break;
+            case Route.Dashboard:
+                RouteHost.Content = _dashboardView;
+                break;
+            case Route.InstalledLibrary:
+                RouteHost.Content = _installedLibraryView;
+                break;
+            case Route.RunningApps:
+                RouteHost.Content = _runningAppsView;
+                break;
+            case Route.AppKiller:
+                RouteHost.Content = _appKillerView;
+                break;
+            case Route.Settings:
+                RouteHost.Content = _settingsView;
+                break;
+            default:
+                // Newer route integrations own their own UserControl rendering. Do not briefly
+                // replace them with Login; the shell-level navigation pass handles final focus.
+                return;
+        }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -949,14 +956,6 @@ public partial class MainWindow : Window
     };
 
     private void ShellBack_Click(object sender, RoutedEventArgs e) => HandleBack();
-
-    private void ShellProfile_Click(object sender, RoutedEventArgs e)
-    {
-        if (_session.HasSignedInUsers)
-        {
-            OpenSessionLobby();
-        }
-    }
 
     private void ShellSettings_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
