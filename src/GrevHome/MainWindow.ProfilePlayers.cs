@@ -24,7 +24,6 @@ public partial class MainWindow
 
     private void InitializeProfilePlayersIntegration()
     {
-        InitializeRuntimeRecoveryIntegration();
         if (_profilePlayersIntegrationReady) return;
 
         _profilePlayersIntegrationReady = true;
@@ -72,19 +71,15 @@ public partial class MainWindow
 
     private void HandleProfileRouteChanged(Route route)
     {
-        ShellBackButton.IsEnabled = route != Route.Dashboard && !(route == Route.Login && !_session.HasSignedInUsers);
-
         switch (route)
         {
             case Route.ProfilePlayers:
                 RefreshProfilePlayerViews();
                 RouteHost.Content = _profilePlayersView;
-                FocusRouteSoon();
                 break;
             case Route.ProfileView:
                 RenderProfileTarget();
                 RouteHost.Content = _profileView;
-                FocusRouteSoon();
                 break;
             case Route.ProfileEdit:
                 RenderProfileEditor();
@@ -94,11 +89,9 @@ public partial class MainWindow
                     _profileEditDraftBeforePhotoPicker = null;
                 }
                 RouteHost.Content = _profileEditView;
-                FocusRouteSoon();
                 break;
             case Route.ProfilePhotoPicker:
                 RouteHost.Content = _profilePhotoPickerView;
-                FocusRouteSoon();
                 break;
         }
     }
