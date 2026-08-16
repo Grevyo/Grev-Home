@@ -30,6 +30,7 @@ public partial class MainWindow
         // MainWindow owns one explicit integration bootstrap. Runtime foundations are initialized
         // before feature surfaces so no feature initializer has to secretly initialize a sibling.
         InitializeShellNavigationFinalization();
+        InitializeApplianceLifecycleIntegration();
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
         InitializeRuntimeRecoveryIntegration();
         InitializeAppControllerRuntimeIntegration();
