@@ -14,6 +14,33 @@ public partial class SettingsView
             ControllerShortcutsSectionContent,
             "CONTROLLER SYSTEM SHORTCUTS");
 
+    private void AudioSectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleSettingsSection(AudioSectionButton, AudioSectionContent, "AUDIO");
+        if (AudioSectionContent.Visibility == Visibility.Visible)
+        {
+            RefreshAudio();
+        }
+    }
+
+    private void DisplaySectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleSettingsSection(DisplaySectionButton, DisplaySectionContent, "DISPLAY");
+        if (DisplaySectionContent.Visibility == Visibility.Visible)
+        {
+            RefreshDisplay();
+        }
+    }
+
+    private async void ConnectionsSectionButton_Click(object sender, RoutedEventArgs e)
+    {
+        ToggleSettingsSection(ConnectionsSectionButton, ConnectionsSectionContent, "CONNECTIONS");
+        if (ConnectionsSectionContent.Visibility == Visibility.Visible)
+        {
+            await RefreshConnectionsAsync();
+        }
+    }
+
     private void SystemStatusSectionButton_Click(object sender, RoutedEventArgs e) =>
         ToggleSettingsSection(SystemStatusSectionButton, SystemStatusSectionContent, "SYSTEM STATUS");
 
