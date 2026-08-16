@@ -1,3 +1,4 @@
+using System.Windows;
 using GrevHome.Navigation;
 
 namespace GrevHome;
@@ -5,6 +6,12 @@ namespace GrevHome;
 public partial class MainWindow
 {
     private bool _guestSessionIntegrationReady;
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        Loaded += (_, _) => InitializeGuestSessionIntegration();
+    }
 
     private void InitializeGuestSessionIntegration()
     {
