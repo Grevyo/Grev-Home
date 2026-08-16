@@ -19,7 +19,7 @@ if (Test-Path $targetExe) {
             if ($_.Path -and [string]::Equals([IO.Path]::GetFullPath($_.Path), $targetExe, [StringComparison]::OrdinalIgnoreCase)) {
                 if ($PSCmdlet.ShouldProcess("Grev Home process $($_.Id)", 'Stop')) {
                     Stop-Process -Id $_.Id -Force
-                    $_.WaitForExit(10000)
+                    $_.WaitForExit(10000) | Out-Null
                 }
             }
         }
@@ -38,17 +38,17 @@ Remove-Item -LiteralPath $startMenuLink -Force -ErrorAction SilentlyContinue
 # installed payload itself.
 Set-Location $env:TEMP
 
-if (Test-Path $InstallPath -and $PSCmdlet.ShouldProcess($InstallPath, 'Remove Grev Home application files')) {
+if ((Test-Path $InstallPath) -and $PSCmdlet.ShouldProcess($InstallPath, 'Remove Grev Home application files')) {
     Remove-Item -LiteralPath $InstallPath -Recurse -Force
 }
-if (Test-Path $backupPath -and $PSCmdlet.ShouldProcess($backupPath, 'Remove Grev Home rollback application files')) {
+if ((Test-Path $backupPath) -and $PSCmdlet.ShouldProcess($backupPath, 'Remove Grev Home rollback application files')) {
     Remove-Item -LiteralPath $backupPath -Recurse -Force
 }
 
 if ($RemoveUserData) {
-    if (Test-Path $dataPath -and $PSCmdlet.ShouldProcess($dataPath, 'PERMANENTLY remove Grev Home profiles, saves, settings and user data')) {
+    if ((Test-Path $dataPath) -and $PSCmdlet.ShouldProcess($dataPath, 'PERMANENTLY remove Grev Home profiles, saves, settings and user data')) {
         Remove-Item -LiteralPath $dataPath -Recurse -Force
-        Write-Host "Grev Home application and user data removed." -ForegroundColor Yellow
+        Write-Host 'Grev Home application and user data removed.' -ForegroundColor Yellow
     }
 }
 else {
