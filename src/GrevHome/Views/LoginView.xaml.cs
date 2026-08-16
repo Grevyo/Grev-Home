@@ -10,15 +10,10 @@ public sealed record ProfileSignInRequest(LocalProfile Profile, int? ControllerI
 
 public partial class LoginView : UserControl
 {
-    public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
+    private SessionContext? _session;
 
-    // Compatibility-only event accessors retained while legacy MainWindow subscriptions are removed in a later shell cleanup.
-    // They intentionally keep no backing delegate and therefore cannot fire or produce CS0067 warnings.
-    public event Action<int?>? GuestSignInRequested
-    {
-        add { }
-        remove { }
-    }
+    public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
+    public event Action<int?>? GuestSignInRequested;
 
     public event Action<Guid>? PrimaryUserRequested
     {
@@ -45,6 +40,7 @@ public partial class LoginView : UserControl
 
     public void Refresh(IReadOnlyList<LocalProfile> profiles, SessionContext session, IReadOnlyList<bool> connectedControllers)
     {
+        _session = session;
         var addingPlayer = session.HasSignedInUsers;
         var slotsFull = session.SignedInUsers.Count >= 4;
         HeadingText.Text = addingPlayer
@@ -53,7 +49,7 @@ public partial class LoginView : UserControl
         SubheadingText.Text = addingPlayer
             ? slotsFull
                 ? "Four players are already signed in. Go back to Who's Playing or Manage Players to change the current session."
-                : "Choose a profile that is not already signed in. Use an unassigned controller to join, or use keyboard/mouse to sign in without assigning a controller."
+                : "Choose another local profile or Temporary Guest. Use an unassigned controller to join, or use keyboard/mouse to join without a controller."
             : "Choose your profile to enter Grev Home.";
         BackHintText.Visibility = addingPlayer ? Visibility.Visible : Visibility.Collapsed;
 
@@ -86,6 +82,11 @@ public partial class LoginView : UserControl
             ProfilesPanel.Children.Add(button);
         }
 
+        if (addingPlayer && !slotsFull)
+        {
+            ProfilesPanel.Children.Add(CreateTemporaryGuestButton());
+        }
+
         NoProfilesText.Visibility = profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -96,6 +97,52 @@ public partial class LoginView : UserControl
     }
 
     public void ClearStatus() => ShowStatus(string.Empty);
+
+    private Button CreateTemporaryGuestButton()
+    {
+        var button = new Button
+        {
+            Width = 260,
+            Height = 176,
+            Margin = new Thickness(0, 0, 10, 10),
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    CreateTemporaryGuestAvatar(),
+                    new TextBlock { Text = "Temporary Guest", FontSize = 21, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center },
+                    new TextBlock { Text = "No GrevID • shared guest data", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 },
+                    new TextBlock { Text = "A / Enter to join", Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11 }
+                }
+            }
+        };
+        button.Click += TemporaryGuest_Click;
+        return button;
+    }
+
+    private Border CreateTemporaryGuestAvatar()
+    {
+        const double size = 54;
+        return new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 2),
+            Margin = new Thickness(0, 0, 0, 7),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            BorderBrush = (Brush)FindResource("GuestRoleBrush"),
+            BorderThickness = new Thickness(1.5),
+            Child = new TextBlock
+            {
+                Text = "?",
+                FontSize = 21,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+    }
 
     private Border CreateAvatar(LocalProfile profile)
     {
@@ -156,6 +203,24 @@ public partial class LoginView : UserControl
     {
         if (sender is not Button { Tag: LocalProfile profile }) return;
         LocalProfileSignInRequested?.Invoke(new ProfileSignInRequest(profile, ActivationControllerIndex));
+    }
+
+    private void TemporaryGuest_Click(object sender, RoutedEventArgs e)
+    {
+        var session = _session;
+        if (session is null || !session.HasSignedInUsers || session.SignedInUsers.Count >= 4)
+        {
+            return;
+        }
+
+        if (ActivationControllerIndex is int controllerIndex && session.GetUserForController(controllerIndex) is { } currentOwner)
+        {
+            ShowStatus($"Controller {controllerIndex + 1} is already assigned to {currentOwner.DisplayName}. Use an unassigned controller to join a Guest.");
+            return;
+        }
+
+        ClearStatus();
+        GuestSignInRequested?.Invoke(ActivationControllerIndex);
     }
 
     private void CreateProfile_Click(object sender, RoutedEventArgs e) => CreateProfileRequested?.Invoke(this, EventArgs.Empty);
