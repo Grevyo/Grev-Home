@@ -27,15 +27,18 @@ public partial class MainWindow
             return;
         }
 
-        // Shell navigation/focus finalisation must be subscribed before specialist route handlers.
-        // Its landing callback runs at ApplicationIdle, after the page integrations have rendered.
+        // MainWindow has one integration bootstrap. Keeping every shell/module subscription on
+        // this Loaded path avoids partial classes competing for WPF lifecycle overrides.
         InitializeShellNavigationFinalization();
 
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
         InitializeProfilePlayersIntegration();
+        InitializeFilesIntegration();
         InitializeGrevStoreIntegration();
         InitializeAppSettingsIntegration();
         InitializeAdminConsoleIntegration();
+        InitializeOverlayAppKillerIntegration();
+        InitializeGuestSessionIntegration();
 
         _headerNavigationHooked = true;
         _controllerInput.ActionPressed += HandleHeaderNavigationInput;
