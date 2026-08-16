@@ -6,7 +6,6 @@ param(
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $projectPath = Join-Path $repoRoot 'src\GrevHome\GrevHome.csproj'
-$profilePath = Join-Path $repoRoot 'src\GrevHome\Properties\PublishProfiles\win-x64.pubxml'
 
 if (-not $OutputPath) {
     $OutputPath = Join-Path $repoRoot 'artifacts\GrevHome-win-x64'
@@ -19,7 +18,7 @@ if (Test-Path $OutputPath) {
 New-Item -ItemType Directory -Path $OutputPath -Force | Out-Null
 
 Write-Host "Publishing Grev Home to $OutputPath"
-dotnet publish $projectPath --configuration Release --runtime win-x64 --self-contained true -p:PublishProfile=$profilePath -o $OutputPath --nologo
+dotnet publish $projectPath --configuration Release --runtime win-x64 --self-contained true -p:PublishProfile=win-x64 -o $OutputPath --nologo
 if ($LASTEXITCODE -ne 0) {
     throw "dotnet publish failed with exit code $LASTEXITCODE"
 }
@@ -33,4 +32,4 @@ Copy-Item (Join-Path $PSScriptRoot 'Install-GrevHome.ps1') (Join-Path $OutputPat
 Copy-Item (Join-Path $PSScriptRoot 'Uninstall-GrevHome.ps1') (Join-Path $OutputPath 'Uninstall-GrevHome.ps1') -Force
 
 Write-Host "Grev Home release payload ready: $OutputPath" -ForegroundColor Green
-Write-Host "Persistent Grev Home data remains outside this payload under C:\GrevHome (or GREV_HOME_ROOT)."
+Write-Host 'Persistent Grev Home data remains outside this payload under C:\GrevHome (or GREV_HOME_ROOT).'
