@@ -123,7 +123,6 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(() => CompleteShortcutRecording(capture)));
         _controllerInput.ShortcutCaptureTimedOut += () =>
             Dispatcher.BeginInvoke(new Action(ShortcutRecordingTimedOut));
-        _controllerInput.Start();
 
         Loaded += async (_, _) => await InitializeAsync();
         Closed += (_, _) =>
@@ -142,14 +141,18 @@ public partial class MainWindow : Window
         RefreshSessionSurfaces();
         UpdateRuntimeSurfaces();
         _navigation.Reset(Route.Login);
+
+        // XInput polling starts only after every Loaded-time integration is wired, profile/session
+        // state is ready, and an initial route exists. Controller input can never race shell startup.
+        _controllerInput.Start();
     }
 
     private void SignInLocal(ProfileSignInRequest request)
     {
         var addingPlayer = _session.HasSignedInUsers;
-        if (addingPlayer && _session.SignedInUsers.Count >= 4)
+        if (addingPlayer && _session.SignedInUsers.Count >= SessionContext.MaximumPlayers)
         {
-            _loginView.ShowStatus("Four players are already signed in. Return to Who's Playing or Manage Players to change the current session.");
+            _loginView.ShowStatus($"{SessionContext.MaximumPlayers} players are already signed in. Return to Who's Playing or Manage Players to change the current session.");
             return;
         }
 
