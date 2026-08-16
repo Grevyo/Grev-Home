@@ -33,6 +33,8 @@ public sealed record ControllerAssignment(int ControllerIndex, Guid SessionUserI
 
 public sealed class SessionContext
 {
+    private const int MaximumPlayers = 4;
+
     public ObservableCollection<SessionUser> SignedInUsers { get; } = new();
     public ObservableCollection<ControllerAssignment> ControllerAssignments { get; } = new();
     public SessionUser? PrimaryUser => SignedInUsers.FirstOrDefault(user => user.IsPrimary);
@@ -42,6 +44,17 @@ public sealed class SessionContext
     public SessionUser SignInLocal(LocalProfile profile, int? controllerIndex = null)
     {
         var user = SignedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
+
+        if (user is null && SignedInUsers.Count >= MaximumPlayers)
+        {
+            throw new InvalidOperationException($"Grev Home supports up to {MaximumPlayers} signed-in players.");
+        }
+
+        if (controllerIndex.HasValue)
+        {
+            EnsureControllerAvailableForJoin(controllerIndex.Value, user?.SessionId);
+        }
+
         if (user is null)
         {
             user = new SessionUser(profile.GrevId, profile.Username, profile.DisplayName, AccountKind.Local, profile.Role)
@@ -68,16 +81,26 @@ public sealed class SessionContext
             throw new InvalidOperationException("A temporary Guest must join an existing local-player session.");
         }
 
+        if (SignedInUsers.Count >= MaximumPlayers)
+        {
+            throw new InvalidOperationException($"Grev Home supports up to {MaximumPlayers} signed-in players.");
+        }
+
+        if (controllerIndex.HasValue)
+        {
+            EnsureControllerAvailableForJoin(controllerIndex.Value);
+        }
+
         var usedGuestNumbers = SignedInUsers
             .Where(user => user.AccountKind == AccountKind.Guest)
             .Select(user => ParseGuestNumber(user.DisplayName))
             .Where(number => number > 0)
             .ToHashSet();
-        var guestNumber = Enumerable.Range(1, 4).First(number => !usedGuestNumbers.Contains(number));
+        var guestNumber = Enumerable.Range(1, MaximumPlayers).First(number => !usedGuestNumbers.Contains(number));
         var guest = new SessionUser(null, null, $"Guest {guestNumber}", AccountKind.Guest, AccountRole.Guest);
         SignedInUsers.Add(guest);
 
-        if (controllerIndex.HasValue && GetUserForController(controllerIndex.Value) is null)
+        if (controllerIndex.HasValue)
         {
             AssignControllerInternal(controllerIndex.Value, guest.SessionId);
         }
@@ -127,7 +150,7 @@ public sealed class SessionContext
 
     public void UnassignController(int controllerIndex, Guid? expectedSessionUserId = null)
     {
-        if (controllerIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(controllerIndex));
+        ValidateControllerIndex(controllerIndex);
         var assignments = ControllerAssignments
             .Where(item => item.ControllerIndex == controllerIndex && (!expectedSessionUserId.HasValue || item.SessionUserId == expectedSessionUserId.Value))
             .ToArray();
@@ -138,6 +161,7 @@ public sealed class SessionContext
 
     public SessionUser? GetUserForController(int controllerIndex)
     {
+        ValidateControllerIndex(controllerIndex);
         var assignment = ControllerAssignments.FirstOrDefault(item => item.ControllerIndex == controllerIndex);
         return assignment is null ? null : SignedInUsers.FirstOrDefault(user => user.SessionId == assignment.SessionUserId);
     }
@@ -183,11 +207,27 @@ public sealed class SessionContext
     private SessionUser? FindLocalUser(string grevId) =>
         SignedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
 
+    private void EnsureControllerAvailableForJoin(int controllerIndex, Guid? joiningSessionUserId = null)
+    {
+        ValidateControllerIndex(controllerIndex);
+        var currentOwner = GetUserForController(controllerIndex);
+        if (currentOwner is not null && currentOwner.SessionId != joiningSessionUserId)
+        {
+            throw new InvalidOperationException(
+                $"Controller {controllerIndex + 1} is already assigned to {currentOwner.DisplayName}. Use an unassigned controller to join.");
+        }
+    }
+
     private void AssignControllerInternal(int controllerIndex, Guid sessionUserId)
     {
-        if (controllerIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(controllerIndex));
+        ValidateControllerIndex(controllerIndex);
         foreach (var existing in ControllerAssignments.Where(item => item.ControllerIndex == controllerIndex).ToArray()) ControllerAssignments.Remove(existing);
         ControllerAssignments.Add(new ControllerAssignment(controllerIndex, sessionUserId));
+    }
+
+    private static void ValidateControllerIndex(int controllerIndex)
+    {
+        if (controllerIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(controllerIndex));
     }
 
     private static int ParseGuestNumber(string displayName)
