@@ -4,27 +4,22 @@ namespace GrevHome;
 
 public partial class MainWindow
 {
-    private bool _guestSessionIntegrationReady;
-
-    private void InitializeGuestSessionIntegration()
-    {
-        if (_guestSessionIntegrationReady)
-        {
-            return;
-        }
-
-        _guestSessionIntegrationReady = true;
-        _loginView.GuestSignInRequested += CompleteTemporaryGuestJoin;
-    }
-
-    private void CompleteTemporaryGuestJoin(int? controllerIndex)
+    private void SignInTemporaryGuest(int? controllerIndex)
     {
         if (_navigation.Current != Route.Login || !_session.HasSignedInUsers)
         {
             return;
         }
 
-        _loginView.ClearStatus();
-        CloseSessionLobby();
+        try
+        {
+            _session.SignInGuest(controllerIndex);
+            _loginView.ClearStatus();
+            CloseSessionLobby();
+        }
+        catch (InvalidOperationException ex)
+        {
+            _loginView.ShowStatus(ex.Message);
+        }
     }
 }
