@@ -35,7 +35,6 @@ public partial class MainWindow
     {
         if (_grevStoreIntegrationReady) return;
         _grevStoreIntegrationReady = true;
-        InitializeAppControllerRuntimeIntegration();
 
         _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
         _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps);
@@ -117,7 +116,6 @@ public partial class MainWindow
             case Route.GrevStore:
                 RefreshGrevStore();
                 RouteHost.Content = _grevStoreView;
-                FocusRouteSoon();
                 break;
             case Route.GrevStoreApp:
                 RouteHost.Content = _grevStoreAppView;
@@ -135,7 +133,6 @@ public partial class MainWindow
                 {
                     HideStoreUninstallWarning(discardBackEntry: false, showCancelledStatus: true);
                     _storeRouteTransition = StoreRouteTransition.None;
-                    FocusRouteSoon();
                     break;
                 }
 
@@ -144,7 +141,6 @@ public partial class MainWindow
                 {
                     _ = RefreshSelectedStorePackageAsync();
                 }
-                FocusRouteSoon();
                 break;
         }
     }
