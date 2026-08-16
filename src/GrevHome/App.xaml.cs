@@ -1,9 +1,7 @@
-using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
-using GrevHome.Machine;
 using GrevHome.Storage;
 
 namespace GrevHome;
@@ -12,18 +10,13 @@ public partial class App : Application
 {
     private const string InstanceMutexName = @"Local\GrevHome.Shell.Instance";
     private const string ActivationEventName = @"Local\GrevHome.Shell.Activate";
-    private const string RecoveryArgument = "--recover-after";
-    private const string CrashRestartCountVariable = "GREV_HOME_CRASH_RESTART_COUNT";
-    private const int MaximumAutomaticCrashRestarts = 2;
 
     private readonly AppPaths _paths = new();
-    private readonly StartupRegistrationService _startupRegistration = new();
     private Mutex? _singleInstanceMutex;
     private EventWaitHandle? _activationEvent;
     private CancellationTokenSource? _activationListenerCancellation;
     private bool _ownsInstanceMutex;
     private bool _fatalCrashObserved;
-    private int _crashRestartRequested;
     private string? _shellMarkerPath;
 
     public App()
@@ -34,8 +27,6 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
-        WaitForRecoveringProcessIfRequested(e.Args);
-
         _singleInstanceMutex = new Mutex(initiallyOwned: false, InstanceMutexName);
         try
         {
@@ -58,13 +49,6 @@ public partial class App : Application
 
         _paths.EnsureMachineLayout();
         RecordShellStart();
-
-        if (!_startupRegistration.TryEnsureRegistered(out var startupFailure) &&
-            _startupRegistration.IsApplianceExecutable &&
-            !string.IsNullOrWhiteSpace(startupFailure))
-        {
-            WriteLifecycleLog($"Windows autostart registration failed: {startupFailure}");
-        }
 
         base.OnStartup(e);
 
@@ -173,33 +157,6 @@ public partial class App : Application
         }
     }
 
-    private static void WaitForRecoveringProcessIfRequested(IReadOnlyList<string> args)
-    {
-        for (var index = 0; index < args.Count - 1; index++)
-        {
-            if (!string.Equals(args[index], RecoveryArgument, StringComparison.OrdinalIgnoreCase) ||
-                !int.TryParse(args[index + 1], out var processId) || processId <= 0)
-            {
-                continue;
-            }
-
-            try
-            {
-                using var previous = Process.GetProcessById(processId);
-                previous.WaitForExit(15000);
-            }
-            catch (ArgumentException)
-            {
-                // The crashed process has already exited.
-            }
-            catch (InvalidOperationException)
-            {
-            }
-
-            return;
-        }
-    }
-
     private void RecordShellStart()
     {
         _shellMarkerPath = Path.Combine(_paths.RuntimeData, "shell-session.marker");
@@ -241,7 +198,6 @@ public partial class App : Application
     {
         _fatalCrashObserved = true;
         WriteCrashLog("WPF Dispatcher", e.Exception);
-        TryScheduleCrashRestart();
     }
 
     private void HandleAppDomainUnhandledException(object? sender, UnhandledExceptionEventArgs e)
@@ -250,57 +206,10 @@ public partial class App : Application
         if (e.ExceptionObject is Exception exception)
         {
             WriteCrashLog("AppDomain", exception);
-        }
-        else
-        {
-            WriteCrashLog("AppDomain", new InvalidOperationException($"Unhandled non-Exception object: {e.ExceptionObject}"));
-        }
-
-        TryScheduleCrashRestart();
-    }
-
-    private void TryScheduleCrashRestart()
-    {
-        if (Interlocked.Exchange(ref _crashRestartRequested, 1) != 0 ||
-            !_startupRegistration.IsApplianceExecutable)
-        {
             return;
         }
 
-        var currentCount = int.TryParse(
-            Environment.GetEnvironmentVariable(CrashRestartCountVariable),
-            out var parsed)
-            ? parsed
-            : 0;
-        if (currentCount >= MaximumAutomaticCrashRestarts)
-        {
-            WriteLifecycleLog("Automatic crash restart suppressed to prevent a restart loop.");
-            return;
-        }
-
-        var executable = Environment.ProcessPath;
-        if (string.IsNullOrWhiteSpace(executable))
-        {
-            return;
-        }
-
-        try
-        {
-            var startInfo = new ProcessStartInfo
-            {
-                FileName = executable,
-                UseShellExecute = false
-            };
-            startInfo.ArgumentList.Add(RecoveryArgument);
-            startInfo.ArgumentList.Add(Environment.ProcessId.ToString());
-            startInfo.Environment[CrashRestartCountVariable] = (currentCount + 1).ToString();
-            Process.Start(startInfo);
-            WriteLifecycleLog($"Scheduled automatic shell recovery attempt {currentCount + 1} of {MaximumAutomaticCrashRestarts}.");
-        }
-        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
-        {
-            WriteLifecycleLog($"Could not schedule automatic shell recovery: {ex.Message}");
-        }
+        WriteCrashLog("AppDomain", new InvalidOperationException($"Unhandled non-Exception object: {e.ExceptionObject}"));
     }
 
     private void WriteCrashLog(string source, Exception exception)
