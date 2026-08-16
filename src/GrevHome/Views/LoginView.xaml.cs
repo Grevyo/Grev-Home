@@ -29,7 +29,7 @@ public partial class LoginView : UserControl
     {
         _session = session;
         var addingPlayer = session.HasSignedInUsers;
-        var slotsFull = session.SignedInUsers.Count >= 4;
+        var slotsFull = session.SignedInUsers.Count >= SessionContext.MaximumPlayers;
         var canAddPlayers = !addingPlayer ||
                             session.PrimaryUser is { } primaryForPlayers &&
                             AccountAuthorizationService.Allows(primaryForPlayers.Role, AccountPermission.ManagePlayers);
@@ -39,7 +39,7 @@ public partial class LoginView : UserControl
             : "Who's playing?";
         SubheadingText.Text = addingPlayer
             ? slotsFull
-                ? "Four players are already signed in. Go back to Who's Playing or Manage Players to change the current session."
+                ? $"{SessionContext.MaximumPlayers} players are already signed in. Go back to Who's Playing or Manage Players to change the current session."
                 : canAddPlayers
                     ? "Choose another local profile or Temporary Guest. Use an unassigned controller to join, or use keyboard/mouse to join without a controller."
                     : "The current Primary User is not allowed to add another player. Press B / Esc to return."
@@ -210,7 +210,7 @@ public partial class LoginView : UserControl
     private void TemporaryGuest_Click(object sender, RoutedEventArgs e)
     {
         var session = _session;
-        if (session is null || !session.HasSignedInUsers || session.SignedInUsers.Count >= 4)
+        if (session is null || !session.HasSignedInUsers || session.SignedInUsers.Count >= SessionContext.MaximumPlayers)
         {
             return;
         }
