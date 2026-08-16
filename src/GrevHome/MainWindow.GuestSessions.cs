@@ -6,12 +6,6 @@ public partial class MainWindow
 {
     private bool _guestSessionIntegrationReady;
 
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-        InitializeGuestSessionIntegration();
-    }
-
     private void InitializeGuestSessionIntegration()
     {
         if (_guestSessionIntegrationReady)
