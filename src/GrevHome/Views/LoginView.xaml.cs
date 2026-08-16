@@ -14,19 +14,6 @@ public partial class LoginView : UserControl
 
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
     public event Action<int?>? GuestSignInRequested;
-
-    public event Action<Guid>? PrimaryUserRequested
-    {
-        add { }
-        remove { }
-    }
-
-    public event EventHandler? ClearSessionRequested
-    {
-        add { }
-        remove { }
-    }
-
     public event EventHandler? CreateProfileRequested;
 
     public int? ActivationControllerIndex { get; set; }
