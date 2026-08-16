@@ -61,16 +61,27 @@ public sealed class SessionContext
         return user;
     }
 
-    // Compatibility only for old shell wiring. No current Grev Home screen exposes this path.
     public SessionUser SignInGuest(int? controllerIndex = null)
     {
-        var guest = SignedInUsers.FirstOrDefault(candidate => candidate.AccountKind == AccountKind.Guest);
-        if (guest is null)
+        if (SignedInUsers.All(user => user.AccountKind != AccountKind.Local))
         {
-            guest = new SessionUser(null, null, "Legacy Guest", AccountKind.Guest, AccountRole.Guest) { IsPrimary = SignedInUsers.Count == 0 };
-            SignedInUsers.Add(guest);
+            throw new InvalidOperationException("A temporary Guest must join an existing local-player session.");
         }
-        if (controllerIndex.HasValue) AssignControllerInternal(controllerIndex.Value, guest.SessionId);
+
+        var usedGuestNumbers = SignedInUsers
+            .Where(user => user.AccountKind == AccountKind.Guest)
+            .Select(user => ParseGuestNumber(user.DisplayName))
+            .Where(number => number > 0)
+            .ToHashSet();
+        var guestNumber = Enumerable.Range(1, 4).First(number => !usedGuestNumbers.Contains(number));
+        var guest = new SessionUser(null, null, $"Guest {guestNumber}", AccountKind.Guest, AccountRole.Guest);
+        SignedInUsers.Add(guest);
+
+        if (controllerIndex.HasValue && GetUserForController(controllerIndex.Value) is null)
+        {
+            AssignControllerInternal(controllerIndex.Value, guest.SessionId);
+        }
+
         RaiseChanged();
         return guest;
     }
@@ -79,6 +90,14 @@ public sealed class SessionContext
     {
         var requested = SignedInUsers.FirstOrDefault(user => user.SessionId == sessionUserId)
             ?? throw new InvalidOperationException("That user is not signed in.");
+
+        // Temporary Guests have no GrevID and therefore cannot own the active profile/app context.
+        // A persistent local profile whose role is Guest is still AccountKind.Local and may be Primary.
+        if (requested.AccountKind == AccountKind.Guest)
+        {
+            return;
+        }
+
         foreach (var user in SignedInUsers) user.IsPrimary = user.SessionId == requested.SessionId;
         RaiseChanged();
     }
@@ -133,7 +152,24 @@ public sealed class SessionContext
         var wasPrimary = user.IsPrimary;
         SignedInUsers.Remove(user);
         foreach (var assignment in ControllerAssignments.Where(item => item.SessionUserId == sessionUserId).ToArray()) ControllerAssignments.Remove(assignment);
-        if (wasPrimary && SignedInUsers.Count > 0) SignedInUsers[0].IsPrimary = true;
+
+        var remainingLocalUsers = SignedInUsers.Where(candidate => candidate.AccountKind == AccountKind.Local).ToArray();
+        if (remainingLocalUsers.Length == 0)
+        {
+            // Temporary Guests belong to a hosted local session. They never survive after the final
+            // persistent local account leaves because there would be no valid Primary/GrevID owner.
+            SignedInUsers.Clear();
+            ControllerAssignments.Clear();
+            RaiseChanged();
+            return;
+        }
+
+        if (wasPrimary)
+        {
+            foreach (var remaining in SignedInUsers) remaining.IsPrimary = false;
+            remainingLocalUsers[0].IsPrimary = true;
+        }
+
         RaiseChanged();
     }
 
@@ -152,6 +188,15 @@ public sealed class SessionContext
         if (controllerIndex is < 0 or > 3) throw new ArgumentOutOfRangeException(nameof(controllerIndex));
         foreach (var existing in ControllerAssignments.Where(item => item.ControllerIndex == controllerIndex).ToArray()) ControllerAssignments.Remove(existing);
         ControllerAssignments.Add(new ControllerAssignment(controllerIndex, sessionUserId));
+    }
+
+    private static int ParseGuestNumber(string displayName)
+    {
+        const string prefix = "Guest ";
+        return displayName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) &&
+               int.TryParse(displayName[prefix.Length..], out var number)
+            ? number
+            : 0;
     }
 
     private void RaiseChanged() => Changed?.Invoke(this, EventArgs.Empty);
