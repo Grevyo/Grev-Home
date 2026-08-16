@@ -204,6 +204,106 @@
             </StackPanel>
 
             <StackPanel Margin="0,0,0,16">
+                <Button x:Name="AudioSectionButton"
+                        Content="AUDIO  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="AudioSectionButton_Click" />
+                <Border x:Name="AudioSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock x:Name="AudioOutputText" Text="Current output" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="AudioVolumeText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Content="Volume -10" MinWidth="150" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioVolumeDown_Click" />
+                            <Button Content="Volume +10" MinWidth="150" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioVolumeUp_Click" />
+                            <Button x:Name="AudioMuteButton" Content="Mute" MinWidth="150" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioMute_Click" />
+                        </WrapPanel>
+
+                        <TextBlock Text="OUTPUT DEVICE" Margin="0,18,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock x:Name="AudioSelectedOutputText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button x:Name="AudioPreviousOutputButton" Content="← Previous output" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioPreviousOutput_Click" />
+                            <Button x:Name="AudioNextOutputButton" Content="Next output →" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioNextOutput_Click" />
+                            <Button x:Name="AudioApplyOutputButton" Content="Use selected output" MinWidth="210" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioApplyOutput_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="AudioStatusText" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,16">
+                <Button x:Name="DisplaySectionButton"
+                        Content="DISPLAY  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="DisplaySectionButton_Click" />
+                <Border x:Name="DisplaySectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock x:Name="DisplayCurrentModeText" Text="Current primary display" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="DisplaySelectedModeText" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button x:Name="DisplayPreviousModeButton" Content="← Previous mode" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayPreviousMode_Click" />
+                            <Button x:Name="DisplayNextModeButton" Content="Next mode →" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayNextMode_Click" />
+                            <Button x:Name="DisplayApplyModeButton" Content="Apply selected mode" MinWidth="210" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayApplyMode_Click" />
+                            <Button x:Name="DisplayKeepButton" Content="KEEP DISPLAY" Visibility="Collapsed" MinWidth="180" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayKeep_Click" />
+                            <Button x:Name="DisplayRevertButton" Content="Revert now" Visibility="Collapsed" MinWidth="160" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayRevert_Click" />
+                        </WrapPanel>
+                        <TextBlock Text="A changed mode automatically rolls back after 15 seconds unless Keep Display is selected."
+                                   Margin="0,4,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="DisplayStatusText" Margin="0,10,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,16">
+                <Button x:Name="ConnectionsSectionButton"
+                        Content="CONNECTIONS  ▾"
+                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
+                        Click="ConnectionsSectionButton_Click" />
+                <Border x:Name="ConnectionsSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1,0,1,1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <Button Content="Refresh connections" MinWidth="190" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="RefreshConnections_Click" />
+
+                        <TextBlock Text="WI-FI" Margin="0,22,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock x:Name="WifiStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <Button x:Name="WifiDisconnectButton" Content="Disconnect Wi-Fi" IsEnabled="False" MinWidth="180" Margin="0,12,0,10" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="WifiDisconnect_Click" />
+                        <TextBlock Text="Available networks with an existing Windows saved profile can reconnect directly. New secured networks still need the future Grev Home credential/profile flow."
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <StackPanel x:Name="WifiNetworksPanel" />
+
+                        <TextBlock Text="BLUETOOTH" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock x:Name="BluetoothStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <Button x:Name="BluetoothToggleButton" Content="Turn Bluetooth On" MinWidth="210" Margin="0,12,0,10" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="BluetoothToggle_Click" />
+                        <TextBlock Text="Select a known device to pair or unpair it. Devices that require a PIN, passkey or manufacturer-specific flow may still require a richer pairing screen later."
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <StackPanel x:Name="BluetoothDevicesPanel" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel Margin="0,0,0,16">
                 <Button x:Name="SystemStatusSectionButton"
                         Content="SYSTEM STATUS  ▾"
                         Style="{StaticResource SettingsSectionHeaderButtonStyle}"
