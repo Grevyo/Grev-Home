@@ -78,6 +78,12 @@ public sealed class AudioService
                 .ThenBy(device => device.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
+        catch (InvalidCastException ex)
+        {
+            throw new InvalidOperationException(
+                "Windows returned an unexpected Core Audio COM interface while enumerating output devices.",
+                ex);
+        }
         finally
         {
             ReleaseCom(collection);
@@ -262,7 +268,7 @@ public sealed class AudioService
     }
 
     [ComImport]
-    [Guid("0BD7A1BE-7A1A-44DB-8397-C0A6F2BCF5B9")]
+    [Guid("0BD7A1BE-7A1A-44DB-8397-CC5392387B5E")]
     [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     private interface IMMDeviceCollection
     {
