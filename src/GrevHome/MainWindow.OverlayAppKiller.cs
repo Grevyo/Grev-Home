@@ -9,13 +9,6 @@ public partial class MainWindow
 {
     private bool _overlayAppKillerIntegrationReady;
 
-    protected override void OnSourceInitialized(EventArgs e)
-    {
-        base.OnSourceInitialized(e);
-        InitializeOverlayAppKillerIntegration();
-        InitializeGuestSessionIntegration();
-    }
-
     private void InitializeOverlayAppKillerIntegration()
     {
         if (_overlayAppKillerIntegrationReady)
