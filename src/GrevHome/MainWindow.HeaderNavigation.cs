@@ -38,7 +38,6 @@ public partial class MainWindow
         InitializeAppSettingsIntegration();
         InitializeAdminConsoleIntegration();
         InitializeOverlayAppKillerIntegration();
-        InitializeGuestSessionIntegration();
 
         _headerNavigationHooked = true;
         _controllerInput.ActionPressed += HandleHeaderNavigationInput;
