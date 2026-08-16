@@ -36,7 +36,7 @@ public partial class ProfilePlayersView : UserControl
         ApplyPrimaryRole(primary?.Role ?? AccountRole.Guest);
 
         PrimaryNameText.Text = primary?.DisplayName ?? "No primary profile";
-        PrimaryIdentityText.Text = primary is null ? "No user is signed in." : $"@{primary.Username}  •  {primary.Role}  •  Primary User";
+        PrimaryIdentityText.Text = primary is null ? "No user is signed in." : $"{BuildIdentityText(primary)}  •  Primary User";
         SummaryText.Text = session.SignedInUsers.Count == 1
             ? "1 player signed in. Add Player 2 or manage the current profile and controller assignment."
             : $"{session.SignedInUsers.Count} players signed in. Manage profiles, Primary User and controller assignments here.";
@@ -56,8 +56,8 @@ public partial class ProfilePlayersView : UserControl
         }
 
         StatusText.Text = connectedControllers.Any(isConnected => isConnected)
-            ? "Assigned controllers remain owned by their player if they disconnect. Reconnecting the same controller slot restores it automatically; select its C button to unassign it deliberately."
-            : "No XInput controllers are currently connected. Existing assignments remain visible and players stay signed in; reconnect the same controller slot or unassign it deliberately.";
+            ? "Assigned controllers remain owned by their player if they disconnect. Temporary Guests have no GrevID and cannot become Primary."
+            : "No XInput controllers are currently connected. Existing assignments remain visible; temporary Guests remain session-only participants.";
     }
 
     private UIElement CreatePlayerCard(int playerNumber, SessionUser user, SessionContext session, IReadOnlyList<bool> connectedControllers, IReadOnlyList<LocalProfile> profiles, SessionUser? actor)
@@ -85,7 +85,7 @@ public partial class ProfilePlayersView : UserControl
         Grid.SetColumn(details, 1);
         details.Children.Add(new TextBlock { Text = $"PLAYER {playerNumber}", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("AccentBrush") });
         details.Children.Add(new TextBlock { Text = user.DisplayName, Margin = new Thickness(0, 5, 0, 0), FontSize = 23, FontWeight = FontWeights.SemiBold });
-        details.Children.Add(new TextBlock { Text = $"@{user.Username}  •  {user.Role}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
+        details.Children.Add(new TextBlock { Text = $"{BuildIdentityText(user)}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
         var assigned = session.GetControllersForUser(user.SessionId);
         details.Children.Add(new TextBlock
         {
@@ -117,7 +117,7 @@ public partial class ProfilePlayersView : UserControl
         profileActions.Children.Add(signOutButton);
         actions.Children.Add(profileActions);
 
-        if (!user.IsPrimary)
+        if (!user.IsPrimary && user.AccountKind != AccountKind.Guest)
         {
             var primaryButton = new Button
             {
@@ -252,6 +252,13 @@ public partial class ProfilePlayersView : UserControl
         },
         _ => null
     };
+
+    private static string BuildIdentityText(SessionUser user) =>
+        user.AccountKind == AccountKind.Guest
+            ? "Temporary Guest  •  Guest role  •  No GrevID"
+            : string.IsNullOrWhiteSpace(user.Username)
+                ? user.Role.ToString()
+                : $"@{user.Username}  •  {user.Role}";
 
     private static LocalProfile? FindProfile(SessionUser? user, IReadOnlyList<LocalProfile> profiles)
     {

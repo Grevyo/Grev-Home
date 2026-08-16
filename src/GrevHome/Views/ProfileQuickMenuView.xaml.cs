@@ -167,7 +167,7 @@ public partial class ProfileQuickMenuView : UserControl
             actionRow.Children.Add(viewButton);
         }
 
-        if (!user.IsPrimary)
+        if (!user.IsPrimary && user.AccountKind != AccountKind.Guest)
         {
             var makePrimaryButton = CreateActionButton("Make Primary", $"primary:{user.SessionId}");
             makePrimaryButton.IsEnabled = actor is not null &&
@@ -330,9 +330,11 @@ public partial class ProfileQuickMenuView : UserControl
     }
 
     private static string BuildIdentityText(SessionUser user) =>
-        user.AccountKind == AccountKind.Guest || string.IsNullOrWhiteSpace(user.Username)
-            ? $"Guest • {user.Role}"
-            : $"@{user.Username} • {user.Role}";
+        user.AccountKind == AccountKind.Guest
+            ? "Temporary Guest • Guest role"
+            : string.IsNullOrWhiteSpace(user.Username)
+                ? user.Role.ToString()
+                : $"@{user.Username} • {user.Role}";
 
     private static string BuildControllerSummary(
         SessionUser user,
