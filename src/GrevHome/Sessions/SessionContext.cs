@@ -33,19 +33,28 @@ public sealed record ControllerAssignment(int ControllerIndex, Guid SessionUserI
 
 public sealed class SessionContext
 {
-    private const int MaximumPlayers = 4;
+    public const int MaximumPlayers = 4;
 
-    public ObservableCollection<SessionUser> SignedInUsers { get; } = new();
-    public ObservableCollection<ControllerAssignment> ControllerAssignments { get; } = new();
-    public SessionUser? PrimaryUser => SignedInUsers.FirstOrDefault(user => user.IsPrimary);
-    public bool HasSignedInUsers => SignedInUsers.Count > 0;
+    private readonly ObservableCollection<SessionUser> _signedInUsers = new();
+    private readonly ObservableCollection<ControllerAssignment> _controllerAssignments = new();
+
+    public SessionContext()
+    {
+        SignedInUsers = new ReadOnlyObservableCollection<SessionUser>(_signedInUsers);
+        ControllerAssignments = new ReadOnlyObservableCollection<ControllerAssignment>(_controllerAssignments);
+    }
+
+    public ReadOnlyObservableCollection<SessionUser> SignedInUsers { get; }
+    public ReadOnlyObservableCollection<ControllerAssignment> ControllerAssignments { get; }
+    public SessionUser? PrimaryUser => _signedInUsers.FirstOrDefault(user => user.IsPrimary);
+    public bool HasSignedInUsers => _signedInUsers.Count > 0;
     public event EventHandler? Changed;
 
     public SessionUser SignInLocal(LocalProfile profile, int? controllerIndex = null)
     {
-        var user = SignedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
+        var user = _signedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
 
-        if (user is null && SignedInUsers.Count >= MaximumPlayers)
+        if (user is null && _signedInUsers.Count >= MaximumPlayers)
         {
             throw new InvalidOperationException($"Grev Home supports up to {MaximumPlayers} signed-in players.");
         }
@@ -59,9 +68,9 @@ public sealed class SessionContext
         {
             user = new SessionUser(profile.GrevId, profile.Username, profile.DisplayName, AccountKind.Local, profile.Role)
             {
-                IsPrimary = SignedInUsers.Count == 0
+                IsPrimary = _signedInUsers.Count == 0
             };
-            SignedInUsers.Add(user);
+            _signedInUsers.Add(user);
         }
         else
         {
@@ -76,12 +85,12 @@ public sealed class SessionContext
 
     public SessionUser SignInGuest(int? controllerIndex = null)
     {
-        if (SignedInUsers.All(user => user.AccountKind != AccountKind.Local))
+        if (_signedInUsers.All(user => user.AccountKind != AccountKind.Local))
         {
             throw new InvalidOperationException("A temporary Guest must join an existing local-player session.");
         }
 
-        if (SignedInUsers.Count >= MaximumPlayers)
+        if (_signedInUsers.Count >= MaximumPlayers)
         {
             throw new InvalidOperationException($"Grev Home supports up to {MaximumPlayers} signed-in players.");
         }
@@ -91,14 +100,14 @@ public sealed class SessionContext
             EnsureControllerAvailableForJoin(controllerIndex.Value);
         }
 
-        var usedGuestNumbers = SignedInUsers
+        var usedGuestNumbers = _signedInUsers
             .Where(user => user.AccountKind == AccountKind.Guest)
             .Select(user => ParseGuestNumber(user.DisplayName))
             .Where(number => number > 0)
             .ToHashSet();
         var guestNumber = Enumerable.Range(1, MaximumPlayers).First(number => !usedGuestNumbers.Contains(number));
         var guest = new SessionUser(null, null, $"Guest {guestNumber}", AccountKind.Guest, AccountRole.Guest);
-        SignedInUsers.Add(guest);
+        _signedInUsers.Add(guest);
 
         if (controllerIndex.HasValue)
         {
@@ -111,7 +120,7 @@ public sealed class SessionContext
 
     public void SetPrimary(Guid sessionUserId)
     {
-        var requested = SignedInUsers.FirstOrDefault(user => user.SessionId == sessionUserId)
+        var requested = _signedInUsers.FirstOrDefault(user => user.SessionId == sessionUserId)
             ?? throw new InvalidOperationException("That user is not signed in.");
 
         // Temporary Guests have no GrevID and therefore cannot own the active profile/app context.
@@ -121,7 +130,7 @@ public sealed class SessionContext
             return;
         }
 
-        foreach (var user in SignedInUsers) user.IsPrimary = user.SessionId == requested.SessionId;
+        foreach (var user in _signedInUsers) user.IsPrimary = user.SessionId == requested.SessionId;
         RaiseChanged();
     }
 
@@ -143,7 +152,7 @@ public sealed class SessionContext
 
     public void AssignController(int controllerIndex, Guid sessionUserId)
     {
-        if (SignedInUsers.All(user => user.SessionId != sessionUserId)) throw new InvalidOperationException("That user is not signed in.");
+        if (_signedInUsers.All(user => user.SessionId != sessionUserId)) throw new InvalidOperationException("That user is not signed in.");
         AssignControllerInternal(controllerIndex, sessionUserId);
         RaiseChanged();
     }
@@ -151,46 +160,46 @@ public sealed class SessionContext
     public void UnassignController(int controllerIndex, Guid? expectedSessionUserId = null)
     {
         ValidateControllerIndex(controllerIndex);
-        var assignments = ControllerAssignments
+        var assignments = _controllerAssignments
             .Where(item => item.ControllerIndex == controllerIndex && (!expectedSessionUserId.HasValue || item.SessionUserId == expectedSessionUserId.Value))
             .ToArray();
         if (assignments.Length == 0) return;
-        foreach (var assignment in assignments) ControllerAssignments.Remove(assignment);
+        foreach (var assignment in assignments) _controllerAssignments.Remove(assignment);
         RaiseChanged();
     }
 
     public SessionUser? GetUserForController(int controllerIndex)
     {
         ValidateControllerIndex(controllerIndex);
-        var assignment = ControllerAssignments.FirstOrDefault(item => item.ControllerIndex == controllerIndex);
-        return assignment is null ? null : SignedInUsers.FirstOrDefault(user => user.SessionId == assignment.SessionUserId);
+        var assignment = _controllerAssignments.FirstOrDefault(item => item.ControllerIndex == controllerIndex);
+        return assignment is null ? null : _signedInUsers.FirstOrDefault(user => user.SessionId == assignment.SessionUserId);
     }
 
     public IReadOnlyList<int> GetControllersForUser(Guid sessionUserId) =>
-        ControllerAssignments.Where(item => item.SessionUserId == sessionUserId).Select(item => item.ControllerIndex).OrderBy(index => index).ToArray();
+        _controllerAssignments.Where(item => item.SessionUserId == sessionUserId).Select(item => item.ControllerIndex).OrderBy(index => index).ToArray();
 
     public void SignOut(Guid sessionUserId)
     {
-        var user = SignedInUsers.FirstOrDefault(candidate => candidate.SessionId == sessionUserId);
+        var user = _signedInUsers.FirstOrDefault(candidate => candidate.SessionId == sessionUserId);
         if (user is null) return;
         var wasPrimary = user.IsPrimary;
-        SignedInUsers.Remove(user);
-        foreach (var assignment in ControllerAssignments.Where(item => item.SessionUserId == sessionUserId).ToArray()) ControllerAssignments.Remove(assignment);
+        _signedInUsers.Remove(user);
+        foreach (var assignment in _controllerAssignments.Where(item => item.SessionUserId == sessionUserId).ToArray()) _controllerAssignments.Remove(assignment);
 
-        var remainingLocalUsers = SignedInUsers.Where(candidate => candidate.AccountKind == AccountKind.Local).ToArray();
+        var remainingLocalUsers = _signedInUsers.Where(candidate => candidate.AccountKind == AccountKind.Local).ToArray();
         if (remainingLocalUsers.Length == 0)
         {
             // Temporary Guests belong to a hosted local session. They never survive after the final
             // persistent local account leaves because there would be no valid Primary/GrevID owner.
-            SignedInUsers.Clear();
-            ControllerAssignments.Clear();
+            _signedInUsers.Clear();
+            _controllerAssignments.Clear();
             RaiseChanged();
             return;
         }
 
         if (wasPrimary)
         {
-            foreach (var remaining in SignedInUsers) remaining.IsPrimary = false;
+            foreach (var remaining in _signedInUsers) remaining.IsPrimary = false;
             remainingLocalUsers[0].IsPrimary = true;
         }
 
@@ -199,13 +208,13 @@ public sealed class SessionContext
 
     public void SignOutAll()
     {
-        SignedInUsers.Clear();
-        ControllerAssignments.Clear();
+        _signedInUsers.Clear();
+        _controllerAssignments.Clear();
         RaiseChanged();
     }
 
     private SessionUser? FindLocalUser(string grevId) =>
-        SignedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
+        _signedInUsers.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
 
     private void EnsureControllerAvailableForJoin(int controllerIndex, Guid? joiningSessionUserId = null)
     {
@@ -221,8 +230,8 @@ public sealed class SessionContext
     private void AssignControllerInternal(int controllerIndex, Guid sessionUserId)
     {
         ValidateControllerIndex(controllerIndex);
-        foreach (var existing in ControllerAssignments.Where(item => item.ControllerIndex == controllerIndex).ToArray()) ControllerAssignments.Remove(existing);
-        ControllerAssignments.Add(new ControllerAssignment(controllerIndex, sessionUserId));
+        foreach (var existing in _controllerAssignments.Where(item => item.ControllerIndex == controllerIndex).ToArray()) _controllerAssignments.Remove(existing);
+        _controllerAssignments.Add(new ControllerAssignment(controllerIndex, sessionUserId));
     }
 
     private static void ValidateControllerIndex(int controllerIndex)
