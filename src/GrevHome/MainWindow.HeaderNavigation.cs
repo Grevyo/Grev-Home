@@ -27,11 +27,12 @@ public partial class MainWindow
             return;
         }
 
-        // MainWindow has one integration bootstrap. Keeping every shell/module subscription on
-        // this Loaded path avoids partial classes competing for WPF lifecycle overrides.
+        // MainWindow owns one explicit integration bootstrap. Runtime foundations are initialized
+        // before feature surfaces so no feature initializer has to secretly initialize a sibling.
         InitializeShellNavigationFinalization();
-
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
+        InitializeRuntimeRecoveryIntegration();
+        InitializeAppControllerRuntimeIntegration();
         InitializeProfilePlayersIntegration();
         InitializeFilesIntegration();
         InitializeGrevStoreIntegration();
