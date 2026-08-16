@@ -13,32 +13,8 @@ public partial class App : Application
         AppDomain.CurrentDomain.UnhandledException += HandleAppDomainUnhandledException;
     }
 
-    private void HandleDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
-    {
+    private static void HandleDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e) =>
         WriteCrashLog("WPF Dispatcher", e.Exception);
-
-        // Controller input raises WPF button/focus actions programmatically. A failure in that
-        // narrow interaction path must not terminate the entire console shell. Keep the shell
-        // alive, log the full stack, and let the next input action continue normally.
-        if (IsControllerInteractionFailure(e.Exception))
-        {
-            e.Handled = true;
-
-            if (MainWindow is { } mainWindow)
-            {
-                Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(() =>
-                {
-                    if (!mainWindow.IsVisible)
-                    {
-                        mainWindow.Show();
-                    }
-
-                    mainWindow.Activate();
-                    mainWindow.Focus();
-                }));
-            }
-        }
-    }
 
     private static void HandleAppDomainUnhandledException(object? sender, UnhandledExceptionEventArgs e)
     {
@@ -49,22 +25,6 @@ public partial class App : Application
         }
 
         WriteCrashLog("AppDomain", new InvalidOperationException($"Unhandled non-Exception object: {e.ExceptionObject}"));
-    }
-
-    private static bool IsControllerInteractionFailure(Exception exception)
-    {
-        for (var current = exception; current is not null; current = current.InnerException)
-        {
-            var stack = current.StackTrace ?? string.Empty;
-            if (stack.Contains("GrevHome.MainWindow.HandleInput", StringComparison.Ordinal) ||
-                stack.Contains("GrevHome.MainWindow.ActivateFocusedControl", StringComparison.Ordinal) ||
-                stack.Contains("GrevHome.MainWindow.MoveFocus", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
     }
 
     private static void WriteCrashLog(string source, Exception exception)
