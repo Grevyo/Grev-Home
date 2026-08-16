@@ -117,7 +117,7 @@ public sealed class AudioService
         IPolicyConfigVista? policy = null;
         try
         {
-            policy = (IPolicyConfigVista)new PolicyConfigClient();
+            policy = (IPolicyConfigVista)(object)new PolicyConfigClient();
             foreach (var role in new[] { ERole.Console, ERole.Multimedia, ERole.Communications })
             {
                 ThrowIfFailed(policy.SetDefaultEndpoint(deviceId, role));
@@ -157,7 +157,7 @@ public sealed class AudioService
     }
 
     private static IMMDeviceEnumerator CreateEnumerator() =>
-        (IMMDeviceEnumerator)new MMDeviceEnumeratorComObject();
+        (IMMDeviceEnumerator)(object)new MMDeviceEnumeratorComObject();
 
     private static IAudioEndpointVolume ActivateEndpointVolume(IMMDevice device)
     {
