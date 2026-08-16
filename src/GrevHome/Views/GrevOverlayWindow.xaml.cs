@@ -22,7 +22,6 @@ public partial class GrevOverlayWindow : Window
     public event Action<Guid>? ResumeRequested;
     public event EventHandler? ReturnHomeRequested;
     public event EventHandler? RunningAppsRequested;
-    public event EventHandler? AppKillerRequested;
     public event Action<Guid>? SwitchRequested;
     public event Action<Guid>? RestartRequested;
     public event Action<Guid>? CloseRequested;
