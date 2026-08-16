@@ -43,13 +43,19 @@ public partial class LoginView : UserControl
         _session = session;
         var addingPlayer = session.HasSignedInUsers;
         var slotsFull = session.SignedInUsers.Count >= 4;
+        var canAddPlayers = !addingPlayer ||
+                            session.PrimaryUser is { } primaryForPlayers &&
+                            AccountAuthorizationService.Allows(primaryForPlayers.Role, AccountPermission.ManagePlayers);
+
         HeadingText.Text = addingPlayer
             ? slotsFull ? "All player slots are in use" : $"Player {session.SignedInUsers.Count + 1} Sign In"
             : "Who's playing?";
         SubheadingText.Text = addingPlayer
             ? slotsFull
                 ? "Four players are already signed in. Go back to Who's Playing or Manage Players to change the current session."
-                : "Choose another local profile or Temporary Guest. Use an unassigned controller to join, or use keyboard/mouse to join without a controller."
+                : canAddPlayers
+                    ? "Choose another local profile or Temporary Guest. Use an unassigned controller to join, or use keyboard/mouse to join without a controller."
+                    : "The current Primary User is not allowed to add another player. Press B / Esc to return."
             : "Choose your profile to enter Grev Home.";
         BackHintText.Visibility = addingPlayer ? Visibility.Visible : Visibility.Collapsed;
 
@@ -66,7 +72,7 @@ public partial class LoginView : UserControl
                 Height = 176,
                 Margin = new Thickness(0, 0, 10, 10),
                 Tag = profile,
-                IsEnabled = !slotsFull && (!addingPlayer || signedIn is null),
+                IsEnabled = !slotsFull && (!addingPlayer || canAddPlayers && signedIn is null),
                 Content = new StackPanel
                 {
                     Children =
@@ -74,7 +80,7 @@ public partial class LoginView : UserControl
                         CreateAvatar(profile),
                         new TextBlock { Text = profile.DisplayName, FontSize = 21, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
                         new TextBlock { Text = $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = signedIn is null ? slotsFull ? "SESSION FULL" : addingPlayer ? "A / Enter to join" : "A / Enter to sign in" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
+                        new TextBlock { Text = signedIn is null ? slotsFull ? "SESSION FULL" : addingPlayer ? canAddPlayers ? "A / Enter to join" : "PLAYER MANAGEMENT RESTRICTED" : "A / Enter to sign in" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
                     }
                 }
             };
@@ -82,7 +88,7 @@ public partial class LoginView : UserControl
             ProfilesPanel.Children.Add(button);
         }
 
-        if (addingPlayer && !slotsFull)
+        if (addingPlayer && !slotsFull && canAddPlayers)
         {
             ProfilesPanel.Children.Add(CreateTemporaryGuestButton());
         }
@@ -202,6 +208,15 @@ public partial class LoginView : UserControl
     private void LocalProfile_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not Button { Tag: LocalProfile profile }) return;
+
+        var session = _session;
+        if (session?.HasSignedInUsers == true &&
+            (session.PrimaryUser is not { } primary || !AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManagePlayers)))
+        {
+            ShowStatus("The current Primary User is not allowed to add another player.");
+            return;
+        }
+
         LocalProfileSignInRequested?.Invoke(new ProfileSignInRequest(profile, ActivationControllerIndex));
     }
 
@@ -210,6 +225,12 @@ public partial class LoginView : UserControl
         var session = _session;
         if (session is null || !session.HasSignedInUsers || session.SignedInUsers.Count >= 4)
         {
+            return;
+        }
+
+        if (session.PrimaryUser is not { } primary || !AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManagePlayers))
+        {
+            ShowStatus("The current Primary User is not allowed to add a temporary Guest.");
             return;
         }
 
