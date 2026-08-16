@@ -110,7 +110,6 @@ public partial class MainWindow
 
         RouteHost.Content = _adminConsoleView;
         _ = RefreshAdminConsoleAsync();
-        FocusRouteSoon();
     }
 
     private async Task RefreshAdminConsoleAsync()
