@@ -240,7 +240,6 @@ public partial class MainWindow
         if (route != Route.AppSettings) return;
         RouteHost.Content = _appSettingsView;
         _ = RefreshAppSettingsAsync();
-        FocusRouteSoon();
     }
 
     private async Task RefreshAppSettingsAsync()
