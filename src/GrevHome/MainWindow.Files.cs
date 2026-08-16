@@ -105,15 +105,11 @@ public partial class MainWindow
 
         _fileRouteTransition = FileRouteTransition.None;
 
+        // A same-route modal push is the one case where the local overlay owns landing focus.
+        // All ordinary route/same-route navigation focus is finalized by MainWindow.ShellNavigation.
         if (transition == FileRouteTransition.ModalPush)
         {
             _fileExplorerView.RefocusModal();
-        }
-        else if (transition != FileRouteTransition.ModalDismiss)
-        {
-            // Legacy route focus remains as a ContextIdle fallback. The 0.15 shell performs the
-            // final history-aware landing at ApplicationIdle, after this callback.
-            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
         }
     }
 
