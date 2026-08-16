@@ -13,6 +13,7 @@ public partial class MainWindow
     {
         base.OnSourceInitialized(e);
         InitializeOverlayAppKillerIntegration();
+        InitializeGuestSessionIntegration();
     }
 
     private void InitializeOverlayAppKillerIntegration()
