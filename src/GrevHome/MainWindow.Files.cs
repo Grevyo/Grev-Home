@@ -17,12 +17,6 @@ public partial class MainWindow
     private bool _fileOperationBusy;
     private bool _filesIntegrationReady;
 
-    protected override void OnInitialized(EventArgs e)
-    {
-        base.OnInitialized(e);
-        Loaded += (_, _) => InitializeFilesIntegration();
-    }
-
     private void InitializeFilesIntegration()
     {
         if (_filesIntegrationReady)
