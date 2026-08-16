@@ -64,10 +64,11 @@ public sealed class WifiService
 
         var selected = interfaces.FirstOrDefault(item => item.State == WlanInterfaceState.Connected)
                        ?? interfaces[0];
+        var interfaceGuid = selected.InterfaceGuid;
         var flags = AvailableNetworkIncludeAllAdhocProfiles | AvailableNetworkIncludeAllManualHiddenProfiles;
         ThrowIfError(WlanGetAvailableNetworkList(
             client.Handle,
-            ref selected.InterfaceGuid,
+            ref interfaceGuid,
             flags,
             IntPtr.Zero,
             out var listPointer));
@@ -123,6 +124,7 @@ public sealed class WifiService
 
         using var client = OpenClient();
         var selected = SelectInterface(client.Handle);
+        var interfaceGuid = selected.InterfaceGuid;
         var profilePointer = Marshal.StringToHGlobalUni(profileName.Trim());
         try
         {
@@ -135,7 +137,7 @@ public sealed class WifiService
                 Dot11BssType = Dot11BssType.Any,
                 Flags = 0
             };
-            ThrowIfError(WlanConnect(client.Handle, ref selected.InterfaceGuid, ref parameters, IntPtr.Zero));
+            ThrowIfError(WlanConnect(client.Handle, ref interfaceGuid, ref parameters, IntPtr.Zero));
         }
         finally
         {
@@ -147,7 +149,8 @@ public sealed class WifiService
     {
         using var client = OpenClient();
         var selected = SelectInterface(client.Handle);
-        ThrowIfError(WlanDisconnect(client.Handle, ref selected.InterfaceGuid, IntPtr.Zero));
+        var interfaceGuid = selected.InterfaceGuid;
+        ThrowIfError(WlanDisconnect(client.Handle, ref interfaceGuid, IntPtr.Zero));
     }
 
     private static WifiInterface SelectInterface(IntPtr clientHandle)
