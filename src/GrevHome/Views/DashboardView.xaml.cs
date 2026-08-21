@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using GrevHome.Dashboard;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
 
@@ -16,10 +17,12 @@ public partial class DashboardView : UserControl
     public event EventHandler? AdminConsoleRequested;
     public event EventHandler? FilesRequested;
     public event EventHandler? StoreRequested;
+    public event Action<string>? ActivityAppRequested;
 
     public DashboardView()
     {
         InitializeComponent();
+        SetDashboardData(DashboardDataSnapshot.Empty);
     }
 
     public void SetSession(SessionContext session)
@@ -48,12 +51,123 @@ public partial class DashboardView : UserControl
         RunningCountText.Text = $"{runningCount} active";
     }
 
+    public void SetDashboardData(DashboardDataSnapshot snapshot)
+    {
+        ArgumentNullException.ThrowIfNull(snapshot);
+
+        ActivitySummaryText.Text = snapshot.AppsPlayed == 0
+            ? "No completed app sessions recorded for this account yet."
+            : $"{FormatDuration(snapshot.TotalPlaytimeSeconds)} total  •  {snapshot.TotalSessions} session{(snapshot.TotalSessions == 1 ? string.Empty : "s")}  •  {snapshot.AppsPlayed} app{(snapshot.AppsPlayed == 1 ? string.Empty : "s")} played";
+
+        if (snapshot.ContinueApp is { } continueApp)
+        {
+            ContinueButton.Visibility = Visibility.Visible;
+            ContinueButton.Tag = continueApp.AppId;
+            ContinueAppNameText.Text = continueApp.AppName;
+            ContinueDetailText.Text = $"Last played {FormatLastPlayed(continueApp.LastPlayedAtUtc)}  •  {FormatDuration(continueApp.TotalSeconds)} total";
+        }
+        else
+        {
+            ContinueButton.Visibility = Visibility.Collapsed;
+            ContinueButton.Tag = null;
+            ContinueAppNameText.Text = string.Empty;
+            ContinueDetailText.Text = string.Empty;
+        }
+
+        RecentAppsPanel.Children.Clear();
+        var recentItems = snapshot.RecentlyUsed
+            .Where(item => snapshot.ContinueApp is null ||
+                           !string.Equals(item.AppId, snapshot.ContinueApp.AppId, StringComparison.OrdinalIgnoreCase))
+            .Take(3)
+            .ToArray();
+
+        foreach (var item in recentItems)
+        {
+            RecentAppsPanel.Children.Add(CreateRecentAppButton(item));
+        }
+
+        ActivitySection.Visibility = snapshot.AppsPlayed > 0
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    }
+
     public void ShowStatus(string message)
     {
         DashboardStatusText.Text = message;
         DashboardStatusText.Visibility = string.IsNullOrWhiteSpace(message)
             ? Visibility.Collapsed
             : Visibility.Visible;
+    }
+
+    private Button CreateRecentAppButton(DashboardAppActivity item)
+    {
+        var button = new Button
+        {
+            Style = (Style)FindResource("DashboardTileStyle"),
+            Tag = item.AppId,
+            IsEnabled = item.CanLaunch,
+            ToolTip = item.CanLaunch
+                ? null
+                : item.IsInstalled
+                    ? item.AvailabilityMessage ?? "This app is not available to the current Primary User."
+                    : "This app is no longer installed."
+        };
+
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = item.AppName,
+            Style = (Style)FindResource("DashboardTileTitleStyle")
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"{FormatLastPlayed(item.LastPlayedAtUtc)}  •  {FormatDuration(item.TotalSeconds)} total",
+            Style = (Style)FindResource("DashboardTileDetailStyle")
+        });
+        button.Content = stack;
+        button.Click += ActivityApp_Click;
+        return button;
+    }
+
+    private void ActivityApp_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string appId } && !string.IsNullOrWhiteSpace(appId))
+        {
+            ActivityAppRequested?.Invoke(appId);
+        }
+    }
+
+    private static string FormatDuration(long totalSeconds)
+    {
+        var duration = TimeSpan.FromSeconds(Math.Max(0, totalSeconds));
+        if (duration.TotalHours >= 1)
+        {
+            return $"{(int)duration.TotalHours}h {duration.Minutes}m";
+        }
+
+        if (duration.TotalMinutes >= 1)
+        {
+            return $"{(int)duration.TotalMinutes}m";
+        }
+
+        return "<1m";
+    }
+
+    private static string FormatLastPlayed(DateTimeOffset playedAtUtc)
+    {
+        var local = playedAtUtc.ToLocalTime();
+        var today = DateTimeOffset.Now.Date;
+        if (local.Date == today)
+        {
+            return $"today {local:HH:mm}";
+        }
+
+        if (local.Date == today.AddDays(-1))
+        {
+            return $"yesterday {local:HH:mm}";
+        }
+
+        return local.ToString("d MMM yyyy");
     }
 
     private void ManageUsers_Click(object sender, RoutedEventArgs e) =>
