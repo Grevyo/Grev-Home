@@ -35,6 +35,7 @@ public partial class MainWindow
         InitializeRuntimeRecoveryIntegration();
         InitializeAppControllerRuntimeIntegration();
         InitializeProfilePlayersIntegration();
+        InitializeDashboardDataIntegration();
         InitializeFilesIntegration();
         InitializeGrevStoreIntegration();
         InitializeAppSettingsIntegration();
