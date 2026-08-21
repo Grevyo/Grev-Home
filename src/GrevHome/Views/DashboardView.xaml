@@ -44,6 +44,39 @@
                            TextWrapping="Wrap" />
             </StackPanel>
 
+            <StackPanel x:Name="ActivitySection"
+                        Visibility="Collapsed"
+                        Margin="0,0,0,22">
+                <TextBlock Text="CONTINUE &amp; RECENT"
+                           Margin="10,0,0,8"
+                           FontSize="13"
+                           FontWeight="Bold"
+                           Foreground="{StaticResource MutedBrush}" />
+                <TextBlock x:Name="ActivitySummaryText"
+                           Margin="10,0,10,6"
+                           FontSize="14"
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap" />
+                <WrapPanel>
+                    <Button x:Name="ContinueButton"
+                            Style="{StaticResource DashboardTileStyle}"
+                            Visibility="Collapsed"
+                            Click="ActivityApp_Click">
+                        <StackPanel>
+                            <TextBlock Text="Continue" Style="{StaticResource DashboardTileTitleStyle}" />
+                            <TextBlock x:Name="ContinueAppNameText"
+                                       Margin="0,5,0,0"
+                                       FontSize="16"
+                                       FontWeight="SemiBold"
+                                       TextWrapping="Wrap" />
+                            <TextBlock x:Name="ContinueDetailText"
+                                       Style="{StaticResource DashboardTileDetailStyle}" />
+                        </StackPanel>
+                    </Button>
+                </WrapPanel>
+                <WrapPanel x:Name="RecentAppsPanel" />
+            </StackPanel>
+
             <TextBlock Text="APPS &amp; CONTENT"
                        Margin="10,0,0,8"
                        FontSize="13"
