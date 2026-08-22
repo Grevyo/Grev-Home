@@ -11,6 +11,7 @@ public sealed record GrevDadServerCapabilities(
     bool DeviceTokens,
     bool TokenRotation,
     bool PerDeviceRevocation,
+    bool LinkMetadataSync,
     bool Friends,
     bool FriendRequests,
     bool Presence,
@@ -56,8 +57,9 @@ internal sealed record GrevDadRotateTokenApiResponse(
 
 /// <summary>
 /// Maintains an optional Grev.dad device link after it already exists. This layer performs public
-/// capability negotiation and safe credential rotation, but it never participates in local Grev
-/// Home login or entitlement decisions. GrevDadAccountService remains the account-state authority.
+/// capability negotiation, local-link metadata reconciliation and safe credential rotation, but it
+/// never participates in local Grev Home login or entitlement decisions. GrevDadAccountService
+/// remains the account-state authority.
 /// </summary>
 public sealed class GrevDadConnectionMaintenanceService : IDisposable
 {
@@ -167,8 +169,6 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
             }
             catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutException)
             {
-                // A capability refresh failure cannot downgrade local Grev Home. Keep the last
-                // known server contract if one exists; otherwise simply defer online maintenance.
                 if (_capabilities is null)
                 {
                     return false;
@@ -189,11 +189,58 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
                 await RotateCredentialAsync(profile.GrevId, cancellationToken);
             }
 
+            if (capabilities.Capabilities.LinkMetadataSync)
+            {
+                await ReconcileLocalIdentityAsync(profile, cancellationToken);
+            }
+
             return true;
         }
         finally
         {
             _gate.Release();
+        }
+    }
+
+    private async Task ReconcileLocalIdentityAsync(
+        LocalProfile profile,
+        CancellationToken cancellationToken)
+    {
+        var token = _secrets.Read(profile.GrevId, AccessCredentialSlot);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return;
+        }
+
+        using var request = new HttpRequestMessage(HttpMethod.Put, "api/grev-home/link/metadata")
+        {
+            Content = JsonContent.Create(new
+            {
+                grevId = profile.GrevId,
+                localUsername = profile.Username,
+                localDisplayName = profile.DisplayName
+            }, options: _json)
+        };
+        request.Headers.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+        if (response.StatusCode == HttpStatusCode.Unauthorized)
+        {
+            await _accounts.ValidateLinkedAccountAsync(profile.GrevId, cancellationToken);
+            return;
+        }
+
+        var payload = await ReadJsonAsync<ApiEnvelope>(response, cancellationToken);
+        if (!response.IsSuccessStatusCode || !payload.Ok)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(payload.Message)
+                    ? $"Grev.dad link metadata reconciliation failed with HTTP {(int)response.StatusCode}."
+                    : payload.Message);
+        }
+        if (payload.ApiVersion is not null && payload.ApiVersion != GrevDadAccountService.SupportedApiVersion)
+        {
+            throw new InvalidDataException("Grev.dad returned an incompatible link metadata response.");
         }
     }
 
@@ -232,9 +279,6 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
         var newExpiry = DateTimeOffset.FromUnixTimeSeconds(payload.TokenExpiresAt.Value);
         _secrets.Write(grevId, AccessCredentialSlot, payload.AccessToken);
         await UpdateLocalTokenExpiryAsync(grevId, newExpiry, cancellationToken);
-
-        // Reload through the account authority so observers receive the new local expiry without
-        // this maintenance service inventing a second account-state event system.
         await _accounts.LoadLocalStateAsync(grevId, cancellationToken);
     }
 
