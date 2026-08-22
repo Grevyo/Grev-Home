@@ -65,6 +65,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private readonly SessionHistoryService _history;
     private readonly PlaytimeService _playtime;
     private readonly GrevDadAccountService _accounts;
+    private readonly GrevDadPrivacySettingsService _privacy;
     private readonly WindowsCredentialSecretStore _secrets = new();
     private readonly HttpClient _http;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
@@ -79,11 +80,13 @@ public sealed class GrevDadProfileSyncService : IDisposable
         AppPaths paths,
         SessionHistoryService history,
         GrevDadAccountService accounts,
+        GrevDadPrivacySettingsService privacy,
         Uri? baseUri = null)
     {
         _paths = paths;
         _history = history;
         _accounts = accounts;
+        _privacy = privacy;
         _playtime = new PlaytimeService(paths);
 
         var configured = baseUri
@@ -128,26 +131,35 @@ public sealed class GrevDadProfileSyncService : IDisposable
 
             var cursor = await ReadCursorAsync(grevId, cancellationToken);
             var progression = await ReadStableLocalProgressionAsync(grevId, cancellationToken);
+            var privacy = await _privacy.GetAsync(grevId, cancellationToken);
             GrevDadSyncApiResponse? lastResponse = null;
             var sentAnyRequest = false;
 
             for (var batchIndex = 0; batchIndex < MaximumBatchesPerRun; batchIndex++)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                var sessions = await _history.ReadAfterAsync(
-                    grevId,
-                    cursor.HistoryThroughSequence,
-                    BatchSize,
-                    cancellationToken);
+                IReadOnlyList<LocalSessionHistoryEntry> sessions = privacy.ShareSessionHistory
+                    ? await _history.ReadAfterAsync(
+                        grevId,
+                        cursor.HistoryThroughSequence,
+                        BatchSize,
+                        cancellationToken)
+                    : Array.Empty<LocalSessionHistoryEntry>();
 
-                // Even with no new history, send one snapshot so existing/legacy local playtime can
-                // contribute to Grev.dad immediately after linking.
+                // Even with no new/shared history, send one progression snapshot so local Grev Home
+                // progression can contribute after linking without requiring history visibility.
                 if (sessions.Count == 0 && sentAnyRequest)
                 {
                     break;
                 }
 
-                lastResponse = await SendBatchAsync(grevId, token, progression, sessions, cancellationToken);
+                lastResponse = await SendBatchAsync(
+                    grevId,
+                    token,
+                    progression,
+                    sessions,
+                    privacy.HistoryVisibility,
+                    cancellationToken);
                 sentAnyRequest = true;
 
                 if (sessions.Count > 0)
@@ -227,8 +239,12 @@ public sealed class GrevDadProfileSyncService : IDisposable
         string token,
         GrevDadSyncApiProgression progression,
         IReadOnlyList<LocalSessionHistoryEntry> sessions,
+        string historyVisibility,
         CancellationToken cancellationToken)
     {
+        var visibility = string.Equals(historyVisibility, "private", StringComparison.OrdinalIgnoreCase)
+            ? "private"
+            : "friends";
         var body = new
         {
             progression,
@@ -245,7 +261,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
                 durationSeconds = session.DurationSeconds,
                 outcome = session.Outcome,
                 failureMessage = session.FailureMessage,
-                visibility = "friends"
+                visibility
             }).ToArray()
         };
 
