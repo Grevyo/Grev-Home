@@ -1,4 +1,6 @@
 using System.IO;
+using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
@@ -23,6 +25,7 @@ public partial class App : Application
     {
         DispatcherUnhandledException += HandleDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += HandleAppDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += HandleUnobservedTaskException;
     }
 
     protected override void OnStartup(StartupEventArgs e)
@@ -48,6 +51,8 @@ public partial class App : Application
         _activationListenerCancellation = new CancellationTokenSource();
 
         _paths.EnsureMachineLayout();
+        WriteLifecycleLog(
+            $"Shell starting. {BuildDiagnosticContext()} EffectiveRoot={_paths.Root}; GREV_HOME_ROOT={Environment.GetEnvironmentVariable("GREV_HOME_ROOT") ?? "<unset>"}");
         RecordShellStart();
 
         base.OnStartup(e);
@@ -63,6 +68,11 @@ public partial class App : Application
         if (!_fatalCrashObserved)
         {
             ClearShellMarker();
+            WriteLifecycleLog($"Shell clean exit. ExitCode={e.ApplicationExitCode}; {BuildDiagnosticContext()}");
+        }
+        else
+        {
+            WriteLifecycleLog($"Shell exit after fatal exception. ExitCode={e.ApplicationExitCode}; {BuildDiagnosticContext()}");
         }
 
         _activationListenerCancellation?.Cancel();
@@ -89,6 +99,7 @@ public partial class App : Application
         }
 
         _singleInstanceMutex?.Dispose();
+        TaskScheduler.UnobservedTaskException -= HandleUnobservedTaskException;
         base.OnExit(e);
     }
 
@@ -169,7 +180,7 @@ public partial class App : Application
         {
             File.WriteAllText(
                 _shellMarkerPath,
-                $"pid={Environment.ProcessId}{Environment.NewLine}started={DateTimeOffset.Now:O}{Environment.NewLine}");
+                $"pid={Environment.ProcessId}{Environment.NewLine}started={DateTimeOffset.Now:O}{Environment.NewLine}root={_paths.Root}{Environment.NewLine}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -212,31 +223,65 @@ public partial class App : Application
         WriteCrashLog("AppDomain", new InvalidOperationException($"Unhandled non-Exception object: {e.ExceptionObject}"));
     }
 
+    private void HandleUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        // An unobserved Task exception does not automatically mean the shell is terminating, but it
+        // is invaluable during the later whole-appliance soak test. Record it without changing the
+        // runtime's normal .NET exception semantics.
+        WriteCrashLog("Unobserved Task (non-fatal diagnostic)", e.Exception);
+    }
+
     private void WriteCrashLog(string source, Exception exception)
     {
-        try
-        {
-            Directory.CreateDirectory(_paths.Logs);
-            var logPath = Path.Combine(_paths.Logs, "grevhome-crash.log");
-            var entry = $"[{DateTimeOffset.Now:O}] {source}{Environment.NewLine}{exception}{Environment.NewLine}{Environment.NewLine}";
-            File.AppendAllText(logPath, entry);
-        }
-        catch
-        {
-            // Crash logging must never replace the original failure with a logging failure.
-        }
+        var entry =
+            $"[{DateTimeOffset.Now:O}] {source}{Environment.NewLine}" +
+            $"{BuildDiagnosticContext()} EffectiveRoot={_paths.Root}{Environment.NewLine}" +
+            $"{exception}{Environment.NewLine}{Environment.NewLine}";
+        AppendDiagnosticWithFallback("grevhome-crash.log", entry);
     }
 
     private void WriteLifecycleLog(string message)
     {
-        try
+        AppendDiagnosticWithFallback(
+            "grevhome-shell.log",
+            $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}");
+    }
+
+    private void AppendDiagnosticWithFallback(string fileName, string entry)
+    {
+        foreach (var directory in GetDiagnosticDirectories())
         {
-            Directory.CreateDirectory(_paths.Logs);
-            var logPath = Path.Combine(_paths.Logs, "grevhome-shell.log");
-            File.AppendAllText(logPath, $"[{DateTimeOffset.Now:O}] {message}{Environment.NewLine}");
+            try
+            {
+                Directory.CreateDirectory(directory);
+                File.AppendAllText(Path.Combine(directory, fileName), entry);
+                return;
+            }
+            catch
+            {
+                // Keep trying progressively more independent diagnostic locations. Logging must
+                // never replace the original exception or prevent Grev Home from shutting down.
+            }
         }
-        catch
+    }
+
+    private IEnumerable<string> GetDiagnosticDirectories()
+    {
+        yield return _paths.Logs;
+
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrWhiteSpace(localAppData))
         {
+            yield return Path.Combine(localAppData, "GrevHome", "Logs");
         }
+
+        yield return Path.Combine(Path.GetTempPath(), "GrevHome", "Logs");
+    }
+
+    private static string BuildDiagnosticContext()
+    {
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
+        return $"Version={version}; PID={Environment.ProcessId}; Thread={Environment.CurrentManagedThreadId}; " +
+               $"OS={RuntimeInformation.OSDescription}; Arch={RuntimeInformation.ProcessArchitecture}; CLR={Environment.Version}; CWD={Environment.CurrentDirectory};";
     }
 }
