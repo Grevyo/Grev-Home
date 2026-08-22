@@ -65,6 +65,52 @@ public sealed class RuntimeSessionManager : IDisposable
             .OrderByDescending(session => session.StartedAtUtc)
             .ToArray();
 
+    public void NotifySystemSuspend(DateTimeOffset suspendedAtUtc)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var sessions = _active.Values.ToArray();
+        foreach (var tracked in sessions)
+        {
+            tracked.MarkSuspended(suspendedAtUtc);
+        }
+
+        if (sessions.Length > 0)
+        {
+            PersistRuntimeState(force: true);
+            foreach (var tracked in sessions)
+            {
+                SessionChanged?.Invoke(tracked.Snapshot());
+            }
+        }
+    }
+
+    public void NotifySystemResume(DateTimeOffset resumedAtUtc)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        var sessions = _active.Values.ToArray();
+        foreach (var tracked in sessions)
+        {
+            tracked.MarkResumed(resumedAtUtc);
+        }
+
+        if (sessions.Length > 0)
+        {
+            PersistRuntimeState(force: true);
+            foreach (var tracked in sessions)
+            {
+                SessionChanged?.Invoke(tracked.Snapshot());
+            }
+        }
+    }
+
     public LaunchSessionSnapshot? GetSession(Guid launchSessionId) =>
         _active.TryGetValue(launchSessionId, out var tracked)
             ? tracked.Snapshot()
@@ -414,7 +460,17 @@ public sealed class RuntimeSessionManager : IDisposable
                 aliveProcesses,
                 record.StartedAtUtc,
                 record.LastObservedAliveAtUtc == default ? record.StartedAtUtc : record.LastObservedAliveAtUtc,
-                record.State);
+                record.State,
+                record.AccumulatedSuspendedSeconds,
+                record.SuspendedAtUtc);
+
+            // Grev Home can only be executing recovery once Windows is awake. If the previous shell
+            // persisted an open suspend interval, close it at this startup rather than counting the
+            // asleep period as active playtime forever.
+            if (record.SuspendedAtUtc is not null)
+            {
+                tracked.MarkResumed(DateTimeOffset.UtcNow);
+            }
 
             if (!_active.TryAdd(tracked.LaunchSessionId, tracked))
             {
@@ -443,7 +499,7 @@ public sealed class RuntimeSessionManager : IDisposable
         var task = Task.Run(() => MonitorAsync(tracked, _shutdown.Token), CancellationToken.None);
         _monitorTasks[id] = task;
         _ = task.ContinueWith(
-            _ => _monitorTasks.TryRemove(id, out _),
+            completedTask => _monitorTasks.TryRemove(id, out _),
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);
@@ -528,10 +584,15 @@ public sealed class RuntimeSessionManager : IDisposable
 
         try
         {
+            var completionSnapshot = tracked.Snapshot() with
+            {
+                TrackedDurationSeconds = tracked.GetTrackedDurationSeconds(endedAtUtc)
+            };
+
             // From the moment process exit has been confirmed, local completion is non-cancellable.
             // Persist the exact completion envelope first so even a hard shell kill can replay it.
             var pending = await _completionStore.SaveAsync(
-                tracked.Snapshot(),
+                completionSnapshot,
                 endedAtUtc,
                 failureMessage,
                 CancellationToken.None);
@@ -573,18 +634,18 @@ public sealed class RuntimeSessionManager : IDisposable
         bool publishHistoryEvent)
     {
         var snapshot = pending.ToSnapshot();
-        var duration = snapshot.EndedAtUtc!.Value - snapshot.StartedAtUtc;
+        var durationSeconds = snapshot.TrackedDurationSeconds ??
+                              Math.Max(0L, (long)Math.Round(
+                                  (snapshot.EndedAtUtc!.Value - snapshot.StartedAtUtc).TotalSeconds));
+        var duration = TimeSpan.FromSeconds(Math.Max(0L, durationSeconds));
 
-        // Keep the established local ordering: aggregate playtime first, immutable history second.
-        // Both writes are now SessionId-idempotent, while the pending envelope survives until both
-        // commit, so replay after any crash boundary is safe.
         await _playtime.RecordSessionAsync(
             snapshot.LaunchSessionId,
             snapshot.AppId,
             snapshot.AppName,
             snapshot.Participants,
             duration,
-            snapshot.EndedAtUtc.Value,
+            snapshot.EndedAtUtc!.Value,
             CancellationToken.None);
 
         await _sessionHistory.RecordAsync(snapshot, CancellationToken.None);
@@ -727,7 +788,9 @@ public sealed class RuntimeSessionManager : IDisposable
                         tracked.ProcessName,
                         tracked.AdditionalProcessNames,
                         tracked.TrackDescendantProcesses,
-                        tracked.ForceKillEntireProcessTree);
+                        tracked.ForceKillEntireProcessTree,
+                        tracked.AccumulatedSuspendedSeconds,
+                        tracked.SuspendedAtUtc);
                 })
                 .OrderByDescending(record => record.StartedAtUtc)
                 .ToArray();
@@ -754,8 +817,6 @@ public sealed class RuntimeSessionManager : IDisposable
         }
         _disposed = true;
 
-        // Preserve live app ownership first. Monitors are then cancelled; a monitor already inside
-        // FinalizeAsync ignores that cancellation because its exact pending completion is durable.
         PersistRuntimeState(force: true);
         _shutdown.Cancel();
 
@@ -768,8 +829,7 @@ public sealed class RuntimeSessionManager : IDisposable
             }
             catch (AggregateException)
             {
-                // Faults are surfaced by the app-wide unobserved-task diagnostics. Runtime state or
-                // PendingCompletions remains the recovery authority rather than throwing on close.
+                // Runtime state or PendingCompletions remains the recovery authority on close.
             }
         }
 
