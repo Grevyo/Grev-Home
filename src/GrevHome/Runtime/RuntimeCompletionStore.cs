@@ -55,7 +55,7 @@ public sealed class RuntimeCompletionStore
 
     public string Root => Path.Combine(_paths.RuntimeData, "PendingCompletions");
 
-    public async Task SaveAsync(
+    public async Task<RuntimePendingCompletionRecord> SaveAsync(
         LaunchSessionSnapshot runningSnapshot,
         DateTimeOffset endedAtUtc,
         string? failureMessage,
@@ -87,6 +87,7 @@ public sealed class RuntimeCompletionStore
             failureMessage);
 
         await SaveAsync(record, cancellationToken);
+        return record;
     }
 
     public async Task SaveAsync(
