@@ -6,6 +6,15 @@ using GrevHome.Transfers;
 namespace GrevHome.Store.Installers;
 
 /// <summary>
+/// Implemented by trusted package handlers whose Grev-owned downloads should flow through the
+/// central transfer queue. Configuration is explicit and happens once during shell bootstrap.
+/// </summary>
+public interface ITrustedPackageDownloadConsumer
+{
+    void ConfigureDownloadService(TrustedPackageDownloadService downloadService);
+}
+
+/// <summary>
 /// Bridges package-specific trusted installers to Grev Home's central persisted transfer queue.
 /// The package still owns verification/extraction/installation; this service owns only the
 /// observable download and returns the completed file for the trusted package workflow to inspect.
