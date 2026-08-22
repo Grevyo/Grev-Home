@@ -18,7 +18,9 @@ public sealed record RuntimeSessionRecoveryRecord(
     string? ProcessName = null,
     IReadOnlyList<string>? AdditionalProcessNames = null,
     bool? TrackDescendantProcesses = null,
-    bool? ForceKillEntireProcessTree = null);
+    bool? ForceKillEntireProcessTree = null,
+    long AccumulatedSuspendedSeconds = 0,
+    DateTimeOffset? SuspendedAtUtc = null);
 
 public sealed class RuntimeStateStore
 {
@@ -71,7 +73,13 @@ public sealed class RuntimeStateStore
 
         try
         {
-            using (var stream = File.Create(temporaryPath))
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.Create,
+                       FileAccess.Write,
+                       FileShare.None,
+                       16 * 1024,
+                       FileOptions.WriteThrough))
             {
                 JsonSerializer.Serialize(stream, sessions, _jsonOptions);
                 stream.Flush(flushToDisk: true);
