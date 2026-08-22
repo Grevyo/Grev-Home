@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Net;
 using System.Net.Http.Headers;
@@ -42,9 +43,9 @@ public sealed record TransferSnapshot(IReadOnlyList<TransferItem> Items)
 internal sealed record TransferStore(int SchemaVersion, IReadOnlyList<TransferItem> Items);
 
 /// <summary>
-/// Central download/transfer backbone. All destinations are constrained beneath Grev Home's
-/// Downloads directory, queue state is persisted, interrupted work is re-queued on startup, and
-/// partial HTTP downloads resume when the server supports byte ranges.
+/// Central download/transfer backbone. Destinations are constrained beneath Grev Home Downloads,
+/// queue state survives shell restarts, interrupted work is safely re-queued, and HTTP partials
+/// resume when the remote server supports byte ranges.
 /// </summary>
 public sealed class TransferManager : IDisposable
 {
@@ -55,9 +56,9 @@ public sealed class TransferManager : IDisposable
     private readonly NotificationService _notifications;
     private readonly HttpClient _httpClient = new() { Timeout = Timeout.InfiniteTimeSpan };
     private readonly SemaphoreSlim _stateGate = new(1, 1);
-    private readonly object _workerSync = new();
+    private readonly SemaphoreSlim _queueSignal = new(0);
     private readonly CancellationTokenSource _lifetimeCts = new();
-    private readonly Dictionary<string, CancellationTokenSource> _activeCancellation =
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeCancellation =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
@@ -77,6 +78,8 @@ public sealed class TransferManager : IDisposable
     public async Task InitializeAsync(CancellationToken cancellationToken = default)
     {
         ThrowIfDisposed();
+        var hasQueuedWork = false;
+
         await _stateGate.WaitAsync(cancellationToken);
         try
         {
@@ -92,10 +95,12 @@ public sealed class TransferManager : IDisposable
                     {
                         State = TransferState.Queued,
                         StartedAtUtc = null,
+                        CompletedAtUtc = null,
                         ErrorMessage = "Recovered after Grev Home restarted."
                     }
                     : item)
                 .ToList();
+            hasQueuedWork = _items.Any(item => item.State == TransferState.Queued);
             _initialized = true;
             await WriteStoreAsync(cancellationToken);
         }
@@ -104,8 +109,12 @@ public sealed class TransferManager : IDisposable
             _stateGate.Release();
         }
 
-        RaiseSnapshotChanged();
-        EnsureWorker();
+        _workerTask = Task.Run(ProcessQueueAsync);
+        if (hasQueuedWork)
+        {
+            SignalWorker();
+        }
+        await RaiseSnapshotChangedAsync(cancellationToken);
     }
 
     public async Task<TransferSnapshot> GetSnapshotAsync(CancellationToken cancellationToken = default)
@@ -173,8 +182,8 @@ public sealed class TransferManager : IDisposable
             _stateGate.Release();
         }
 
-        RaiseSnapshotChanged();
-        EnsureWorker();
+        await RaiseSnapshotChangedAsync(cancellationToken);
+        SignalWorker();
         return item;
     }
 
@@ -186,7 +195,6 @@ public sealed class TransferManager : IDisposable
             return;
         }
 
-        CancellationTokenSource? activeCancellation = null;
         var changed = false;
         await _stateGate.WaitAsync(cancellationToken);
         try
@@ -209,20 +217,20 @@ public sealed class TransferManager : IDisposable
                 changed = true;
                 await WriteStoreAsync(cancellationToken);
             }
-            else if (item.State == TransferState.Downloading)
-            {
-                _activeCancellation.TryGetValue(item.Id, out activeCancellation);
-            }
         }
         finally
         {
             _stateGate.Release();
         }
 
-        activeCancellation?.Cancel();
+        if (_activeCancellation.TryGetValue(transferId, out var activeCancellation))
+        {
+            activeCancellation.Cancel();
+        }
+
         if (changed)
         {
-            RaiseSnapshotChanged();
+            await RaiseSnapshotChangedAsync(cancellationToken);
         }
     }
 
@@ -230,6 +238,7 @@ public sealed class TransferManager : IDisposable
     {
         await EnsureInitializedAsync(cancellationToken);
         var changed = false;
+
         await _stateGate.WaitAsync(cancellationToken);
         try
         {
@@ -262,8 +271,8 @@ public sealed class TransferManager : IDisposable
 
         if (changed)
         {
-            RaiseSnapshotChanged();
-            EnsureWorker();
+            await RaiseSnapshotChangedAsync(cancellationToken);
+            SignalWorker();
         }
     }
 
@@ -271,6 +280,7 @@ public sealed class TransferManager : IDisposable
     {
         await EnsureInitializedAsync(cancellationToken);
         List<TransferItem> removed;
+
         await _stateGate.WaitAsync(cancellationToken);
         try
         {
@@ -282,8 +292,8 @@ public sealed class TransferManager : IDisposable
                 return;
             }
 
-            _items.RemoveAll(item => removed.Any(candidate =>
-                string.Equals(candidate.Id, item.Id, StringComparison.OrdinalIgnoreCase)));
+            var removedIds = removed.Select(item => item.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            _items.RemoveAll(item => removedIds.Contains(item.Id));
             await WriteStoreAsync(cancellationToken);
         }
         finally
@@ -295,92 +305,106 @@ public sealed class TransferManager : IDisposable
         {
             TryDeletePartial(item);
         }
-        RaiseSnapshotChanged();
+        await RaiseSnapshotChangedAsync(cancellationToken);
     }
 
     private async Task ProcessQueueAsync()
     {
-        while (!_lifetimeCts.IsCancellationRequested)
+        try
         {
-            TransferItem? item = null;
-            CancellationTokenSource? itemCancellation = null;
-
-            await _stateGate.WaitAsync(_lifetimeCts.Token);
-            try
+            while (!_lifetimeCts.IsCancellationRequested)
             {
-                var index = _items.FindIndex(candidate => candidate.State == TransferState.Queued);
-                if (index < 0)
+                await _queueSignal.WaitAsync(_lifetimeCts.Token);
+
+                while (!_lifetimeCts.IsCancellationRequested)
                 {
-                    return;
-                }
-
-                var queued = _items[index];
-                item = queued with
-                {
-                    State = TransferState.Downloading,
-                    StartedAtUtc = DateTimeOffset.UtcNow,
-                    CompletedAtUtc = null,
-                    ErrorMessage = null
-                };
-                _items[index] = item;
-                itemCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
-                _activeCancellation[item.Id] = itemCancellation;
-                await WriteStoreAsync(_lifetimeCts.Token);
-            }
-            finally
-            {
-                _stateGate.Release();
-            }
-
-            RaiseSnapshotChanged();
-
-            try
-            {
-                await DownloadOneAsync(item, itemCancellation.Token);
-                await SetTerminalStateAsync(item.Id, TransferState.Completed, null);
-                await _notifications.PublishAsync(
-                    NotificationSeverity.Success,
-                    "Downloads",
-                    "Download complete",
-                    $"{item.DisplayName} finished downloading.",
-                    item.OwnerGrevId,
-                    _lifetimeCts.Token);
-            }
-            catch (OperationCanceledException) when (!_lifetimeCts.IsCancellationRequested)
-            {
-                await SetTerminalStateAsync(item.Id, TransferState.Cancelled, null);
-            }
-            catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
-            {
-                await RequeueInterruptedAsync(item.Id);
-                return;
-            }
-            catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidOperationException)
-            {
-                await SetTerminalStateAsync(item.Id, TransferState.Failed, ex.Message);
-                await _notifications.PublishAsync(
-                    NotificationSeverity.Error,
-                    "Downloads",
-                    "Download failed",
-                    $"{item.DisplayName}: {ex.Message}",
-                    item.OwnerGrevId,
-                    _lifetimeCts.Token);
-            }
-            finally
-            {
-                await _stateGate.WaitAsync(CancellationToken.None);
-                try
-                {
-                    if (_activeCancellation.Remove(item.Id, out var cancellation))
+                    var started = await TryStartNextQueuedAsync(_lifetimeCts.Token);
+                    if (started is null)
                     {
-                        cancellation.Dispose();
+                        break;
+                    }
+
+                    var (item, itemCancellation) = started.Value;
+                    await RaiseSnapshotChangedAsync(_lifetimeCts.Token);
+
+                    try
+                    {
+                        await DownloadOneAsync(item, itemCancellation.Token);
+                        await SetTerminalStateAsync(item.Id, TransferState.Completed, null);
+                        await TryPublishTransferNotificationAsync(
+                            NotificationSeverity.Success,
+                            item,
+                            "Download complete",
+                            $"{item.DisplayName} finished downloading.");
+                    }
+                    catch (OperationCanceledException) when (!_lifetimeCts.IsCancellationRequested)
+                    {
+                        await SetTerminalStateAsync(item.Id, TransferState.Cancelled, null);
+                    }
+                    catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+                    {
+                        await RequeueInterruptedAsync(item.Id);
+                        return;
+                    }
+                    catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or InvalidOperationException)
+                    {
+                        await SetTerminalStateAsync(item.Id, TransferState.Failed, ex.Message);
+                        await TryPublishTransferNotificationAsync(
+                            NotificationSeverity.Error,
+                            item,
+                            "Download failed",
+                            $"{item.DisplayName}: {ex.Message}");
+                    }
+                    finally
+                    {
+                        if (_activeCancellation.TryRemove(item.Id, out var cancellation))
+                        {
+                            cancellation.Dispose();
+                        }
                     }
                 }
-                finally
-                {
-                    _stateGate.Release();
-                }
             }
+        }
+        catch (OperationCanceledException) when (_lifetimeCts.IsCancellationRequested)
+        {
+            // Normal shell shutdown.
+        }
+    }
+
+    private async Task<(TransferItem Item, CancellationTokenSource Cancellation)?> TryStartNextQueuedAsync(
+        CancellationToken cancellationToken)
+    {
+        await _stateGate.WaitAsync(cancellationToken);
+        try
+        {
+            var index = _items.FindIndex(candidate => candidate.State == TransferState.Queued);
+            if (index < 0)
+            {
+                return null;
+            }
+
+            var item = _items[index] with
+            {
+                State = TransferState.Downloading,
+                StartedAtUtc = DateTimeOffset.UtcNow,
+                CompletedAtUtc = null,
+                ErrorMessage = null
+            };
+            _items[index] = item;
+
+            var itemCancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetimeCts.Token);
+            if (!_activeCancellation.TryAdd(item.Id, itemCancellation))
+            {
+                itemCancellation.Dispose();
+                throw new InvalidOperationException("Transfer cancellation state is already active for this item.");
+            }
+
+            await WriteStoreAsync(cancellationToken);
+            return (item, itemCancellation);
+        }
+        finally
+        {
+            _stateGate.Release();
         }
     }
 
@@ -409,11 +433,11 @@ public sealed class TransferManager : IDisposable
         }
 
         response.EnsureSuccessStatusCode();
-        var totalBytes = response.Content.Headers.ContentLength is long responseLength
+        long? totalBytes = response.Content.Headers.ContentLength is long responseLength
             ? checked(existingLength + responseLength)
             : null;
 
-        await UpdateProgressAsync(item.Id, existingLength, totalBytes, forcePersist: true, cancellationToken);
+        await UpdateProgressAsync(item.Id, existingLength, totalBytes, cancellationToken);
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var target = new FileStream(
@@ -440,13 +464,13 @@ public sealed class TransferManager : IDisposable
             var now = DateTimeOffset.UtcNow;
             if (now - lastPersistedAt >= ProgressPersistInterval)
             {
-                await UpdateProgressAsync(item.Id, received, totalBytes, forcePersist: true, cancellationToken);
+                await UpdateProgressAsync(item.Id, received, totalBytes, cancellationToken);
                 lastPersistedAt = now;
             }
         }
 
         await target.FlushAsync(cancellationToken);
-        await UpdateProgressAsync(item.Id, received, totalBytes ?? received, forcePersist: true, cancellationToken);
+        await UpdateProgressAsync(item.Id, received, totalBytes ?? received, cancellationToken);
         File.Move(partialPath, destination, overwrite: true);
     }
 
@@ -454,7 +478,6 @@ public sealed class TransferManager : IDisposable
         string transferId,
         long bytesReceived,
         long? totalBytes,
-        bool forcePersist,
         CancellationToken cancellationToken)
     {
         await _stateGate.WaitAsync(cancellationToken);
@@ -471,17 +494,14 @@ public sealed class TransferManager : IDisposable
                 BytesReceived = Math.Max(0, bytesReceived),
                 TotalBytes = totalBytes is null ? null : Math.Max(bytesReceived, totalBytes.Value)
             };
-            if (forcePersist)
-            {
-                await WriteStoreAsync(cancellationToken);
-            }
+            await WriteStoreAsync(cancellationToken);
         }
         finally
         {
             _stateGate.Release();
         }
 
-        RaiseSnapshotChanged();
+        await RaiseSnapshotChangedAsync(cancellationToken);
     }
 
     private async Task SetTerminalStateAsync(string transferId, TransferState state, string? errorMessage)
@@ -508,7 +528,7 @@ public sealed class TransferManager : IDisposable
             _stateGate.Release();
         }
 
-        RaiseSnapshotChanged();
+        await RaiseSnapshotChangedAsync(CancellationToken.None);
     }
 
     private async Task RequeueInterruptedAsync(string transferId)
@@ -526,6 +546,7 @@ public sealed class TransferManager : IDisposable
             {
                 State = TransferState.Queued,
                 StartedAtUtc = null,
+                CompletedAtUtc = null,
                 ErrorMessage = "Interrupted while Grev Home was closing."
             };
             await WriteStoreAsync(CancellationToken.None);
@@ -536,16 +557,42 @@ public sealed class TransferManager : IDisposable
         }
     }
 
-    private void EnsureWorker()
+    private async Task TryPublishTransferNotificationAsync(
+        NotificationSeverity severity,
+        TransferItem item,
+        string title,
+        string message)
     {
-        lock (_workerSync)
+        try
         {
-            if (_disposed || !_initialized || (_workerTask is { IsCompleted: false }))
-            {
-                return;
-            }
+            await _notifications.PublishAsync(
+                severity,
+                "Downloads",
+                title,
+                message,
+                item.OwnerGrevId,
+                CancellationToken.None);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            // Notification persistence must never change a completed/failed transfer into another state.
+        }
+    }
 
-            _workerTask = Task.Run(ProcessQueueAsync);
+    private void SignalWorker()
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        try
+        {
+            _queueSignal.Release();
+        }
+        catch (SemaphoreFullException)
+        {
+            // An existing signal is already enough to make the worker drain every queued item.
         }
     }
 
@@ -563,16 +610,19 @@ public sealed class TransferManager : IDisposable
             .ThenByDescending(item => item.CreatedAtUtc)
             .ToArray());
 
-    private void RaiseSnapshotChanged()
+    private async Task RaiseSnapshotChangedAsync(CancellationToken cancellationToken)
     {
         TransferSnapshot snapshot;
-        lock (_workerSync)
+        await _stateGate.WaitAsync(cancellationToken);
+        try
         {
-            snapshot = new TransferSnapshot(_items
-                .OrderBy(item => item.State == TransferState.Downloading ? 0 : item.State == TransferState.Queued ? 1 : 2)
-                .ThenByDescending(item => item.CreatedAtUtc)
-                .ToArray());
+            snapshot = CreateSnapshotLocked();
         }
+        finally
+        {
+            _stateGate.Release();
+        }
+
         SnapshotChanged?.Invoke(snapshot);
     }
 
@@ -706,14 +756,15 @@ public sealed class TransferManager : IDisposable
 
         _disposed = true;
         _lifetimeCts.Cancel();
-        lock (_workerSync)
+        SignalWorker();
+        foreach (var cancellation in _activeCancellation.Values)
         {
-            foreach (var cancellation in _activeCancellation.Values)
-            {
-                cancellation.Cancel();
-            }
+            cancellation.Cancel();
         }
+
         _httpClient.Dispose();
+        _queueSignal.Dispose();
+        _stateGate.Dispose();
         _lifetimeCts.Dispose();
     }
 }
