@@ -69,8 +69,14 @@ public sealed class RuntimeSessionManager : IDisposable
         _completionStore = completionStore ?? new RuntimeCompletionStore(fallbackPaths);
         _recoveryJournal = new RuntimeRecoveryJournal(fallbackPaths);
 
-        ReplayPendingCompletions();
-        RecoverPersistedSessions();
+        // Startup recovery performs async durability work and historically blocked on it synchronously.
+        // Running the recovery boundary on a worker context prevents those awaits from trying to resume
+        // on the WPF dispatcher while MainWindow construction is still blocking that dispatcher.
+        Task.Run(() =>
+        {
+            ReplayPendingCompletions();
+            RecoverPersistedSessions();
+        }).GetAwaiter().GetResult();
     }
 
     public IReadOnlyList<LaunchSessionSnapshot> GetActiveSessions() =>
