@@ -26,33 +26,38 @@ public partial class MainWindow
         _grevDadLinkPollTimer.Interval = TimeSpan.FromSeconds(3);
         _grevDadLinkPollTimer.Tick += (_, _) => _ = PollActiveGrevDadLinkAsync();
 
-        _profileView.LinkGrevDadRequested += (_, _) => _ = BeginGrevDadLinkFromProfileAsync();
-        _profileView.CheckGrevDadLinkRequested += (_, _) => _ = PollActiveGrevDadLinkAsync(forceCurrentTarget: true);
-        _profileView.CancelGrevDadLinkRequested += (_, _) => _ = CancelGrevDadLinkFromProfileAsync();
-        _profileView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
-        _profileView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
+        _profileEditView.LinkGrevDadRequested += (_, _) => _ = BeginGrevDadLinkFromProfileAsync();
+        _profileEditView.CheckGrevDadLinkRequested += (_, _) => _ = PollActiveGrevDadLinkAsync(forceCurrentTarget: true);
+        _profileEditView.CancelGrevDadLinkRequested += (_, _) => _ = CancelGrevDadLinkFromProfileAsync();
+        _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
+        _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
 
         var service = RequireGrevDadAccountService();
         service.SnapshotChanged += (grevId, snapshot) => Dispatcher.BeginInvoke(new Action(() =>
         {
             var profile = GetProfileTarget();
-            if (_navigation.Current != Route.ProfileView ||
-                profile is null ||
-                !string.Equals(profile.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            if (profile is null || !string.Equals(profile.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            _profileView.SetGrevDadContext(profile, CanManageGrevDadProfile(profile));
-            _activeGrevDadLinks.TryGetValue(grevId, out var link);
-            _profileView.SetGrevDadState(snapshot, link);
+            if (_navigation.Current == Route.ProfileEdit)
+            {
+                _profileEditView.SetGrevDadContext(profile, CanManageGrevDadProfile(profile));
+                _activeGrevDadLinks.TryGetValue(grevId, out var link);
+                _profileEditView.SetGrevDadState(snapshot, link);
+            }
+            else if (_navigation.Current == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(snapshot);
+            }
         }));
 
         _navigation.RouteChanged += route =>
         {
-            if (route == Route.ProfileView)
+            if (route is Route.ProfileEdit or Route.ProfileView)
             {
-                _ = RefreshGrevDadProfileAsync(validateRemote: true);
+                _ = RefreshGrevDadProfileAsync(validateRemote: route == Route.ProfileEdit);
             }
             else
             {
@@ -61,7 +66,7 @@ public partial class MainWindow
         };
         _session.Changed += (_, _) =>
         {
-            if (_navigation.Current == Route.ProfileView)
+            if (_navigation.Current is Route.ProfileEdit or Route.ProfileView)
             {
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshGrevDadProfileAsync(validateRemote: false)));
             }
@@ -76,10 +81,19 @@ public partial class MainWindow
 
     private async Task RefreshGrevDadProfileAsync(bool validateRemote)
     {
+        var route = _navigation.Current;
         var profile = GetProfileTarget();
-        _profileView.SetGrevDadContext(profile, profile is not null && CanManageGrevDadProfile(profile));
+        if (route == Route.ProfileEdit)
+        {
+            _profileEditView.SetGrevDadContext(profile, profile is not null && CanManageGrevDadProfile(profile));
+        }
+
         if (profile is null)
         {
+            if (route == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(GrevDadAccountSnapshot.Unlinked);
+            }
             StopGrevDadLinkPolling();
             return;
         }
@@ -93,65 +107,83 @@ public partial class MainWindow
                 snapshot = await service.ValidateLinkedAccountAsync(profile.GrevId);
             }
 
-            if (_navigation.Current != Route.ProfileView ||
+            if (_navigation.Current != route ||
                 !string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
-            _activeGrevDadLinks.TryGetValue(profile.GrevId, out var link);
-            _profileView.SetGrevDadState(snapshot, link);
+            if (route == Route.ProfileEdit)
+            {
+                _activeGrevDadLinks.TryGetValue(profile.GrevId, out var link);
+                _profileEditView.SetGrevDadState(snapshot, link);
 
-            if (snapshot.State == GrevDadConnectionState.Linking && CanManageGrevDadProfile(profile))
-            {
-                StartGrevDadLinkPolling(profile.GrevId, link?.PollIntervalSeconds ?? 3);
+                if (snapshot.State == GrevDadConnectionState.Linking && CanManageGrevDadProfile(profile))
+                {
+                    StartGrevDadLinkPolling(profile.GrevId, link?.PollIntervalSeconds ?? 3);
+                }
+                else
+                {
+                    StopGrevDadLinkPolling();
+                }
             }
-            else
+            else if (route == Route.ProfileView)
             {
+                _profileView.SetGrevDadState(snapshot);
                 StopGrevDadLinkPolling();
             }
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
         {
-            var cached = service.GetLastSnapshot(profile.GrevId);
-            _profileView.SetGrevDadState(cached with
+            var cached = service.GetLastSnapshot(profile.GrevId) with
             {
-                State = cached.Account is null ? GrevDadConnectionState.Error : GrevDadConnectionState.Offline,
+                State = service.GetLastSnapshot(profile.GrevId).Account is null
+                    ? GrevDadConnectionState.Error
+                    : GrevDadConnectionState.Offline,
                 Message = ex.Message
-            });
+            };
+
+            if (route == Route.ProfileEdit)
+            {
+                _profileEditView.SetGrevDadState(cached);
+            }
+            else if (route == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(cached);
+            }
         }
     }
 
     private async Task BeginGrevDadLinkFromProfileAsync()
     {
         var profile = GetProfileTarget();
-        if (profile is null || !CanManageGrevDadProfile(profile))
+        if (_navigation.Current != Route.ProfileEdit || profile is null || !CanManageGrevDadProfile(profile))
         {
-            _profileView.ShowGrevDadStatus("Make this profile the Primary User before changing its Grev.dad account link.");
+            _profileEditView.ShowGrevDadStatus("This profile must be the current Primary User before its Grev.dad account link can be changed.");
             return;
         }
 
         var service = RequireGrevDadAccountService();
         try
         {
-            _profileView.ShowGrevDadStatus("Creating a secure Grev.dad link request…");
+            _profileEditView.ShowGrevDadStatus("Creating a secure Grev.dad link request…");
             var link = await service.BeginLinkAsync(profile, Environment.MachineName);
             _activeGrevDadLinks[profile.GrevId] = link;
-            _profileView.SetGrevDadState(service.GetLastSnapshot(profile.GrevId), link);
-            _profileView.ShowGrevDadStatus(
-                $"Approve code {link.UserCode} on Grev.dad. Grev Home will check automatically while this profile remains open.");
+            _profileEditView.SetGrevDadState(service.GetLastSnapshot(profile.GrevId), link);
+            _profileEditView.ShowGrevDadStatus(
+                $"Approve code {link.UserCode} on Grev.dad. Grev Home will check automatically while Edit Profile remains open.");
             StartGrevDadLinkPolling(profile.GrevId, link.PollIntervalSeconds);
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex) || ex is ArgumentException)
         {
-            _profileView.ShowGrevDadStatus($"Grev.dad link could not start: {ex.Message}");
+            _profileEditView.ShowGrevDadStatus($"Grev.dad link could not start: {ex.Message}");
         }
     }
 
     private async Task PollActiveGrevDadLinkAsync(bool forceCurrentTarget = false)
     {
         var profile = GetProfileTarget();
-        if (profile is null || !CanManageGrevDadProfile(profile))
+        if (_navigation.Current != Route.ProfileEdit || profile is null || !CanManageGrevDadProfile(profile))
         {
             StopGrevDadLinkPolling();
             return;
@@ -170,7 +202,7 @@ public partial class MainWindow
         {
             var result = await service.PollLinkAsync(grevId);
             _activeGrevDadLinks.TryGetValue(grevId, out var link);
-            _profileView.SetGrevDadState(service.GetLastSnapshot(grevId), link);
+            _profileEditView.SetGrevDadState(service.GetLastSnapshot(grevId), link);
 
             switch (result.State)
             {
@@ -179,19 +211,20 @@ public partial class MainWindow
                 case GrevDadLinkPollState.Approved:
                     _activeGrevDadLinks.Remove(grevId);
                     StopGrevDadLinkPolling();
-                    _profileView.SetGrevDadState(service.GetLastSnapshot(grevId));
-                    _profileView.ShowGrevDadStatus($"Linked @{result.Account?.Username} to this GrevID profile.");
+                    var approved = service.GetLastSnapshot(grevId);
+                    _profileEditView.SetGrevDadState(approved);
+                    _profileEditView.ShowGrevDadStatus($"Linked @{result.Account?.Username} to this GrevID profile.");
                     _ = SyncGrevDadProfileSafeAsync(grevId);
                     await RefreshGrevDadPresenceForAsync(grevId);
                     return;
                 case GrevDadLinkPollState.Denied:
-                    _profileView.ShowGrevDadStatus("The Grev.dad link request was denied.");
+                    _profileEditView.ShowGrevDadStatus("The Grev.dad link request was denied.");
                     break;
                 case GrevDadLinkPollState.Expired:
-                    _profileView.ShowGrevDadStatus("The Grev.dad link request expired. Start a new request when ready.");
+                    _profileEditView.ShowGrevDadStatus("The Grev.dad link request expired. Start a new request when ready.");
                     break;
                 case GrevDadLinkPollState.Revoked:
-                    _profileView.ShowGrevDadStatus("The Grev.dad link request is no longer valid.");
+                    _profileEditView.ShowGrevDadStatus("The Grev.dad link request is no longer valid.");
                     break;
             }
 
@@ -202,7 +235,7 @@ public partial class MainWindow
         {
             if (forceCurrentTarget)
             {
-                _profileView.ShowGrevDadStatus($"Could not check Grev.dad approval: {ex.Message}");
+                _profileEditView.ShowGrevDadStatus($"Could not check Grev.dad approval: {ex.Message}");
             }
         }
     }
@@ -210,32 +243,32 @@ public partial class MainWindow
     private async Task CancelGrevDadLinkFromProfileAsync()
     {
         var profile = GetProfileTarget();
-        if (profile is null || !CanManageGrevDadProfile(profile)) return;
+        if (_navigation.Current != Route.ProfileEdit || profile is null || !CanManageGrevDadProfile(profile)) return;
 
         try
         {
             await RequireGrevDadAccountService().CancelPendingLinkAsync(profile.GrevId);
             _activeGrevDadLinks.Remove(profile.GrevId);
             StopGrevDadLinkPolling();
-            _profileView.SetGrevDadState(GrevDadAccountSnapshot.Unlinked);
-            _profileView.ShowGrevDadStatus("Grev.dad link request cancelled locally for this profile.");
+            _profileEditView.SetGrevDadState(GrevDadAccountSnapshot.Unlinked);
+            _profileEditView.ShowGrevDadStatus("Grev.dad link request cancelled locally for this profile.");
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
         {
-            _profileView.ShowGrevDadStatus($"Could not cancel the Grev.dad link request: {ex.Message}");
+            _profileEditView.ShowGrevDadStatus($"Could not cancel the Grev.dad link request: {ex.Message}");
         }
     }
 
     private async Task UnlinkGrevDadFromProfileAsync()
     {
         var profile = GetProfileTarget();
-        if (profile is null || !CanManageGrevDadProfile(profile)) return;
+        if (_navigation.Current != Route.ProfileEdit || profile is null || !CanManageGrevDadProfile(profile)) return;
 
         var current = DateTimeOffset.UtcNow;
         if (current > _grevDadUnlinkArmedUntilUtc)
         {
             _grevDadUnlinkArmedUntilUtc = current.AddSeconds(8);
-            _profileView.ShowGrevDadStatus(
+            _profileEditView.ShowGrevDadStatus(
                 "Unlink armed. Select Unlink Grev.dad again within 8 seconds. The local GrevID profile will remain intact.");
             return;
         }
@@ -246,12 +279,12 @@ public partial class MainWindow
             await RequireGrevDadAccountService().UnlinkAsync(profile.GrevId, clearLocalIfOffline: true);
             _activeGrevDadLinks.Remove(profile.GrevId);
             StopGrevDadLinkPolling();
-            _profileView.SetGrevDadState(GrevDadAccountSnapshot.Unlinked);
-            _profileView.ShowGrevDadStatus("Grev.dad was unlinked from this profile. Local apps, saves, history and role were not changed.");
+            _profileEditView.SetGrevDadState(GrevDadAccountSnapshot.Unlinked);
+            _profileEditView.ShowGrevDadStatus("Grev.dad was unlinked from this profile. Local apps, saves, history and role were not changed.");
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
         {
-            _profileView.ShowGrevDadStatus($"Could not unlink Grev.dad: {ex.Message}");
+            _profileEditView.ShowGrevDadStatus($"Could not unlink Grev.dad: {ex.Message}");
         }
     }
 
@@ -264,11 +297,11 @@ public partial class MainWindow
                 FileName = uri.AbsoluteUri,
                 UseShellExecute = true
             });
-            _profileView.ShowGrevDadStatus("Opened the Grev.dad approval page in your default browser.");
+            _profileEditView.ShowGrevDadStatus("Opened the Grev.dad approval page in your default browser.");
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {
-            _profileView.ShowGrevDadStatus($"Windows could not open the approval page: {ex.Message}");
+            _profileEditView.ShowGrevDadStatus($"Windows could not open the approval page: {ex.Message}");
         }
     }
 
@@ -276,7 +309,7 @@ public partial class MainWindow
     {
         _grevDadPollingGrevId = grevId;
         _grevDadLinkPollTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(intervalSeconds, 2, 30));
-        if (_navigation.Current == Route.ProfileView &&
+        if (_navigation.Current == Route.ProfileEdit &&
             string.Equals(GetProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
         {
             _grevDadLinkPollTimer.Start();
