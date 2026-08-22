@@ -17,5 +17,6 @@ public enum Route
     AppKiller,
     Settings,
     AdminConsole,
-    Files
+    Files,
+    ActivityCenter
 }
