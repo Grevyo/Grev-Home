@@ -51,12 +51,17 @@ public partial class App : Application
         _activationListenerCancellation = new CancellationTokenSource();
 
         _paths.EnsureMachineLayout();
+        WriteLifecycleLog(
+            $"Local data schema startup gate beginning. EffectiveRoot={_paths.Root}; GREV_HOME_ROOT={Environment.GetEnvironmentVariable("GREV_HOME_ROOT") ?? "<unset>"}");
         try
         {
-            new LocalDataSchemaService(_paths)
-                .EnsureCurrentAsync()
+            // The schema gate performs asynchronous file I/O. Running it on a worker context avoids
+            // deadlocking the WPF dispatcher before MainWindow exists while still preserving the
+            // hard startup gate: the shell is not created until the schema validation succeeds.
+            Task.Run(() => new LocalDataSchemaService(_paths).EnsureCurrentAsync())
                 .GetAwaiter()
                 .GetResult();
+            WriteLifecycleLog("Local data schema startup gate completed.");
         }
         catch (Exception ex)
         {
