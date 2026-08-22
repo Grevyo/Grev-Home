@@ -76,6 +76,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
         WriteIndented = true
     };
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly CancellationTokenSource _shutdown = new();
     private GrevDadCapabilitiesSnapshot? _capabilities;
     private bool _disposed;
 
@@ -153,10 +154,13 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
         ThrowIfDisposed();
         ArgumentNullException.ThrowIfNull(profile);
 
-        await _gate.WaitAsync(cancellationToken);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, _shutdown.Token);
+        var token = linked.Token;
+        await _gate.WaitAsync(token);
         try
         {
-            var local = await _accounts.LoadLocalStateAsync(profile.GrevId, cancellationToken);
+            token.ThrowIfCancellationRequested();
+            var local = await _accounts.LoadLocalStateAsync(profile.GrevId, token);
             if (local.State is not (GrevDadConnectionState.Linked or GrevDadConnectionState.Offline))
             {
                 return false;
@@ -165,10 +169,11 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
             GrevDadCapabilitiesSnapshot capabilities;
             try
             {
-                capabilities = await GetCapabilitiesAsync(false, cancellationToken);
+                capabilities = await GetCapabilitiesAsync(false, token);
             }
-            catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or TimeoutException)
+            catch (Exception ex) when (ex is HttpRequestException or OperationCanceledException or TimeoutException)
             {
+                token.ThrowIfCancellationRequested();
                 if (_capabilities is null)
                 {
                     return false;
@@ -176,7 +181,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
                 capabilities = _capabilities;
             }
 
-            var validated = await _accounts.ValidateLinkedAccountAsync(profile.GrevId, cancellationToken);
+            var validated = await _accounts.ValidateLinkedAccountAsync(profile.GrevId, token);
             if (validated.State != GrevDadConnectionState.Linked)
             {
                 return false;
@@ -186,12 +191,12 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
                 expiresAt - DateTimeOffset.UtcNow <= RotationWindow &&
                 capabilities.Capabilities.TokenRotation)
             {
-                await RotateCredentialAsync(profile.GrevId, cancellationToken);
+                await RotateCredentialAsync(profile.GrevId, token);
             }
 
             if (capabilities.Capabilities.LinkMetadataSync)
             {
-                await ReconcileLocalIdentityAsync(profile, cancellationToken);
+                await ReconcileLocalIdentityAsync(profile, token);
             }
 
             return true;
@@ -277,6 +282,10 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
         }
 
         var newExpiry = DateTimeOffset.FromUnixTimeSeconds(payload.TokenExpiresAt.Value);
+
+        // Persist the new credential first. The server keeps the previous token valid during its
+        // overlap window, and stale local expiry metadata merely causes another safe maintenance
+        // attempt. The reverse ordering could leave long-lived metadata pointing at an old token.
         _secrets.Write(grevId, AccessCredentialSlot, payload.AccessToken);
         await UpdateLocalTokenExpiryAsync(grevId, newExpiry, cancellationToken);
         await _accounts.LoadLocalStateAsync(grevId, cancellationToken);
@@ -333,9 +342,17 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
         var temporary = path + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporary))
+            await using (var stream = new FileStream(
+                             temporary,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             16 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, value, _json, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
         }
@@ -366,7 +383,10 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
     {
         if (_disposed) return;
         _disposed = true;
-        _http.Dispose();
-        _gate.Dispose();
+
+        // MainWindow owns this service for the lifetime of the process. Cancel outstanding network
+        // maintenance, but do not dispose HttpClient/Semaphore underneath an async operation whose
+        // finally block may still need them while WPF is completing shutdown.
+        _shutdown.Cancel();
     }
 }
