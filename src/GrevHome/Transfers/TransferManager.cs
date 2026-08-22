@@ -756,11 +756,28 @@ public sealed class TransferManager : IDisposable
 
         _disposed = true;
         _lifetimeCts.Cancel();
-        SignalWorker();
         foreach (var cancellation in _activeCancellation.Values)
         {
             cancellation.Cancel();
         }
+
+        // The worker owns the same gates/HttpClient used while it re-queues an interrupted download.
+        // Do not dispose those objects underneath it. ProcessQueueAsync never depends on the UI
+        // thread, so synchronously joining it here gives shutdown one deterministic owner.
+        try
+        {
+            _workerTask?.GetAwaiter().GetResult();
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when the worker is idle on _queueSignal during normal shell shutdown.
+        }
+
+        foreach (var cancellation in _activeCancellation.Values)
+        {
+            cancellation.Dispose();
+        }
+        _activeCancellation.Clear();
 
         _httpClient.Dispose();
         _queueSignal.Dispose();
