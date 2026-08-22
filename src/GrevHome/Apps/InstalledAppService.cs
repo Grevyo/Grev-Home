@@ -227,6 +227,7 @@ public sealed class InstalledAppService
 
             if (preferences is null || preferences.Version != AppLibraryPreferencesVersion)
             {
+                PreserveOptionalState(path, "AppLibraryPreferences", "App-library preferences were empty or used an unsupported version.");
                 return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             }
 
@@ -239,14 +240,16 @@ public sealed class InstalledAppService
                 }
                 catch (ArgumentException)
                 {
-                    // Ignore damaged preference entries without hiding any unrelated apps.
+                    // Ignore a damaged entry without hiding unrelated apps; the original preference
+                    // file remains intact because only full-store parse failures are quarantined.
                 }
             }
 
             return removed;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            PreserveOptionalState(path, "AppLibraryPreferences", $"App-library preference JSON could not be parsed: {ex.Message}");
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
         catch (IOException)
@@ -276,6 +279,8 @@ public sealed class InstalledAppService
             await using (var stream = File.Create(temporaryPath))
             {
                 await JsonSerializer.SerializeAsync(stream, preferences, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temporaryPath, path, overwrite: true);
@@ -319,6 +324,7 @@ public sealed class InstalledAppService
 
                 if (manifest?.Definition is null)
                 {
+                    PreserveOptionalState(manifestPath, "InstalledAppManifest", "Installed-app manifest contained no app definition.");
                     continue;
                 }
 
@@ -326,6 +332,7 @@ public sealed class InstalledAppService
 
                 if (!string.Equals(Path.GetFileName(directory), manifest.Definition.AppId, StringComparison.OrdinalIgnoreCase))
                 {
+                    PreserveOptionalState(manifestPath, "InstalledAppManifest", "Installed-app manifest AppId did not match its assigned directory.");
                     continue;
                 }
 
@@ -334,28 +341,35 @@ public sealed class InstalledAppService
                 {
                     if (isGrevIdLocal || manifest.OwnerGrevId is not null)
                     {
+                        PreserveOptionalState(manifestPath, "InstalledAppManifest", "Global installed-app manifest had incompatible ownership metadata.");
                         continue;
                     }
                 }
                 else if (!isGrevIdLocal ||
                          !string.Equals(manifest.OwnerGrevId, expectedOwnerGrevId, StringComparison.OrdinalIgnoreCase))
                 {
+                    PreserveOptionalState(manifestPath, "InstalledAppManifest", "Profile installed-app manifest had incompatible GrevID ownership metadata.");
                     continue;
                 }
 
                 manifests.Add(manifest);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                // One damaged app manifest must not prevent the rest of the Library from loading.
+                PreserveOptionalState(manifestPath, "InstalledAppManifest", $"Installed-app manifest JSON could not be parsed: {ex.Message}");
             }
-            catch (ArgumentException)
+            catch (ArgumentException ex)
             {
-                // Invalid app identities are ignored rather than trusted as paths.
+                PreserveOptionalState(manifestPath, "InstalledAppManifest", $"Installed-app manifest identity was invalid: {ex.Message}");
             }
         }
 
         return manifests;
+    }
+
+    private void PreserveOptionalState(string path, string category, string reason)
+    {
+        CorruptDataQuarantine.TryPreserve(_paths, path, category, reason, out _);
     }
 
     private static void ValidateDefinition(AppDefinition definition)
@@ -381,6 +395,8 @@ public sealed class InstalledAppService
             await using (var stream = File.Create(temporaryPath))
             {
                 await JsonSerializer.SerializeAsync(stream, manifest, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temporaryPath, path, overwrite: true);
