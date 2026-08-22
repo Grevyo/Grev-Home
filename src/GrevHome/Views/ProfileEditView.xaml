@@ -55,7 +55,7 @@
                                 <ColumnDefinition Width="*" />
                                 <ColumnDefinition Width="Auto" />
                             </Grid.ColumnDefinitions>
-                            <TextBox x:Name="DisplayNameTextBox" MaxLength="50" Height="52" FontSize="20" Padding="12" IsReadOnly="True" IsTabStop="False" />
+                            <TextBox x:Name="DisplayNameTextBox" MaxLength="50" Height="52" FontSize="20" Padding="12" IsReadOnly="True" IsTabStop="True" Focusable="True" />
                             <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenKeyboard_Click" />
                         </Grid>
 
@@ -71,7 +71,8 @@
                                      FontSize="16"
                                      Padding="12"
                                      IsReadOnly="True"
-                                     IsTabStop="False" />
+                                     IsTabStop="True"
+                                     Focusable="True" />
                             <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenStatusKeyboard_Click" />
                         </Grid>
 
@@ -89,7 +90,8 @@
                                      TextWrapping="Wrap"
                                      VerticalContentAlignment="Center"
                                      IsReadOnly="True"
-                                     IsTabStop="False" />
+                                     IsTabStop="True"
+                                     Focusable="True" />
                             <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" VerticalAlignment="Center" Click="OpenBioKeyboard_Click" />
                         </Grid>
 
