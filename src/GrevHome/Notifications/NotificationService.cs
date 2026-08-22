@@ -246,29 +246,51 @@ public sealed class NotificationService
         _paths.EnsureMachineLayout();
         if (!File.Exists(_paths.NotificationFile))
         {
-            return new NotificationStore(SchemaVersion, Array.Empty<GrevNotification>());
+            return EmptyStore();
         }
 
         try
         {
             await using var stream = File.OpenRead(_paths.NotificationFile);
             var store = await JsonSerializer.DeserializeAsync<NotificationStore>(stream, _jsonOptions, cancellationToken);
-            if (store is null || store.SchemaVersion != SchemaVersion)
+            if (store is null)
             {
-                return new NotificationStore(SchemaVersion, Array.Empty<GrevNotification>());
+                return RecoverMalformedStore("Notification JSON contained no usable store.");
+            }
+            if (store.SchemaVersion > SchemaVersion)
+            {
+                throw new InvalidDataException(
+                    $"Notification schema {store.SchemaVersion} is newer than this Grev Home build supports ({SchemaVersion}).");
+            }
+            if (store.SchemaVersion <= 0)
+            {
+                return RecoverMalformedStore($"Invalid notification schema version {store.SchemaVersion}.");
             }
 
             return store;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return new NotificationStore(SchemaVersion, Array.Empty<GrevNotification>());
+            return RecoverMalformedStore($"Notification JSON could not be parsed: {ex.Message}");
         }
         catch (IOException)
         {
-            return new NotificationStore(SchemaVersion, Array.Empty<GrevNotification>());
+            return EmptyStore();
         }
     }
+
+    private NotificationStore RecoverMalformedStore(string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(_paths, _paths.NotificationFile, "Notifications", reason, out _))
+        {
+            throw new InvalidDataException(
+                "Grev Home found malformed notification data and could not preserve a recovery copy. The file was left untouched.");
+        }
+        return EmptyStore();
+    }
+
+    private static NotificationStore EmptyStore() =>
+        new(SchemaVersion, Array.Empty<GrevNotification>());
 
     private async Task WriteStoreAsync(NotificationStore store, CancellationToken cancellationToken)
     {
@@ -279,6 +301,8 @@ public sealed class NotificationService
             await using (var stream = File.Create(temporaryPath))
             {
                 await JsonSerializer.SerializeAsync(stream, store, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temporaryPath, _paths.NotificationFile, overwrite: true);
