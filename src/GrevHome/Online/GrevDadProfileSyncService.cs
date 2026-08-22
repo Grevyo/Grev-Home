@@ -51,7 +51,8 @@ internal sealed record GrevDadSyncApiResponse(
 /// <summary>
 /// Optional background bridge from local GrevID-owned data to Grev.dad. The source of truth stays
 /// local: completed history is replayable and Grev Home progression is uploaded only as a snapshot.
-/// This service never participates in local sign-in, app launch, runtime or playtime success.
+/// GrevDadAccountService remains authoritative for link validity and revocation state; this worker
+/// only transports local profile data after that account authority confirms the device link.
 /// </summary>
 public sealed class GrevDadProfileSyncService : IDisposable
 {
@@ -63,6 +64,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private readonly AppPaths _paths;
     private readonly SessionHistoryService _history;
     private readonly PlaytimeService _playtime;
+    private readonly GrevDadAccountService _accounts;
     private readonly WindowsCredentialSecretStore _secrets = new();
     private readonly HttpClient _http;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
@@ -73,10 +75,15 @@ public sealed class GrevDadProfileSyncService : IDisposable
         new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
-    public GrevDadProfileSyncService(AppPaths paths, SessionHistoryService history, Uri? baseUri = null)
+    public GrevDadProfileSyncService(
+        AppPaths paths,
+        SessionHistoryService history,
+        GrevDadAccountService accounts,
+        Uri? baseUri = null)
     {
         _paths = paths;
         _history = history;
+        _accounts = accounts;
         _playtime = new PlaytimeService(paths);
 
         var configured = baseUri
@@ -104,6 +111,15 @@ public sealed class GrevDadProfileSyncService : IDisposable
         await gate.WaitAsync(cancellationToken);
         try
         {
+            // Grev.dad sync is never inferred from a token merely existing in Credential Manager.
+            // The account service must first confirm that the link is currently valid. This also
+            // gives one place ownership of revoked/expired state and credential cleanup.
+            var account = await _accounts.ValidateLinkedAccountAsync(grevId, cancellationToken);
+            if (account.State != GrevDadConnectionState.Linked)
+            {
+                return null;
+            }
+
             var token = _secrets.Read(grevId, AccessCredentialSlot);
             if (string.IsNullOrWhiteSpace(token))
             {
@@ -246,6 +262,16 @@ public sealed class GrevDadProfileSyncService : IDisposable
             cancellationToken);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
+            // Revalidate through the account authority so it owns transition to Revoked and secret
+            // cleanup. Ignore the secondary exception; the sync still reports the original 401.
+            try
+            {
+                await _accounts.ValidateLinkedAccountAsync(grevId, cancellationToken);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or HttpRequestException or TaskCanceledException or InvalidDataException)
+            {
+            }
+
             throw new InvalidOperationException("The Grev.dad device link is no longer authorised.");
         }
 
