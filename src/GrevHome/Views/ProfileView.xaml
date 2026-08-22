@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="72,38" MaxWidth="1180">
+        <StackPanel x:Name="ProfileRootPanel" Margin="72,38" MaxWidth="1180">
             <TextBlock Text="Profile" FontSize="40" FontWeight="SemiBold" />
             <TextBlock Text="Your Grev Home identity, progression, activity and connected gaming stats."
                        Margin="0,6,0,22"
