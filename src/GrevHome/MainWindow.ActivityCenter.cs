@@ -87,6 +87,10 @@ public partial class MainWindow
                 _ = PublishRuntimeFailureAsync(snapshot);
             }
         };
+        _runtimeSessions.SessionCompletionDeferred += (snapshot, reason) =>
+            _ = PublishRuntimeCompletionDeferredAsync(snapshot, reason);
+        _runtimeSessions.SessionCompletionRecovered += snapshot =>
+            _ = PublishRuntimeCompletionRecoveredAsync(snapshot);
 
         _navigation.RouteChanged += route =>
         {
@@ -201,7 +205,17 @@ public partial class MainWindow
             return;
         }
 
-        await notifications.MarkReadAsync(notificationId, grevId);
+        try
+        {
+            await notifications.MarkReadAsync(notificationId, grevId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            if (_navigation.Current == Route.ActivityCenter)
+            {
+                _activityCenterView.ShowStatus($"Notification could not be marked read: {ex.Message}");
+            }
+        }
     }
 
     private async Task MarkAllActivityNotificationsReadAsync()
@@ -213,7 +227,17 @@ public partial class MainWindow
             return;
         }
 
-        await notifications.MarkAllReadAsync(grevId);
+        try
+        {
+            await notifications.MarkAllReadAsync(grevId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            if (_navigation.Current == Route.ActivityCenter)
+            {
+                _activityCenterView.ShowStatus($"Notifications could not be marked read: {ex.Message}");
+            }
+        }
     }
 
     private async Task CancelActivityTransferAsync(string transferId)
@@ -314,6 +338,31 @@ public partial class MainWindow
             "Runtime",
             $"{snapshot.AppName} stopped unexpectedly",
             LimitNotificationMessage(detail),
+            snapshot.PrimaryGrevId);
+    }
+
+    private async Task PublishRuntimeCompletionDeferredAsync(
+        LaunchSessionSnapshot snapshot,
+        string reason)
+    {
+        var detail = string.IsNullOrWhiteSpace(reason)
+            ? "The exact session completion was preserved and Grev Home will retry the local commit."
+            : $"The exact session completion was preserved and Grev Home will retry the local commit. {reason}";
+        await TryPublishActivityNotificationAsync(
+            NotificationSeverity.Warning,
+            "Runtime",
+            $"{snapshot.AppName} session data pending",
+            LimitNotificationMessage(detail),
+            snapshot.PrimaryGrevId);
+    }
+
+    private async Task PublishRuntimeCompletionRecoveredAsync(LaunchSessionSnapshot snapshot)
+    {
+        await TryPublishActivityNotificationAsync(
+            NotificationSeverity.Success,
+            "Runtime",
+            $"{snapshot.AppName} session data recovered",
+            "The deferred local playtime/history commit completed successfully. No duplicate playtime was added.",
             snapshot.PrimaryGrevId);
     }
 
