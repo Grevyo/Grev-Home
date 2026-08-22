@@ -45,13 +45,29 @@ public sealed class AppControllerGuidePreferenceService
         {
             var json = File.ReadAllText(path);
             var preference = JsonSerializer.Deserialize<AppControllerGuidePreference>(json, _jsonOptions);
-            return preference is null ||
-                   preference.Version != CurrentVersion ||
-                   preference.ShowOnLaunch;
+            if (preference is null || preference.Version != CurrentVersion)
+            {
+                CorruptDataQuarantine.TryPreserve(
+                    _paths,
+                    path,
+                    "AppControllerGuide",
+                    "Controller guide preference is empty or uses an unsupported schema version.",
+                    out _);
+                return true;
+            }
+
+            return preference.ShowOnLaunch;
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
         {
-            // Corrupt/unreadable preference data must never hide essential controller help.
+            // Corrupt/unreadable preference data must never hide essential controller help, but it
+            // is still user-authored state and must be preserved before a later save replaces it.
+            CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "AppControllerGuide",
+                $"Controller guide preference could not be read: {ex.Message}",
+                out _);
             return true;
         }
     }
@@ -79,7 +95,19 @@ public sealed class AppControllerGuidePreferenceService
         var temporary = path + ".tmp";
         try
         {
-            File.WriteAllText(temporary, JsonSerializer.Serialize(value, _jsonOptions));
+            using (var stream = new FileStream(
+                       temporary,
+                       FileMode.Create,
+                       FileAccess.Write,
+                       FileShare.None,
+                       4096,
+                       FileOptions.WriteThrough))
+            using (var writer = new StreamWriter(stream))
+            {
+                writer.Write(JsonSerializer.Serialize(value, _jsonOptions));
+                writer.Flush();
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temporary, path, overwrite: true);
         }
         finally
