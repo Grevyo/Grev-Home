@@ -1,5 +1,7 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
+using GrevHome.Diagnostics;
 using GrevHome.Storage;
 
 namespace GrevHome.Runtime;
@@ -45,6 +47,8 @@ public sealed class RuntimeCompletionStore
     private const int SchemaVersion = 1;
 
     private readonly AppPaths _paths;
+    private readonly RuntimeRecoveryJournal _recoveryJournal;
+    private readonly ConcurrentDictionary<Guid, RuntimePendingCompletionRecord> _startupReplayObserved = new();
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -53,6 +57,7 @@ public sealed class RuntimeCompletionStore
     public RuntimeCompletionStore(AppPaths paths)
     {
         _paths = paths;
+        _recoveryJournal = new RuntimeRecoveryJournal(paths);
     }
 
     public string Root => Path.Combine(_paths.RuntimeData, "PendingCompletions");
@@ -147,6 +152,13 @@ public sealed class RuntimeCompletionStore
 
                 Validate(record);
                 records.Add(record);
+                if (_startupReplayObserved.TryAdd(record.LaunchSessionId, record))
+                {
+                    _recoveryJournal.TryAppend(
+                        "startup-pending-observed",
+                        record.ToSnapshot(),
+                        "Pending completion found during startup recovery scan.");
+                }
             }
             catch (Exception ex) when (ex is JsonException or InvalidDataException or ArgumentException)
             {
@@ -173,6 +185,15 @@ public sealed class RuntimeCompletionStore
         if (File.Exists(path))
         {
             File.Delete(path);
+        }
+
+        if (!File.Exists(path) &&
+            _startupReplayObserved.TryRemove(launchSessionId, out var replayRecord))
+        {
+            _recoveryJournal.TryAppend(
+                "startup-pending-cleared",
+                replayRecord.ToSnapshot(),
+                "Pending completion replay committed and the recovery envelope was cleared.");
         }
     }
 
