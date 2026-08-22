@@ -14,6 +14,7 @@ public partial class MainWindow
     };
 
     private GrevDadAccountService? _grevDadAccounts;
+    private GrevDadPrivacySettingsService? _grevDadPrivacy;
     private bool _grevDadIntegrationReady;
     private string? _lastPrimaryGrevDadGrevId;
 
@@ -26,6 +27,7 @@ public partial class MainWindow
 
         _grevDadIntegrationReady = true;
         _grevDadAccounts = new GrevDadAccountService(_paths);
+        _grevDadPrivacy = new GrevDadPrivacySettingsService(_paths);
 
         _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(() => _ = HandlePrimaryGrevDadChangedAsync()));
         _runtimeSessions.SessionChanged += HandleGrevDadRuntimeChanged;
@@ -43,6 +45,10 @@ public partial class MainWindow
     private GrevDadAccountService RequireGrevDadAccountService() =>
         _grevDadAccounts
         ?? throw new InvalidOperationException("Grev.dad account services have not been initialized.");
+
+    private GrevDadPrivacySettingsService RequireGrevDadPrivacySettingsService() =>
+        _grevDadPrivacy
+        ?? throw new InvalidOperationException("Grev.dad privacy services have not been initialized.");
 
     private async Task HandlePrimaryGrevDadChangedAsync()
     {
@@ -128,8 +134,9 @@ public partial class MainWindow
     private async Task PublishGrevDadRuntimeActivitySafeAsync(LaunchSessionSnapshot snapshot, bool started)
     {
         var service = _grevDadAccounts;
+        var privacyService = _grevDadPrivacy;
         var grevId = snapshot.PrimaryGrevId;
-        if (service is null || string.IsNullOrWhiteSpace(grevId))
+        if (service is null || privacyService is null || string.IsNullOrWhiteSpace(grevId))
         {
             return;
         }
@@ -147,12 +154,18 @@ public partial class MainWindow
                 return;
             }
 
-            await service.PublishAppActivityAsync(
-                grevId,
-                started,
-                snapshot.AppId,
-                snapshot.AppName,
-                detail: started ? "Started from Grev Home" : "Stopped in Grev Home");
+            var privacy = await privacyService.GetAsync(grevId);
+            if (privacy.ShareLiveActivityEvents)
+            {
+                await service.PublishAppActivityAsync(
+                    grevId,
+                    started,
+                    snapshot.AppId,
+                    snapshot.AppName,
+                    detail: started ? "Started from Grev Home" : "Stopped in Grev Home",
+                    visibility: privacy.ActivityVisibility);
+            }
+
             await RefreshGrevDadPresenceForAsync(grevId);
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
@@ -186,7 +199,8 @@ public partial class MainWindow
     private async Task RefreshGrevDadPresenceForAsync(string grevId)
     {
         var service = _grevDadAccounts;
-        if (service is null)
+        var privacyService = _grevDadPrivacy;
+        if (service is null || privacyService is null)
         {
             return;
         }
@@ -204,12 +218,24 @@ public partial class MainWindow
                 return;
             }
 
+            var privacy = await privacyService.GetAsync(grevId);
+            if (!privacy.SharePresence)
+            {
+                await service.UpdatePresenceAsync(
+                    grevId,
+                    "offline",
+                    "none",
+                    "",
+                    expiresInSeconds: 60);
+                return;
+            }
+
             var active = _runtimeSessions.GetActiveSessions()
                 .Where(session => string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(session => session.StartedAtUtc)
                 .FirstOrDefault();
 
-            if (active is not null)
+            if (active is not null && privacy.SharePlayingStatus)
             {
                 await service.UpdatePresenceAsync(
                     grevId,
@@ -218,7 +244,7 @@ public partial class MainWindow
                     active.AppName,
                     expiresInSeconds: 300);
             }
-            else if (string.Equals(_session.PrimaryUser?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            else if (active is not null || string.Equals(_session.PrimaryUser?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             {
                 await service.UpdatePresenceAsync(
                     grevId,
