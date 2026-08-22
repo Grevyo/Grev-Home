@@ -33,6 +33,10 @@ public partial class MainWindow
         try
         {
             await history.RecordAsync(snapshot);
+
+            // Grev.dad is an optional mirror. Only offer the completed session for online sync
+            // after the durable GrevID-owned local journal has committed it successfully.
+            QueueGrevDadSyncAfterLocalHistory(snapshot);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or OverflowException)
         {
