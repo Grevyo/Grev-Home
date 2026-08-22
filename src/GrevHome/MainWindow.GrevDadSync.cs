@@ -22,11 +22,13 @@ public partial class MainWindow
         _grevDadProfileSyncReady = true;
         _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history, accounts);
 
-        // A successful/revalidated link backfills legacy playtime and any locally queued completed
-        // sessions. Unlinked/offline local accounts continue without entering this path.
-        accounts.SnapshotChanged += (grevId, snapshot) =>
+        // Session changes are an explicit lifecycle edge. They can backfill a linked Primary GrevID
+        // after Grev Home starts without coupling sync to account SnapshotChanged; routine account
+        // revalidation itself publishes snapshots and must never recursively schedule another sync.
+        _session.Changed += (_, _) =>
         {
-            if (snapshot.State == GrevDadConnectionState.Linked)
+            var grevId = _session.PrimaryUser?.GrevId;
+            if (!string.IsNullOrWhiteSpace(grevId))
             {
                 _ = SyncGrevDadProfileSafeAsync(grevId);
             }
