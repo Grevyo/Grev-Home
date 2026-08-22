@@ -16,14 +16,25 @@ public partial class SettingsView
     private readonly Button _grevDadCheckButton = new();
     private readonly Button _grevDadCancelButton = new();
     private readonly Button _grevDadUnlinkButton = new();
+    private readonly Button _grevDadSharePresenceButton = new();
+    private readonly Button _grevDadSharePlayingButton = new();
+    private readonly Button _grevDadShareActivityButton = new();
+    private readonly Button _grevDadShareHistoryButton = new();
+    private readonly Button _grevDadActivityVisibilityButton = new();
+    private readonly Button _grevDadHistoryVisibilityButton = new();
+    private readonly TextBlock _grevDadPrivacyStatusText = new();
+    private Button? _grevDadSectionButton;
+    private Border? _grevDadSectionContent;
     private bool _grevDadUiBuilt;
     private GrevDadLinkStart? _grevDadLinkStart;
+    private GrevDadPrivacySettings _grevDadPrivacySettings = GrevDadPrivacySettings.Default;
 
     public event EventHandler? LinkGrevDadRequested;
     public event EventHandler? CheckGrevDadLinkRequested;
     public event EventHandler? CancelGrevDadLinkRequested;
     public event EventHandler? UnlinkGrevDadRequested;
     public event Action<Uri>? OpenGrevDadApprovalRequested;
+    public event Action<GrevDadPrivacySettings>? SaveGrevDadPrivacyRequested;
 
     protected override void OnInitialized(EventArgs e)
     {
@@ -33,20 +44,32 @@ public partial class SettingsView
 
     private void BuildGrevDadAccountUi()
     {
-        if (_grevDadUiBuilt || AccountSectionContent.Child is not StackPanel accountPanel)
+        if (_grevDadUiBuilt ||
+            AccountSectionButton.Parent is not StackPanel accountSection ||
+            accountSection.Parent is not StackPanel rootPanel)
         {
             return;
         }
 
         _grevDadUiBuilt = true;
-        var card = new Border
+
+        var section = new StackPanel { Margin = new Thickness(0, 0, 0, 16) };
+        _grevDadSectionButton = new Button
         {
-            Margin = new Thickness(0, 22, 0, 0),
-            Padding = new Thickness(18),
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 14, 21)),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(52, 61, 81)),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(12)
+            Content = "GREV.DAD  ▾",
+            Style = (Style)FindResource("SettingsSectionHeaderButtonStyle")
+        };
+        _grevDadSectionButton.Click += (_, _) => ToggleGrevDadSection();
+        section.Children.Add(_grevDadSectionButton);
+
+        _grevDadSectionContent = new Border
+        {
+            Visibility = Visibility.Collapsed,
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 30)),
+            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 68)),
+            BorderThickness = new Thickness(1, 0, 1, 1),
+            Padding = new Thickness(22),
+            CornerRadius = new CornerRadius(0, 0, 14, 14)
         };
 
         var content = new StackPanel();
@@ -55,11 +78,11 @@ public partial class SettingsView
             Text = "GREV.DAD ACCOUNT",
             FontSize = 13,
             FontWeight = FontWeights.Bold,
-            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush")
+            Foreground = (System.Windows.Media.Brush)FindResource("AccentBrush")
         });
         content.Children.Add(new TextBlock
         {
-            Text = "Link this permanent local GrevID to one Grev.dad account. Your Grev.dad password never enters Grev Home; approval happens on the website and Windows stores only the resulting device credential.",
+            Text = "Link this permanent local GrevID to one Grev.dad account. Grev.dad is optional: local login, apps, saves, history, playtime and Grev Home XP continue without it.",
             Margin = new Thickness(0, 8, 0, 0),
             Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
             TextWrapping = TextWrapping.Wrap
@@ -107,9 +130,89 @@ public partial class SettingsView
         actions.Children.Add(_grevDadUnlinkButton);
         content.Children.Add(actions);
 
-        card.Child = content;
-        accountPanel.Children.Add(card);
+        content.Children.Add(new Border
+        {
+            Height = 1,
+            Margin = new Thickness(0, 18, 0, 18),
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 68))
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "PRIVACY & ACTIVITY SHARING",
+            FontSize = 13,
+            FontWeight = FontWeights.Bold,
+            Foreground = (System.Windows.Media.Brush)FindResource("AccentBrush")
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "These switches control only what Grev Home publishes to Grev.dad. They never disable local session history, playtime, XP or profile data.",
+            Margin = new Thickness(0, 8, 0, 12),
+            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var privacyButtons = new WrapPanel();
+        ConfigureGrevDadButton(_grevDadSharePresenceButton, "Presence", 170, (_, _) => TogglePrivacy(settings => settings with { SharePresence = !settings.SharePresence }));
+        ConfigureGrevDadButton(_grevDadSharePlayingButton, "Playing status", 190, (_, _) => TogglePrivacy(settings => settings with { SharePlayingStatus = !settings.SharePlayingStatus }));
+        ConfigureGrevDadButton(_grevDadShareActivityButton, "Live activity", 180, (_, _) => TogglePrivacy(settings => settings with { ShareLiveActivityEvents = !settings.ShareLiveActivityEvents }));
+        ConfigureGrevDadButton(_grevDadShareHistoryButton, "Session history", 190, (_, _) => TogglePrivacy(settings => settings with { ShareSessionHistory = !settings.ShareSessionHistory }));
+        privacyButtons.Children.Add(_grevDadSharePresenceButton);
+        privacyButtons.Children.Add(_grevDadSharePlayingButton);
+        privacyButtons.Children.Add(_grevDadShareActivityButton);
+        privacyButtons.Children.Add(_grevDadShareHistoryButton);
+        content.Children.Add(privacyButtons);
+
+        var visibilityButtons = new WrapPanel { Margin = new Thickness(0, 4, 0, 0) };
+        ConfigureGrevDadButton(_grevDadActivityVisibilityButton, "Activity visibility", 230, (_, _) => TogglePrivacy(settings => settings with
+        {
+            ActivityVisibility = string.Equals(settings.ActivityVisibility, "friends", StringComparison.OrdinalIgnoreCase) ? "private" : "friends"
+        }));
+        ConfigureGrevDadButton(_grevDadHistoryVisibilityButton, "History visibility", 230, (_, _) => TogglePrivacy(settings => settings with
+        {
+            HistoryVisibility = string.Equals(settings.HistoryVisibility, "friends", StringComparison.OrdinalIgnoreCase) ? "private" : "friends"
+        }));
+        visibilityButtons.Children.Add(_grevDadActivityVisibilityButton);
+        visibilityButtons.Children.Add(_grevDadHistoryVisibilityButton);
+        content.Children.Add(visibilityButtons);
+
+        _grevDadPrivacyStatusText.Margin = new Thickness(0, 8, 0, 0);
+        _grevDadPrivacyStatusText.Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush");
+        _grevDadPrivacyStatusText.TextWrapping = TextWrapping.Wrap;
+        content.Children.Add(_grevDadPrivacyStatusText);
+
+        _grevDadSectionContent.Child = content;
+        section.Children.Add(_grevDadSectionContent);
+        var accountIndex = rootPanel.Children.IndexOf(accountSection);
+        rootPanel.Children.Insert(Math.Max(0, accountIndex + 1), section);
+
         SetGrevDadState(_profile, GrevDadAccountSnapshot.Unlinked);
+        RenderGrevDadPrivacy();
+    }
+
+    private void ToggleGrevDadSection()
+    {
+        if (_grevDadSectionButton is null || _grevDadSectionContent is null)
+        {
+            return;
+        }
+
+        var expand = _grevDadSectionContent.Visibility != Visibility.Visible;
+        _grevDadSectionContent.Visibility = expand ? Visibility.Visible : Visibility.Collapsed;
+        _grevDadSectionButton.Content = $"GREV.DAD  {(expand ? "▴" : "▾")}";
+        _grevDadSectionButton.Focus();
+    }
+
+    public void OpenGrevDadSection()
+    {
+        BuildGrevDadAccountUi();
+        if (_grevDadSectionButton is null || _grevDadSectionContent is null)
+        {
+            return;
+        }
+
+        _grevDadSectionContent.Visibility = Visibility.Visible;
+        _grevDadSectionButton.Content = "GREV.DAD  ▴";
+        _grevDadSectionButton.Focus();
     }
 
     private void ConfigureGrevDadButton(Button button, string content, double minWidth, RoutedEventHandler handler)
@@ -120,6 +223,57 @@ public partial class SettingsView
         button.Style = (Style)FindResource("WrappedSettingsButtonStyle");
         button.Click += handler;
     }
+
+    private void TogglePrivacy(Func<GrevDadPrivacySettings, GrevDadPrivacySettings> mutate)
+    {
+        if (_profile is null)
+        {
+            _grevDadPrivacyStatusText.Text = "A persistent local Primary User is required to change Grev.dad privacy settings.";
+            return;
+        }
+
+        _grevDadPrivacySettings = mutate(_grevDadPrivacySettings);
+        RenderGrevDadPrivacy();
+        _grevDadPrivacyStatusText.Text = "Saving…";
+        SaveGrevDadPrivacyRequested?.Invoke(_grevDadPrivacySettings);
+    }
+
+    public void SetGrevDadPrivacyState(GrevDadPrivacySettings settings, string? status = null)
+    {
+        _grevDadPrivacySettings = settings;
+        RenderGrevDadPrivacy();
+        _grevDadPrivacyStatusText.Text = status ?? string.Empty;
+    }
+
+    public void ShowGrevDadPrivacyStatus(string message) => _grevDadPrivacyStatusText.Text = message;
+
+    private void RenderGrevDadPrivacy()
+    {
+        var enabled = _profile is not null;
+        foreach (var button in new[]
+                 {
+                     _grevDadSharePresenceButton,
+                     _grevDadSharePlayingButton,
+                     _grevDadShareActivityButton,
+                     _grevDadShareHistoryButton,
+                     _grevDadActivityVisibilityButton,
+                     _grevDadHistoryVisibilityButton
+                 })
+        {
+            button.IsEnabled = enabled;
+        }
+
+        _grevDadSharePresenceButton.Content = $"Presence: {OnOff(_grevDadPrivacySettings.SharePresence)}";
+        _grevDadSharePlayingButton.Content = $"Playing status: {OnOff(_grevDadPrivacySettings.SharePlayingStatus)}";
+        _grevDadShareActivityButton.Content = $"Live activity: {OnOff(_grevDadPrivacySettings.ShareLiveActivityEvents)}";
+        _grevDadShareHistoryButton.Content = $"Session history: {OnOff(_grevDadPrivacySettings.ShareSessionHistory)}";
+        _grevDadActivityVisibilityButton.Content = $"Activity visibility: {FormatVisibility(_grevDadPrivacySettings.ActivityVisibility)}";
+        _grevDadHistoryVisibilityButton.Content = $"History visibility: {FormatVisibility(_grevDadPrivacySettings.HistoryVisibility)}";
+    }
+
+    private static string OnOff(bool value) => value ? "On" : "Off";
+    private static string FormatVisibility(string value) =>
+        string.Equals(value, "friends", StringComparison.OrdinalIgnoreCase) ? "Friends" : "Private";
 
     public void SetGrevDadState(
         LocalProfile? profile,
@@ -140,6 +294,7 @@ public partial class SettingsView
             _grevDadCodeText.Text = string.Empty;
             _grevDadApprovalText.Text = string.Empty;
             SetGrevDadButtons(link: false, approval: false, check: false, cancel: false, unlink: false);
+            RenderGrevDadPrivacy();
             return;
         }
 
@@ -193,6 +348,7 @@ public partial class SettingsView
                 SetGrevDadButtons(link: true, approval: false, check: false, cancel: false, unlink: false);
                 break;
         }
+        RenderGrevDadPrivacy();
     }
 
     private void SetGrevDadButtons(bool link, bool approval, bool check, bool cancel, bool unlink)
