@@ -15,7 +15,9 @@ public sealed record LocalSessionHistoryEntry(
     DateTimeOffset EndedAtUtc,
     long DurationSeconds,
     string Outcome,
-    string? FailureMessage);
+    string? FailureMessage,
+    string? ContentId = null,
+    string? ContentName = null);
 
 internal sealed record SessionHistorySequenceState(
     int SchemaVersion,
@@ -25,6 +27,8 @@ internal sealed record SessionHistorySequenceState(
 /// Durable, GrevID-owned history of completed managed-app sessions. This journal is local-first:
 /// Grev Home writes it regardless of whether Grev.dad is linked or reachable. Online sync can
 /// consume the immutable records later without becoming part of runtime/playtime success.
+/// Optional ContentId/ContentName fields are reserved for future game/content launchers so the
+/// history format does not need another redesign when an emulator session identifies a real game.
 /// </summary>
 public sealed class SessionHistoryService
 {
