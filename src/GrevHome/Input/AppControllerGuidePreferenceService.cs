@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
 using GrevHome.Storage;
@@ -17,6 +18,8 @@ public sealed class AppControllerGuidePreferenceService
     private const int CurrentVersion = 1;
 
     private readonly AppPaths _paths;
+    private readonly ConcurrentDictionary<string, string> _persistenceBlocks =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true
@@ -36,8 +39,10 @@ public sealed class AppControllerGuidePreferenceService
         }
 
         var path = _paths.GetProfileAppControllerGuidePreferenceFile(grevId, appId);
+        var key = BuildPersistenceKey(grevId, appId);
         if (!File.Exists(path))
         {
+            _persistenceBlocks.TryRemove(key, out _);
             return true;
         }
 
@@ -45,29 +50,47 @@ public sealed class AppControllerGuidePreferenceService
         {
             var json = File.ReadAllText(path);
             var preference = JsonSerializer.Deserialize<AppControllerGuidePreference>(json, _jsonOptions);
-            if (preference is null || preference.Version != CurrentVersion)
+            if (preference is null)
             {
-                CorruptDataQuarantine.TryPreserve(
-                    _paths,
+                return RecoverVisibleFallback(
+                    key,
                     path,
-                    "AppControllerGuide",
-                    "Controller guide preference is empty or uses an unsupported schema version.",
-                    out _);
+                    "Controller guide preference contained no usable value.");
+            }
+            if (preference.Version > CurrentVersion)
+            {
+                _persistenceBlocks[key] =
+                    $"Controller guide preference uses schema {preference.Version}, which is newer than this Grev Home build supports ({CurrentVersion}). The guide will be shown, but the existing preference will not be overwritten.";
                 return true;
             }
+            if (preference.Version != CurrentVersion)
+            {
+                return RecoverVisibleFallback(
+                    key,
+                    path,
+                    $"Controller guide preference uses unsupported schema {preference.Version}.");
+            }
 
+            _persistenceBlocks.TryRemove(key, out _);
             return preference.ShowOnLaunch;
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException)
+        catch (JsonException ex)
         {
-            // Corrupt/unreadable preference data must never hide essential controller help, but it
-            // is still user-authored state and must be preserved before a later save replaces it.
-            CorruptDataQuarantine.TryPreserve(
-                _paths,
+            return RecoverVisibleFallback(
+                key,
                 path,
-                "AppControllerGuide",
-                $"Controller guide preference could not be read: {ex.Message}",
-                out _);
+                $"Controller guide preference could not be parsed: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            _persistenceBlocks[key] =
+                $"Controller guide preference is temporarily unreadable ({ex.Message}). The guide will be shown and the existing preference will not be overwritten.";
+            return true;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _persistenceBlocks[key] =
+                $"Controller guide preference cannot currently be accessed ({ex.Message}). The guide will be shown and the existing preference will not be overwritten.";
             return true;
         }
     }
@@ -78,17 +101,41 @@ public sealed class AppControllerGuidePreferenceService
     public void ResetForProfile(string grevId, string appId)
     {
         var path = _paths.GetProfileAppControllerGuidePreferenceFile(grevId, appId);
-        if (!File.Exists(path))
+        var key = BuildPersistenceKey(grevId, appId);
+        if (File.Exists(path))
         {
-            return;
+            File.Delete(path);
+        }
+        _persistenceBlocks.TryRemove(key, out _);
+    }
+
+    private bool RecoverVisibleFallback(string key, string path, string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "AppControllerGuide",
+                reason,
+                out _))
+        {
+            _persistenceBlocks[key] =
+                "Grev Home found invalid controller-guide preference data but could not preserve a recovery copy. The guide will be shown and the original file will not be overwritten.";
+            return true;
         }
 
-        File.Delete(path);
+        _persistenceBlocks.TryRemove(key, out _);
+        return true;
     }
 
     private void WritePreference(string grevId, string appId, bool showOnLaunch)
     {
         var path = _paths.GetProfileAppControllerGuidePreferenceFile(grevId, appId);
+        var key = BuildPersistenceKey(grevId, appId);
+        if (_persistenceBlocks.TryGetValue(key, out var blockReason) && File.Exists(path))
+        {
+            throw new InvalidOperationException(blockReason);
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
 
         var value = new AppControllerGuidePreference(CurrentVersion, showOnLaunch);
@@ -109,6 +156,7 @@ public sealed class AppControllerGuidePreferenceService
                 stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
+            _persistenceBlocks.TryRemove(key, out _);
         }
         finally
         {
@@ -118,4 +166,7 @@ public sealed class AppControllerGuidePreferenceService
             }
         }
     }
+
+    private static string BuildPersistenceKey(string grevId, string appId) =>
+        $"{grevId}\u001f{appId}";
 }
