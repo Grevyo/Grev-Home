@@ -73,19 +73,7 @@ public sealed class ControllerShortcutService
         if (!File.Exists(_paths.ControllerShortcutsFile))
         {
             var defaults = CreateDefaults();
-            try
-            {
-                Save(defaults);
-            }
-            catch (IOException)
-            {
-                // The runtime can still use safe in-memory defaults when the settings file cannot be written.
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // The runtime can still use safe in-memory defaults when the settings file cannot be written.
-            }
-
+            TrySaveDefaults(defaults);
             return defaults;
         }
 
@@ -95,13 +83,13 @@ public sealed class ControllerShortcutService
             var loaded = JsonSerializer.Deserialize<ControllerShortcutConfiguration>(json, _jsonOptions);
             return NormalizeAndValidate(loaded);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return CreateDefaults();
+            return RecoverDefaults($"Controller shortcut JSON could not be parsed: {ex.Message}");
         }
-        catch (InvalidOperationException)
+        catch (InvalidOperationException ex)
         {
-            return CreateDefaults();
+            return RecoverDefaults($"Controller shortcut configuration was invalid or unsupported: {ex.Message}");
         }
         catch (IOException)
         {
@@ -121,7 +109,15 @@ public sealed class ControllerShortcutService
         var temporaryPath = _paths.ControllerShortcutsFile + ".tmp";
         try
         {
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(validated, _jsonOptions));
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.Create,
+                       FileAccess.Write,
+                       FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, validated, _jsonOptions);
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temporaryPath, _paths.ControllerShortcutsFile, overwrite: true);
         }
         finally
@@ -159,6 +155,35 @@ public sealed class ControllerShortcutService
                     },
                     HoldMilliseconds: 450)
             });
+
+    private ControllerShortcutConfiguration RecoverDefaults(string reason)
+    {
+        CorruptDataQuarantine.TryPreserve(
+            _paths,
+            _paths.ControllerShortcutsFile,
+            "ControllerShortcuts",
+            reason,
+            out _);
+        var defaults = CreateDefaults();
+        TrySaveDefaults(defaults);
+        return defaults;
+    }
+
+    private void TrySaveDefaults(ControllerShortcutConfiguration defaults)
+    {
+        try
+        {
+            Save(defaults);
+        }
+        catch (IOException)
+        {
+            // Safe in-memory defaults keep controller navigation usable even if persistence fails.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Safe in-memory defaults keep controller navigation usable even if persistence fails.
+        }
+    }
 
     private static ControllerShortcutConfiguration NormalizeAndValidate(
         ControllerShortcutConfiguration? configuration)
