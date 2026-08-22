@@ -96,8 +96,13 @@ public partial class ProfileView : UserControl
 
     public void SetStats(ProfileStatsSnapshot stats)
     {
+        var levelBrush = GetLevelBandBrush(stats.Progression.Level);
         LevelText.Text = $"LEVEL {stats.Progression.Level}";
         LevelNumberText.Text = stats.Progression.Level.ToString();
+        LevelText.Foreground = levelBrush;
+        LevelNumberText.Foreground = levelBrush;
+        LevelProgressBar.Foreground = levelBrush;
+        LevelBadgeBorder.BorderBrush = levelBrush;
         LevelProgressBar.Value = stats.Progression.ProgressPercent;
         XpText.Text = $"{stats.Progression.XpIntoLevel:N0} / {stats.Progression.XpRequiredForNextLevel:N0} XP to next level  •  {stats.Progression.TotalXp:N0} total XP";
         TotalTimeText.Text = FormatDuration(stats.TotalTrackedSeconds);
@@ -147,7 +152,9 @@ public partial class ProfileView : UserControl
                 Padding = new Thickness(12),
                 Margin = new Thickness(0, 4, 0, 0),
                 Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-                CornerRadius = new CornerRadius(9)
+                BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(0)
             };
             var stack = new StackPanel();
             stack.Children.Add(new TextBlock
@@ -193,7 +200,9 @@ public partial class ProfileView : UserControl
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(0, 4, 0, 0),
             Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-            CornerRadius = new CornerRadius(9)
+            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(0)
         };
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -224,7 +233,9 @@ public partial class ProfileView : UserControl
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 4, 0, 0),
             Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-            CornerRadius = new CornerRadius(9)
+            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(0)
         };
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock
@@ -261,7 +272,7 @@ public partial class ProfileView : UserControl
                 ? (Brush)FindResource("AccentBrush")
                 : new SolidColorBrush(Color.FromRgb(43, 51, 68)),
             BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(10)
+            CornerRadius = new CornerRadius(0)
         };
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock
@@ -295,6 +306,11 @@ public partial class ProfileView : UserControl
     {
         LevelText.Text = "LEVEL —";
         LevelNumberText.Text = "—";
+        var neutralBrush = new SolidColorBrush(Color.FromRgb(125, 137, 156));
+        LevelText.Foreground = neutralBrush;
+        LevelNumberText.Foreground = neutralBrush;
+        LevelProgressBar.Foreground = neutralBrush;
+        LevelBadgeBorder.BorderBrush = neutralBrush;
         LevelProgressBar.Value = 0;
         XpText.Text = message;
         TotalTimeText.Text = "—";
@@ -310,6 +326,40 @@ public partial class ProfileView : UserControl
         MilestonesPanel.Children.Clear();
         MilestoneSummaryText.Text = message;
         SourcesPanel.Children.Clear();
+    }
+
+    private static SolidColorBrush GetLevelBandBrush(int level)
+    {
+        // Every block of ten levels gets a deterministic, high-contrast accent. The hue advances
+        // by 47 degrees per band, which avoids adjacent decades looking nearly identical while
+        // remaining stable all the way through Grev Home's level 999 cap.
+        var band = Math.Max(0, (level - 1) / 10);
+        var hue = (195d + band * 47d) % 360d;
+        var color = ColorFromHsv(hue, 0.68d, 0.95d);
+        var brush = new SolidColorBrush(color);
+        brush.Freeze();
+        return brush;
+    }
+
+    private static Color ColorFromHsv(double hue, double saturation, double value)
+    {
+        var chroma = value * saturation;
+        var hPrime = hue / 60d;
+        var x = chroma * (1d - Math.Abs(hPrime % 2d - 1d));
+        var (r1, g1, b1) = hPrime switch
+        {
+            >= 0d and < 1d => (chroma, x, 0d),
+            >= 1d and < 2d => (x, chroma, 0d),
+            >= 2d and < 3d => (0d, chroma, x),
+            >= 3d and < 4d => (0d, x, chroma),
+            >= 4d and < 5d => (x, 0d, chroma),
+            _ => (chroma, 0d, x)
+        };
+        var match = value - chroma;
+        return Color.FromRgb(
+            (byte)Math.Round((r1 + match) * 255d),
+            (byte)Math.Round((g1 + match) * 255d),
+            (byte)Math.Round((b1 + match) * 255d));
     }
 
     private static string FormatDuration(long seconds)
