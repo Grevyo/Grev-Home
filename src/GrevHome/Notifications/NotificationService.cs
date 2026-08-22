@@ -20,7 +20,7 @@ public sealed record GrevNotification(
     string Title,
     string Message,
     string? GrevId,
-    IReadOnlyList<string> ReadByGrevIds);
+    IReadOnlyList<string>? ReadByGrevIds);
 
 public sealed record NotificationSnapshot(
     int UnreadCount,
@@ -31,7 +31,7 @@ public sealed record NotificationSnapshot(
 
 internal sealed record NotificationStore(
     int SchemaVersion,
-    IReadOnlyList<GrevNotification> Items);
+    IReadOnlyList<GrevNotification>? Items);
 
 /// <summary>
 /// Persistent Grev Home notification backbone. Notifications may be machine-wide or scoped to one
@@ -81,7 +81,7 @@ public sealed class NotificationService
         try
         {
             var store = await ReadStoreAsync(cancellationToken);
-            var items = store.Items
+            var items = GetItems(store)
                 .Append(notification)
                 .OrderByDescending(item => item.CreatedAtUtc)
                 .Take(MaximumStoredNotifications)
@@ -114,7 +114,7 @@ public sealed class NotificationService
         try
         {
             var store = await ReadStoreAsync(cancellationToken);
-            var visible = store.Items
+            var visible = GetItems(store)
                 .Where(item => item.GrevId is null ||
                                string.Equals(item.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
                 .OrderByDescending(item => item.CreatedAtUtc)
@@ -143,7 +143,7 @@ public sealed class NotificationService
         try
         {
             var store = await ReadStoreAsync(cancellationToken);
-            var items = store.Items.ToArray();
+            var items = GetItems(store).ToArray();
             for (var index = 0; index < items.Length; index++)
             {
                 var item = items[index];
@@ -157,7 +157,7 @@ public sealed class NotificationService
 
                 items[index] = item with
                 {
-                    ReadByGrevIds = item.ReadByGrevIds
+                    ReadByGrevIds = GetReadByIds(item)
                         .Append(grevId)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToArray()
@@ -194,7 +194,7 @@ public sealed class NotificationService
         try
         {
             var store = await ReadStoreAsync(cancellationToken);
-            var items = store.Items.ToArray();
+            var items = GetItems(store).ToArray();
             for (var index = 0; index < items.Length; index++)
             {
                 var item = items[index];
@@ -207,7 +207,7 @@ public sealed class NotificationService
 
                 items[index] = item with
                 {
-                    ReadByGrevIds = item.ReadByGrevIds
+                    ReadByGrevIds = GetReadByIds(item)
                         .Append(grevId)
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToArray()
@@ -232,8 +232,14 @@ public sealed class NotificationService
     }
 
     public static bool IsReadBy(GrevNotification notification, string grevId) =>
-        notification.ReadByGrevIds.Any(id =>
+        GetReadByIds(notification).Any(id =>
             string.Equals(id, grevId, StringComparison.OrdinalIgnoreCase));
+
+    private static IReadOnlyList<string> GetReadByIds(GrevNotification notification) =>
+        notification.ReadByGrevIds ?? Array.Empty<string>();
+
+    private static IReadOnlyList<GrevNotification> GetItems(NotificationStore store) =>
+        store.Items ?? Array.Empty<GrevNotification>();
 
     private async Task<NotificationStore> ReadStoreAsync(CancellationToken cancellationToken)
     {
@@ -252,7 +258,7 @@ public sealed class NotificationService
                 return new NotificationStore(SchemaVersion, Array.Empty<GrevNotification>());
             }
 
-            return store with { Items = store.Items ?? Array.Empty<GrevNotification>() };
+            return store;
         }
         catch (JsonException)
         {
