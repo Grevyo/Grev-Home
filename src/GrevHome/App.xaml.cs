@@ -51,6 +51,20 @@ public partial class App : Application
         _activationListenerCancellation = new CancellationTokenSource();
 
         _paths.EnsureMachineLayout();
+        try
+        {
+            new LocalDataSchemaService(_paths)
+                .EnsureCurrentAsync()
+                .GetAwaiter()
+                .GetResult();
+        }
+        catch (Exception ex)
+        {
+            _fatalCrashObserved = true;
+            WriteCrashLog("Local data schema startup gate", ex);
+            throw;
+        }
+
         WriteLifecycleLog(
             $"Shell starting. {BuildDiagnosticContext()} EffectiveRoot={_paths.Root}; GREV_HOME_ROOT={Environment.GetEnvironmentVariable("GREV_HOME_ROOT") ?? "<unset>"}");
         RecordShellStart();
@@ -225,9 +239,6 @@ public partial class App : Application
 
     private void HandleUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
     {
-        // An unobserved Task exception does not automatically mean the shell is terminating, but it
-        // is invaluable during the later whole-appliance soak test. Record it without changing the
-        // runtime's normal .NET exception semantics.
         WriteCrashLog("Unobserved Task (non-fatal diagnostic)", e.Exception);
     }
 
