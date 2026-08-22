@@ -115,26 +115,52 @@ public sealed class PlaytimeService
     {
         if (!File.Exists(path))
         {
-            return new PlaytimeSnapshot(
-                SchemaVersion,
-                new Dictionary<string, AppPlaytimeStat>(StringComparer.OrdinalIgnoreCase));
+            return EmptySnapshot();
         }
 
         try
         {
             await using var stream = File.OpenRead(path);
             var snapshot = await JsonSerializer.DeserializeAsync<PlaytimeSnapshot>(stream, _jsonOptions, cancellationToken);
-            return snapshot ?? new PlaytimeSnapshot(
-                SchemaVersion,
-                new Dictionary<string, AppPlaytimeStat>(StringComparer.OrdinalIgnoreCase));
+            if (snapshot is null || snapshot.Apps is null)
+            {
+                return RecoverMalformedSnapshot(path, "Playtime JSON contained no usable snapshot.");
+            }
+
+            if (snapshot.SchemaVersion > SchemaVersion)
+            {
+                // Never let an older Grev Home build overwrite data written by a newer schema.
+                throw new InvalidDataException(
+                    $"Playtime data schema {snapshot.SchemaVersion} is newer than this build supports ({SchemaVersion}).");
+            }
+            if (snapshot.SchemaVersion <= 0)
+            {
+                return RecoverMalformedSnapshot(path, $"Invalid playtime schema version {snapshot.SchemaVersion}.");
+            }
+
+            return snapshot;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return new PlaytimeSnapshot(
-                SchemaVersion,
-                new Dictionary<string, AppPlaytimeStat>(StringComparer.OrdinalIgnoreCase));
+            return RecoverMalformedSnapshot(path, $"Playtime JSON could not be parsed: {ex.Message}");
         }
     }
+
+    private PlaytimeSnapshot RecoverMalformedSnapshot(string path, string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(_paths, path, "Playtime", reason, out _))
+        {
+            throw new InvalidDataException(
+                "Grev Home found malformed playtime data and could not preserve a recovery copy. The file was left untouched.");
+        }
+
+        return EmptySnapshot();
+    }
+
+    private static PlaytimeSnapshot EmptySnapshot() =>
+        new(
+            SchemaVersion,
+            new Dictionary<string, AppPlaytimeStat>(StringComparer.OrdinalIgnoreCase));
 
     private async Task WriteAsync(
         string path,
@@ -149,6 +175,8 @@ public sealed class PlaytimeService
             await using (var stream = File.Create(temporaryPath))
             {
                 await JsonSerializer.SerializeAsync(stream, snapshot, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temporaryPath, path, overwrite: true);
