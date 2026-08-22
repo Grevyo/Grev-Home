@@ -39,9 +39,10 @@ public partial class MainWindow
         var history = _sessionHistory
             ?? throw new InvalidOperationException("Local session history must initialize before Grev.dad sync.");
         var accounts = RequireGrevDadAccountService();
+        var privacy = RequireGrevDadPrivacySettingsService();
 
         _grevDadProfileSyncReady = true;
-        _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history, accounts);
+        _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history, accounts, privacy);
         _grevDadSyncRetryTimer.Tick += (_, _) => _ = RetryDueGrevDadSyncsAsync();
 
         // Session changes are an explicit lifecycle edge. They can backfill a linked Primary GrevID
