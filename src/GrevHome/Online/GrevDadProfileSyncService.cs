@@ -13,7 +13,8 @@ public sealed record GrevDadSyncedProgression(
     int GrevHomeLevel,
     long GrevDadTotalXp,
     int GrevDadLevel,
-    DateTimeOffset SyncedAtUtc);
+    DateTimeOffset SyncedAtUtc,
+    bool HasMoreHistory);
 
 internal sealed record GrevDadProfileSyncCursor(
     int SchemaVersion,
@@ -193,12 +194,20 @@ public sealed class GrevDadProfileSyncService : IDisposable
                 return null;
             }
 
+            var hasMoreHistory = privacy.ShareSessionHistory &&
+                                 (await _history.ReadAfterAsync(
+                                     grevId,
+                                     cursor.HistoryThroughSequence,
+                                     1,
+                                     cancellationToken)).Count > 0;
+
             return new GrevDadSyncedProgression(
                 lastResponse.GrevHome.TotalXp,
                 lastResponse.GrevHome.Level,
                 lastResponse.GrevDad.TotalXp,
                 lastResponse.GrevDad.Level,
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                hasMoreHistory);
         }
         finally
         {
@@ -326,12 +335,27 @@ public sealed class GrevDadProfileSyncService : IDisposable
         {
             await using var stream = File.OpenRead(path);
             var cursor = await JsonSerializer.DeserializeAsync<GrevDadProfileSyncCursor>(stream, _json, cancellationToken);
-            return cursor is { SchemaVersion: SchemaVersion, HistoryThroughSequence: >= 0 }
-                ? cursor
-                : new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
+            if (cursor is { SchemaVersion: SchemaVersion, HistoryThroughSequence: >= 0 })
+            {
+                return cursor;
+            }
+
+            CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "GrevDadSyncCursor",
+                "Sync cursor is empty or uses an unsupported schema/value.",
+                out _);
+            return new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "GrevDadSyncCursor",
+                $"Sync cursor JSON could not be parsed: {ex.Message}",
+                out _);
             return new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
         }
         catch (IOException)
@@ -350,9 +374,17 @@ public sealed class GrevDadProfileSyncService : IDisposable
         var temporary = path + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporary))
+            await using (var stream = new FileStream(
+                             temporary,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             4096,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, cursor, _json, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
         }
