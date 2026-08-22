@@ -4,7 +4,7 @@ namespace GrevHome;
 
 public partial class MainWindow
 {
-    private readonly SessionHistoryService _sessionHistory;
+    private SessionHistoryService? _sessionHistory;
     private bool _sessionHistoryIntegrationReady;
 
     private void InitializeSessionHistoryIntegration()
@@ -15,6 +15,7 @@ public partial class MainWindow
         }
 
         _sessionHistoryIntegrationReady = true;
+        _sessionHistory = new SessionHistoryService(_paths);
 
         // RuntimeSessionManager owns local completion durability. Grev.dad is only offered a
         // completed session after both the idempotent playtime aggregate and immutable local
