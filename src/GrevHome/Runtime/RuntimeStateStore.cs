@@ -48,13 +48,11 @@ public sealed class RuntimeStateStore
         {
             using var stream = File.OpenRead(StateFile);
             return JsonSerializer.Deserialize<List<RuntimeSessionRecoveryRecord>>(stream, _jsonOptions)
-                   ?? new List<RuntimeSessionRecoveryRecord>();
+                   ?? RecoverMalformedState("Runtime recovery JSON contained no usable session list.");
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            // A damaged recovery file must never stop Grev Home from launching.
-            // Leave it untouched for diagnosis; the next successful runtime write will replace it.
-            return Array.Empty<RuntimeSessionRecoveryRecord>();
+            return RecoverMalformedState($"Runtime recovery JSON could not be parsed: {ex.Message}");
         }
         catch (IOException)
         {
@@ -88,5 +86,13 @@ public sealed class RuntimeStateStore
                 File.Delete(temporaryPath);
             }
         }
+    }
+
+    private IReadOnlyList<RuntimeSessionRecoveryRecord> RecoverMalformedState(string reason)
+    {
+        // Runtime recovery is reconstructable from live processes, but the malformed bytes are still
+        // preserved before Grev Home writes a clean recovery snapshot later in this launch.
+        CorruptDataQuarantine.TryPreserve(_paths, StateFile, "Runtime", reason, out _);
+        return Array.Empty<RuntimeSessionRecoveryRecord>();
     }
 }
