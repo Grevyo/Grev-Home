@@ -51,7 +51,7 @@ public partial class ProfileEditView
         _grevDadEditorCard.Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
         _grevDadEditorCard.BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68));
         _grevDadEditorCard.BorderThickness = new Thickness(1);
-        _grevDadEditorCard.CornerRadius = new CornerRadius(14);
+        _grevDadEditorCard.CornerRadius = new CornerRadius(0);
 
         var stack = new StackPanel();
         stack.Children.Add(new TextBlock
@@ -155,7 +155,6 @@ public partial class ProfileEditView
 
         _grevDadEditorCard.Child = stack;
 
-        // Keep Grev.dad with the other profile features, immediately before Save Profile/status.
         var insertIndex = Math.Max(0, content.Children.Count - 2);
         content.Children.Insert(insertIndex, _grevDadEditorCard);
         RenderGrevDadPrivacy();
