@@ -169,6 +169,7 @@ public partial class MainWindow
                     _settingsView.SetGrevDadState(profile, service.GetLastSnapshot(grevId));
                     _settingsView.ShowAccountStatus(
                         $"Linked @{result.Account?.Username} to local GrevID {grevId}. The website password was never stored in Grev Home.");
+                    _ = SyncGrevDadProfileSafeAsync(grevId);
                     await RefreshGrevDadPresenceForAsync(grevId);
                     return;
                 case GrevDadLinkPollState.Denied:
