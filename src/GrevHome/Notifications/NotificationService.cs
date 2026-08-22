@@ -273,10 +273,6 @@ public sealed class NotificationService
         {
             return RecoverMalformedStore($"Notification JSON could not be parsed: {ex.Message}");
         }
-        catch (IOException)
-        {
-            return EmptyStore();
-        }
     }
 
     private NotificationStore RecoverMalformedStore(string reason)
