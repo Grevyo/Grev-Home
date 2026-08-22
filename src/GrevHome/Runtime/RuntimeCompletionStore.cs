@@ -16,7 +16,8 @@ public sealed record RuntimePendingCompletionRecord(
     LaunchSessionState State,
     int RootProcessId,
     IReadOnlyList<int> ProcessIds,
-    string? FailureMessage)
+    string? FailureMessage,
+    long? TrackedDurationSeconds = null)
 {
     public LaunchSessionSnapshot ToSnapshot() => new(
         LaunchSessionId,
@@ -29,7 +30,8 @@ public sealed record RuntimePendingCompletionRecord(
         State,
         RootProcessId,
         ProcessIds,
-        FailureMessage);
+        FailureMessage,
+        TrackedDurationSeconds);
 }
 
 /// <summary>
@@ -84,7 +86,8 @@ public sealed class RuntimeCompletionStore
             state,
             runningSnapshot.RootProcessId,
             runningSnapshot.ProcessIds ?? Array.Empty<int>(),
-            failureMessage);
+            failureMessage,
+            runningSnapshot.TrackedDurationSeconds);
 
         await SaveAsync(record, cancellationToken);
         return record;
@@ -181,7 +184,8 @@ public sealed class RuntimeCompletionStore
             string.IsNullOrWhiteSpace(record.AppName) ||
             record.StartedAtUtc == default ||
             record.EndedAtUtc < record.StartedAtUtc ||
-            record.State is not (LaunchSessionState.Exited or LaunchSessionState.Failed))
+            record.State is not (LaunchSessionState.Exited or LaunchSessionState.Failed) ||
+            record.TrackedDurationSeconds is < 0)
         {
             throw new InvalidDataException("Pending runtime completion failed validation.");
         }
