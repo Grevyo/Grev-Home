@@ -36,6 +36,8 @@ public sealed class SessionHistoryService
     private readonly AppPaths _paths;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web);
+    private readonly Dictionary<string, HashSet<Guid>> _knownSessionIds =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public SessionHistoryService(AppPaths paths)
     {
@@ -74,6 +76,14 @@ public sealed class SessionHistoryService
                 cancellationToken.ThrowIfCancellationRequested();
                 _paths.EnsureProfileLayout(grevId);
 
+                var known = await GetKnownSessionIdsAsync(grevId, cancellationToken);
+                if (known.Contains(snapshot.LaunchSessionId))
+                {
+                    // Runtime completion events are expected to be once-only, but recovery/race
+                    // paths must not be able to duplicate the GrevID's local history authority.
+                    continue;
+                }
+
                 var nextSequence = await ReadNextSequenceAsync(grevId, cancellationToken);
                 var entry = new LocalSessionHistoryEntry(
                     SchemaVersion,
@@ -94,6 +104,7 @@ public sealed class SessionHistoryService
                     new SessionHistorySequenceState(SchemaVersion, checked(nextSequence + 1)),
                     cancellationToken);
                 await AppendEntryAsync(grevId, entry, cancellationToken);
+                known.Add(snapshot.LaunchSessionId);
             }
         }
         finally
@@ -131,6 +142,24 @@ public sealed class SessionHistoryService
             .ThenByDescending(entry => entry.Sequence)
             .Take(limit)
             .ToArray();
+    }
+
+    private async Task<HashSet<Guid>> GetKnownSessionIdsAsync(
+        string grevId,
+        CancellationToken cancellationToken)
+    {
+        if (_knownSessionIds.TryGetValue(grevId, out var existing))
+        {
+            return existing;
+        }
+
+        var entries = await ReadAllAsync(grevId, cancellationToken);
+        var loaded = entries
+            .Select(entry => entry.SessionId)
+            .Where(id => id != Guid.Empty)
+            .ToHashSet();
+        _knownSessionIds[grevId] = loaded;
+        return loaded;
     }
 
     private async Task<IReadOnlyList<LocalSessionHistoryEntry>> ReadAllAsync(
