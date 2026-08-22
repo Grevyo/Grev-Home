@@ -9,8 +9,9 @@ public partial class MainWindow
         InitializeSessionHistoryIntegration();
 
         // Online identity is a shell foundation, not a page-owned feature. Initialize it from the
-        // native MainWindow lifecycle so Friends/Profile/Activity surfaces can remain consumers.
+        // native MainWindow lifecycle so later Friends/Profile/Activity surfaces remain consumers.
         InitializeGrevDadIntegration();
+        InitializeGrevDadMaintenanceIntegration();
         InitializeGrevDadProfileSyncIntegration();
         InitializeGrevDadSettingsIntegration();
     }
