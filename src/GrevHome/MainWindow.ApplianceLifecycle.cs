@@ -7,6 +7,7 @@ namespace GrevHome;
 public partial class MainWindow
 {
     private const int WmPowerBroadcast = 0x0218;
+    private const int PbtApmSuspend = 0x0004;
     private const int PbtApmResumeSuspend = 0x0007;
     private const int PbtApmResumeAutomatic = 0x0012;
 
@@ -48,7 +49,13 @@ public partial class MainWindow
         }
 
         var powerEvent = wParam.ToInt32();
-        if (powerEvent is PbtApmResumeSuspend or PbtApmResumeAutomatic)
+        if (powerEvent == PbtApmSuspend)
+        {
+            // Stamp every managed runtime before Windows suspends the process. Runtime recovery
+            // persists this boundary so sleep can never be mistaken for active playtime/XP.
+            _runtimeSessions.NotifySystemSuspend(DateTimeOffset.UtcNow);
+        }
+        else if (powerEvent is PbtApmResumeSuspend or PbtApmResumeAutomatic)
         {
             Dispatcher.BeginInvoke(new Action(HandleWindowsResume));
         }
@@ -65,6 +72,7 @@ public partial class MainWindow
         }
 
         _lastResumeRefreshAt = now;
+        _runtimeSessions.NotifySystemResume(now);
 
         // XInput polling and runtime monitors remain alive across sleep. Refresh configuration and
         // shell surfaces immediately so the UI does not wait for a later navigation event.
