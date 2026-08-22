@@ -114,9 +114,6 @@ public sealed class GrevDadProfileSyncService : IDisposable
         await gate.WaitAsync(cancellationToken);
         try
         {
-            // Grev.dad sync is never inferred from a token merely existing in Credential Manager.
-            // The account service must first confirm that the link is currently valid. This also
-            // gives one place ownership of revoked/expired state and credential cleanup.
             var account = await _accounts.ValidateLinkedAccountAsync(grevId, cancellationToken);
             if (account.State != GrevDadConnectionState.Linked)
             {
@@ -146,8 +143,6 @@ public sealed class GrevDadProfileSyncService : IDisposable
                         cancellationToken)
                     : Array.Empty<LocalSessionHistoryEntry>();
 
-                // Even with no new/shared history, send one progression snapshot so local Grev Home
-                // progression can contribute after linking without requiring history visibility.
                 if (sessions.Count == 0 && sentAnyRequest)
                 {
                     break;
@@ -220,12 +215,13 @@ public sealed class GrevDadProfileSyncService : IDisposable
         var completedSessions = playtime.Apps.Values.Sum(app => app.SessionCount);
         var uniqueApps = playtime.Apps.Count;
 
-        // This intentionally mirrors ProfileStatsService's Grev Home source formula, but uses only
-        // committed playtime rather than temporary in-flight runtime seconds.
-        var totalXp = Math.Max(0L, totalSeconds / 60) +
-                      (long)completedSessions * 20L +
-                      (long)uniqueApps * 100L;
-        var level = ProfileStatsService.CalculateLevel(totalXp).Level;
+        // One progression authority is shared by the local profile UI and optional Grev.dad sync.
+        // Sync intentionally uses committed playtime only, not temporary in-flight runtime seconds.
+        var totalXp = GrevHomeProgressionPolicy.CalculateXp(
+            totalSeconds,
+            completedSessions,
+            uniqueApps);
+        var level = GrevHomeProgressionPolicy.CalculateLevel(totalXp).Level;
         return new GrevDadSyncApiProgression(
             totalXp,
             level,
@@ -278,8 +274,6 @@ public sealed class GrevDadProfileSyncService : IDisposable
             cancellationToken);
         if (response.StatusCode == HttpStatusCode.Unauthorized)
         {
-            // Revalidate through the account authority so it owns transition to Revoked and secret
-            // cleanup. Ignore the secondary exception; the sync still reports the original 401.
             try
             {
                 await _accounts.ValidateLinkedAccountAsync(grevId, cancellationToken);
