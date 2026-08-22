@@ -679,29 +679,51 @@ public sealed class TransferManager : IDisposable
         _paths.EnsureMachineLayout();
         if (!File.Exists(_paths.TransferStateFile))
         {
-            return new TransferStore(SchemaVersion, Array.Empty<TransferItem>());
+            return EmptyStore();
         }
 
         try
         {
             await using var stream = File.OpenRead(_paths.TransferStateFile);
             var store = await JsonSerializer.DeserializeAsync<TransferStore>(stream, _jsonOptions, cancellationToken);
-            if (store is null || store.SchemaVersion != SchemaVersion)
+            if (store is null || store.Items is null)
             {
-                return new TransferStore(SchemaVersion, Array.Empty<TransferItem>());
+                return RecoverMalformedStore("Transfer JSON contained no usable queue state.");
+            }
+            if (store.SchemaVersion > SchemaVersion)
+            {
+                throw new InvalidDataException(
+                    $"Transfer schema {store.SchemaVersion} is newer than this Grev Home build supports ({SchemaVersion}).");
+            }
+            if (store.SchemaVersion <= 0)
+            {
+                return RecoverMalformedStore($"Invalid transfer schema version {store.SchemaVersion}.");
             }
 
-            return store with { Items = store.Items ?? Array.Empty<TransferItem>() };
+            return store;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return new TransferStore(SchemaVersion, Array.Empty<TransferItem>());
+            return RecoverMalformedStore($"Transfer JSON could not be parsed: {ex.Message}");
         }
         catch (IOException)
         {
-            return new TransferStore(SchemaVersion, Array.Empty<TransferItem>());
+            return EmptyStore();
         }
     }
+
+    private TransferStore RecoverMalformedStore(string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(_paths, _paths.TransferStateFile, "Transfers", reason, out _))
+        {
+            throw new InvalidDataException(
+                "Grev Home found malformed transfer state and could not preserve a recovery copy. The queue file was left untouched.");
+        }
+        return EmptyStore();
+    }
+
+    private static TransferStore EmptyStore() =>
+        new(SchemaVersion, Array.Empty<TransferItem>());
 
     private async Task WriteStoreAsync(CancellationToken cancellationToken)
     {
@@ -713,6 +735,8 @@ public sealed class TransferManager : IDisposable
             await using (var stream = File.Create(temporaryPath))
             {
                 await JsonSerializer.SerializeAsync(stream, store, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temporaryPath, _paths.TransferStateFile, overwrite: true);
@@ -761,9 +785,6 @@ public sealed class TransferManager : IDisposable
             cancellation.Cancel();
         }
 
-        // The worker owns the same gates/HttpClient used while it re-queues an interrupted download.
-        // Do not dispose those objects underneath it. ProcessQueueAsync never depends on the UI
-        // thread, so synchronously joining it here gives shutdown one deterministic owner.
         try
         {
             _workerTask?.GetAwaiter().GetResult();
