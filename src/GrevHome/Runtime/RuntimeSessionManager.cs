@@ -14,34 +14,48 @@ public sealed class RuntimeSessionManager : IDisposable
     private static readonly TimeSpan PersistHeartbeatInterval = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan RestartGracefulWait = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RestartForceWait = TimeSpan.FromSeconds(3);
+    private static readonly TimeSpan ShutdownMonitorWait = TimeSpan.FromSeconds(5);
 
     private readonly ConcurrentDictionary<Guid, TrackedLaunchSession> _active = new();
     private readonly ConcurrentDictionary<Guid, byte> _restarting = new();
+    private readonly ConcurrentDictionary<Guid, byte> _finalizing = new();
+    private readonly ConcurrentDictionary<Guid, Task> _monitorTasks = new();
     private readonly ProcessTreeService _processTree;
     private readonly ProcessWindowService _processWindows;
     private readonly PlaytimeService _playtime;
+    private readonly SessionHistoryService _sessionHistory;
     private readonly AppLaunchResolver _launchResolver;
     private readonly RuntimeStateStore _runtimeStateStore;
+    private readonly RuntimeCompletionStore _completionStore;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly object _persistGate = new();
     private DateTimeOffset _lastPersistedAtUtc = DateTimeOffset.MinValue;
+    private bool _disposed;
 
     public event Action<LaunchSessionSnapshot>? SessionChanged;
     public event Action<LaunchSessionSnapshot>? SessionEnded;
+    public event Action<LaunchSessionSnapshot>? SessionHistoryCommitted;
 
     public RuntimeSessionManager(
         ProcessTreeService processTree,
         ProcessWindowService processWindows,
         PlaytimeService playtime,
         AppLaunchResolver launchResolver,
-        RuntimeStateStore? runtimeStateStore = null)
+        RuntimeStateStore? runtimeStateStore = null,
+        SessionHistoryService? sessionHistory = null,
+        RuntimeCompletionStore? completionStore = null)
     {
         _processTree = processTree;
         _processWindows = processWindows;
         _playtime = playtime;
         _launchResolver = launchResolver;
-        _runtimeStateStore = runtimeStateStore ?? new RuntimeStateStore(new AppPaths());
 
+        var fallbackPaths = new AppPaths();
+        _runtimeStateStore = runtimeStateStore ?? new RuntimeStateStore(fallbackPaths);
+        _sessionHistory = sessionHistory ?? new SessionHistoryService(fallbackPaths);
+        _completionStore = completionStore ?? new RuntimeCompletionStore(fallbackPaths);
+
+        ReplayPendingCompletions();
         RecoverPersistedSessions();
     }
 
@@ -83,8 +97,6 @@ public sealed class RuntimeSessionManager : IDisposable
             return false;
         }
 
-        // A tray-style app can replace or hide its original top-level window while keeping the
-        // same named process group alive. Refresh those identities before attempting activation.
         RefreshDeclaredProcesses(tracked);
         var processIds = GetValidatedProcessIds(tracked);
         return processIds.Count > 0 && _processWindows.TryActivate(processIds);
@@ -200,13 +212,16 @@ public sealed class RuntimeSessionManager : IDisposable
                 }
             }
 
-            // Give the normal monitor a brief chance to finalize the old playtime record before
-            // registering the replacement session. A replacement may still start if finalization
-            // is finishing in parallel because it receives its own LaunchSessionId.
-            var finalizeDeadline = DateTimeOffset.UtcNow.Add(ExitGracePeriod + TimeSpan.FromSeconds(1));
+            var finalizeDeadline = DateTimeOffset.UtcNow.Add(ExitGracePeriod + TimeSpan.FromSeconds(3));
             while (_active.ContainsKey(launchSessionId) && DateTimeOffset.UtcNow < finalizeDeadline)
             {
                 await Task.Delay(100, cancellationToken);
+            }
+
+            if (_active.ContainsKey(launchSessionId))
+            {
+                throw new InvalidOperationException(
+                    "The previous runtime session has not finished its local completion commit, so Grev Home did not start a replacement yet.");
             }
 
             return await LaunchAsync(
@@ -258,6 +273,7 @@ public sealed class RuntimeSessionManager : IDisposable
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(participants);
         cancellationToken.ThrowIfCancellationRequested();
+        ObjectDisposedException.ThrowIf(_disposed, this);
 
         if (participants.Count == 0)
         {
@@ -325,8 +341,26 @@ public sealed class RuntimeSessionManager : IDisposable
         PersistRuntimeState(force: true);
         var snapshot = tracked.Snapshot();
         SessionChanged?.Invoke(snapshot);
-        _ = Task.Run(() => MonitorAsync(tracked, _shutdown.Token), CancellationToken.None);
+        StartMonitor(tracked);
         return Task.FromResult(snapshot);
+    }
+
+    private void ReplayPendingCompletions()
+    {
+        foreach (var record in _completionStore.LoadAll())
+        {
+            try
+            {
+                CommitPendingCompletionAsync(record, publishHistoryEvent: false)
+                    .GetAwaiter()
+                    .GetResult();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or OverflowException)
+            {
+                // The exact pending record remains durable. A later startup/session completion can
+                // replay it again because both playtime and history commits are SessionId-idempotent.
+            }
+        }
     }
 
     private void RecoverPersistedSessions()
@@ -360,8 +394,9 @@ public sealed class RuntimeSessionManager : IDisposable
             }
             if (aliveProcesses.Count == 0)
             {
-                // The app ended while Grev Home was not running. Do not guess an end time and
-                // do not write playtime here: avoiding duplicate/fictional playtime is safer.
+                // A completion detected before the previous shell died is replayed from the exact
+                // PendingCompletions record above. If no such record exists, keep the old policy:
+                // never invent an end time for an app that ended while Grev Home was absent.
                 continue;
             }
 
@@ -389,20 +424,29 @@ public sealed class RuntimeSessionManager : IDisposable
             recoveredAny = true;
         }
 
-        // Older Discord builds could persist multiple Grev launch records that all adopted the
-        // same app process group. Keep the oldest canonical session and discard any later records
-        // that overlap the same live Windows processes before monitors/playtime start.
         DeduplicateActiveSessions();
 
         foreach (var tracked in _active.Values)
         {
-            _ = Task.Run(() => MonitorAsync(tracked, _shutdown.Token), CancellationToken.None);
+            StartMonitor(tracked);
         }
 
         if (recoveredAny || File.Exists(_runtimeStateStore.StateFile))
         {
             PersistRuntimeState(force: true);
         }
+    }
+
+    private void StartMonitor(TrackedLaunchSession tracked)
+    {
+        var id = tracked.LaunchSessionId;
+        var task = Task.Run(() => MonitorAsync(tracked, _shutdown.Token), CancellationToken.None);
+        _monitorTasks[id] = task;
+        _ = task.ContinueWith(
+            _ => _monitorTasks.TryRemove(id, out _),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private async Task MonitorAsync(TrackedLaunchSession tracked, CancellationToken cancellationToken)
@@ -414,8 +458,6 @@ public sealed class RuntimeSessionManager : IDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                // A session removed by deduplication must stop silently. It must not later write a
-                // second playtime record for the canonical app process group.
                 if (!_active.ContainsKey(tracked.LaunchSessionId))
                 {
                     return;
@@ -455,7 +497,7 @@ public sealed class RuntimeSessionManager : IDisposable
                     noProcessesSince ??= DateTimeOffset.UtcNow;
                     if (DateTimeOffset.UtcNow - noProcessesSince.Value >= ExitGracePeriod)
                     {
-                        await FinalizeAsync(tracked, noProcessesSince.Value, failureMessage: null, cancellationToken);
+                        await FinalizeAsync(tracked, noProcessesSince.Value, failureMessage: null);
                         return;
                     }
                 }
@@ -465,49 +507,93 @@ public sealed class RuntimeSessionManager : IDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Expected when Grev Home shuts down.
+            // Expected when Grev Home shuts down while the managed app is still alive.
         }
         catch (Exception ex)
         {
-            await FinalizeAsync(tracked, DateTimeOffset.UtcNow, ex.Message, CancellationToken.None);
+            await FinalizeAsync(tracked, DateTimeOffset.UtcNow, ex.Message);
         }
     }
 
     private async Task FinalizeAsync(
         TrackedLaunchSession tracked,
         DateTimeOffset endedAtUtc,
-        string? failureMessage,
-        CancellationToken cancellationToken)
+        string? failureMessage)
     {
-        if (!_active.ContainsKey(tracked.LaunchSessionId))
+        if (!_active.ContainsKey(tracked.LaunchSessionId) ||
+            !_finalizing.TryAdd(tracked.LaunchSessionId, 0))
         {
             return;
         }
 
-        if (failureMessage is null)
+        try
         {
-            tracked.MarkExited(endedAtUtc);
-        }
-        else
-        {
-            tracked.MarkFailed(failureMessage, endedAtUtc);
-        }
+            // From the moment process exit has been confirmed, local completion is non-cancellable.
+            // Persist the exact completion envelope first so even a hard shell kill can replay it.
+            var pending = await _completionStore.SaveAsync(
+                tracked.Snapshot(),
+                endedAtUtc,
+                failureMessage,
+                CancellationToken.None);
 
-        var snapshot = tracked.Snapshot();
+            try
+            {
+                await CommitPendingCompletionAsync(pending, publishHistoryEvent: true);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or OverflowException)
+            {
+                // The pending completion stays on disk. Ending the UI/runtime ownership is safe
+                // because startup can replay this exact SessionId without double-counting either
+                // aggregate playtime or immutable history.
+            }
+
+            if (failureMessage is null)
+            {
+                tracked.MarkExited(endedAtUtc);
+            }
+            else
+            {
+                tracked.MarkFailed(failureMessage, endedAtUtc);
+            }
+
+            var snapshot = tracked.Snapshot();
+            _active.TryRemove(snapshot.LaunchSessionId, out _);
+            PersistRuntimeState(force: true);
+            SessionChanged?.Invoke(snapshot);
+            SessionEnded?.Invoke(snapshot);
+        }
+        finally
+        {
+            _finalizing.TryRemove(tracked.LaunchSessionId, out _);
+        }
+    }
+
+    private async Task CommitPendingCompletionAsync(
+        RuntimePendingCompletionRecord pending,
+        bool publishHistoryEvent)
+    {
+        var snapshot = pending.ToSnapshot();
         var duration = snapshot.EndedAtUtc!.Value - snapshot.StartedAtUtc;
 
+        // Keep the established local ordering: aggregate playtime first, immutable history second.
+        // Both writes are now SessionId-idempotent, while the pending envelope survives until both
+        // commit, so replay after any crash boundary is safe.
         await _playtime.RecordSessionAsync(
+            snapshot.LaunchSessionId,
             snapshot.AppId,
             snapshot.AppName,
             snapshot.Participants,
             duration,
             snapshot.EndedAtUtc.Value,
-            cancellationToken);
+            CancellationToken.None);
 
-        _active.TryRemove(snapshot.LaunchSessionId, out _);
-        PersistRuntimeState(force: true);
-        SessionChanged?.Invoke(snapshot);
-        SessionEnded?.Invoke(snapshot);
+        await _sessionHistory.RecordAsync(snapshot, CancellationToken.None);
+        _completionStore.Delete(snapshot.LaunchSessionId);
+
+        if (publishHistoryEvent)
+        {
+            SessionHistoryCommitted?.Invoke(snapshot);
+        }
     }
 
     private async Task WaitForProcessesToExitAsync(
@@ -653,19 +739,41 @@ public sealed class RuntimeSessionManager : IDisposable
             }
             catch (IOException)
             {
-                // Runtime persistence must never crash or block the shell.
             }
             catch (UnauthorizedAccessException)
             {
-                // Runtime continues in-memory even if the recovery file cannot be written.
             }
         }
     }
 
     public void Dispose()
     {
+        if (_disposed)
+        {
+            return;
+        }
+        _disposed = true;
+
+        // Preserve live app ownership first. Monitors are then cancelled; a monitor already inside
+        // FinalizeAsync ignores that cancellation because its exact pending completion is durable.
         PersistRuntimeState(force: true);
         _shutdown.Cancel();
+
+        var monitors = _monitorTasks.Values.ToArray();
+        if (monitors.Length > 0)
+        {
+            try
+            {
+                Task.WaitAll(monitors, ShutdownMonitorWait);
+            }
+            catch (AggregateException)
+            {
+                // Faults are surfaced by the app-wide unobserved-task diagnostics. Runtime state or
+                // PendingCompletions remains the recovery authority rather than throwing on close.
+            }
+        }
+
+        PersistRuntimeState(force: true);
         _shutdown.Dispose();
     }
 }
