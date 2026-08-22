@@ -16,7 +16,7 @@ namespace GrevHome.Store.Installers;
 /// uninstall. Update and repair replace only the package-owned binary root and preserve the
 /// GrevID-owned configuration/save roots.
 /// </summary>
-public sealed class RetroArchInstallerService : ITrustedPackageInstaller
+public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrustedPackageDownloadConsumer
 {
     public const string InstallerId = "retroarch";
     public const string SupportedVersion = "1.22.2";
@@ -29,12 +29,16 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
+    private TrustedPackageDownloadService? _downloadService;
 
     public RetroArchInstallerService(AppPaths paths, InstalledAppService installedApps)
     {
         _paths = paths;
         _installedApps = installedApps;
     }
+
+    public void ConfigureDownloadService(TrustedPackageDownloadService downloadService) =>
+        _downloadService = downloadService ?? throw new ArgumentNullException(nameof(downloadService));
 
     string ITrustedPackageInstaller.InstallerId => InstallerId;
 
@@ -119,7 +123,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller
 
         try
         {
-            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
+            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, grevId, progress, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Install", "Moving verified files into this profile...", 90));
             MoveExtractedPackage(extractedRoot, targetRoot);
@@ -219,7 +223,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller
             progress?.Report(new PackageInstallProgress(operation, "Preserving GrevID-owned configuration and saves before replacing binaries…", 2));
             PreserveLegacyBinaryConfig(targetRoot, grevId);
 
-            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
+            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, grevId, progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(new PackageInstallProgress(operation, "Swapping the verified RetroArch binary package…", 90));
@@ -270,11 +274,12 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller
     private async Task<string> PrepareVerifiedPackageAsync(
         string archivePath,
         string extractRoot,
+        string grevId,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
         progress?.Report(new PackageInstallProgress("Download", $"Downloading RetroArch {SupportedVersion}...", 0));
-        await DownloadArchiveAsync(archivePath, progress, cancellationToken);
+        await DownloadArchiveAsync(archivePath, grevId, progress, cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Verify", "Verifying pinned SHA-256...", 72));
         await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
@@ -396,11 +401,32 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller
         "retroarch",
         Guid.NewGuid().ToString("N"));
 
-    private static async Task DownloadArchiveAsync(
+    private async Task DownloadArchiveAsync(
         string destination,
+        string grevId,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
+        if (_downloadService is not null)
+        {
+            using var lease = await _downloadService.DownloadAsync(
+                "retroarch",
+                $"RetroArch {SupportedVersion}",
+                ArchiveUri,
+                "RetroArch.7z",
+                grevId,
+                progress,
+                progressStart: 0,
+                progressEnd: 70,
+                cancellationToken);
+            File.Copy(lease.FilePath, destination, overwrite: false);
+            if (new FileInfo(destination).Length <= 0)
+            {
+                throw new InvalidDataException("RetroArch download completed with no data.");
+            }
+            return;
+        }
+
         using var response = await Http.GetAsync(ArchiveUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
