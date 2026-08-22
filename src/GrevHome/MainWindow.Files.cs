@@ -236,7 +236,7 @@ public partial class MainWindow
         {
             if (request.Mode == FileNameEditorMode.CreateFolder)
             {
-                await Task.Run(() => _fileSystem.CreateFolder(_fileCurrentPath, request.Name));
+                await Task.Run(() => _fileSystem.CreateFolder(_fileCurrentPath, request.Name, _paths.Root));
                 _fileExplorerView.CloseEditor($"Created folder '{request.Name.Trim()}'.");
             }
             else
@@ -246,7 +246,7 @@ public partial class MainWindow
                     throw new InvalidOperationException("No item is selected for rename.");
                 }
 
-                await Task.Run(() => _fileSystem.Rename(request.SourcePath, request.Name));
+                await Task.Run(() => _fileSystem.Rename(request.SourcePath, request.Name, _paths.Root));
                 _fileExplorerView.CloseEditor($"Renamed item to '{request.Name.Trim()}'.");
             }
 
@@ -273,7 +273,7 @@ public partial class MainWindow
         _fileExplorerView.ShowStatus("Deleting…");
         try
         {
-            await Task.Run(() => _fileSystem.Delete(path));
+            await Task.Run(() => _fileSystem.Delete(path, _paths.Root));
             _fileExplorerView.CloseDelete($"Deleted '{Path.GetFileName(path.TrimEnd('\\'))}'.");
             RenderFiles();
         }
@@ -313,7 +313,7 @@ public partial class MainWindow
 
         try
         {
-            var target = await Task.Run(() => _fileSystem.Paste(transfer, _fileCurrentPath));
+            var target = await Task.Run(() => _fileSystem.Paste(transfer, _fileCurrentPath, _paths.Root));
             if (transfer.Mode == FileTransferMode.Move)
             {
                 _fileTransfer = null;
