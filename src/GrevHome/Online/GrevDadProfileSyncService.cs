@@ -167,11 +167,14 @@ public sealed class GrevDadProfileSyncService : IDisposable
                         throw new InvalidDataException("Grev.dad did not acknowledge the complete Grev Home history batch.");
                     }
 
+                    // The remote service may already know later sequence numbers after a safe local
+                    // cursor replay, but it must never be allowed to make this machine skip local
+                    // journal entries that were not part of the batch we actually sent.
                     cursor = cursor with
                     {
                         HistoryThroughSequence = Math.Max(
                             cursor.HistoryThroughSequence,
-                            lastResponse.AcceptedThroughSequence.Value),
+                            expectedThrough),
                         LastSuccessfulSyncAtUtc = DateTimeOffset.UtcNow
                     };
                     await WriteCursorAsync(grevId, cursor, cancellationToken);
@@ -247,9 +250,9 @@ public sealed class GrevDadProfileSyncService : IDisposable
         string historyVisibility,
         CancellationToken cancellationToken)
     {
-        var visibility = string.Equals(historyVisibility, "private", StringComparison.OrdinalIgnoreCase)
-            ? "private"
-            : "friends";
+        var visibility = string.Equals(historyVisibility, "friends", StringComparison.OrdinalIgnoreCase)
+            ? "friends"
+            : "private";
         var body = new
         {
             progression,
@@ -335,33 +338,48 @@ public sealed class GrevDadProfileSyncService : IDisposable
         {
             await using var stream = File.OpenRead(path);
             var cursor = await JsonSerializer.DeserializeAsync<GrevDadProfileSyncCursor>(stream, _json, cancellationToken);
-            if (cursor is { SchemaVersion: SchemaVersion, HistoryThroughSequence: >= 0 })
+            if (cursor is null)
             {
-                return cursor;
+                return RecoverCursorOrThrow(path, "Sync cursor contained no usable value.");
+            }
+            if (cursor.SchemaVersion > SchemaVersion)
+            {
+                throw new InvalidDataException(
+                    $"Grev.dad sync cursor schema {cursor.SchemaVersion} is newer than this Grev Home build supports ({SchemaVersion}). The existing cursor was left untouched.");
+            }
+            if (cursor.SchemaVersion != SchemaVersion || cursor.HistoryThroughSequence < 0)
+            {
+                return RecoverCursorOrThrow(
+                    path,
+                    $"Sync cursor used unsupported schema/value (schema={cursor.SchemaVersion}, sequence={cursor.HistoryThroughSequence}).");
             }
 
-            CorruptDataQuarantine.TryPreserve(
-                _paths,
-                path,
-                "GrevDadSyncCursor",
-                "Sync cursor is empty or uses an unsupported schema/value.",
-                out _);
-            return new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
+            return cursor;
         }
         catch (JsonException ex)
         {
-            CorruptDataQuarantine.TryPreserve(
+            return RecoverCursorOrThrow(
+                path,
+                $"Sync cursor JSON could not be parsed: {ex.Message}");
+        }
+    }
+
+    private GrevDadProfileSyncCursor RecoverCursorOrThrow(string path, string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(
                 _paths,
                 path,
                 "GrevDadSyncCursor",
-                $"Sync cursor JSON could not be parsed: {ex.Message}",
-                out _);
-            return new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
-        }
-        catch (IOException)
+                reason,
+                out _))
         {
-            return new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
+            throw new InvalidDataException(
+                "Grev Home found an invalid Grev.dad sync cursor but could not preserve a recovery copy. Sync stopped without changing the cursor.");
         }
+
+        // Session IDs are server-idempotent, so replaying from sequence 0 after a successfully
+        // preserved malformed cursor is safe and avoids skipping any local history.
+        return new GrevDadProfileSyncCursor(SchemaVersion, 0, null);
     }
 
     private async Task WriteCursorAsync(
