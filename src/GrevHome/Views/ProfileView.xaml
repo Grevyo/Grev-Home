@@ -7,7 +7,7 @@
             <Setter Property="Background" Value="#11151E" />
             <Setter Property="BorderBrush" Value="#252D3B" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Padding" Value="22" />
         </Style>
         <Style x:Key="ProfileEyebrow" TargetType="TextBlock">
@@ -43,12 +43,11 @@
                         Click="EditProfile_Click" />
             </Grid>
 
-            <!-- Hero / identity -->
             <Border x:Name="ProfileHeaderCard"
                     Background="#10151F"
                     BorderBrush="{StaticResource GuestRoleBrush}"
                     BorderThickness="2"
-                    CornerRadius="20"
+                    CornerRadius="0"
                     ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions>
@@ -64,14 +63,16 @@
                                 <GradientStop Color="#0A0E15" Offset="1" />
                             </LinearGradientBrush>
                         </Grid.Background>
-                        <Ellipse Width="360" Height="360" HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,-80,-70,0" Opacity="0.14">
-                            <Ellipse.Fill>
-                                <RadialGradientBrush>
-                                    <GradientStop Color="#7DD3FC" Offset="0" />
-                                    <GradientStop Color="#007DD3FC" Offset="1" />
-                                </RadialGradientBrush>
-                            </Ellipse.Fill>
-                        </Ellipse>
+                        <Rectangle Width="310"
+                                   Height="142"
+                                   HorizontalAlignment="Right"
+                                   Fill="#14223834"
+                                   Margin="0,0,0,0" />
+                        <Rectangle Width="170"
+                                   Height="142"
+                                   HorizontalAlignment="Right"
+                                   Fill="#102D405E"
+                                   Margin="0,0,310,0" />
                         <TextBlock Text="GREV HOME"
                                    Margin="28,24,0,0"
                                    VerticalAlignment="Top"
@@ -91,7 +92,7 @@
                         <Border x:Name="ProfileAvatarBorder"
                                 Width="142"
                                 Height="142"
-                                CornerRadius="71"
+                                CornerRadius="0"
                                 Background="#1F283A"
                                 BorderBrush="{StaticResource GuestRoleBrush}"
                                 BorderThickness="4"
@@ -99,11 +100,7 @@
                                 VerticalAlignment="Top"
                                 ClipToBounds="True">
                             <Grid>
-                                <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed">
-                                    <Image.Clip>
-                                        <EllipseGeometry Center="71,71" RadiusX="71" RadiusY="71" />
-                                    </Image.Clip>
-                                </Image>
+                                <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
                                 <TextBlock x:Name="AvatarText"
                                            Text="G"
                                            FontSize="46"
@@ -121,7 +118,7 @@
                                        TextTrimming="CharacterEllipsis" />
                             <WrapPanel Margin="0,5,0,0">
                                 <TextBlock x:Name="UsernameText" FontSize="16" Foreground="{StaticResource MutedBrush}" Margin="0,0,14,0" />
-                                <Border Padding="9,3" CornerRadius="8" Background="#192232" Margin="0,0,8,0">
+                                <Border Padding="9,3" CornerRadius="0" Background="#192232" Margin="0,0,8,0">
                                     <TextBlock x:Name="RoleText" FontSize="10" FontWeight="Bold" Foreground="{StaticResource GuestRoleBrush}" />
                                 </Border>
                                 <TextBlock x:Name="GrevDadLinkedText"
@@ -151,15 +148,16 @@
                                        Foreground="{StaticResource MutedBrush}" />
                         </StackPanel>
 
-                        <Border Grid.Column="2"
+                        <Border x:Name="LevelBadgeBorder"
+                                Grid.Column="2"
                                 Margin="18,62,0,0"
                                 Padding="18,12"
                                 MinWidth="150"
                                 VerticalAlignment="Top"
                                 Background="#B3090C12"
                                 BorderBrush="#334058"
-                                BorderThickness="1"
-                                CornerRadius="14">
+                                BorderThickness="2"
+                                CornerRadius="0">
                             <StackPanel>
                                 <TextBlock Text="GREV LEVEL" HorizontalAlignment="Center" Style="{StaticResource ProfileEyebrow}" />
                                 <TextBlock x:Name="LevelText"
@@ -175,7 +173,6 @@
                 </Grid>
             </Border>
 
-            <!-- Progression -->
             <Border Style="{StaticResource ProfileSectionCard}" Margin="0,16,0,0" Padding="24,18">
                 <Grid>
                     <Grid.ColumnDefinitions>
@@ -200,7 +197,6 @@
                 </Grid>
             </Border>
 
-            <!-- Summary numbers -->
             <UniformGrid Columns="4" Margin="0,12,0,0">
                 <Border Style="{StaticResource ProfileSectionCard}" Margin="0,0,6,0" Padding="18,15">
                     <StackPanel>
@@ -228,7 +224,6 @@
                 </Border>
             </UniformGrid>
 
-            <!-- Activity / top played -->
             <Grid Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="1.12*" />
@@ -254,7 +249,6 @@
                 </Border>
             </Grid>
 
-            <!-- Showcase -->
             <Border Style="{StaticResource ProfileSectionCard}" Margin="0,16,0,0">
                 <StackPanel>
                     <Grid>
