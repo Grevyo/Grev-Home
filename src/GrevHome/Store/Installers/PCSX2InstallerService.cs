@@ -17,7 +17,7 @@ namespace GrevHome.Store.Installers;
 /// Update/repair replace binaries only; uninstall removes binaries only and deliberately
 /// preserves the GrevID data root.
 /// </summary>
-public sealed class PCSX2InstallerService : ITrustedPackageInstaller
+public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPackageDownloadConsumer
 {
     public const string InstallerId = "pcsx2";
     public const string SupportedVersion = "2.6.3";
@@ -31,11 +31,18 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
     private readonly VisualCppRuntimePrerequisiteService _visualCppRuntime = new();
+    private TrustedPackageDownloadService? _downloadService;
 
     public PCSX2InstallerService(AppPaths paths, InstalledAppService installedApps)
     {
         _paths = paths;
         _installedApps = installedApps;
+    }
+
+    public void ConfigureDownloadService(TrustedPackageDownloadService downloadService)
+    {
+        _downloadService = downloadService ?? throw new ArgumentNullException(nameof(downloadService));
+        _visualCppRuntime.ConfigureDownloadService(downloadService);
     }
 
     string ITrustedPackageInstaller.InstallerId => InstallerId;
@@ -129,7 +136,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         ValidatePackage(package, grevId);
         _paths.EnsureProfileLayout(grevId);
 
-        await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken);
+        await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken, grevId);
 
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
         if (Directory.Exists(targetRoot) && Directory.EnumerateFileSystemEntries(targetRoot).Any())
@@ -146,7 +153,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
 
         try
         {
-            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
+            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, grevId, progress, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Install", "Moving verified PCSX2 files into this GrevID profile…", 90));
             MoveExtractedPackage(extractedRoot, targetRoot);
@@ -241,7 +248,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         _paths.EnsureProfileLayout(grevId);
         EnsurePersistentDataRoot(grevId);
 
-        await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken);
+        await _visualCppRuntime.EnsureInstalledAsync(progress, cancellationToken, grevId);
 
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
         var backupRoot = targetRoot + $".grev-backup-{Guid.NewGuid():N}";
@@ -259,7 +266,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
                 "Keeping GrevID PCSX2 AppData separate while preparing replacement binaries…",
                 6));
 
-            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, progress, cancellationToken);
+            var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, grevId, progress, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
 
             progress?.Report(new PackageInstallProgress(operation, "Swapping the verified PCSX2 binary package…", 90));
@@ -313,11 +320,12 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
     private async Task<string> PrepareVerifiedPackageAsync(
         string archivePath,
         string extractRoot,
+        string grevId,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
         progress?.Report(new PackageInstallProgress("Download", $"Downloading PCSX2 Stable {SupportedVersion}…", 6));
-        await DownloadArchiveAsync(archivePath, progress, cancellationToken);
+        await DownloadArchiveAsync(archivePath, grevId, progress, cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Verify", "Verifying the official release SHA-256…", 72));
         await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
@@ -529,11 +537,32 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller
         "pcsx2",
         Guid.NewGuid().ToString("N"));
 
-    private static async Task DownloadArchiveAsync(
+    private async Task DownloadArchiveAsync(
         string destination,
+        string grevId,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
+        if (_downloadService is not null)
+        {
+            using var lease = await _downloadService.DownloadAsync(
+                "pcsx2",
+                $"PCSX2 {SupportedVersion}",
+                ArchiveUri,
+                $"pcsx2-v{SupportedVersion}.7z",
+                grevId,
+                progress,
+                progressStart: 6,
+                progressEnd: 70,
+                cancellationToken);
+            File.Copy(lease.FilePath, destination, overwrite: false);
+            if (new FileInfo(destination).Length <= 0)
+            {
+                throw new InvalidDataException("PCSX2 download completed with no data.");
+            }
+            return;
+        }
+
         using var response = await Http.GetAsync(ArchiveUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
         response.EnsureSuccessStatusCode();
 
