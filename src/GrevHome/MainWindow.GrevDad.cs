@@ -7,16 +7,17 @@ namespace GrevHome;
 
 public partial class MainWindow
 {
-    private readonly ConcurrentDictionary<Guid, byte> _grevDadPublishedRuntimeSessions = new();
+    private readonly ConcurrentDictionary<string, byte> _grevDadPublishedRuntimeSessions =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _grevDadHeartbeatTimer = new()
     {
         Interval = TimeSpan.FromMinutes(2)
     };
+    private HashSet<string> _lastSignedInGrevDadGrevIds = new(StringComparer.OrdinalIgnoreCase);
 
     private GrevDadAccountService? _grevDadAccounts;
     private GrevDadPrivacySettingsService? _grevDadPrivacy;
     private bool _grevDadIntegrationReady;
-    private string? _lastPrimaryGrevDadGrevId;
 
     private void InitializeGrevDadIntegration()
     {
@@ -29,7 +30,7 @@ public partial class MainWindow
         _grevDadAccounts = new GrevDadAccountService(_paths);
         _grevDadPrivacy = new GrevDadPrivacySettingsService(_paths);
 
-        _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(() => _ = HandlePrimaryGrevDadChangedAsync()));
+        _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(() => _ = HandleGrevDadSessionChangedAsync()));
         _runtimeSessions.SessionChanged += HandleGrevDadRuntimeChanged;
         _runtimeSessions.SessionEnded += HandleGrevDadRuntimeEnded;
         _grevDadHeartbeatTimer.Tick += (_, _) => _ = RefreshGrevDadPresenceHeartbeatAsync();
@@ -39,7 +40,7 @@ public partial class MainWindow
             _grevDadAccounts?.Dispose();
         };
 
-        _ = HandlePrimaryGrevDadChangedAsync();
+        _ = HandleGrevDadSessionChangedAsync();
     }
 
     private GrevDadAccountService RequireGrevDadAccountService() =>
@@ -50,7 +51,7 @@ public partial class MainWindow
         _grevDadPrivacy
         ?? throw new InvalidOperationException("Grev.dad privacy services have not been initialized.");
 
-    private async Task HandlePrimaryGrevDadChangedAsync()
+    private async Task HandleGrevDadSessionChangedAsync()
     {
         var service = _grevDadAccounts;
         if (service is null)
@@ -58,84 +59,95 @@ public partial class MainWindow
             return;
         }
 
-        var primaryGrevId = _session.PrimaryUser?.GrevId;
-        var previous = _lastPrimaryGrevDadGrevId;
-        _lastPrimaryGrevDadGrevId = primaryGrevId;
+        var current = _session.SignedInUsers
+            .Select(user => user.GrevId)
+            .Where(grevId => !string.IsNullOrWhiteSpace(grevId))
+            .Select(grevId => grevId!)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var removed = _lastSignedInGrevDadGrevIds
+            .Where(grevId => !current.Contains(grevId))
+            .ToArray();
+        _lastSignedInGrevDadGrevIds = current;
 
-        if (!string.IsNullOrWhiteSpace(previous) &&
-            !string.Equals(previous, primaryGrevId, StringComparison.OrdinalIgnoreCase))
+        foreach (var grevId in removed)
         {
-            _ = SetGrevDadPresenceSafeAsync(previous, "offline", "none", "", expiresInSeconds: 60);
+            _ = SetGrevDadPresenceSafeAsync(grevId, "offline", "none", "", expiresInSeconds: 60);
         }
 
-        if (string.IsNullOrWhiteSpace(primaryGrevId))
+        var activeParticipantGrevIds = GetAllActiveRuntimeGrevIds();
+        if (current.Count == 0 && activeParticipantGrevIds.Count == 0)
         {
-            if (_runtimeSessions.GetActiveSessions().All(session => string.IsNullOrWhiteSpace(session.PrimaryGrevId)))
-            {
-                _grevDadHeartbeatTimer.Stop();
-            }
+            _grevDadHeartbeatTimer.Stop();
             return;
         }
 
-        try
+        foreach (var grevId in current.Concat(activeParticipantGrevIds).Distinct(StringComparer.OrdinalIgnoreCase))
         {
-            var local = await service.LoadLocalStateAsync(primaryGrevId);
-            if (local.State == GrevDadConnectionState.Linked)
+            try
             {
-                var validated = await service.ValidateLinkedAccountAsync(primaryGrevId);
-                if (validated.State is GrevDadConnectionState.Linked or GrevDadConnectionState.Offline)
+                var local = await service.LoadLocalStateAsync(grevId);
+                if (local.State == GrevDadConnectionState.Linked)
+                {
+                    var validated = await service.ValidateLinkedAccountAsync(grevId);
+                    if (validated.State is GrevDadConnectionState.Linked or GrevDadConnectionState.Offline)
+                    {
+                        _grevDadHeartbeatTimer.Start();
+                        await RefreshGrevDadPresenceForAsync(grevId);
+                    }
+                }
+                else if (local.State == GrevDadConnectionState.Offline)
                 {
                     _grevDadHeartbeatTimer.Start();
-                    await RefreshGrevDadPresenceForAsync(primaryGrevId);
                 }
             }
-            else if (local.State == GrevDadConnectionState.Offline)
+            catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
             {
-                _grevDadHeartbeatTimer.Start();
+                // Grev.dad is additive. One participant's online-account failure must never affect
+                // any other local GrevID, controller assignment or runtime session.
             }
-        }
-        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
-        {
-            // Online identity is additive. Local Grev Home login/navigation must not fail because
-            // the site, network or Windows credential store is unavailable.
         }
     }
 
     private void HandleGrevDadRuntimeChanged(LaunchSessionSnapshot snapshot)
     {
-        if (snapshot.State != LaunchSessionState.Running || string.IsNullOrWhiteSpace(snapshot.PrimaryGrevId))
+        if (snapshot.State != LaunchSessionState.Running)
         {
             return;
         }
 
-        if (_grevDadPublishedRuntimeSessions.TryAdd(snapshot.LaunchSessionId, 0))
+        foreach (var grevId in GetPersistentParticipantGrevIds(snapshot))
         {
-            _ = PublishGrevDadRuntimeActivitySafeAsync(snapshot, started: true);
+            var key = BuildRuntimePublicationKey(snapshot.LaunchSessionId, grevId);
+            if (_grevDadPublishedRuntimeSessions.TryAdd(key, 0))
+            {
+                _ = PublishGrevDadRuntimeActivitySafeAsync(snapshot, grevId, started: true);
+            }
         }
     }
 
     private void HandleGrevDadRuntimeEnded(LaunchSessionSnapshot snapshot)
     {
-        if (string.IsNullOrWhiteSpace(snapshot.PrimaryGrevId))
+        foreach (var grevId in GetPersistentParticipantGrevIds(snapshot))
         {
-            return;
-        }
-
-        if (_grevDadPublishedRuntimeSessions.TryRemove(snapshot.LaunchSessionId, out _))
-        {
-            _ = PublishGrevDadRuntimeActivitySafeAsync(snapshot, started: false);
-        }
-        else
-        {
-            _ = RefreshGrevDadPresenceForAsync(snapshot.PrimaryGrevId);
+            var key = BuildRuntimePublicationKey(snapshot.LaunchSessionId, grevId);
+            if (_grevDadPublishedRuntimeSessions.TryRemove(key, out _))
+            {
+                _ = PublishGrevDadRuntimeActivitySafeAsync(snapshot, grevId, started: false);
+            }
+            else
+            {
+                _ = RefreshGrevDadPresenceForAsync(grevId);
+            }
         }
     }
 
-    private async Task PublishGrevDadRuntimeActivitySafeAsync(LaunchSessionSnapshot snapshot, bool started)
+    private async Task PublishGrevDadRuntimeActivitySafeAsync(
+        LaunchSessionSnapshot snapshot,
+        string grevId,
+        bool started)
     {
         var service = _grevDadAccounts;
         var privacyService = _grevDadPrivacy;
-        var grevId = snapshot.PrimaryGrevId;
         if (service is null || privacyService is null || string.IsNullOrWhiteSpace(grevId))
         {
             return;
@@ -176,11 +188,11 @@ public partial class MainWindow
 
     private async Task RefreshGrevDadPresenceHeartbeatAsync()
     {
-        var grevIds = _runtimeSessions.GetActiveSessions()
-            .Select(session => session.PrimaryGrevId)
-            .Append(_session.PrimaryUser?.GrevId)
-            .Where(grevId => !string.IsNullOrWhiteSpace(grevId))
-            .Select(grevId => grevId!)
+        var grevIds = GetAllActiveRuntimeGrevIds()
+            .Concat(_session.SignedInUsers
+                .Select(user => user.GrevId)
+                .Where(grevId => !string.IsNullOrWhiteSpace(grevId))
+                .Select(grevId => grevId!))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
 
@@ -231,9 +243,11 @@ public partial class MainWindow
             }
 
             var active = _runtimeSessions.GetActiveSessions()
-                .Where(session => string.Equals(session.PrimaryGrevId, grevId, StringComparison.OrdinalIgnoreCase))
+                .Where(session => GetPersistentParticipantGrevIds(session).Contains(grevId, StringComparer.OrdinalIgnoreCase))
                 .OrderByDescending(session => session.StartedAtUtc)
                 .FirstOrDefault();
+            var signedIn = _session.SignedInUsers.Any(user =>
+                string.Equals(user.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
 
             if (active is not null && privacy.SharePlayingStatus)
             {
@@ -244,7 +258,7 @@ public partial class MainWindow
                     active.AppName,
                     expiresInSeconds: 300);
             }
-            else if (active is not null || string.Equals(_session.PrimaryUser?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            else if (active is not null || signedIn)
             {
                 await service.UpdatePresenceAsync(
                     grevId,
@@ -286,6 +300,23 @@ public partial class MainWindow
         {
         }
     }
+
+    private IReadOnlyList<string> GetAllActiveRuntimeGrevIds() =>
+        _runtimeSessions.GetActiveSessions()
+            .SelectMany(GetPersistentParticipantGrevIds)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static IReadOnlyList<string> GetPersistentParticipantGrevIds(LaunchSessionSnapshot snapshot) =>
+        snapshot.Participants
+            .Select(participant => participant.GrevId)
+            .Where(grevId => !string.IsNullOrWhiteSpace(grevId))
+            .Select(grevId => grevId!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+    private static string BuildRuntimePublicationKey(Guid sessionId, string grevId) =>
+        $"{sessionId:N}:{grevId}";
 
     private static bool IsExpectedGrevDadBackgroundFailure(Exception ex) =>
         ex is HttpRequestException or TaskCanceledException or TimeoutException or InvalidOperationException or
