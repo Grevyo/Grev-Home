@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
 using GrevHome.Storage;
@@ -19,6 +20,8 @@ public sealed class InstalledAppService
     private readonly AppPaths _paths;
     private readonly AppPathResolver _pathResolver;
     private readonly AppCatalogService _catalogue;
+    private readonly ConcurrentDictionary<string, string> _appLibraryPersistenceBlocks =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     public InstalledAppService(AppPaths paths, AppPathResolver pathResolver, AppCatalogService catalogue)
@@ -214,6 +217,7 @@ public sealed class InstalledAppService
         var path = _paths.GetProfileAppLibraryPreferencesFile(grevId);
         if (!File.Exists(path))
         {
+            _appLibraryPersistenceBlocks.TryRemove(grevId, out _);
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -225,10 +229,25 @@ public sealed class InstalledAppService
                 _jsonOptions,
                 cancellationToken);
 
-            if (preferences is null || preferences.Version != AppLibraryPreferencesVersion)
+            if (preferences is null)
             {
-                PreserveOptionalState(path, "AppLibraryPreferences", "App-library preferences were empty or used an unsupported version.");
+                return RecoverAppLibraryPreferences(
+                    grevId,
+                    path,
+                    "App-library preferences were empty.");
+            }
+            if (preferences.Version > AppLibraryPreferencesVersion)
+            {
+                _appLibraryPersistenceBlocks[grevId] =
+                    $"App-library preferences use schema {preferences.Version}, which is newer than this Grev Home build supports ({AppLibraryPreferencesVersion}). The existing file was left untouched.";
                 return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            }
+            if (preferences.Version != AppLibraryPreferencesVersion)
+            {
+                return RecoverAppLibraryPreferences(
+                    grevId,
+                    path,
+                    $"App-library preferences used unsupported schema {preferences.Version}.");
             }
 
             var removed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -240,26 +259,53 @@ public sealed class InstalledAppService
                 }
                 catch (ArgumentException)
                 {
-                    // Ignore a damaged entry without hiding unrelated apps; the original preference
-                    // file remains intact because only full-store parse failures are quarantined.
+                    // Ignore one damaged entry without discarding the rest of the preference file.
                 }
             }
 
+            _appLibraryPersistenceBlocks.TryRemove(grevId, out _);
             return removed;
         }
         catch (JsonException ex)
         {
-            PreserveOptionalState(path, "AppLibraryPreferences", $"App-library preference JSON could not be parsed: {ex.Message}");
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            return RecoverAppLibraryPreferences(
+                grevId,
+                path,
+                $"App-library preference JSON could not be parsed: {ex.Message}");
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            _appLibraryPersistenceBlocks[grevId] =
+                $"App-library preferences are temporarily unreadable ({ex.Message}). Grev Home will not overwrite the existing file.";
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            _appLibraryPersistenceBlocks[grevId] =
+                $"App-library preferences cannot currently be accessed ({ex.Message}). Grev Home will not overwrite the existing file.";
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private HashSet<string> RecoverAppLibraryPreferences(
+        string grevId,
+        string path,
+        string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "AppLibraryPreferences",
+                reason,
+                out _))
+        {
+            _appLibraryPersistenceBlocks[grevId] =
+                "Grev Home found invalid app-library preferences but could not preserve a recovery copy. The existing file will not be overwritten.";
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        _appLibraryPersistenceBlocks.TryRemove(grevId, out _);
+        return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task WriteAppLibraryPreferencesAsync(
@@ -268,6 +314,11 @@ public sealed class InstalledAppService
         CancellationToken cancellationToken)
     {
         var path = _paths.GetProfileAppLibraryPreferencesFile(grevId);
+        if (_appLibraryPersistenceBlocks.TryGetValue(grevId, out var blockReason) && File.Exists(path))
+        {
+            throw new InvalidOperationException(blockReason);
+        }
+
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporaryPath = path + ".tmp";
         var preferences = new AppLibraryPreferences(
@@ -284,6 +335,7 @@ public sealed class InstalledAppService
             }
 
             File.Move(temporaryPath, path, overwrite: true);
+            _appLibraryPersistenceBlocks.TryRemove(grevId, out _);
         }
         finally
         {
@@ -324,7 +376,9 @@ public sealed class InstalledAppService
 
                 if (manifest?.Definition is null)
                 {
-                    PreserveOptionalState(manifestPath, "InstalledAppManifest", "Installed-app manifest contained no app definition.");
+                    PreserveInstalledManifestOrThrow(
+                        manifestPath,
+                        "Installed-app manifest contained no app definition.");
                     continue;
                 }
 
@@ -332,7 +386,9 @@ public sealed class InstalledAppService
 
                 if (!string.Equals(Path.GetFileName(directory), manifest.Definition.AppId, StringComparison.OrdinalIgnoreCase))
                 {
-                    PreserveOptionalState(manifestPath, "InstalledAppManifest", "Installed-app manifest AppId did not match its assigned directory.");
+                    PreserveInstalledManifestOrThrow(
+                        manifestPath,
+                        "Installed-app manifest AppId did not match its assigned directory.");
                     continue;
                 }
 
@@ -341,14 +397,18 @@ public sealed class InstalledAppService
                 {
                     if (isGrevIdLocal || manifest.OwnerGrevId is not null)
                     {
-                        PreserveOptionalState(manifestPath, "InstalledAppManifest", "Global installed-app manifest had incompatible ownership metadata.");
+                        PreserveInstalledManifestOrThrow(
+                            manifestPath,
+                            "Global installed-app manifest had incompatible ownership metadata.");
                         continue;
                     }
                 }
                 else if (!isGrevIdLocal ||
                          !string.Equals(manifest.OwnerGrevId, expectedOwnerGrevId, StringComparison.OrdinalIgnoreCase))
                 {
-                    PreserveOptionalState(manifestPath, "InstalledAppManifest", "Profile installed-app manifest had incompatible GrevID ownership metadata.");
+                    PreserveInstalledManifestOrThrow(
+                        manifestPath,
+                        "Profile installed-app manifest had incompatible GrevID ownership metadata.");
                     continue;
                 }
 
@@ -356,20 +416,33 @@ public sealed class InstalledAppService
             }
             catch (JsonException ex)
             {
-                PreserveOptionalState(manifestPath, "InstalledAppManifest", $"Installed-app manifest JSON could not be parsed: {ex.Message}");
+                PreserveInstalledManifestOrThrow(
+                    manifestPath,
+                    $"Installed-app manifest JSON could not be parsed: {ex.Message}");
             }
             catch (ArgumentException ex)
             {
-                PreserveOptionalState(manifestPath, "InstalledAppManifest", $"Installed-app manifest identity was invalid: {ex.Message}");
+                PreserveInstalledManifestOrThrow(
+                    manifestPath,
+                    $"Installed-app manifest identity was invalid: {ex.Message}");
             }
         }
 
         return manifests;
     }
 
-    private void PreserveOptionalState(string path, string category, string reason)
+    private void PreserveInstalledManifestOrThrow(string path, string reason)
     {
-        CorruptDataQuarantine.TryPreserve(_paths, path, category, reason, out _);
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "InstalledAppManifest",
+                reason,
+                out _))
+        {
+            throw new InvalidDataException(
+                "Grev Home found invalid installed-app metadata and could not preserve a recovery copy. Installed state remains ambiguous, so the app was not treated as uninstalled.");
+        }
     }
 
     private static void ValidateDefinition(AppDefinition definition)
