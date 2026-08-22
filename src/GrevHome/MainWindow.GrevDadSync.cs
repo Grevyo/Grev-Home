@@ -22,7 +22,7 @@ public partial class MainWindow
         new(StringComparer.OrdinalIgnoreCase);
     private readonly DispatcherTimer _grevDadSyncRetryTimer = new()
     {
-        Interval = TimeSpan.FromSeconds(30)
+        Interval = TimeSpan.FromSeconds(5)
     };
 
     private GrevDadProfileSyncService? _grevDadProfileSync;
@@ -94,7 +94,14 @@ public partial class MainWindow
             var result = await sync.SyncAsync(grevId);
             if (result is not null)
             {
-                ClearGrevDadSyncRetry(grevId);
+                if (result.HasMoreHistory)
+                {
+                    ScheduleGrevDadSyncContinuation(grevId);
+                }
+                else
+                {
+                    ClearGrevDadSyncRetry(grevId);
+                }
                 return;
             }
 
@@ -121,6 +128,16 @@ public partial class MainWindow
             // cursor; a bounded backoff retries linked/offline profiles without blocking the shell.
             ScheduleGrevDadSyncRetry(grevId);
         }
+    }
+
+    private void ScheduleGrevDadSyncContinuation(string grevId)
+    {
+        // A successful run is intentionally capped at 1,000 history rows. If more local history
+        // remains, schedule another bounded pass without treating healthy backlog as a failure.
+        _grevDadSyncRetries[grevId] = new GrevDadSyncRetryState(
+            0,
+            DateTimeOffset.UtcNow + TimeSpan.FromSeconds(2));
+        EnsureGrevDadSyncRetryTimerRunning();
     }
 
     private void ScheduleGrevDadSyncRetry(string grevId)
