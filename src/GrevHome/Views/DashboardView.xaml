@@ -119,6 +119,14 @@
                                    Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
+                <Button Style="{StaticResource DashboardTileStyle}" Click="ActivityCenter_Click">
+                    <StackPanel>
+                        <TextBlock Text="Activity Center" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock x:Name="ActivityCenterDetailText"
+                                   Text="Notifications and downloads"
+                                   Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource DashboardTileStyle}" Click="AppKiller_Click">
                     <StackPanel>
                         <TextBlock Text="App Killer" Style="{StaticResource DashboardTileTitleStyle}" />
