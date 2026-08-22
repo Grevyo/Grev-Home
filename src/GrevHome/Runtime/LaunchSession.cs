@@ -261,6 +261,14 @@ internal sealed class TrackedLaunchSession
         }
     }
 
+    public long GetTrackedDurationSeconds(DateTimeOffset throughUtc)
+    {
+        lock (_gate)
+        {
+            return CalculateTrackedDurationSecondsLocked(throughUtc);
+        }
+    }
+
     public void MarkClosing()
     {
         lock (_gate)
@@ -301,15 +309,7 @@ internal sealed class TrackedLaunchSession
         lock (_gate)
         {
             var effectiveEnd = EndedAtUtc ?? DateTimeOffset.UtcNow;
-            var suspendedSeconds = _accumulatedSuspendedSeconds;
-            if (_suspendedAtUtc is { } suspendedAt && effectiveEnd > suspendedAt)
-            {
-                suspendedSeconds = checked(
-                    suspendedSeconds +
-                    Math.Max(0L, (long)Math.Round((effectiveEnd - suspendedAt).TotalSeconds)));
-            }
-            var rawSeconds = Math.Max(0L, (long)Math.Round((effectiveEnd - StartedAtUtc).TotalSeconds));
-            var trackedSeconds = Math.Max(0L, rawSeconds - suspendedSeconds);
+            var trackedSeconds = CalculateTrackedDurationSecondsLocked(effectiveEnd);
 
             return new LaunchSessionSnapshot(
                 LaunchSessionId,
@@ -325,5 +325,20 @@ internal sealed class TrackedLaunchSession
                 FailureMessage,
                 trackedSeconds);
         }
+    }
+
+    private long CalculateTrackedDurationSecondsLocked(DateTimeOffset throughUtc)
+    {
+        var effectiveEnd = throughUtc < StartedAtUtc ? StartedAtUtc : throughUtc;
+        var suspendedSeconds = _accumulatedSuspendedSeconds;
+        if (_suspendedAtUtc is { } suspendedAt && effectiveEnd > suspendedAt)
+        {
+            suspendedSeconds = checked(
+                suspendedSeconds +
+                Math.Max(0L, (long)Math.Round((effectiveEnd - suspendedAt).TotalSeconds)));
+        }
+
+        var rawSeconds = Math.Max(0L, (long)Math.Round((effectiveEnd - StartedAtUtc).TotalSeconds));
+        return Math.Max(0L, rawSeconds - suspendedSeconds);
     }
 }
