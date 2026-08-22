@@ -223,9 +223,17 @@ public sealed class AppControllerProfileService
         var temporary = path + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporary))
+            await using (var stream = new FileStream(
+                             temporary,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             16 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, value, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
         }
@@ -264,11 +272,26 @@ public sealed class AppControllerProfileService
         {
             await using var stream = File.OpenRead(path);
             var value = await JsonSerializer.DeserializeAsync<AppControllerProfileOverride>(stream, _jsonOptions, cancellationToken);
-            if (value is null || value.Version != CurrentVersion) return null;
+            if (value is null || value.Version != CurrentVersion)
+            {
+                CorruptDataQuarantine.TryPreserve(
+                    _paths,
+                    path,
+                    "AppControllerProfile",
+                    "Controller profile is empty or uses an unsupported schema version.",
+                    out _);
+                return null;
+            }
             return value with { Mappings = NormalizeMappings(value.Mappings) };
         }
         catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "AppControllerProfile",
+                $"Controller profile could not be read or validated: {ex.Message}",
+                out _);
             return null;
         }
     }
