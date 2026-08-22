@@ -1,8 +1,10 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Dashboard;
+using GrevHome.Notifications;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
+using GrevHome.Transfers;
 
 namespace GrevHome.Views;
 
@@ -17,12 +19,14 @@ public partial class DashboardView : UserControl
     public event EventHandler? AdminConsoleRequested;
     public event EventHandler? FilesRequested;
     public event EventHandler? StoreRequested;
+    public event EventHandler? ActivityCenterRequested;
     public event Action<string>? ActivityAppRequested;
 
     public DashboardView()
     {
         InitializeComponent();
         SetDashboardData(DashboardDataSnapshot.Empty);
+        SetSystemActivity(NotificationSnapshot.Empty, TransferSnapshot.Empty);
     }
 
     public void SetSession(SessionContext session)
@@ -89,6 +93,34 @@ public partial class DashboardView : UserControl
         ActivitySection.Visibility = snapshot.AppsPlayed > 0
             ? Visibility.Visible
             : Visibility.Collapsed;
+    }
+
+    public void SetSystemActivity(NotificationSnapshot notifications, TransferSnapshot transfers)
+    {
+        ArgumentNullException.ThrowIfNull(notifications);
+        ArgumentNullException.ThrowIfNull(transfers);
+
+        var parts = new List<string>();
+        if (notifications.UnreadCount > 0)
+        {
+            parts.Add($"{notifications.UnreadCount} unread");
+        }
+        if (transfers.ActiveCount > 0)
+        {
+            parts.Add($"{transfers.ActiveCount} downloading");
+        }
+        if (transfers.QueuedCount > 0)
+        {
+            parts.Add($"{transfers.QueuedCount} queued");
+        }
+        if (transfers.FailedCount > 0)
+        {
+            parts.Add($"{transfers.FailedCount} failed");
+        }
+
+        ActivityCenterDetailText.Text = parts.Count == 0
+            ? "Notifications and downloads"
+            : string.Join("  •  ", parts);
     }
 
     public void ShowStatus(string message)
@@ -178,6 +210,9 @@ public partial class DashboardView : UserControl
 
     private void RunningApps_Click(object sender, RoutedEventArgs e) =>
         RunningAppsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void ActivityCenter_Click(object sender, RoutedEventArgs e) =>
+        ActivityCenterRequested?.Invoke(this, EventArgs.Empty);
 
     private void AppKiller_Click(object sender, RoutedEventArgs e) =>
         AppKillerRequested?.Invoke(this, EventArgs.Empty);
