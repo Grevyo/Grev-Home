@@ -2,6 +2,7 @@ using System.ComponentModel;
 using System.IO;
 using GrevHome.Apps;
 using GrevHome.Navigation;
+using GrevHome.Notifications;
 
 namespace GrevHome;
 
@@ -88,6 +89,13 @@ public partial class MainWindow
                     OpenRunningApps();
                 }
             }
+
+            await TryPublishActivityNotificationAsync(
+                NotificationSeverity.Error,
+                "Runtime",
+                $"{snapshot.AppName} restart failed",
+                LimitNotificationMessage(ex.Message),
+                snapshot.PrimaryGrevId);
 
             RestoreWindowWithoutChangingRoute();
         }
