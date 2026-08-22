@@ -60,6 +60,7 @@ public sealed class ControllerShortcutService
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
     };
+    private string? _persistenceBlockReason;
 
     public ControllerShortcutService(AppPaths paths)
     {
@@ -72,6 +73,7 @@ public sealed class ControllerShortcutService
 
         if (!File.Exists(_paths.ControllerShortcutsFile))
         {
+            Volatile.Write(ref _persistenceBlockReason, null);
             var defaults = CreateDefaults();
             TrySaveDefaults(defaults);
             return defaults;
@@ -81,7 +83,17 @@ public sealed class ControllerShortcutService
         {
             var json = File.ReadAllText(_paths.ControllerShortcutsFile);
             var loaded = JsonSerializer.Deserialize<ControllerShortcutConfiguration>(json, _jsonOptions);
-            return NormalizeAndValidate(loaded);
+            if (loaded is { Version: > CurrentVersion })
+            {
+                Volatile.Write(
+                    ref _persistenceBlockReason,
+                    $"Controller shortcut settings use schema {loaded.Version}, which is newer than this Grev Home build supports ({CurrentVersion}). The existing file was left untouched.");
+                return CreateDefaults();
+            }
+
+            var normalized = NormalizeAndValidate(loaded);
+            Volatile.Write(ref _persistenceBlockReason, null);
+            return normalized;
         }
         catch (JsonException ex)
         {
@@ -91,12 +103,18 @@ public sealed class ControllerShortcutService
         {
             return RecoverDefaults($"Controller shortcut configuration was invalid or unsupported: {ex.Message}");
         }
-        catch (IOException)
+        catch (IOException ex)
         {
+            Volatile.Write(
+                ref _persistenceBlockReason,
+                $"Controller shortcut settings are temporarily unreadable ({ex.Message}). Grev Home is using in-memory defaults and will not overwrite the existing file.");
             return CreateDefaults();
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            Volatile.Write(
+                ref _persistenceBlockReason,
+                $"Controller shortcut settings cannot currently be accessed ({ex.Message}). Grev Home is using in-memory defaults and will not overwrite the existing file.");
             return CreateDefaults();
         }
     }
@@ -105,6 +123,12 @@ public sealed class ControllerShortcutService
     {
         var validated = NormalizeAndValidate(configuration);
         _paths.EnsureMachineLayout();
+
+        var blockReason = Volatile.Read(ref _persistenceBlockReason);
+        if (!string.IsNullOrWhiteSpace(blockReason) && File.Exists(_paths.ControllerShortcutsFile))
+        {
+            throw new InvalidOperationException(blockReason);
+        }
 
         var temporaryPath = _paths.ControllerShortcutsFile + ".tmp";
         try
@@ -119,6 +143,7 @@ public sealed class ControllerShortcutService
                 stream.Flush(flushToDisk: true);
             }
             File.Move(temporaryPath, _paths.ControllerShortcutsFile, overwrite: true);
+            Volatile.Write(ref _persistenceBlockReason, null);
         }
         finally
         {
@@ -158,13 +183,21 @@ public sealed class ControllerShortcutService
 
     private ControllerShortcutConfiguration RecoverDefaults(string reason)
     {
-        CorruptDataQuarantine.TryPreserve(
-            _paths,
-            _paths.ControllerShortcutsFile,
-            "ControllerShortcuts",
-            reason,
-            out _);
         var defaults = CreateDefaults();
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                _paths.ControllerShortcutsFile,
+                "ControllerShortcuts",
+                reason,
+                out _))
+        {
+            Volatile.Write(
+                ref _persistenceBlockReason,
+                "Grev Home found invalid controller shortcut data but could not preserve a recovery copy. In-memory defaults are active and the original file will not be overwritten.");
+            return defaults;
+        }
+
+        Volatile.Write(ref _persistenceBlockReason, null);
         TrySaveDefaults(defaults);
         return defaults;
     }
