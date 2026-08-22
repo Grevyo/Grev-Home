@@ -47,14 +47,31 @@ public partial class SettingsView
     private void PowerSectionButton_Click(object sender, RoutedEventArgs e) =>
         ToggleSettingsSection(PowerSectionButton, PowerSectionContent, "POWER");
 
+    public void OpenAudioSection()
+    {
+        EnsureSettingsSectionOpen(AudioSectionButton, AudioSectionContent, "AUDIO");
+        RefreshAudio();
+    }
+
+    public async void OpenConnectionsSection()
+    {
+        EnsureSettingsSectionOpen(ConnectionsSectionButton, ConnectionsSectionContent, "CONNECTIONS");
+        await RefreshConnectionsAsync();
+    }
+
     private static void ToggleSettingsSection(Button header, UIElement content, string title)
     {
         var expand = content.Visibility != Visibility.Visible;
         content.Visibility = expand ? Visibility.Visible : Visibility.Collapsed;
         header.Content = $"{title}  {(expand ? "▴" : "▾")}";
 
-        // Keep controller focus anchored on the section header. The next Down press naturally
-        // enters the first visible control when expanded; when collapsed it moves to the next header.
+        header.Focus();
+    }
+
+    private static void EnsureSettingsSectionOpen(Button header, UIElement content, string title)
+    {
+        content.Visibility = Visibility.Visible;
+        header.Content = $"{title}  ▴";
         header.Focus();
     }
 }
