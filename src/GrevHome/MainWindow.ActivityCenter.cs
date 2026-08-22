@@ -14,8 +14,36 @@ public partial class MainWindow
     private readonly ActivityCenterView _activityCenterView = new();
     private NotificationService? _notificationService;
     private TransferManager? _transferManager;
+    private TrustedPackageDownloadService? _packageDownloadService;
+    private bool _activityInfrastructureReady;
     private bool _activityCenterHooked;
     private int _activityCenterRefreshGeneration;
+
+    /// <summary>
+    /// Creates the durable activity/transfer services without depending on the Activity Center UI.
+    /// Grev Store calls this while building trusted installers so their real package downloads can
+    /// use the same queue that Activity Center later renders.
+    /// </summary>
+    private void EnsureActivityInfrastructure()
+    {
+        if (_activityInfrastructureReady)
+        {
+            return;
+        }
+
+        _activityInfrastructureReady = true;
+        _notificationService = new NotificationService(_paths);
+        _transferManager = new TransferManager(_paths, _notificationService);
+        _packageDownloadService = new TrustedPackageDownloadService(_paths, _transferManager);
+        Closed += (_, _) => _transferManager?.Dispose();
+    }
+
+    private TrustedPackageDownloadService GetTrustedPackageDownloadService()
+    {
+        EnsureActivityInfrastructure();
+        return _packageDownloadService
+               ?? throw new InvalidOperationException("Trusted package download service was not initialized.");
+    }
 
     private void InitializeActivityCenterIntegration()
     {
@@ -24,9 +52,13 @@ public partial class MainWindow
             return;
         }
 
+        EnsureActivityInfrastructure();
         _activityCenterHooked = true;
-        _notificationService = new NotificationService(_paths);
-        _transferManager = new TransferManager(_paths, _notificationService);
+
+        var notifications = _notificationService
+            ?? throw new InvalidOperationException("Notification service was not initialized.");
+        var transfers = _transferManager
+            ?? throw new InvalidOperationException("Transfer manager was not initialized.");
 
         _dashboardView.ActivityCenterRequested += (_, _) => OpenActivityCenter();
         _activityCenterView.BackRequested += (_, _) => _navigation.GoBack();
@@ -36,8 +68,8 @@ public partial class MainWindow
         _activityCenterView.TransferRetryRequested += id => _ = RetryActivityTransferAsync(id);
         _activityCenterView.ClearFinishedTransfersRequested += (_, _) => _ = ClearFinishedActivityTransfersAsync();
 
-        _notificationService.Changed += QueueActivityCenterRefresh;
-        _transferManager.SnapshotChanged += _ => QueueActivityCenterRefresh();
+        notifications.Changed += QueueActivityCenterRefresh;
+        transfers.SnapshotChanged += _ => QueueActivityCenterRefresh();
         _session.Changed += (_, _) => QueueActivityCenterRefresh();
 
         // Grev Store is initialized before Activity Center in the explicit shell bootstrap, so the
@@ -70,7 +102,6 @@ public partial class MainWindow
             }
         };
 
-        Closed += (_, _) => _transferManager?.Dispose();
         _ = InitializeActivityCenterAsync();
     }
 
@@ -343,6 +374,7 @@ public partial class MainWindow
         string? ownerGrevId = null,
         CancellationToken cancellationToken = default)
     {
+        EnsureActivityInfrastructure();
         var transfers = _transferManager
             ?? throw new InvalidOperationException("Transfer manager has not been initialized.");
         return transfers.EnqueueDownloadAsync(
