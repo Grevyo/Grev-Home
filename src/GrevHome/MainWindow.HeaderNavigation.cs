@@ -27,8 +27,6 @@ public partial class MainWindow
             return;
         }
 
-        // MainWindow owns one explicit integration bootstrap. Runtime foundations are initialized
-        // before feature surfaces so no feature initializer has to secretly initialize a sibling.
         InitializeShellNavigationFinalization();
         InitializeApplianceLifecycleIntegration();
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
@@ -49,10 +47,6 @@ public partial class MainWindow
 
     private void HandleHeaderNavigationInput(ControllerInputEventArgs input)
     {
-        // ControllerInputService raises ActionPressed from its polling thread. Never inspect WPF
-        // dependency objects on that thread. Capture the pre-movement focus synchronously through
-        // the Dispatcher, then keep the existing delayed correction so the normal HandleInput pass
-        // gets first chance to perform standard WPF directional navigation.
         if (input.Action is not (InputAction.Up or InputAction.Down or InputAction.Left or InputAction.Right))
         {
             return;
@@ -85,9 +79,6 @@ public partial class MainWindow
             return;
         }
 
-        // The Login screen intentionally has profile cards in a scrolling WrapPanel and
-        // Create Account in a separate row. Give that boundary an explicit controller rule
-        // instead of relying on WPF to infer a spatial relationship across containers.
         if (TryCorrectLoginNavigation(action, originalFocus))
         {
             return;
@@ -96,7 +87,6 @@ public partial class MainWindow
         var currentFocus = Keyboard.FocusedElement as Button;
         if (currentFocus is not null && currentFocus != originalFocus)
         {
-            // Normal WPF directional navigation succeeded; do not add a second movement.
             return;
         }
 
@@ -123,7 +113,6 @@ public partial class MainWindow
             .Where(button => button != originalFocus)
             .ToArray();
 
-        // Only leave the page when the focused control is already on the top-most reachable row.
         if (routeButtons.Any(button => GetCenter(button).Y < originalCenter.Y - 8))
         {
             return;
@@ -205,8 +194,20 @@ public partial class MainWindow
 
     private List<Button> GetHeaderButtons()
     {
-        var buttons = new[] { ShellBackButton, ProfileBubbleButton, ShellSettingsButton, ShellPowerButton };
-        return buttons.Where(IsFocusableButton).ToList();
+        var buttons = new Button?[]
+        {
+            ShellBackButton,
+            _activityVolumeButton,
+            _activityWifiButton,
+            _activityBluetoothButton,
+            ProfileBubbleButton,
+            ShellSettingsButton,
+            ShellPowerButton
+        };
+        return buttons
+            .Where(button => button is not null && IsFocusableButton(button))
+            .Select(button => button!)
+            .ToList();
     }
 
     private void ShellPower_Click(object sender, RoutedEventArgs e)
@@ -228,6 +229,7 @@ public partial class MainWindow
     private void OpenPowerMenu()
     {
         ResetHeaderPowerConfirmation();
+        HideActivityQuickControls();
         _headerFlyoutReturnButton = ShellPowerButton;
         ProfileQuickMenuCard.Visibility = Visibility.Collapsed;
         PowerMenuCard.Visibility = Visibility.Visible;
@@ -247,6 +249,7 @@ public partial class MainWindow
         var returnButton = _headerFlyoutReturnButton;
         _headerFlyoutReturnButton = null;
         ResetHeaderPowerConfirmation();
+        HideActivityQuickControls();
         ProfileQuickMenuCard.Visibility = Visibility.Collapsed;
         PowerMenuCard.Visibility = Visibility.Collapsed;
         PowerMenuOverlay.Visibility = Visibility.Collapsed;
