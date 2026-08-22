@@ -21,11 +21,6 @@ public partial class MainWindow
         _dashboardDataHooked = true;
         _dashboardDataService = new DashboardDataService(_paths, _installedApps);
 
-        // Activity Center is the status/transfer half of the Dashboard/Data backbone. Keep its
-        // bootstrap adjacent to dashboard activity so the shell still has one explicit backbone
-        // entry point rather than feature views initializing services themselves.
-        InitializeActivityCenterIntegration();
-
         _dashboardView.ActivityAppRequested += appId => _ = LaunchDashboardActivityAppAsync(appId);
         _navigation.RouteChanged += route =>
         {
