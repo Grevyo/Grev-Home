@@ -426,7 +426,16 @@ public sealed class TransferManager : IDisposable
             HttpCompletionOption.ResponseHeadersRead,
             cancellationToken);
 
-        var resuming = existingLength > 0 && response.StatusCode == HttpStatusCode.PartialContent;
+        var contentRange = response.Content.Headers.ContentRange;
+        var resuming = existingLength > 0 &&
+                       response.StatusCode == HttpStatusCode.PartialContent &&
+                       contentRange?.From == existingLength;
+        if (existingLength > 0 &&
+            response.StatusCode == HttpStatusCode.PartialContent &&
+            !resuming)
+        {
+            throw new InvalidDataException("Download server returned an unexpected byte range while resuming.");
+        }
         if (!resuming)
         {
             existingLength = 0;
@@ -440,36 +449,45 @@ public sealed class TransferManager : IDisposable
         await UpdateProgressAsync(item.Id, existingLength, totalBytes, cancellationToken);
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var target = new FileStream(
-            partialPath,
-            resuming ? FileMode.Append : FileMode.Create,
-            FileAccess.Write,
-            FileShare.None,
-            81920,
-            useAsync: true);
-
-        var buffer = new byte[81920];
         var received = existingLength;
         var lastPersistedAt = DateTimeOffset.UtcNow;
-        while (true)
+        await using (var target = new FileStream(
+                         partialPath,
+                         resuming ? FileMode.Append : FileMode.Create,
+                         FileAccess.Write,
+                         FileShare.None,
+                         81920,
+                         FileOptions.Asynchronous | FileOptions.WriteThrough))
         {
-            var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
-            if (read == 0)
+            var buffer = new byte[81920];
+            while (true)
             {
-                break;
+                var read = await source.ReadAsync(buffer.AsMemory(0, buffer.Length), cancellationToken);
+                if (read == 0)
+                {
+                    break;
+                }
+
+                await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
+                received += read;
+                var now = DateTimeOffset.UtcNow;
+                if (now - lastPersistedAt >= ProgressPersistInterval)
+                {
+                    await UpdateProgressAsync(item.Id, received, totalBytes, cancellationToken);
+                    lastPersistedAt = now;
+                }
             }
 
-            await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            received += read;
-            var now = DateTimeOffset.UtcNow;
-            if (now - lastPersistedAt >= ProgressPersistInterval)
-            {
-                await UpdateProgressAsync(item.Id, received, totalBytes, cancellationToken);
-                lastPersistedAt = now;
-            }
+            await target.FlushAsync(cancellationToken);
+            target.Flush(flushToDisk: true);
         }
 
-        await target.FlushAsync(cancellationToken);
+        if (totalBytes is long expectedBytes && received != expectedBytes)
+        {
+            throw new IOException(
+                $"Download ended at {received} bytes but the server declared {expectedBytes} bytes.");
+        }
+
         await UpdateProgressAsync(item.Id, received, totalBytes ?? received, cancellationToken);
         File.Move(partialPath, destination, overwrite: true);
     }
@@ -705,10 +723,6 @@ public sealed class TransferManager : IDisposable
         catch (JsonException ex)
         {
             return RecoverMalformedStore($"Transfer JSON could not be parsed: {ex.Message}");
-        }
-        catch (IOException)
-        {
-            return EmptyStore();
         }
     }
 
