@@ -224,15 +224,27 @@ public partial class MainWindow
     /// Shared package/runtime entry point. Future features publish into the same persistent feed
     /// rather than creating their own notification storage or dashboard-only banners.
     /// </summary>
-    private Task PublishActivityNotificationAsync(
+    private async Task PublishActivityNotificationAsync(
         NotificationSeverity severity,
         string source,
         string title,
         string message,
         string? grevId = null,
-        CancellationToken cancellationToken = default) =>
-        _notificationService?.PublishAsync(severity, source, title, message, grevId, cancellationToken)
-        ?? Task.CompletedTask;
+        CancellationToken cancellationToken = default)
+    {
+        if (_notificationService is null)
+        {
+            return;
+        }
+
+        await _notificationService.PublishAsync(
+            severity,
+            source,
+            title,
+            message,
+            grevId,
+            cancellationToken);
+    }
 
     /// <summary>
     /// Shared trusted-package entry point for queued downloads. Package handlers supply a relative
