@@ -21,6 +21,15 @@ public sealed record GrevDadPrivacySettings(
         ShareSessionHistory: true,
         ActivityVisibility: "friends",
         HistoryVisibility: "friends");
+
+    public static GrevDadPrivacySettings SafeFallback { get; } = new(
+        SchemaVersion: 1,
+        SharePresence: false,
+        SharePlayingStatus: false,
+        ShareLiveActivityEvents: false,
+        ShareSessionHistory: false,
+        ActivityVisibility: "private",
+        HistoryVisibility: "private");
 }
 
 /// <summary>
@@ -58,19 +67,36 @@ public sealed class GrevDadPrivacySettingsService
         {
             await using var stream = File.OpenRead(path);
             var value = await JsonSerializer.DeserializeAsync<GrevDadPrivacySettings>(stream, _json, cancellationToken);
-            return Normalize(value);
+            if (value is null || value.SchemaVersion != SchemaVersion)
+            {
+                CorruptDataQuarantine.TryPreserve(
+                    _paths,
+                    path,
+                    "GrevDadPrivacy",
+                    "Grev.dad privacy settings are empty or use an unsupported schema version.",
+                    out _);
+                return GrevDadPrivacySettings.SafeFallback;
+            }
+
+            return NormalizeCurrent(value);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return GrevDadPrivacySettings.Default;
+            CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "GrevDadPrivacy",
+                $"Grev.dad privacy settings could not be parsed: {ex.Message}",
+                out _);
+            return GrevDadPrivacySettings.SafeFallback;
         }
         catch (IOException)
         {
-            return GrevDadPrivacySettings.Default;
+            return GrevDadPrivacySettings.SafeFallback;
         }
         catch (UnauthorizedAccessException)
         {
-            return GrevDadPrivacySettings.Default;
+            return GrevDadPrivacySettings.SafeFallback;
         }
     }
 
@@ -81,7 +107,7 @@ public sealed class GrevDadPrivacySettingsService
     {
         ArgumentNullException.ThrowIfNull(settings);
         _paths.EnsureProfileLayout(grevId);
-        var normalized = Normalize(settings);
+        var normalized = NormalizeCurrent(settings with { SchemaVersion = SchemaVersion });
 
         await _gate.WaitAsync(cancellationToken);
         try
@@ -91,9 +117,17 @@ public sealed class GrevDadPrivacySettingsService
             var temporary = path + ".tmp";
             try
             {
-                await using (var stream = File.Create(temporary))
+                await using (var stream = new FileStream(
+                                 temporary,
+                                 FileMode.Create,
+                                 FileAccess.Write,
+                                 FileShare.None,
+                                 16 * 1024,
+                                 FileOptions.Asynchronous | FileOptions.WriteThrough))
                 {
                     await JsonSerializer.SerializeAsync(stream, normalized, _json, cancellationToken);
+                    await stream.FlushAsync(cancellationToken);
+                    stream.Flush(flushToDisk: true);
                 }
                 File.Move(temporary, path, overwrite: true);
             }
@@ -110,20 +144,13 @@ public sealed class GrevDadPrivacySettingsService
         return normalized;
     }
 
-    private static GrevDadPrivacySettings Normalize(GrevDadPrivacySettings? value)
-    {
-        if (value is null || value.SchemaVersion != SchemaVersion)
-        {
-            return GrevDadPrivacySettings.Default;
-        }
-
-        return value with
+    private static GrevDadPrivacySettings NormalizeCurrent(GrevDadPrivacySettings value) =>
+        value with
         {
             SchemaVersion = SchemaVersion,
             ActivityVisibility = NormalizeVisibility(value.ActivityVisibility),
             HistoryVisibility = NormalizeVisibility(value.HistoryVisibility)
         };
-    }
 
     private static string NormalizeVisibility(string? value) =>
         string.Equals(value, "private", StringComparison.OrdinalIgnoreCase)
