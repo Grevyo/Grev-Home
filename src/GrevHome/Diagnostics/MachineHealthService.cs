@@ -28,6 +28,7 @@ public sealed record MachineHealthSnapshot(
     int LinkedGrevDadMetadataCount,
     int RecoveryArtifactCount,
     int StaleTemporaryArtifactCount,
+    int PendingRuntimeCompletionCount,
     IReadOnlyList<MachineHealthCheck> Checks)
 {
     public MachineHealthStatus OverallStatus =>
@@ -40,25 +41,23 @@ public sealed record MachineHealthSnapshot(
 
 /// <summary>
 /// Non-destructive local appliance health snapshot used by diagnostics and the later full-system
-/// test. It never repairs data or requires Grev.dad/network access; it records enough local context
-/// to diagnose failures without making online services part of machine health.
+/// test. It never repairs, upgrades or quarantines data and never requires Grev.dad/network access.
 /// </summary>
 public sealed class MachineHealthService
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
     private const int StaleTemporaryMinutes = 30;
 
     private readonly AppPaths _paths;
-    private readonly ProfileService _profiles;
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
     {
-        WriteIndented = true
+        WriteIndented = true,
+        PropertyNameCaseInsensitive = true
     };
 
     public MachineHealthService(AppPaths paths)
     {
         _paths = paths;
-        _profiles = new ProfileService(paths);
     }
 
     public string DiagnosticsRoot => Path.Combine(_paths.Data, "Diagnostics");
@@ -83,33 +82,21 @@ public sealed class MachineHealthService
         CheckLocalSchema(checks);
 
         var profileDirectories = EnumerateProfileDirectories(checks);
-        IReadOnlyList<LocalProfile> readableProfiles;
-        try
-        {
-            readableProfiles = await _profiles.GetProfilesAsync(cancellationToken);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
-        {
-            readableProfiles = Array.Empty<LocalProfile>();
-            checks.Add(new MachineHealthCheck(
-                "profiles.read",
-                MachineHealthStatus.Error,
-                $"Profile enumeration failed: {ex.Message}"));
-        }
+        var readableProfiles = await ReadProfilesForHealthAsync(profileDirectories, checks, cancellationToken);
 
         if (readableProfiles.Count != profileDirectories.Count)
         {
             checks.Add(new MachineHealthCheck(
                 "profiles.metadata",
                 MachineHealthStatus.Warning,
-                $"Found {profileDirectories.Count} persistent profile folders but only {readableProfiles.Count} readable profile metadata records."));
+                $"Found {profileDirectories.Count} persistent profile folders but only {readableProfiles.Count} valid readable profile metadata records."));
         }
         else
         {
             checks.Add(new MachineHealthCheck(
                 "profiles.metadata",
                 MachineHealthStatus.Healthy,
-                $"All {readableProfiles.Count} persistent profile metadata records are readable."));
+                $"All {readableProfiles.Count} persistent profile metadata records are readable and structurally valid."));
         }
 
         var adminCount = readableProfiles.Count(profile => profile.Role == AccountRole.Admin);
@@ -154,6 +141,18 @@ public sealed class MachineHealthService
                 ? "No quarantined corrupt-data artifacts are present."
                 : $"{recoveryCount} quarantined corrupt-data artifact{(recoveryCount == 1 ? string.Empty : "s")} are preserved for diagnosis."));
 
+        var pendingCompletionCount = CountFilesSafely(
+            Path.Combine(_paths.RuntimeData, "PendingCompletions"),
+            "*.json",
+            checks,
+            "runtime.pending-scan");
+        checks.Add(new MachineHealthCheck(
+            "runtime.pending-completions",
+            pendingCompletionCount == 0 ? MachineHealthStatus.Healthy : MachineHealthStatus.Warning,
+            pendingCompletionCount == 0
+                ? "No deferred runtime completion commits are waiting for replay."
+                : $"{pendingCompletionCount} exact runtime completion{(pendingCompletionCount == 1 ? string.Empty : "s")} remain queued for local playtime/history replay."));
+
         var staleTemporaryCount = CountStaleTemporaryFiles(checks);
         checks.Add(new MachineHealthCheck(
             "storage.temporary-files",
@@ -173,7 +172,59 @@ public sealed class MachineHealthService
             linkedMetadataCount,
             recoveryCount,
             staleTemporaryCount,
+            pendingCompletionCount,
             checks);
+    }
+
+    private async Task<IReadOnlyList<LocalProfile>> ReadProfilesForHealthAsync(
+        IReadOnlyList<string> profileDirectories,
+        List<MachineHealthCheck> checks,
+        CancellationToken cancellationToken)
+    {
+        var readable = new List<LocalProfile>();
+        foreach (var directory in profileDirectories)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var metadataPath = Path.Combine(directory, "profile.json");
+            if (!File.Exists(metadataPath))
+            {
+                checks.Add(new MachineHealthCheck(
+                    $"profile.{Path.GetFileName(directory)}",
+                    MachineHealthStatus.Warning,
+                    $"Profile folder {Path.GetFileName(directory)} has no profile.json."));
+                continue;
+            }
+
+            try
+            {
+                await using var stream = File.OpenRead(metadataPath);
+                var profile = await JsonSerializer.DeserializeAsync<LocalProfile>(stream, _json, cancellationToken);
+                var folder = Path.GetFileName(directory);
+                if (profile is null ||
+                    !string.Equals(profile.GrevId, folder, StringComparison.OrdinalIgnoreCase) ||
+                    string.IsNullOrWhiteSpace(profile.Username) || profile.Username.Length > ProfileService.MaxUsernameLength ||
+                    string.IsNullOrWhiteSpace(profile.DisplayName) || profile.DisplayName.Length > ProfileService.MaxDisplayNameLength ||
+                    !Enum.IsDefined(profile.Role))
+                {
+                    checks.Add(new MachineHealthCheck(
+                        $"profile.{folder}",
+                        MachineHealthStatus.Warning,
+                        $"Profile metadata for {folder} failed structural identity validation."));
+                    continue;
+                }
+
+                readable.Add(profile);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+            {
+                checks.Add(new MachineHealthCheck(
+                    $"profile.{Path.GetFileName(directory)}",
+                    MachineHealthStatus.Warning,
+                    $"Profile metadata could not be read: {ex.Message}"));
+            }
+        }
+
+        return readable;
     }
 
     private void CheckRootWriteability(List<MachineHealthCheck> checks)
@@ -278,10 +329,7 @@ public sealed class MachineHealthService
         try
         {
             return Directory.EnumerateDirectories(_paths.Profiles)
-                .Where(path => !string.Equals(
-                    Path.GetFileName(path),
-                    Path.GetFileName(_paths.GuestShared),
-                    StringComparison.OrdinalIgnoreCase))
+                .Where(path => !Path.GetFileName(path).StartsWith('_'))
                 .ToArray();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -334,7 +382,7 @@ public sealed class MachineHealthService
             checks.Add(new MachineHealthCheck(
                 checkId,
                 MachineHealthStatus.Warning,
-                $"Recovery scan was incomplete: {ex.Message}"));
+                $"Scan was incomplete: {ex.Message}"));
             return 0;
         }
     }
@@ -345,7 +393,13 @@ public sealed class MachineHealthService
         var temporary = LatestSnapshotFile + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporary))
+            await using (var stream = new FileStream(
+                             temporary,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             16 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, snapshot, _json, cancellationToken);
                 await stream.FlushAsync(cancellationToken);
@@ -368,6 +422,6 @@ public sealed class MachineHealthService
         await using var writer = new StreamWriter(history);
         await writer.WriteLineAsync(JsonSerializer.Serialize(snapshot, _json).AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
-        await history.FlushAsync(cancellationToken);
+        history.Flush(flushToDisk: true);
     }
 }
