@@ -320,5 +320,5 @@ public partial class MainWindow
 
     private static bool IsExpectedGrevDadBackgroundFailure(Exception ex) =>
         ex is HttpRequestException or OperationCanceledException or TimeoutException or InvalidOperationException or
-            InvalidDataException or UnauthorizedAccessException or Win32Exception or ObjectDisposedException;
+            InvalidDataException or UnauthorizedAccessException or Win32Exception;
 }
