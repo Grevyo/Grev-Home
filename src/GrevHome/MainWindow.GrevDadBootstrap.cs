@@ -5,6 +5,11 @@ public partial class MainWindow
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+
+        // Diagnostics are local-only and non-blocking. Capture a machine-health baseline at startup
+        // before the later whole-appliance test needs to correlate failures with on-disk state.
+        InitializeMachineHealthIntegration();
+
         // Completed-session history is always local-first and exists whether Grev.dad is linked or not.
         InitializeSessionHistoryIntegration();
 
