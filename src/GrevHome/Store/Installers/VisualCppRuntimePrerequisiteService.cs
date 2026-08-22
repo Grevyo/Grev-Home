@@ -16,6 +16,14 @@ internal sealed class VisualCppRuntimePrerequisiteService
     private static readonly Uri DownloadUri = new("https://aka.ms/vc14/vc_redist.x64.exe");
     private static readonly HttpClient Http = CreateHttpClient();
 
+    // Package-download migration is deliberately frozen while Grev Home finishes its backbone.
+    // Keep this compatibility hook so the in-progress installer branch compiles without changing
+    // the prerequisite's established HTTP/elevation behaviour yet.
+    private TrustedPackageDownloadService? _deferredDownloadService;
+
+    public void ConfigureDownloadService(TrustedPackageDownloadService downloadService) =>
+        _deferredDownloadService = downloadService ?? throw new ArgumentNullException(nameof(downloadService));
+
     public bool IsInstalled(out string? version)
     {
         version = null;
@@ -51,10 +59,18 @@ internal sealed class VisualCppRuntimePrerequisiteService
         return RuntimeDllsPresent();
     }
 
+    public Task EnsureInstalledAsync(
+        IProgress<PackageInstallProgress>? progress,
+        CancellationToken cancellationToken,
+        string? ownerGrevId) =>
+        EnsureInstalledAsync(progress, cancellationToken);
+
     public async Task EnsureInstalledAsync(
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken)
     {
+        _ = _deferredDownloadService;
+
         if (IsInstalled(out var installedVersion))
         {
             progress?.Report(new PackageInstallProgress(
