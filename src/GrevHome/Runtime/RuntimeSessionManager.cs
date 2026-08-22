@@ -15,11 +15,20 @@ public sealed class RuntimeSessionManager : IDisposable
     private static readonly TimeSpan RestartGracefulWait = TimeSpan.FromSeconds(5);
     private static readonly TimeSpan RestartForceWait = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan ShutdownMonitorWait = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan[] CompletionRetryBackoff =
+    [
+        TimeSpan.FromSeconds(5),
+        TimeSpan.FromSeconds(30),
+        TimeSpan.FromMinutes(2),
+        TimeSpan.FromMinutes(5),
+        TimeSpan.FromMinutes(15)
+    ];
 
     private readonly ConcurrentDictionary<Guid, TrackedLaunchSession> _active = new();
     private readonly ConcurrentDictionary<Guid, byte> _restarting = new();
     private readonly ConcurrentDictionary<Guid, byte> _finalizing = new();
     private readonly ConcurrentDictionary<Guid, Task> _monitorTasks = new();
+    private readonly ConcurrentDictionary<Guid, byte> _completionRetrying = new();
     private readonly ProcessTreeService _processTree;
     private readonly ProcessWindowService _processWindows;
     private readonly PlaytimeService _playtime;
@@ -35,6 +44,8 @@ public sealed class RuntimeSessionManager : IDisposable
     public event Action<LaunchSessionSnapshot>? SessionChanged;
     public event Action<LaunchSessionSnapshot>? SessionEnded;
     public event Action<LaunchSessionSnapshot>? SessionHistoryCommitted;
+    public event Action<LaunchSessionSnapshot, string>? SessionCompletionDeferred;
+    public event Action<LaunchSessionSnapshot>? SessionCompletionRecovered;
 
     public RuntimeSessionManager(
         ProcessTreeService processTree,
@@ -67,82 +78,43 @@ public sealed class RuntimeSessionManager : IDisposable
 
     public void NotifySystemSuspend(DateTimeOffset suspendedAtUtc)
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         var sessions = _active.Values.ToArray();
-        foreach (var tracked in sessions)
-        {
-            tracked.MarkSuspended(suspendedAtUtc);
-        }
-
-        if (sessions.Length > 0)
-        {
-            PersistRuntimeState(force: true);
-            foreach (var tracked in sessions)
-            {
-                SessionChanged?.Invoke(tracked.Snapshot());
-            }
-        }
+        foreach (var tracked in sessions) tracked.MarkSuspended(suspendedAtUtc);
+        if (sessions.Length == 0) return;
+        PersistRuntimeState(force: true);
+        foreach (var tracked in sessions) SessionChanged?.Invoke(tracked.Snapshot());
     }
 
     public void NotifySystemResume(DateTimeOffset resumedAtUtc)
     {
-        if (_disposed)
-        {
-            return;
-        }
-
+        if (_disposed) return;
         var sessions = _active.Values.ToArray();
-        foreach (var tracked in sessions)
-        {
-            tracked.MarkResumed(resumedAtUtc);
-        }
-
-        if (sessions.Length > 0)
-        {
-            PersistRuntimeState(force: true);
-            foreach (var tracked in sessions)
-            {
-                SessionChanged?.Invoke(tracked.Snapshot());
-            }
-        }
+        foreach (var tracked in sessions) tracked.MarkResumed(resumedAtUtc);
+        if (sessions.Length == 0) return;
+        PersistRuntimeState(force: true);
+        foreach (var tracked in sessions) SessionChanged?.Invoke(tracked.Snapshot());
     }
 
     public LaunchSessionSnapshot? GetSession(Guid launchSessionId) =>
-        _active.TryGetValue(launchSessionId, out var tracked)
-            ? tracked.Snapshot()
-            : null;
+        _active.TryGetValue(launchSessionId, out var tracked) ? tracked.Snapshot() : null;
 
     public LaunchSessionSnapshot? GetForegroundSession()
     {
         var foregroundProcessId = _processWindows.GetForegroundProcessId();
-        if (!foregroundProcessId.HasValue)
-        {
-            return null;
-        }
+        if (!foregroundProcessId.HasValue) return null;
 
         foreach (var tracked in _active.Values)
         {
             RefreshDeclaredProcesses(tracked);
-            if (GetValidatedProcessIds(tracked).Contains(foregroundProcessId.Value))
-            {
-                return tracked.Snapshot();
-            }
+            if (GetValidatedProcessIds(tracked).Contains(foregroundProcessId.Value)) return tracked.Snapshot();
         }
-
         return null;
     }
 
     public bool SwitchTo(Guid launchSessionId)
     {
-        if (!_active.TryGetValue(launchSessionId, out var tracked))
-        {
-            return false;
-        }
-
+        if (!_active.TryGetValue(launchSessionId, out var tracked)) return false;
         RefreshDeclaredProcesses(tracked);
         var processIds = GetValidatedProcessIds(tracked);
         return processIds.Count > 0 && _processWindows.TryActivate(processIds);
@@ -150,24 +122,11 @@ public sealed class RuntimeSessionManager : IDisposable
 
     public bool RequestClose(Guid launchSessionId)
     {
-        if (!_active.TryGetValue(launchSessionId, out var tracked))
-        {
-            return false;
-        }
-
+        if (!_active.TryGetValue(launchSessionId, out var tracked)) return false;
         var processIds = GetValidatedProcessIds(tracked);
-        if (processIds.Count == 0)
-        {
-            return false;
-        }
-
-        var requested = _processWindows.RequestGracefulClose(
-            GetValidatedProcessIdentities(tracked));
-        if (!requested)
-        {
-            return false;
-        }
-
+        if (processIds.Count == 0) return false;
+        var requested = _processWindows.RequestGracefulClose(GetValidatedProcessIdentities(tracked));
+        if (!requested) return false;
         tracked.MarkClosing();
         PersistRuntimeState(force: true);
         SessionChanged?.Invoke(tracked.Snapshot());
@@ -176,25 +135,13 @@ public sealed class RuntimeSessionManager : IDisposable
 
     public bool ForceClose(Guid launchSessionId)
     {
-        if (!_active.TryGetValue(launchSessionId, out var tracked))
-        {
-            return false;
-        }
-
+        if (!_active.TryGetValue(launchSessionId, out var tracked)) return false;
         var processIds = GetValidatedProcessIds(tracked);
-        if (processIds.Count == 0)
-        {
-            return false;
-        }
-
+        if (processIds.Count == 0) return false;
         var killed = _processWindows.ForceTerminate(
             GetValidatedProcessIdentities(tracked),
             tracked.ForceKillEntireProcessTree);
-        if (!killed)
-        {
-            return false;
-        }
-
+        if (!killed) return false;
         tracked.MarkClosing();
         PersistRuntimeState(force: true);
         SessionChanged?.Invoke(tracked.Snapshot());
@@ -207,74 +154,41 @@ public sealed class RuntimeSessionManager : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
-
         if (!_restarting.TryAdd(launchSessionId, 0))
-        {
             throw new InvalidOperationException("That app is already restarting.");
-        }
 
         try
         {
             if (!_active.TryGetValue(launchSessionId, out var tracked))
-            {
                 throw new InvalidOperationException("That runtime session is no longer active.");
-            }
 
             var snapshot = tracked.Snapshot();
-            if (!string.Equals(
-                    entry.Manifest.Definition.AppId,
-                    snapshot.AppId,
-                    StringComparison.OrdinalIgnoreCase))
-            {
+            if (!string.Equals(entry.Manifest.Definition.AppId, snapshot.AppId, StringComparison.OrdinalIgnoreCase))
                 throw new InvalidOperationException("The installed app no longer matches the running session.");
-            }
-
             if (!entry.AvailableToCurrentUser)
-            {
-                throw new InvalidOperationException(
-                    entry.AvailabilityMessage ?? "That app is not currently available to this profile.");
-            }
+                throw new InvalidOperationException(entry.AvailabilityMessage ?? "That app is not currently available to this profile.");
 
-            var processIds = GetValidatedProcessIds(tracked);
-            if (processIds.Count > 0)
+            if (GetValidatedProcessIds(tracked).Count > 0)
             {
-                if (!RequestClose(launchSessionId))
-                {
-                    ForceClose(launchSessionId);
-                }
-
+                if (!RequestClose(launchSessionId)) ForceClose(launchSessionId);
                 await WaitForProcessesToExitAsync(tracked, RestartGracefulWait, cancellationToken);
-
                 if (GetValidatedProcessIds(tracked).Count > 0)
                 {
                     ForceClose(launchSessionId);
                     await WaitForProcessesToExitAsync(tracked, RestartForceWait, cancellationToken);
                 }
-
                 if (GetValidatedProcessIds(tracked).Count > 0)
-                {
-                    throw new InvalidOperationException(
-                        $"Windows did not close {snapshot.AppName}, so Grev Home did not start a duplicate copy.");
-                }
+                    throw new InvalidOperationException($"Windows did not close {snapshot.AppName}, so Grev Home did not start a duplicate copy.");
             }
 
             var finalizeDeadline = DateTimeOffset.UtcNow.Add(ExitGracePeriod + TimeSpan.FromSeconds(3));
             while (_active.ContainsKey(launchSessionId) && DateTimeOffset.UtcNow < finalizeDeadline)
-            {
                 await Task.Delay(100, cancellationToken);
-            }
 
             if (_active.ContainsKey(launchSessionId))
-            {
-                throw new InvalidOperationException(
-                    "The previous runtime session has not finished its local completion commit, so Grev Home did not start a replacement yet.");
-            }
+                throw new InvalidOperationException("The previous runtime session has not finished its local completion commit, so Grev Home did not start a replacement yet.");
 
-            return await LaunchAsync(
-                entry,
-                snapshot.PrimaryGrevId,
-                snapshot.Participants,
-                cancellationToken);
+            return await LaunchAsync(entry, snapshot.PrimaryGrevId, snapshot.Participants, cancellationToken);
         }
         finally
         {
@@ -290,23 +204,13 @@ public sealed class RuntimeSessionManager : IDisposable
         ArgumentNullException.ThrowIfNull(entry);
         ArgumentNullException.ThrowIfNull(sessionContext);
         cancellationToken.ThrowIfCancellationRequested();
-
         var primary = sessionContext.PrimaryUser
             ?? throw new InvalidOperationException("Choose a Primary User before launching an app.");
-
         var participants = sessionContext.SignedInUsers
-            .Select(user => new LaunchParticipant(
-                user.SessionId,
-                user.GrevId,
-                user.DisplayName,
-                user.AccountKind))
+            .Select(user => new LaunchParticipant(user.SessionId, user.GrevId, user.DisplayName, user.AccountKind))
             .ToArray();
-
         if (participants.Length == 0)
-        {
             throw new InvalidOperationException("At least one user must be signed in before launching an app.");
-        }
-
         return LaunchAsync(entry, primary.GrevId, participants, cancellationToken);
     }
 
@@ -320,11 +224,8 @@ public sealed class RuntimeSessionManager : IDisposable
         ArgumentNullException.ThrowIfNull(participants);
         cancellationToken.ThrowIfCancellationRequested();
         ObjectDisposedException.ThrowIf(_disposed, this);
-
         if (participants.Count == 0)
-        {
             throw new InvalidOperationException("At least one participant is required before launching an app.");
-        }
 
         if (ShouldReuseRunningSession(entry))
         {
@@ -343,32 +244,25 @@ public sealed class RuntimeSessionManager : IDisposable
         var startInfo = _launchResolver.Resolve(entry, primaryGrevId);
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Windows did not start {entry.Manifest.Definition.Name}.");
-
         var rootIdentity = _processTree.TryGetProcessIdentity(process.Id)
             ?? new RuntimeProcessIdentity(process.Id, process.StartTime.ToUniversalTime());
         var startedAtUtc = DateTimeOffset.UtcNow;
         var launch = entry.Manifest.Definition.Launch;
         var systemInstalled = entry.Manifest.Definition.InstallStrategy == InstallStrategy.SystemInstalled;
-        var declaredProcessName = systemInstalled ? launch.ProcessName : null;
-        var additionalProcessNames = systemInstalled ? launch.AdditionalProcessNames : null;
         var tracked = new TrackedLaunchSession(
             entry.Manifest.Definition.AppId,
             entry.Manifest.Definition.Name,
             primaryGrevId,
-            declaredProcessName,
-            additionalProcessNames,
+            systemInstalled ? launch.ProcessName : null,
+            systemInstalled ? launch.AdditionalProcessNames : null,
             launch.EffectiveTrackDescendantProcesses,
             launch.EffectiveForceKillEntireProcessTree,
             participants.ToArray(),
             rootIdentity,
             startedAtUtc);
-
         RefreshDeclaredProcesses(tracked);
-
         if (!_active.TryAdd(tracked.LaunchSessionId, tracked))
-        {
             throw new InvalidOperationException("Grev Home could not register the new runtime session.");
-        }
 
         if (ShouldReuseRunningSession(entry))
         {
@@ -397,14 +291,11 @@ public sealed class RuntimeSessionManager : IDisposable
         {
             try
             {
-                CommitPendingCompletionAsync(record, publishHistoryEvent: false)
-                    .GetAwaiter()
-                    .GetResult();
+                CommitPendingCompletionAsync(record, publishHistoryEvent: false).GetAwaiter().GetResult();
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or OverflowException)
+            catch (Exception ex) when (IsCompletionPersistenceFailure(ex))
             {
-                // The exact pending record remains durable. A later startup/session completion can
-                // replay it again because both playtime and history commits are SessionId-idempotent.
+                StartCompletionRetry(record);
             }
         }
     }
@@ -412,19 +303,15 @@ public sealed class RuntimeSessionManager : IDisposable
     private void RecoverPersistedSessions()
     {
         var recoveredAny = false;
-
         foreach (var record in _runtimeStateStore.Load())
         {
             if (record.LaunchSessionId == Guid.Empty ||
                 string.IsNullOrWhiteSpace(record.AppId) ||
                 string.IsNullOrWhiteSpace(record.AppName) ||
                 record.StartedAtUtc == default ||
-                record.Processes is null ||
-                record.Processes.Count == 0 ||
+                record.Processes is null || record.Processes.Count == 0 ||
                 record.State is LaunchSessionState.Exited or LaunchSessionState.Failed)
-            {
                 continue;
-            }
 
             var aliveProcesses = _processTree.GetAliveProcessIdentities(record.Processes);
             if (aliveProcesses.Count == 0)
@@ -438,13 +325,7 @@ public sealed class RuntimeSessionManager : IDisposable
                         .ToArray();
                 }
             }
-            if (aliveProcesses.Count == 0)
-            {
-                // A completion detected before the previous shell died is replayed from the exact
-                // PendingCompletions record above. If no such record exists, keep the old policy:
-                // never invent an end time for an app that ended while Grev Home was absent.
-                continue;
-            }
+            if (aliveProcesses.Count == 0) continue;
 
             var tracked = TrackedLaunchSession.Recover(
                 record.LaunchSessionId,
@@ -463,34 +344,14 @@ public sealed class RuntimeSessionManager : IDisposable
                 record.State,
                 record.AccumulatedSuspendedSeconds,
                 record.SuspendedAtUtc);
-
-            // Grev Home can only be executing recovery once Windows is awake. If the previous shell
-            // persisted an open suspend interval, close it at this startup rather than counting the
-            // asleep period as active playtime forever.
-            if (record.SuspendedAtUtc is not null)
-            {
-                tracked.MarkResumed(DateTimeOffset.UtcNow);
-            }
-
-            if (!_active.TryAdd(tracked.LaunchSessionId, tracked))
-            {
-                continue;
-            }
-
+            if (record.SuspendedAtUtc is not null) tracked.MarkResumed(DateTimeOffset.UtcNow);
+            if (!_active.TryAdd(tracked.LaunchSessionId, tracked)) continue;
             recoveredAny = true;
         }
 
         DeduplicateActiveSessions();
-
-        foreach (var tracked in _active.Values)
-        {
-            StartMonitor(tracked);
-        }
-
-        if (recoveredAny || File.Exists(_runtimeStateStore.StateFile))
-        {
-            PersistRuntimeState(force: true);
-        }
+        foreach (var tracked in _active.Values) StartMonitor(tracked);
+        if (recoveredAny || File.Exists(_runtimeStateStore.StateFile)) PersistRuntimeState(force: true);
     }
 
     private void StartMonitor(TrackedLaunchSession tracked)
@@ -509,28 +370,20 @@ public sealed class RuntimeSessionManager : IDisposable
     {
         DateTimeOffset? noProcessesSince = null;
         var lastKnownCount = tracked.GetKnownProcessIdentities().Count;
-
         try
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                if (!_active.ContainsKey(tracked.LaunchSessionId))
-                {
-                    return;
-                }
-
+                if (!_active.ContainsKey(tracked.LaunchSessionId)) return;
                 RefreshDeclaredProcesses(tracked);
-
                 if (tracked.TrackDescendantProcesses)
                 {
                     var aliveKnown = _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
                     var discoveredIds = _processTree.DiscoverDescendants(aliveKnown.Select(process => process.ProcessId));
-                    var discoveredIdentities = discoveredIds
+                    tracked.AddProcessIdentities(discoveredIds
                         .Select(_processTree.TryGetProcessIdentity)
                         .Where(identity => identity is not null)
-                        .Select(identity => identity!)
-                        .ToArray();
-                    tracked.AddProcessIdentities(discoveredIdentities);
+                        .Select(identity => identity!));
                 }
 
                 var currentKnown = tracked.GetKnownProcessIdentities();
@@ -553,17 +406,15 @@ public sealed class RuntimeSessionManager : IDisposable
                     noProcessesSince ??= DateTimeOffset.UtcNow;
                     if (DateTimeOffset.UtcNow - noProcessesSince.Value >= ExitGracePeriod)
                     {
-                        await FinalizeAsync(tracked, noProcessesSince.Value, failureMessage: null);
+                        await FinalizeAsync(tracked, noProcessesSince.Value, null);
                         return;
                     }
                 }
-
                 await Task.Delay(PollInterval, cancellationToken);
             }
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // Expected when Grev Home shuts down while the managed app is still alive.
         }
         catch (Exception ex)
         {
@@ -571,52 +422,28 @@ public sealed class RuntimeSessionManager : IDisposable
         }
     }
 
-    private async Task FinalizeAsync(
-        TrackedLaunchSession tracked,
-        DateTimeOffset endedAtUtc,
-        string? failureMessage)
+    private async Task FinalizeAsync(TrackedLaunchSession tracked, DateTimeOffset endedAtUtc, string? failureMessage)
     {
-        if (!_active.ContainsKey(tracked.LaunchSessionId) ||
-            !_finalizing.TryAdd(tracked.LaunchSessionId, 0))
-        {
-            return;
-        }
-
+        if (!_active.ContainsKey(tracked.LaunchSessionId) || !_finalizing.TryAdd(tracked.LaunchSessionId, 0)) return;
         try
         {
             var completionSnapshot = tracked.Snapshot() with
             {
                 TrackedDurationSeconds = tracked.GetTrackedDurationSeconds(endedAtUtc)
             };
-
-            // From the moment process exit has been confirmed, local completion is non-cancellable.
-            // Persist the exact completion envelope first so even a hard shell kill can replay it.
-            var pending = await _completionStore.SaveAsync(
-                completionSnapshot,
-                endedAtUtc,
-                failureMessage,
-                CancellationToken.None);
-
+            var pending = await _completionStore.SaveAsync(completionSnapshot, endedAtUtc, failureMessage, CancellationToken.None);
             try
             {
                 await CommitPendingCompletionAsync(pending, publishHistoryEvent: true);
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or OverflowException)
+            catch (Exception ex) when (IsCompletionPersistenceFailure(ex))
             {
-                // The pending completion stays on disk. Ending the UI/runtime ownership is safe
-                // because startup can replay this exact SessionId without double-counting either
-                // aggregate playtime or immutable history.
+                SessionCompletionDeferred?.Invoke(pending.ToSnapshot(), ex.Message);
+                StartCompletionRetry(pending);
             }
 
-            if (failureMessage is null)
-            {
-                tracked.MarkExited(endedAtUtc);
-            }
-            else
-            {
-                tracked.MarkFailed(failureMessage, endedAtUtc);
-            }
-
+            if (failureMessage is null) tracked.MarkExited(endedAtUtc);
+            else tracked.MarkFailed(failureMessage, endedAtUtc);
             var snapshot = tracked.Snapshot();
             _active.TryRemove(snapshot.LaunchSessionId, out _);
             PersistRuntimeState(force: true);
@@ -629,33 +456,58 @@ public sealed class RuntimeSessionManager : IDisposable
         }
     }
 
-    private async Task CommitPendingCompletionAsync(
-        RuntimePendingCompletionRecord pending,
-        bool publishHistoryEvent)
+    private void StartCompletionRetry(RuntimePendingCompletionRecord pending)
+    {
+        if (!_completionRetrying.TryAdd(pending.LaunchSessionId, 0)) return;
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                for (var attempt = 0; !_shutdown.IsCancellationRequested; attempt++)
+                {
+                    var delay = CompletionRetryBackoff[Math.Min(attempt, CompletionRetryBackoff.Length - 1)];
+                    await Task.Delay(delay, _shutdown.Token);
+                    try
+                    {
+                        await CommitPendingCompletionAsync(pending, publishHistoryEvent: true);
+                        SessionCompletionRecovered?.Invoke(pending.ToSnapshot());
+                        return;
+                    }
+                    catch (Exception ex) when (IsCompletionPersistenceFailure(ex))
+                    {
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (_shutdown.IsCancellationRequested)
+            {
+            }
+            finally
+            {
+                _completionRetrying.TryRemove(pending.LaunchSessionId, out _);
+            }
+        }, CancellationToken.None);
+    }
+
+    private async Task CommitPendingCompletionAsync(RuntimePendingCompletionRecord pending, bool publishHistoryEvent)
     {
         var snapshot = pending.ToSnapshot();
         var durationSeconds = snapshot.TrackedDurationSeconds ??
-                              Math.Max(0L, (long)Math.Round(
-                                  (snapshot.EndedAtUtc!.Value - snapshot.StartedAtUtc).TotalSeconds));
-        var duration = TimeSpan.FromSeconds(Math.Max(0L, durationSeconds));
-
+                              Math.Max(0L, (long)Math.Round((snapshot.EndedAtUtc!.Value - snapshot.StartedAtUtc).TotalSeconds));
         await _playtime.RecordSessionAsync(
             snapshot.LaunchSessionId,
             snapshot.AppId,
             snapshot.AppName,
             snapshot.Participants,
-            duration,
+            TimeSpan.FromSeconds(Math.Max(0L, durationSeconds)),
             snapshot.EndedAtUtc!.Value,
             CancellationToken.None);
-
         await _sessionHistory.RecordAsync(snapshot, CancellationToken.None);
         _completionStore.Delete(snapshot.LaunchSessionId);
-
-        if (publishHistoryEvent)
-        {
-            SessionHistoryCommitted?.Invoke(snapshot);
-        }
+        if (publishHistoryEvent) SessionHistoryCommitted?.Invoke(snapshot);
     }
+
+    private static bool IsCompletionPersistenceFailure(Exception ex) =>
+        ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or OverflowException;
 
     private async Task WaitForProcessesToExitAsync(
         TrackedLaunchSession tracked,
@@ -666,11 +518,7 @@ public sealed class RuntimeSessionManager : IDisposable
         while (DateTimeOffset.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (GetValidatedProcessIds(tracked).Count == 0)
-            {
-                return;
-            }
-
+            if (GetValidatedProcessIds(tracked).Count == 0) return;
             await Task.Delay(150, cancellationToken);
         }
     }
@@ -683,12 +531,8 @@ public sealed class RuntimeSessionManager : IDisposable
         {
             RefreshDeclaredProcesses(tracked);
             var snapshot = tracked.Snapshot();
-            if (snapshot.State != LaunchSessionState.Closing && GetValidatedProcessIds(tracked).Count > 0)
-            {
-                return tracked;
-            }
+            if (snapshot.State != LaunchSessionState.Closing && GetValidatedProcessIds(tracked).Count > 0) return tracked;
         }
-
         return null;
     }
 
@@ -696,21 +540,16 @@ public sealed class RuntimeSessionManager : IDisposable
     {
         var definition = entry.Manifest.Definition;
         return definition.Launch.SingleInstance ||
-               (definition.InstallStrategy == InstallStrategy.SystemInstalled &&
-                definition.Launch.DeclaredProcessNames.Count > 0);
+               (definition.InstallStrategy == InstallStrategy.SystemInstalled && definition.Launch.DeclaredProcessNames.Count > 0);
     }
 
     private void RefreshDeclaredProcesses(TrackedLaunchSession tracked)
     {
         foreach (var processName in tracked.DeclaredProcessNames)
-        {
             tracked.AddProcessIdentities(_processTree.GetProcessIdentitiesByName(processName));
-        }
     }
 
-    private static IReadOnlyList<string> GetDeclaredProcessNames(
-        string? primary,
-        IReadOnlyList<string>? additional) =>
+    private static IReadOnlyList<string> GetDeclaredProcessNames(string? primary, IReadOnlyList<string>? additional) =>
         new[] { primary }
             .Concat(additional ?? Array.Empty<string>())
             .Where(name => !string.IsNullOrWhiteSpace(name))
@@ -722,117 +561,77 @@ public sealed class RuntimeSessionManager : IDisposable
     {
         var claimedProcesses = new HashSet<(string AppId, int ProcessId)>();
         var changed = false;
-
         foreach (var tracked in _active.Values.OrderBy(session => session.StartedAtUtc).ToArray())
         {
             RefreshDeclaredProcesses(tracked);
             var alive = GetValidatedProcessIdentities(tracked);
-            if (alive.Count == 0)
-            {
-                continue;
-            }
-
-            var duplicate = alive.Any(process =>
-                claimedProcesses.Contains((tracked.AppId.ToUpperInvariant(), process.ProcessId)));
+            if (alive.Count == 0) continue;
+            var duplicate = alive.Any(process => claimedProcesses.Contains((tracked.AppId.ToUpperInvariant(), process.ProcessId)));
             if (duplicate)
             {
                 changed |= _active.TryRemove(tracked.LaunchSessionId, out _);
                 continue;
             }
-
-            foreach (var process in alive)
-            {
-                claimedProcesses.Add((tracked.AppId.ToUpperInvariant(), process.ProcessId));
-            }
+            foreach (var process in alive) claimedProcesses.Add((tracked.AppId.ToUpperInvariant(), process.ProcessId));
         }
-
-        if (changed)
-        {
-            PersistRuntimeState(force: true);
-        }
+        if (changed) PersistRuntimeState(force: true);
     }
 
     private IReadOnlyList<RuntimeProcessIdentity> GetValidatedProcessIdentities(TrackedLaunchSession tracked) =>
         _processTree.GetAliveProcessIdentities(tracked.GetKnownProcessIdentities());
 
     private IReadOnlyList<int> GetValidatedProcessIds(TrackedLaunchSession tracked) =>
-        GetValidatedProcessIdentities(tracked)
-            .Select(process => process.ProcessId)
-            .ToArray();
+        GetValidatedProcessIdentities(tracked).Select(process => process.ProcessId).ToArray();
 
     private void PersistRuntimeState(bool force)
     {
         lock (_persistGate)
         {
             var now = DateTimeOffset.UtcNow;
-            if (!force && now - _lastPersistedAtUtc < PersistHeartbeatInterval)
+            if (!force && now - _lastPersistedAtUtc < PersistHeartbeatInterval) return;
+            var records = _active.Values.Select(tracked =>
             {
-                return;
-            }
-
-            var records = _active.Values
-                .Select(tracked =>
-                {
-                    var snapshot = tracked.Snapshot();
-                    return new RuntimeSessionRecoveryRecord(
-                        snapshot.LaunchSessionId,
-                        snapshot.AppId,
-                        snapshot.AppName,
-                        snapshot.PrimaryGrevId,
-                        snapshot.Participants,
-                        snapshot.StartedAtUtc,
-                        tracked.LastObservedAliveAtUtc,
-                        snapshot.State,
-                        snapshot.RootProcessId,
-                        tracked.GetKnownProcessIdentities(),
-                        tracked.ProcessName,
-                        tracked.AdditionalProcessNames,
-                        tracked.TrackDescendantProcesses,
-                        tracked.ForceKillEntireProcessTree,
-                        tracked.AccumulatedSuspendedSeconds,
-                        tracked.SuspendedAtUtc);
-                })
-                .OrderByDescending(record => record.StartedAtUtc)
-                .ToArray();
-
+                var snapshot = tracked.Snapshot();
+                return new RuntimeSessionRecoveryRecord(
+                    snapshot.LaunchSessionId,
+                    snapshot.AppId,
+                    snapshot.AppName,
+                    snapshot.PrimaryGrevId,
+                    snapshot.Participants,
+                    snapshot.StartedAtUtc,
+                    tracked.LastObservedAliveAtUtc,
+                    snapshot.State,
+                    snapshot.RootProcessId,
+                    tracked.GetKnownProcessIdentities(),
+                    tracked.ProcessName,
+                    tracked.AdditionalProcessNames,
+                    tracked.TrackDescendantProcesses,
+                    tracked.ForceKillEntireProcessTree,
+                    tracked.AccumulatedSuspendedSeconds,
+                    tracked.SuspendedAtUtc);
+            }).OrderByDescending(record => record.StartedAtUtc).ToArray();
             try
             {
                 _runtimeStateStore.Save(records);
                 _lastPersistedAtUtc = now;
             }
-            catch (IOException)
-            {
-            }
-            catch (UnauthorizedAccessException)
-            {
-            }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
     }
 
     public void Dispose()
     {
-        if (_disposed)
-        {
-            return;
-        }
+        if (_disposed) return;
         _disposed = true;
-
         PersistRuntimeState(force: true);
         _shutdown.Cancel();
-
         var monitors = _monitorTasks.Values.ToArray();
         if (monitors.Length > 0)
         {
-            try
-            {
-                Task.WaitAll(monitors, ShutdownMonitorWait);
-            }
-            catch (AggregateException)
-            {
-                // Runtime state or PendingCompletions remains the recovery authority on close.
-            }
+            try { Task.WaitAll(monitors, ShutdownMonitorWait); }
+            catch (AggregateException) { }
         }
-
         PersistRuntimeState(force: true);
         _shutdown.Dispose();
     }
