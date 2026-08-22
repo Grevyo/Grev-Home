@@ -38,6 +38,7 @@ public partial class MainWindow
         InitializeDashboardDataIntegration();
         InitializeFilesIntegration();
         InitializeGrevStoreIntegration();
+        InitializeActivityCenterIntegration();
         InitializeAppSettingsIntegration();
         InitializeAdminConsoleIntegration();
         InitializeOverlayAppKillerIntegration();
