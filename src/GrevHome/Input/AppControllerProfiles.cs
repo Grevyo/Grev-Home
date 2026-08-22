@@ -194,12 +194,26 @@ public sealed class AppControllerProfileService
         CancellationToken cancellationToken = default)
     {
         var userOverride = await ReadOverrideAsync(grevId, appId, cancellationToken);
-        return userOverride is null
-            ? ResolveDefaults(defaults)
-            : new ResolvedAppControllerProfile(
+        if (userOverride is not null)
+        {
+            return new ResolvedAppControllerProfile(
                 userOverride.Enabled,
                 NormalizeMappings(userOverride.Mappings),
                 HasUserOverride: true);
+        }
+
+        var resolvedDefaults = ResolveDefaults(defaults);
+
+        // Steam Big Picture already consumes the physical controller natively. Injecting Grev's
+        // emulated Enter/D-pad/mouse layer at the same time makes one physical press execute twice.
+        // Native controller input is therefore the no-override default for Steam. A GrevID can
+        // still explicitly enable the emulated setup layer from App Settings when it is needed.
+        if (string.Equals(appId, "steam", StringComparison.OrdinalIgnoreCase))
+        {
+            return resolvedDefaults with { Enabled = false };
+        }
+
+        return resolvedDefaults;
     }
 
     public static ResolvedAppControllerProfile ResolveDefaults(AppControllerProfileDefaults? defaults)
