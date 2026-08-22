@@ -15,67 +15,71 @@ public partial class MainWindow
         }
 
         _grevDadPrivacySettingsUiIntegrationReady = true;
-        _settingsView.SaveGrevDadPrivacyRequested += settings => _ = SaveGrevDadPrivacyFromSettingsAsync(settings);
+        _profileView.SaveGrevDadPrivacyRequested += settings => _ = SaveGrevDadPrivacyFromProfileAsync(settings);
 
         _navigation.RouteChanged += route =>
         {
-            if (route == Route.Settings)
+            if (route == Route.ProfileView)
             {
-                _ = RefreshGrevDadPrivacySettingsAsync();
+                _ = RefreshGrevDadPrivacyForProfileAsync();
             }
         };
         _session.Changed += (_, _) =>
         {
-            if (_navigation.Current == Route.Settings)
+            if (_navigation.Current == Route.ProfileView)
             {
-                Dispatcher.BeginInvoke(new Action(() => _ = RefreshGrevDadPrivacySettingsAsync()));
+                Dispatcher.BeginInvoke(new Action(() => _ = RefreshGrevDadPrivacyForProfileAsync()));
             }
         };
     }
 
-    private async Task RefreshGrevDadPrivacySettingsAsync()
+    private async Task RefreshGrevDadPrivacyForProfileAsync()
     {
-        var profile = GetPrimaryLocalProfile();
+        var profile = GetProfileTarget();
         if (profile is null)
         {
-            _settingsView.SetGrevDadPrivacyState(
+            _profileView.SetGrevDadPrivacyState(
                 GrevDadPrivacySettings.SafeFallback,
-                "A persistent local Primary User is required to own Grev.dad privacy settings.");
+                "No persistent profile is selected.");
             return;
         }
 
         try
         {
             var settings = await RequireGrevDadPrivacySettingsService().GetAsync(profile.GrevId);
-            _settingsView.SetGrevDadPrivacyState(settings);
+            if (_navigation.Current == Route.ProfileView &&
+                string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
+            {
+                _profileView.SetGrevDadPrivacyState(settings);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            _settingsView.SetGrevDadPrivacyState(
+            _profileView.SetGrevDadPrivacyState(
                 GrevDadPrivacySettings.SafeFallback,
-                $"Sharing is disabled locally until privacy settings can be read safely: {ex.Message}");
+                $"Sharing is disabled locally until this profile's privacy settings can be read safely: {ex.Message}");
         }
     }
 
-    private async Task SaveGrevDadPrivacyFromSettingsAsync(GrevDadPrivacySettings settings)
+    private async Task SaveGrevDadPrivacyFromProfileAsync(GrevDadPrivacySettings settings)
     {
-        var profile = GetPrimaryLocalProfile();
-        if (profile is null)
+        var profile = GetProfileTarget();
+        if (profile is null || !CanManageGrevDadProfile(profile))
         {
-            _settingsView.ShowGrevDadPrivacyStatus("A persistent local Primary User is required to change Grev.dad privacy settings.");
+            _profileView.ShowGrevDadStatus("Make this profile the Primary User before changing its Grev.dad privacy settings.");
             return;
         }
 
         try
         {
             var saved = await RequireGrevDadPrivacySettingsService().SaveAsync(profile.GrevId, settings);
-            _settingsView.SetGrevDadPrivacyState(saved, "Saved locally for this GrevID.");
+            _profileView.SetGrevDadPrivacyState(saved, "Saved locally for this GrevID profile.");
             await RefreshGrevDadPresenceForAsync(profile.GrevId);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
-            _settingsView.ShowGrevDadPrivacyStatus($"Could not save Grev.dad privacy settings: {ex.Message}");
-            await RefreshGrevDadPrivacySettingsAsync();
+            _profileView.ShowGrevDadStatus($"Could not save Grev.dad privacy settings: {ex.Message}");
+            await RefreshGrevDadPrivacyForProfileAsync();
         }
     }
 }
