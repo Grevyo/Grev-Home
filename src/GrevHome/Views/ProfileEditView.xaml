@@ -8,7 +8,7 @@
             <Setter Property="Background" Value="#11151E" />
             <Setter Property="BorderBrush" Value="#252D3B" />
             <Setter Property="BorderThickness" Value="1" />
-            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="CornerRadius" Value="0" />
             <Setter Property="Padding" Value="22" />
         </Style>
         <Style x:Key="EditEyebrow" TargetType="TextBlock">
@@ -34,9 +34,8 @@
                         Background="Transparent"
                         BorderBrush="{StaticResource GuestRoleBrush}"
                         BorderThickness="0"
-                        CornerRadius="18">
+                        CornerRadius="0">
                     <StackPanel>
-                        <!-- Identity / picture -->
                         <Border Style="{StaticResource EditSectionCard}">
                             <Grid>
                                 <Grid.ColumnDefinitions>
@@ -47,18 +46,14 @@
                                 <Border x:Name="AvatarPreviewBorder"
                                         Width="132"
                                         Height="132"
-                                        CornerRadius="66"
+                                        CornerRadius="0"
                                         Background="#1F283A"
                                         BorderBrush="{StaticResource GuestRoleBrush}"
                                         BorderThickness="4"
                                         Margin="0,0,24,0"
                                         ClipToBounds="True">
                                     <Grid>
-                                        <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed">
-                                            <Image.Clip>
-                                                <EllipseGeometry Center="66,66" RadiusX="66" RadiusY="66" />
-                                            </Image.Clip>
-                                        </Image>
+                                        <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
                                         <TextBlock x:Name="AvatarPreviewText" FontSize="42" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
                                     </Grid>
                                 </Border>
@@ -75,7 +70,6 @@
                             </Grid>
                         </Border>
 
-                        <!-- Public profile text -->
                         <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE DETAILS" FontSize="18" FontWeight="SemiBold" />
@@ -136,7 +130,6 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Role / appearance -->
                         <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE APPEARANCE &amp; ROLE" FontSize="18" FontWeight="SemiBold" />
@@ -156,14 +149,12 @@
                             </StackPanel>
                         </Border>
 
-                        <!-- Grev.dad management is inserted here dynamically by ProfileEditView.GrevDad.cs -->
-
                         <Border Margin="0,16,0,0"
                                 Padding="18"
                                 Background="#0D1119"
                                 BorderBrush="#252D3B"
                                 BorderThickness="1"
-                                CornerRadius="14">
+                                CornerRadius="0">
                             <Grid>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="*" />
