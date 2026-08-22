@@ -17,13 +17,14 @@ public partial class MainWindow
 
         var history = _sessionHistory
             ?? throw new InvalidOperationException("Local session history must initialize before Grev.dad sync.");
+        var accounts = RequireGrevDadAccountService();
 
         _grevDadProfileSyncReady = true;
-        _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history);
+        _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history, accounts);
 
         // A successful/revalidated link backfills legacy playtime and any locally queued completed
         // sessions. Unlinked/offline local accounts continue without entering this path.
-        RequireGrevDadAccountService().SnapshotChanged += (grevId, snapshot) =>
+        accounts.SnapshotChanged += (grevId, snapshot) =>
         {
             if (snapshot.State == GrevDadConnectionState.Linked)
             {
