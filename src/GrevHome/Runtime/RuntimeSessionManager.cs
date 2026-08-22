@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO;
 using GrevHome.Apps;
+using GrevHome.Diagnostics;
 using GrevHome.Sessions;
 using GrevHome.Storage;
 
@@ -36,6 +37,7 @@ public sealed class RuntimeSessionManager : IDisposable
     private readonly AppLaunchResolver _launchResolver;
     private readonly RuntimeStateStore _runtimeStateStore;
     private readonly RuntimeCompletionStore _completionStore;
+    private readonly RuntimeRecoveryJournal _recoveryJournal;
     private readonly CancellationTokenSource _shutdown = new();
     private readonly object _persistGate = new();
     private DateTimeOffset _lastPersistedAtUtc = DateTimeOffset.MinValue;
@@ -65,6 +67,7 @@ public sealed class RuntimeSessionManager : IDisposable
         _runtimeStateStore = runtimeStateStore ?? new RuntimeStateStore(fallbackPaths);
         _sessionHistory = sessionHistory ?? new SessionHistoryService(fallbackPaths);
         _completionStore = completionStore ?? new RuntimeCompletionStore(fallbackPaths);
+        _recoveryJournal = new RuntimeRecoveryJournal(fallbackPaths);
 
         ReplayPendingCompletions();
         RecoverPersistedSessions();
@@ -303,6 +306,7 @@ public sealed class RuntimeSessionManager : IDisposable
     private void RecoverPersistedSessions()
     {
         var recoveredAny = false;
+        var safeToRewriteRecoveryState = true;
         foreach (var record in _runtimeStateStore.Load())
         {
             if (record.LaunchSessionId == Guid.Empty ||
@@ -325,7 +329,12 @@ public sealed class RuntimeSessionManager : IDisposable
                         .ToArray();
                 }
             }
-            if (aliveProcesses.Count == 0) continue;
+
+            if (aliveProcesses.Count == 0)
+            {
+                safeToRewriteRecoveryState &= TryRecoverDeadPersistedSession(record);
+                continue;
+            }
 
             var tracked = TrackedLaunchSession.Recover(
                 record.LaunchSessionId,
@@ -351,7 +360,89 @@ public sealed class RuntimeSessionManager : IDisposable
 
         DeduplicateActiveSessions();
         foreach (var tracked in _active.Values) StartMonitor(tracked);
-        if (recoveredAny || File.Exists(_runtimeStateStore.StateFile)) PersistRuntimeState(force: true);
+        if (safeToRewriteRecoveryState && (recoveredAny || File.Exists(_runtimeStateStore.StateFile)))
+        {
+            PersistRuntimeState(force: true);
+        }
+    }
+
+    private bool TryRecoverDeadPersistedSession(RuntimeSessionRecoveryRecord record)
+    {
+        var endedAtUtc = record.LastObservedAliveAtUtc == default
+            ? record.StartedAtUtc
+            : record.LastObservedAliveAtUtc < record.StartedAtUtc
+                ? record.StartedAtUtc
+                : record.LastObservedAliveAtUtc;
+        var suspendedSeconds = Math.Max(0L, record.AccumulatedSuspendedSeconds);
+        if (record.SuspendedAtUtc is DateTimeOffset suspendedAtUtc && suspendedAtUtc < endedAtUtc)
+        {
+            suspendedSeconds = checked(suspendedSeconds + Math.Max(
+                0L,
+                (long)Math.Floor((endedAtUtc - suspendedAtUtc).TotalSeconds)));
+        }
+
+        var wallClockSeconds = Math.Max(
+            0L,
+            (long)Math.Floor((endedAtUtc - record.StartedAtUtc).TotalSeconds));
+        var trackedSeconds = Math.Max(0L, wallClockSeconds - suspendedSeconds);
+        var snapshot = new LaunchSessionSnapshot(
+            record.LaunchSessionId,
+            record.AppId,
+            record.AppName,
+            record.PrimaryGrevId,
+            record.Participants ?? Array.Empty<LaunchParticipant>(),
+            record.StartedAtUtc,
+            endedAtUtc,
+            LaunchSessionState.Exited,
+            record.RootProcessId,
+            (record.Processes ?? Array.Empty<RuntimeProcessIdentity>())
+                .Select(process => process.ProcessId)
+                .Where(processId => processId > 0)
+                .Distinct()
+                .ToArray(),
+            null,
+            trackedSeconds);
+
+        try
+        {
+            var pending = _completionStore
+                .SaveAsync(snapshot, endedAtUtc, null, CancellationToken.None)
+                .GetAwaiter()
+                .GetResult();
+            _recoveryJournal.TryAppend(
+                "startup-dead-session-handoff",
+                pending.ToSnapshot(),
+                "Persisted runtime processes were no longer alive. Completion duration was conservatively capped at the last confirmed-alive timestamp.");
+
+            try
+            {
+                CommitPendingCompletionAsync(pending, publishHistoryEvent: false)
+                    .GetAwaiter()
+                    .GetResult();
+                _recoveryJournal.TryAppend(
+                    "startup-dead-session-committed",
+                    pending.ToSnapshot(),
+                    "Conservative dead-session recovery committed local playtime and immutable session history.");
+            }
+            catch (Exception ex) when (IsCompletionPersistenceFailure(ex))
+            {
+                _recoveryJournal.TryAppend(
+                    "startup-dead-session-deferred",
+                    pending.ToSnapshot(),
+                    $"Dead-session recovery is durable but local completion commit was deferred: {ex.Message}");
+                StartCompletionRetry(pending);
+            }
+
+            return true;
+        }
+        catch (Exception ex) when (IsCompletionPersistenceFailure(ex))
+        {
+            _recoveryJournal.TryAppend(
+                "startup-dead-session-handoff-failed",
+                snapshot,
+                $"Could not create a durable completion handoff; original runtime recovery state was retained: {ex.Message}");
+            return false;
+        }
     }
 
     private void StartMonitor(TrackedLaunchSession tracked)
@@ -620,9 +711,41 @@ public sealed class RuntimeSessionManager : IDisposable
         }
     }
 
+    private void FinalizeDeadSessionsBeforeShutdown()
+    {
+        foreach (var tracked in _active.Values.ToArray())
+        {
+            try
+            {
+                RefreshDeclaredProcesses(tracked);
+                if (GetValidatedProcessIds(tracked).Count > 0)
+                {
+                    continue;
+                }
+
+                var endedAtUtc = tracked.LastObservedAliveAtUtc < tracked.StartedAtUtc
+                    ? tracked.StartedAtUtc
+                    : tracked.LastObservedAliveAtUtc;
+                FinalizeAsync(tracked, endedAtUtc, null).GetAwaiter().GetResult();
+            }
+            catch (Exception ex) when (IsCompletionPersistenceFailure(ex))
+            {
+                // Keep the tracked session in sessions.json. The next launch can conservatively
+                // hand it to the crash-safe completion envelope rather than losing it.
+            }
+        }
+    }
+
     public void Dispose()
     {
         if (_disposed) return;
+
+        // Before cancelling monitor tasks, synchronously finish any session whose processes are
+        // already gone. This closes the clean-shutdown race where the app exited just before the
+        // shell and the monitor had not yet reached its two-second exit grace boundary.
+        PersistRuntimeState(force: true);
+        FinalizeDeadSessionsBeforeShutdown();
+
         _disposed = true;
         PersistRuntimeState(force: true);
         _shutdown.Cancel();
