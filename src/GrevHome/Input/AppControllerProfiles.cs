@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
@@ -173,6 +174,8 @@ public sealed class AppControllerProfileService
     private const int MaximumOutputValueLength = 80;
 
     private readonly AppPaths _paths;
+    private readonly ConcurrentDictionary<string, string> _persistenceBlocks =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly JsonSerializerOptions _jsonOptions = new()
     {
         WriteIndented = true,
@@ -218,8 +221,13 @@ public sealed class AppControllerProfileService
         var normalized = NormalizeMappings(mappings);
         var value = new AppControllerProfileOverride(CurrentVersion, enabled, normalized);
         var path = _paths.GetProfileAppControllerProfileFile(grevId, appId);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        var key = BuildPersistenceKey(grevId, appId);
+        if (_persistenceBlocks.TryGetValue(key, out var blockReason) && File.Exists(path))
+        {
+            throw new InvalidOperationException(blockReason);
+        }
 
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + ".tmp";
         try
         {
@@ -236,6 +244,7 @@ public sealed class AppControllerProfileService
                 stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
+            _persistenceBlocks.TryRemove(key, out _);
         }
         finally
         {
@@ -249,9 +258,11 @@ public sealed class AppControllerProfileService
         CancellationToken cancellationToken = default)
     {
         var path = _paths.GetProfileAppControllerProfileFile(grevId, appId);
+        var key = BuildPersistenceKey(grevId, appId);
         return Task.Run(() =>
         {
             if (File.Exists(path)) File.Delete(path);
+            _persistenceBlocks.TryRemove(key, out _);
             var root = Path.GetDirectoryName(path);
             if (root is not null && Directory.Exists(root) && !Directory.EnumerateFileSystemEntries(root).Any())
             {
@@ -266,35 +277,90 @@ public sealed class AppControllerProfileService
         CancellationToken cancellationToken)
     {
         var path = _paths.GetProfileAppControllerProfileFile(grevId, appId);
-        if (!File.Exists(path)) return null;
+        var key = BuildPersistenceKey(grevId, appId);
+        if (!File.Exists(path))
+        {
+            _persistenceBlocks.TryRemove(key, out _);
+            return null;
+        }
 
         try
         {
             await using var stream = File.OpenRead(path);
             var value = await JsonSerializer.DeserializeAsync<AppControllerProfileOverride>(stream, _jsonOptions, cancellationToken);
-            if (value is null || value.Version != CurrentVersion)
+            if (value is null)
             {
-                CorruptDataQuarantine.TryPreserve(
-                    _paths,
-                    path,
-                    "AppControllerProfile",
-                    "Controller profile is empty or uses an unsupported schema version.",
-                    out _);
+                return RecoverDefaults(key, path, "Controller profile contained no usable value.");
+            }
+            if (value.Version > CurrentVersion)
+            {
+                _persistenceBlocks[key] =
+                    $"Controller profile uses schema {value.Version}, which is newer than this Grev Home build supports ({CurrentVersion}). Package defaults are active and the existing override will not be overwritten.";
                 return null;
             }
-            return value with { Mappings = NormalizeMappings(value.Mappings) };
+            if (value.Version != CurrentVersion)
+            {
+                return RecoverDefaults(
+                    key,
+                    path,
+                    $"Controller profile uses unsupported schema {value.Version}.");
+            }
+
+            try
+            {
+                var normalized = value with { Mappings = NormalizeMappings(value.Mappings) };
+                _persistenceBlocks.TryRemove(key, out _);
+                return normalized;
+            }
+            catch (InvalidOperationException ex)
+            {
+                return RecoverDefaults(
+                    key,
+                    path,
+                    $"Controller profile failed validation: {ex.Message}");
+            }
         }
-        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (JsonException ex)
         {
-            CorruptDataQuarantine.TryPreserve(
-                _paths,
+            return RecoverDefaults(
+                key,
                 path,
-                "AppControllerProfile",
-                $"Controller profile could not be read or validated: {ex.Message}",
-                out _);
+                $"Controller profile JSON could not be parsed: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            _persistenceBlocks[key] =
+                $"Controller profile is temporarily unreadable ({ex.Message}). Package defaults are active and the existing override will not be overwritten.";
+            return null;
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            _persistenceBlocks[key] =
+                $"Controller profile cannot currently be accessed ({ex.Message}). Package defaults are active and the existing override will not be overwritten.";
             return null;
         }
     }
+
+    private AppControllerProfileOverride? RecoverDefaults(string key, string path, string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "AppControllerProfile",
+                reason,
+                out _))
+        {
+            _persistenceBlocks[key] =
+                "Grev Home found invalid app controller profile data but could not preserve a recovery copy. Package defaults are active and the original file will not be overwritten.";
+            return null;
+        }
+
+        _persistenceBlocks.TryRemove(key, out _);
+        return null;
+    }
+
+    private static string BuildPersistenceKey(string grevId, string appId) =>
+        $"{grevId}\u001f{appId}";
 
     private static IReadOnlyList<AppControllerMapping> NormalizeMappings(IReadOnlyList<AppControllerMapping>? mappings)
     {
