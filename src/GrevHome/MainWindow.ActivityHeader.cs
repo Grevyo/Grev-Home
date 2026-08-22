@@ -44,13 +44,14 @@ public partial class MainWindow
         Grid.SetColumn(host, 2);
 
         _activityVolumeButton = CreateActivityHeaderButton("🔊 --%", (_, _) => OpenVolumeQuickControl());
-        _activityWifiButton = CreateActivityHeaderButton("Wi-Fi --", (_, _) => OpenActivityConnectionsSettings());
-        _activityBluetoothButton = CreateActivityHeaderButton("BT --", (_, _) => OpenActivityConnectionsSettings());
+        _activityWifiButton = CreateActivityHeaderButton("Wi-Fi --", (_, _) => OpenWifiQuickControl());
+        _activityBluetoothButton = CreateActivityHeaderButton("BT --", (_, _) => OpenBluetoothQuickControl());
         host.Children.Add(_activityVolumeButton);
         host.Children.Add(_activityWifiButton);
         host.Children.Add(_activityBluetoothButton);
         headerGrid.Children.Add(host);
         BuildVolumeQuickControl();
+        BuildConnectionQuickControls();
 
         _activityHeaderTimer.Tick += (_, _) => _ = RefreshActivityHeaderAsync();
         _activityHeaderTimer.Start();
@@ -209,6 +210,7 @@ public partial class MainWindow
         {
             _activityVolumeFlyout.Visibility = Visibility.Collapsed;
         }
+        HideConnectionQuickControls();
     }
 
     private void RefreshVolumeQuickControl(AudioStatus? knownStatus = null)
@@ -337,11 +339,5 @@ public partial class MainWindow
         if (_activityVolumeButton is null) return;
         _activityVolumeButton.Content = audio.IsMuted ? "🔇 Muted" : $"🔊 {audio.VolumePercent}%";
         _activityVolumeButton.ToolTip = audio.OutputDeviceName;
-    }
-
-    private void OpenActivityConnectionsSettings()
-    {
-        OpenSettings();
-        _settingsView.OpenConnectionsSection();
     }
 }
