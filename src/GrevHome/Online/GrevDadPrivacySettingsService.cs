@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.IO;
 using System.Text.Json;
 using GrevHome.Storage;
@@ -46,6 +47,8 @@ public sealed class GrevDadPrivacySettingsService
         WriteIndented = true
     };
     private readonly SemaphoreSlim _gate = new(1, 1);
+    private readonly ConcurrentDictionary<string, string> _persistenceBlocks =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public GrevDadPrivacySettingsService(AppPaths paths)
     {
@@ -60,6 +63,7 @@ public sealed class GrevDadPrivacySettingsService
         var path = GetSettingsFile(grevId);
         if (!File.Exists(path))
         {
+            _persistenceBlocks.TryRemove(grevId, out _);
             return GrevDadPrivacySettings.Default;
         }
 
@@ -67,35 +71,47 @@ public sealed class GrevDadPrivacySettingsService
         {
             await using var stream = File.OpenRead(path);
             var value = await JsonSerializer.DeserializeAsync<GrevDadPrivacySettings>(stream, _json, cancellationToken);
-            if (value is null || value.SchemaVersion != SchemaVersion)
+            if (value is null)
             {
-                CorruptDataQuarantine.TryPreserve(
-                    _paths,
+                return RecoverSafeFallback(
+                    grevId,
                     path,
-                    "GrevDadPrivacy",
-                    "Grev.dad privacy settings are empty or use an unsupported schema version.",
-                    out _);
+                    "Grev.dad privacy settings contained no usable value.");
+            }
+            if (value.SchemaVersion > SchemaVersion)
+            {
+                _persistenceBlocks[grevId] =
+                    $"Grev.dad privacy settings use schema {value.SchemaVersion}, which is newer than this Grev Home build supports ({SchemaVersion}). Sharing is disabled locally and the existing file will not be overwritten.";
                 return GrevDadPrivacySettings.SafeFallback;
             }
+            if (value.SchemaVersion != SchemaVersion)
+            {
+                return RecoverSafeFallback(
+                    grevId,
+                    path,
+                    $"Grev.dad privacy settings use unsupported schema {value.SchemaVersion}.");
+            }
 
+            _persistenceBlocks.TryRemove(grevId, out _);
             return NormalizeCurrent(value);
         }
         catch (JsonException ex)
         {
-            CorruptDataQuarantine.TryPreserve(
-                _paths,
+            return RecoverSafeFallback(
+                grevId,
                 path,
-                "GrevDadPrivacy",
-                $"Grev.dad privacy settings could not be parsed: {ex.Message}",
-                out _);
+                $"Grev.dad privacy settings could not be parsed: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            _persistenceBlocks[grevId] =
+                $"Grev.dad privacy settings are temporarily unreadable ({ex.Message}). Sharing is disabled locally and the existing file will not be overwritten.";
             return GrevDadPrivacySettings.SafeFallback;
         }
-        catch (IOException)
+        catch (UnauthorizedAccessException ex)
         {
-            return GrevDadPrivacySettings.SafeFallback;
-        }
-        catch (UnauthorizedAccessException)
-        {
+            _persistenceBlocks[grevId] =
+                $"Grev.dad privacy settings cannot currently be accessed ({ex.Message}). Sharing is disabled locally and the existing file will not be overwritten.";
             return GrevDadPrivacySettings.SafeFallback;
         }
     }
@@ -113,6 +129,11 @@ public sealed class GrevDadPrivacySettingsService
         try
         {
             var path = GetSettingsFile(grevId);
+            if (_persistenceBlocks.TryGetValue(grevId, out var blockReason) && File.Exists(path))
+            {
+                throw new InvalidOperationException(blockReason);
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             var temporary = path + ".tmp";
             try
@@ -130,6 +151,7 @@ public sealed class GrevDadPrivacySettingsService
                     stream.Flush(flushToDisk: true);
                 }
                 File.Move(temporary, path, overwrite: true);
+                _persistenceBlocks.TryRemove(grevId, out _);
             }
             finally
             {
@@ -144,6 +166,27 @@ public sealed class GrevDadPrivacySettingsService
         return normalized;
     }
 
+    private GrevDadPrivacySettings RecoverSafeFallback(
+        string grevId,
+        string path,
+        string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                path,
+                "GrevDadPrivacy",
+                reason,
+                out _))
+        {
+            _persistenceBlocks[grevId] =
+                "Grev Home found invalid Grev.dad privacy settings but could not preserve a recovery copy. Sharing is disabled locally and the original file will not be overwritten.";
+            return GrevDadPrivacySettings.SafeFallback;
+        }
+
+        _persistenceBlocks.TryRemove(grevId, out _);
+        return GrevDadPrivacySettings.SafeFallback;
+    }
+
     private static GrevDadPrivacySettings NormalizeCurrent(GrevDadPrivacySettings value) =>
         value with
         {
@@ -153,9 +196,9 @@ public sealed class GrevDadPrivacySettingsService
         };
 
     private static string NormalizeVisibility(string? value) =>
-        string.Equals(value, "private", StringComparison.OrdinalIgnoreCase)
-            ? "private"
-            : "friends";
+        string.Equals(value, "friends", StringComparison.OrdinalIgnoreCase)
+            ? "friends"
+            : "private";
 
     private string GetSettingsFile(string grevId) =>
         Path.Combine(_paths.GetProfileConnections(grevId), "GrevDad", "privacy.json");
