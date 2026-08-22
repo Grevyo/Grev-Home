@@ -222,6 +222,8 @@ public sealed class GrevDadProfileSyncService : IDisposable
                 sequence = session.Sequence,
                 appId = session.AppId,
                 appName = session.AppName,
+                contentId = session.ContentId,
+                contentName = session.ContentName,
                 startedAt = session.StartedAtUtc.ToUnixTimeSeconds(),
                 endedAt = session.EndedAtUtc.ToUnixTimeSeconds(),
                 durationSeconds = session.DurationSeconds,
