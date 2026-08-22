@@ -74,12 +74,37 @@ public sealed class GrevDadAccountService : IDisposable
         await _stateGate.WaitAsync(cancellationToken);
         try
         {
-            var metadata = await ReadMetadataAsync(grevId, cancellationToken);
-            var accessToken = _secrets.Read(grevId, AccessCredentialSlot);
-            var pendingSecret = _secrets.Read(grevId, PendingCredentialSlot);
+            GrevDadLinkMetadata? metadata;
+            string? accessToken;
+            string? pendingSecret;
+            try
+            {
+                metadata = await ReadMetadataAsync(grevId, cancellationToken);
+                accessToken = _secrets.Read(grevId, AccessCredentialSlot);
+                pendingSecret = _secrets.Read(grevId, PendingCredentialSlot);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or Win32Exception)
+            {
+                return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                    GrevDadConnectionState.Error,
+                    null,
+                    $"Grev.dad local link state could not be read safely: {ex.Message}",
+                    null,
+                    null));
+            }
 
             if (!string.IsNullOrWhiteSpace(accessToken) && metadata is not null)
             {
+                if (metadata.ApiVersion != SupportedApiVersion)
+                {
+                    return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                        GrevDadConnectionState.Error,
+                        metadata.Account,
+                        $"This linked account uses Grev.dad API {metadata.ApiVersion}; Grev Home supports API {SupportedApiVersion}.",
+                        metadata.LastValidatedAtUtc,
+                        metadata.TokenExpiresAtUtc));
+                }
+
                 var state = metadata.TokenExpiresAtUtc <= DateTimeOffset.UtcNow
                     ? GrevDadConnectionState.Expired
                     : GrevDadConnectionState.Linked;
@@ -99,12 +124,24 @@ public sealed class GrevDadAccountService : IDisposable
                     return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
                         GrevDadConnectionState.Linking,
                         metadata?.Account,
-                        "Waiting for Grev.dad account approval.",
+                        "Waiting for Grev.dad account approval or completion of the local link commit.",
                         metadata?.LastValidatedAtUtc,
-                        null));
+                        metadata?.TokenExpiresAtUtc));
                 }
 
                 TryDeleteSecret(grevId, PendingCredentialSlot);
+            }
+
+            if (metadata is not null || !string.IsNullOrWhiteSpace(accessToken))
+            {
+                return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                    GrevDadConnectionState.Error,
+                    metadata?.Account,
+                    metadata is null
+                        ? "A Grev.dad access credential exists but its local link metadata is missing. Grev Home will not guess that this GrevID is unlinked. Unlink/re-link the account to repair the local state."
+                        : "Grev.dad link metadata exists but its Windows access credential is missing. Grev Home will not guess that this GrevID is unlinked. Unlink/re-link the account to repair the local state.",
+                    metadata?.LastValidatedAtUtc,
+                    metadata?.TokenExpiresAtUtc));
             }
 
             return PublishSnapshot(grevId, GrevDadAccountSnapshot.Unlinked);
@@ -263,17 +300,20 @@ public sealed class GrevDadAccountService : IDisposable
         EnsureAccountMatchesGrevId(grevId, payload.Account);
 
         var tokenExpiresAt = FromUnixSeconds(payload.TokenExpiresAt.Value);
-        _secrets.Write(grevId, AccessCredentialSlot, payload.AccessToken);
-        TryDeleteSecret(grevId, PendingCredentialSlot);
-
         var metadata = new GrevDadLinkMetadata(
             payload.ApiVersion.Value,
             payload.Account,
             DateTimeOffset.UtcNow,
             tokenExpiresAt,
             DateTimeOffset.UtcNow);
+
+        // Commit the non-secret authority first. If Credential Manager fails, the pending device
+        // credential remains so the approved link can be polled again and completed without inventing
+        // or losing account identity. Never leave an access token as the only evidence of a link.
         await WriteMetadataAsync(grevId, metadata, cancellationToken);
-        await MergeCacheAsync(grevId, payload.Account, friends: null, activity: null, cancellationToken);
+        _secrets.Write(grevId, AccessCredentialSlot, payload.AccessToken);
+        _secrets.Delete(grevId, PendingCredentialSlot);
+        await TryMergeCacheAsync(grevId, payload.Account, friends: null, activity: null, cancellationToken);
 
         PublishSnapshot(grevId, new GrevDadAccountSnapshot(
             GrevDadConnectionState.Linked,
@@ -290,11 +330,38 @@ public sealed class GrevDadAccountService : IDisposable
     {
         ThrowIfDisposed();
         ValidateGrevId(grevId);
-        var metadata = await ReadMetadataAsync(grevId, cancellationToken);
-        var token = _secrets.Read(grevId, AccessCredentialSlot);
-        if (metadata is null || string.IsNullOrWhiteSpace(token))
+
+        GrevDadLinkMetadata? metadata;
+        string? token;
+        try
+        {
+            metadata = await ReadMetadataAsync(grevId, cancellationToken);
+            token = _secrets.Read(grevId, AccessCredentialSlot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or Win32Exception)
+        {
+            return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                GrevDadConnectionState.Error,
+                null,
+                $"Grev.dad local link state could not be validated safely: {ex.Message}",
+                null,
+                null));
+        }
+
+        if (metadata is null && string.IsNullOrWhiteSpace(token))
         {
             return PublishSnapshot(grevId, GrevDadAccountSnapshot.Unlinked);
+        }
+        if (metadata is null || string.IsNullOrWhiteSpace(token))
+        {
+            return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                GrevDadConnectionState.Error,
+                metadata?.Account,
+                metadata is null
+                    ? "A Grev.dad access credential exists but its local link metadata is missing. Grev Home will not guess that this GrevID is unlinked."
+                    : "Grev.dad link metadata exists but its Windows access credential is missing. Grev Home will not guess that this GrevID is unlinked.",
+                metadata?.LastValidatedAtUtc,
+                metadata?.TokenExpiresAtUtc));
         }
 
         if (metadata.ApiVersion != SupportedApiVersion)
@@ -347,7 +414,7 @@ public sealed class GrevDadAccountService : IDisposable
                 LastValidatedAtUtc = DateTimeOffset.UtcNow
             };
             await WriteMetadataAsync(grevId, updated, cancellationToken);
-            await MergeCacheAsync(grevId, payload.Account, friends: null, activity: null, cancellationToken);
+            await TryMergeCacheAsync(grevId, payload.Account, friends: null, activity: null, cancellationToken);
             return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
                 GrevDadConnectionState.Linked,
                 payload.Account,
@@ -398,9 +465,25 @@ public sealed class GrevDadAccountService : IDisposable
             }
         }
 
-        TryDeleteSecret(grevId, AccessCredentialSlot);
-        TryDeleteSecret(grevId, PendingCredentialSlot);
-        TryDeleteFile(GetMetadataFile(grevId));
+        var cleanupFailures = new List<string>();
+        TryDeleteLocalSecret(grevId, AccessCredentialSlot, "access credential", cleanupFailures);
+        TryDeleteLocalSecret(grevId, PendingCredentialSlot, "pending link credential", cleanupFailures);
+        TryDeleteLocalFile(GetMetadataFile(grevId), "link metadata", cleanupFailures);
+
+        if (cleanupFailures.Count > 0)
+        {
+            var message =
+                "Grev.dad unlink could not finish local cleanup: " + string.Join("; ", cleanupFailures) +
+                ". Grev Home will not report this GrevID as cleanly unlinked until those local artifacts are removed.";
+            PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                GrevDadConnectionState.Error,
+                null,
+                message,
+                null,
+                null));
+            throw new InvalidOperationException(message);
+        }
+
         PublishSnapshot(grevId, new GrevDadAccountSnapshot(
             GrevDadConnectionState.Unlinked,
             null,
@@ -424,7 +507,7 @@ public sealed class GrevDadAccountService : IDisposable
             var friends = (payload.Friends ?? Array.Empty<FriendApiPayload>())
                 .Select(ToFriend)
                 .ToArray();
-            await MergeCacheAsync(grevId, account: null, friends, activity: null, cancellationToken);
+            await TryMergeCacheAsync(grevId, account: null, friends, activity: null, cancellationToken);
             return friends;
         }
         catch (Exception ex) when (allowCachedWhenOffline && IsNetworkFailure(ex))
@@ -523,7 +606,7 @@ public sealed class GrevDadAccountService : IDisposable
             var payload = await ReadJsonAsync<ActivityApiResponse>(response, cancellationToken);
             EnsureSuccessful(response, payload.Ok, payload.Message);
             var events = (payload.Events ?? Array.Empty<ActivityApiPayload>()).Select(ToActivity).ToArray();
-            await MergeCacheAsync(grevId, account: null, friends: null, events, cancellationToken);
+            await TryMergeCacheAsync(grevId, account: null, friends: null, events, cancellationToken);
             return events;
         }
         catch (Exception ex) when (allowCachedWhenOffline && IsNetworkFailure(ex))
@@ -560,7 +643,21 @@ public sealed class GrevDadAccountService : IDisposable
     {
         ValidateGrevId(grevId);
         await Task.CompletedTask;
-        TryDeleteSecret(grevId, PendingCredentialSlot);
+        _secrets.Delete(grevId, PendingCredentialSlot);
+
+        var metadata = await ReadMetadataAsync(grevId, cancellationToken);
+        var accessToken = _secrets.Read(grevId, AccessCredentialSlot);
+        if (metadata is not null || !string.IsNullOrWhiteSpace(accessToken))
+        {
+            PublishSnapshot(grevId, new GrevDadAccountSnapshot(
+                GrevDadConnectionState.Error,
+                metadata?.Account,
+                "The pending link request was cancelled, but an existing/incomplete Grev.dad link remains. Use Unlink Grev.dad to remove it deliberately.",
+                metadata?.LastValidatedAtUtc,
+                metadata?.TokenExpiresAtUtc));
+            return;
+        }
+
         PublishSnapshot(grevId, GrevDadAccountSnapshot.Unlinked);
     }
 
@@ -595,7 +692,18 @@ public sealed class GrevDadAccountService : IDisposable
         {
             response.Dispose();
             TryDeleteSecret(grevId, AccessCredentialSlot);
-            var metadata = await ReadMetadataAsync(grevId, cancellationToken);
+
+            GrevDadLinkMetadata? metadata = null;
+            try
+            {
+                metadata = await ReadMetadataAsync(grevId, cancellationToken);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                // Server authority already established that the credential is not authorised. A
+                // local metadata problem must not hide that revoked state from this shell session.
+            }
+
             PublishSnapshot(grevId, new GrevDadAccountSnapshot(
                 GrevDadConnectionState.Revoked,
                 metadata?.Account,
@@ -703,16 +811,38 @@ public sealed class GrevDadAccountService : IDisposable
         try
         {
             await using var stream = File.OpenRead(path);
-            return await JsonSerializer.DeserializeAsync<GrevDadLinkMetadata>(stream, _json, cancellationToken);
+            var metadata = await JsonSerializer.DeserializeAsync<GrevDadLinkMetadata>(stream, _json, cancellationToken);
+            if (metadata is null)
+            {
+                throw RecoverInvalidMetadata(path, "Grev.dad link metadata contained no usable record.");
+            }
+            if (metadata.ApiVersion <= 0 ||
+                metadata.Account is null ||
+                metadata.LinkedAtUtc == default ||
+                metadata.TokenExpiresAtUtc == default ||
+                !string.Equals(metadata.Account.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            {
+                throw RecoverInvalidMetadata(path, "Grev.dad link metadata failed local identity/structure validation.");
+            }
+
+            return metadata;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
-            return null;
+            throw RecoverInvalidMetadata(path, $"Grev.dad link metadata JSON could not be parsed: {ex.Message}");
         }
-        catch (IOException)
+    }
+
+    private InvalidDataException RecoverInvalidMetadata(string path, string reason)
+    {
+        if (!CorruptDataQuarantine.TryPreserve(_paths, path, "GrevDadLink", reason, out var preservedPath))
         {
-            return null;
+            return new InvalidDataException(
+                "Grev Home found invalid Grev.dad link metadata and could not preserve a recovery copy. The original file was left untouched and the link state is now ambiguous.");
         }
+
+        return new InvalidDataException(
+            $"Grev Home found invalid Grev.dad link metadata and preserved it for recovery at {preservedPath}. The link state is now incomplete and must not be treated as unlinked.");
     }
 
     private async Task WriteMetadataAsync(string grevId, GrevDadLinkMetadata metadata, CancellationToken cancellationToken)
@@ -744,6 +874,28 @@ public sealed class GrevDadAccountService : IDisposable
         {
             return GrevDadCachedData.Empty;
         }
+        catch (UnauthorizedAccessException)
+        {
+            return GrevDadCachedData.Empty;
+        }
+    }
+
+    private async Task TryMergeCacheAsync(
+        string grevId,
+        GrevDadRemoteAccount? account,
+        IReadOnlyList<GrevDadFriend>? friends,
+        IReadOnlyList<GrevDadActivityEvent>? activity,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await MergeCacheAsync(grevId, account, friends, activity, cancellationToken);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException)
+        {
+            // This cache is explicitly disposable offline convenience data. A cache-write problem
+            // must never turn a successful account/link/social API operation into a failed one.
+        }
     }
 
     private async Task MergeCacheAsync(
@@ -772,6 +924,8 @@ public sealed class GrevDadAccountService : IDisposable
             await using (var stream = File.Create(temporary))
             {
                 await JsonSerializer.SerializeAsync(stream, value, _json, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
         }
@@ -886,7 +1040,26 @@ public sealed class GrevDadAccountService : IDisposable
         }
     }
 
-    private static void TryDeleteFile(string path)
+    private void TryDeleteLocalSecret(
+        string grevId,
+        string slot,
+        string label,
+        ICollection<string> failures)
+    {
+        try
+        {
+            _secrets.Delete(grevId, slot);
+        }
+        catch (Win32Exception ex)
+        {
+            failures.Add($"{label}: {ex.Message}");
+        }
+    }
+
+    private static void TryDeleteLocalFile(
+        string path,
+        string label,
+        ICollection<string> failures)
     {
         try
         {
@@ -895,11 +1068,9 @@ public sealed class GrevDadAccountService : IDisposable
                 File.Delete(path);
             }
         }
-        catch (IOException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-        }
-        catch (UnauthorizedAccessException)
-        {
+            failures.Add($"{label}: {ex.Message}");
         }
     }
 
