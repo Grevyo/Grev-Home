@@ -64,9 +64,11 @@ public sealed class SessionHistoryService
             return;
         }
 
-        var durationSeconds = Math.Max(
-            0L,
-            (long)Math.Round((snapshot.EndedAtUtc.Value - snapshot.StartedAtUtc).TotalSeconds));
+        var durationSeconds = snapshot.TrackedDurationSeconds is long trackedSeconds
+            ? Math.Max(0L, trackedSeconds)
+            : Math.Max(
+                0L,
+                (long)Math.Round((snapshot.EndedAtUtc.Value - snapshot.StartedAtUtc).TotalSeconds));
 
         await _writeGate.WaitAsync(cancellationToken);
         try
@@ -79,8 +81,6 @@ public sealed class SessionHistoryService
                 var known = await GetKnownSessionIdsAsync(grevId, cancellationToken);
                 if (known.Contains(snapshot.LaunchSessionId))
                 {
-                    // Runtime completion events are expected to be once-only, but recovery/race
-                    // paths must not be able to duplicate the GrevID's local history authority.
                     continue;
                 }
 
@@ -232,8 +232,6 @@ public sealed class SessionHistoryService
             }
         }
 
-        // Recovery path if the tiny sequence state file is lost/damaged: derive the next value
-        // from the durable journal instead of resetting and reusing old sequence numbers.
         var existing = await ReadAllAsync(grevId, cancellationToken);
         return existing.Count == 0 ? 1 : checked(existing.Max(entry => entry.Sequence) + 1);
     }
@@ -248,9 +246,17 @@ public sealed class SessionHistoryService
         var temporary = path + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporary))
+            await using (var stream = new FileStream(
+                             temporary,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             4096,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, state, _json, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporary, path, overwrite: true);
         }
@@ -277,7 +283,7 @@ public sealed class SessionHistoryService
         await using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
         await writer.WriteLineAsync(JsonSerializer.Serialize(entry, _json).AsMemory(), cancellationToken);
         await writer.FlushAsync(cancellationToken);
-        await stream.FlushAsync(cancellationToken);
+        stream.Flush(flushToDisk: true);
     }
 
     private string GetHistoryFile(string grevId) =>
