@@ -264,9 +264,7 @@ public sealed class ProfileStatsService
 
         // Grev Level deliberately uses Grev Home's own tracked activity only. External providers
         // can enrich/showcase a profile later without double-counting imported hours as progression.
-        var xp = Math.Max(0L, totalSeconds / 60) +
-                 (long)completedSessions * 20L +
-                 (long)uniqueApps * 100L;
+        var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds, completedSessions, uniqueApps);
         var progression = CalculateLevel(xp);
 
         return new ProfileStatsSnapshot(
@@ -282,31 +280,8 @@ public sealed class ProfileStatsService
             sources);
     }
 
-    public static ProfileLevelProgress CalculateLevel(long totalXp)
-    {
-        totalXp = Math.Max(0, totalXp);
-        var level = 1;
-        var remaining = totalXp;
-        var requirement = XpRequiredForLevel(level);
-
-        while (remaining >= requirement && level < 999)
-        {
-            remaining -= requirement;
-            level++;
-            requirement = XpRequiredForLevel(level);
-        }
-
-        var percent = requirement <= 0
-            ? 100d
-            : Math.Clamp(remaining * 100d / requirement, 0d, 100d);
-
-        return new ProfileLevelProgress(
-            level,
-            totalXp,
-            remaining,
-            requirement,
-            percent);
-    }
+    public static ProfileLevelProgress CalculateLevel(long totalXp) =>
+        GrevHomeProgressionPolicy.CalculateLevel(totalXp);
 
     private static IReadOnlyList<ProfileMilestoneStat> CalculateMilestones(
         long totalSeconds,
@@ -337,7 +312,4 @@ public sealed class ProfileStatsService
         long target,
         string progressLabel) =>
         new(id, title, description, progress >= target, Math.Min(progress, target), target, progressLabel);
-
-    private static long XpRequiredForLevel(int currentLevel) =>
-        250L + (Math.Max(1, currentLevel) - 1L) * 150L;
 }
