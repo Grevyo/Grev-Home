@@ -319,6 +319,6 @@ public partial class MainWindow
         $"{sessionId:N}:{grevId}";
 
     private static bool IsExpectedGrevDadBackgroundFailure(Exception ex) =>
-        ex is HttpRequestException or TaskCanceledException or TimeoutException or InvalidOperationException or
-            InvalidDataException or UnauthorizedAccessException or Win32Exception;
+        ex is HttpRequestException or OperationCanceledException or TimeoutException or InvalidOperationException or
+            InvalidDataException or UnauthorizedAccessException or Win32Exception or ObjectDisposedException;
 }
