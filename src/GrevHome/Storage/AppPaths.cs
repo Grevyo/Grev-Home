@@ -15,6 +15,10 @@ public sealed class AppPaths
     public string RuntimeData => Path.Combine(Data, "Runtime");
     public string InputData => Path.Combine(Data, "Input");
     public string ControllerShortcutsFile => Path.Combine(InputData, "controller-shortcuts.json");
+    public string NotificationData => Path.Combine(Data, "Notifications");
+    public string NotificationFile => Path.Combine(NotificationData, "notifications.json");
+    public string TransferData => Path.Combine(Data, "Transfers");
+    public string TransferStateFile => Path.Combine(TransferData, "transfers.json");
     public string Profiles => Path.Combine(Root, "Profiles");
     public string GuestShared => Path.Combine(Profiles, "_GuestShared");
     public string GuestStats => Path.Combine(GuestShared, "Stats");
@@ -113,6 +117,8 @@ public sealed class AppPaths
         Directory.CreateDirectory(AppCatalogueData);
         Directory.CreateDirectory(RuntimeData);
         Directory.CreateDirectory(InputData);
+        Directory.CreateDirectory(NotificationData);
+        Directory.CreateDirectory(TransferData);
         Directory.CreateDirectory(Profiles);
         Directory.CreateDirectory(Global);
         Directory.CreateDirectory(GlobalApps);
