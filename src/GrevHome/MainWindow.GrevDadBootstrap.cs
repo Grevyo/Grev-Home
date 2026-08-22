@@ -28,5 +28,11 @@ public partial class MainWindow
         InitializeGrevDadMaintenanceIntegration();
         InitializeGrevDadProfileSyncIntegration();
         InitializeGrevDadSettingsIntegration();
+        InitializeGrevDadPrivacySettingsUiIntegration();
+
+        // The permanent shell owns activity-header machine status and overlay controller ownership.
+        // Both are additive integrations and are guarded so repeated Loaded notifications are safe.
+        InitializeActivityHeader();
+        InitializeOverlayControllerOwnership();
     }
 }
