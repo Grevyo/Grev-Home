@@ -51,25 +51,21 @@
                     ClipToBounds="True">
                 <Grid>
                     <Grid.RowDefinitions>
-                        <RowDefinition Height="142" />
+                        <RowDefinition Height="168" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                    <Grid Grid.Row="0">
-                        <Grid.Background>
-                            <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
-                                <GradientStop Color="#243451" Offset="0" />
-                                <GradientStop Color="#171D2B" Offset="0.48" />
-                                <GradientStop Color="#0A0E15" Offset="1" />
-                            </LinearGradientBrush>
-                        </Grid.Background>
+                    <Grid x:Name="ProfileBannerGrid" Grid.Row="0">
+                        <Image x:Name="ProfileBannerImage"
+                               Stretch="UniformToFill"
+                               Visibility="Collapsed" />
+                        <Rectangle Fill="#22000000" />
                         <Rectangle Width="310"
-                                   Height="142"
+                                   Height="168"
                                    HorizontalAlignment="Right"
-                                   Fill="#14223834"
-                                   Margin="0,0,0,0" />
+                                   Fill="#14223834" />
                         <Rectangle Width="170"
-                                   Height="142"
+                                   Height="168"
                                    HorizontalAlignment="Right"
                                    Fill="#102D405E"
                                    Margin="0,0,310,0" />
@@ -78,8 +74,19 @@
                                    VerticalAlignment="Top"
                                    FontSize="12"
                                    FontWeight="Bold"
-                                   Foreground="#A8B5C9"
-                                   Opacity="0.72" />
+                                   Foreground="#D8E0EC"
+                                   Opacity="0.74" />
+                        <TextBlock x:Name="BannerLabelText"
+                                   Margin="28,0,0,22"
+                                   VerticalAlignment="Bottom"
+                                   FontSize="11"
+                                   FontWeight="Bold"
+                                   Foreground="#B8C3D3"
+                                   Opacity="0.78" />
+                        <Rectangle x:Name="BannerTierStrip"
+                                   Height="5"
+                                   VerticalAlignment="Bottom"
+                                   Fill="{StaticResource AccentBrush}" />
                     </Grid>
 
                     <Grid Grid.Row="1" Margin="28,-48,28,26">
@@ -223,6 +230,34 @@
                     </StackPanel>
                 </Border>
             </UniformGrid>
+
+            <Border Style="{StaticResource ProfileSectionCard}" Margin="0,18,0,0" Padding="22">
+                <StackPanel>
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="PROFILE SHOWCASE" Style="{StaticResource ProfileEyebrow}" Foreground="{StaticResource AccentBrush}" />
+                            <TextBlock x:Name="ShowcaseTitleText" Text="Top Played" Margin="0,4,0,0" FontSize="22" FontWeight="SemiBold" />
+                            <TextBlock x:Name="ShowcaseSubtitleText" Margin="0,4,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+                        <TextBlock x:Name="ShowcaseModeText"
+                                   Grid.Column="1"
+                                   VerticalAlignment="Top"
+                                   Margin="20,2,0,0"
+                                   FontSize="10"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource MutedBrush}" />
+                    </Grid>
+                    <TextBlock x:Name="ShowcaseEmptyText"
+                               Text="Build some Grev Home activity to fill this showcase."
+                               Margin="0,16,0,0"
+                               Foreground="{StaticResource MutedBrush}" />
+                    <UniformGrid x:Name="ShowcasePanel" Columns="3" Margin="-6,14,-6,-6" />
+                </StackPanel>
+            </Border>
 
             <Grid Margin="0,18,0,0">
                 <Grid.ColumnDefinitions>
