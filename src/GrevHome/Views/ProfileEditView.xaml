@@ -72,6 +72,45 @@
 
                         <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
+                                <TextBlock Text="PROFILE BANNER" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock Text="Choose a Grev Home banner preset or use your own wide image." Margin="0,4,0,14" Style="{StaticResource EditHint}" />
+
+                                <Border x:Name="BannerPreviewBorder"
+                                        Height="174"
+                                        BorderBrush="#354158"
+                                        BorderThickness="1"
+                                        CornerRadius="0"
+                                        ClipToBounds="True">
+                                    <Grid x:Name="BannerPreviewGrid">
+                                        <Image x:Name="BannerPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                                        <Rectangle Fill="#22000000" />
+                                        <TextBlock Text="GREV HOME"
+                                                   Margin="18"
+                                                   VerticalAlignment="Top"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#D8E0EC" />
+                                        <TextBlock x:Name="BannerChoiceText"
+                                                   Margin="18"
+                                                   VerticalAlignment="Bottom"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#E7ECF4" />
+                                    </Grid>
+                                </Border>
+
+                                <WrapPanel x:Name="BannerButtonsPanel" Margin="-3,12,-3,0" />
+                                <Button Content="Choose Custom Banner"
+                                        Width="210"
+                                        Height="48"
+                                        Margin="3,8,3,0"
+                                        HorizontalAlignment="Left"
+                                        Click="ChooseBanner_Click" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                            <StackPanel>
                                 <TextBlock Text="PROFILE DETAILS" FontSize="18" FontWeight="SemiBold" />
                                 <TextBlock Text="These are the details people see on your Grev Home profile." Margin="0,4,0,18" Style="{StaticResource EditHint}" />
 
@@ -133,7 +172,15 @@
                         <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE APPEARANCE &amp; ROLE" FontSize="18" FontWeight="SemiBold" />
-                                <TextBlock Text="Your role also supplies the accent used around your profile identity." Margin="0,4,0,16" Style="{StaticResource EditHint}" />
+                                <TextBlock Text="Choose what this profile showcases. Role styling remains separate from level and banner styling." Margin="0,4,0,16" Style="{StaticResource EditHint}" />
+
+                                <TextBlock Text="PROFILE SHOWCASE" Style="{StaticResource EditEyebrow}" />
+                                <TextBlock Text="Choose which part of your activity gets the large featured area on View Profile." Margin="0,5,0,8" Style="{StaticResource EditHint}" />
+                                <WrapPanel Margin="-3,0,-3,16">
+                                    <Button x:Name="TopPlayedShowcaseButton" Content="Top Played" Tag="TopPlayed" Width="170" Height="48" Margin="3" Click="Showcase_Click" />
+                                    <Button x:Name="RecentShowcaseButton" Content="Recent Activity" Tag="RecentActivity" Width="180" Height="48" Margin="3" Click="Showcase_Click" />
+                                    <Button x:Name="MilestonesShowcaseButton" Content="Milestones" Tag="Milestones" Width="170" Height="48" Margin="3" Click="Showcase_Click" />
+                                </WrapPanel>
 
                                 <StackPanel x:Name="RolePanel">
                                     <TextBlock Text="ACCOUNT ROLE" Style="{StaticResource EditEyebrow}" />
