@@ -15,7 +15,10 @@ public sealed record ProfileEditRequest(
     string Bio,
     string AvatarKey,
     AccountRole Role,
-    string? CustomAvatarSourcePath);
+    string? CustomAvatarSourcePath,
+    string BannerKey,
+    ProfileShowcaseMode ShowcaseMode,
+    string? CustomBannerSourcePath);
 
 public partial class ProfileEditView : UserControl
 {
@@ -27,14 +30,19 @@ public partial class ProfileEditView : UserControl
     }
 
     private LocalProfile? _profile;
+    private ProfilePresentationSettings _presentation = ProfilePresentationSettings.Default;
     private string _selectedAvatarKey = ProfileAvatarCatalog.DefaultKey;
+    private string _selectedBannerKey = ProfileBannerCatalog.DefaultKey;
+    private ProfileShowcaseMode _selectedShowcaseMode = ProfileShowcaseMode.TopPlayed;
     private AccountRole _selectedRole = AccountRole.Standard;
     private bool _canChangeRole;
     private string? _customAvatarSourcePath;
+    private string? _customBannerSourcePath;
     private KeyboardTarget _keyboardTarget = KeyboardTarget.DisplayName;
 
     public event Action<ProfileEditRequest>? SaveRequested;
     public event EventHandler? ChooseCustomPhotoRequested;
+    public event EventHandler? ChooseCustomBannerRequested;
     public event EventHandler? KeyboardOpened;
     public event EventHandler? KeyboardClosed;
 
@@ -44,6 +52,7 @@ public partial class ProfileEditView : UserControl
     {
         InitializeComponent();
         BuildAvatarButtons();
+        BuildBannerButtons();
         KeyboardOverlay.Completed += value =>
         {
             switch (_keyboardTarget)
@@ -67,13 +76,20 @@ public partial class ProfileEditView : UserControl
         KeyboardOverlay.Closed += (_, _) => KeyboardClosed?.Invoke(this, EventArgs.Empty);
     }
 
-    public void SetProfile(LocalProfile profile, bool canChangeRole)
+    public void SetProfile(
+        LocalProfile profile,
+        bool canChangeRole,
+        ProfilePresentationSettings? presentation = null)
     {
         _profile = profile;
+        _presentation = presentation ?? ProfilePresentationSettings.Default;
         _canChangeRole = canChangeRole;
         _selectedAvatarKey = ProfileAvatarCatalog.Normalize(profile.AvatarKey);
+        _selectedBannerKey = ProfileBannerCatalog.Normalize(_presentation.BannerKey);
+        _selectedShowcaseMode = _presentation.ShowcaseMode;
         _selectedRole = profile.Role;
         _customAvatarSourcePath = null;
+        _customBannerSourcePath = null;
         IdentityText.Text = $"@{profile.Username}  •  {profile.GrevId}  •  Username and GrevID are permanent";
         DisplayNameTextBox.Text = profile.DisplayName;
         DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
@@ -91,8 +107,10 @@ public partial class ProfileEditView : UserControl
             ? "Guest role and its grey profile border are locked for this session. An Admin must change the account role."
             : $"Role: {profile.Role} • only an Admin can change account roles and their profile-border style.";
 
-        StatusText.Text = "Display Name, status, About and profile picture are local profile settings. Saving never renames the Username, GrevID or profile folder.";
+        StatusText.Text = "Display Name, status, About, picture, banner and showcase are local profile settings. Saving never renames the Username, GrevID or profile folder.";
         UpdateAvatarPresentation();
+        UpdateBannerPresentation();
+        UpdateShowcasePresentation();
         UpdateRolePresentation();
     }
 
@@ -105,7 +123,10 @@ public partial class ProfileEditView : UserControl
             BioTextBox.Text,
             _selectedAvatarKey,
             _selectedRole,
-            _customAvatarSourcePath);
+            _customAvatarSourcePath,
+            _selectedBannerKey,
+            _selectedShowcaseMode,
+            _customBannerSourcePath);
 
     public void RestoreDraft(ProfileEditRequest draft)
     {
@@ -116,7 +137,12 @@ public partial class ProfileEditView : UserControl
         _selectedAvatarKey = ProfileAvatarCatalog.Normalize(draft.AvatarKey);
         _selectedRole = draft.Role;
         _customAvatarSourcePath = draft.CustomAvatarSourcePath;
+        _selectedBannerKey = ProfileBannerCatalog.Normalize(draft.BannerKey);
+        _selectedShowcaseMode = draft.ShowcaseMode;
+        _customBannerSourcePath = draft.CustomBannerSourcePath;
         UpdateAvatarPresentation();
+        UpdateBannerPresentation();
+        UpdateShowcasePresentation();
         UpdateRolePresentation();
     }
 
@@ -126,6 +152,14 @@ public partial class ProfileEditView : UserControl
         _selectedAvatarKey = ProfileAvatarCatalog.CustomKey;
         UpdateAvatarPresentation();
         StatusText.Text = $"Selected custom photo: {Path.GetFileName(path)}. Save Profile to keep it.";
+    }
+
+    public void SetCustomBannerSource(string path)
+    {
+        _customBannerSourcePath = path;
+        _selectedBannerKey = ProfileBannerCatalog.CustomKey;
+        UpdateBannerPresentation();
+        StatusText.Text = $"Selected custom banner: {Path.GetFileName(path)}. Save Profile to keep it.";
     }
 
     public void ShowStatus(string message) => StatusText.Text = message;
@@ -138,6 +172,24 @@ public partial class ProfileEditView : UserControl
             var button = new Button { Tag = preset.Key, Width = 68, Height = 60, Margin = new Thickness(3), FontSize = 17 };
             button.Click += Avatar_Click;
             AvatarButtonsPanel.Children.Add(button);
+        }
+    }
+
+    private void BuildBannerButtons()
+    {
+        foreach (var preset in ProfileBannerCatalog.Presets)
+        {
+            var button = new Button
+            {
+                Tag = preset.Key,
+                Content = preset.Name,
+                MinWidth = 132,
+                Height = 46,
+                Margin = new Thickness(3),
+                Padding = new Thickness(10, 4, 10, 4)
+            };
+            button.Click += Banner_Click;
+            BannerButtonsPanel.Children.Add(button);
         }
     }
 
@@ -160,6 +212,7 @@ public partial class ProfileEditView : UserControl
     }
 
     private void ChoosePhoto_Click(object sender, RoutedEventArgs e) => ChooseCustomPhotoRequested?.Invoke(this, EventArgs.Empty);
+    private void ChooseBanner_Click(object sender, RoutedEventArgs e) => ChooseCustomBannerRequested?.Invoke(this, EventArgs.Empty);
 
     private void Avatar_Click(object sender, RoutedEventArgs e)
     {
@@ -168,6 +221,26 @@ public partial class ProfileEditView : UserControl
             _selectedAvatarKey = ProfileAvatarCatalog.Normalize(avatarKey);
             _customAvatarSourcePath = null;
             UpdateAvatarPresentation();
+        }
+    }
+
+    private void Banner_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string bannerKey })
+        {
+            _selectedBannerKey = ProfileBannerCatalog.Normalize(bannerKey);
+            _customBannerSourcePath = null;
+            UpdateBannerPresentation();
+        }
+    }
+
+    private void Showcase_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string modeName } &&
+            Enum.TryParse<ProfileShowcaseMode>(modeName, true, out var mode))
+        {
+            _selectedShowcaseMode = mode;
+            UpdateShowcasePresentation();
         }
     }
 
@@ -188,7 +261,7 @@ public partial class ProfileEditView : UserControl
 
         if (_selectedAvatarKey == ProfileAvatarCatalog.CustomKey)
         {
-            var source = TryLoadPendingCustomImage() ?? (_profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(_profile));
+            var source = TryLoadPendingImage(_customAvatarSourcePath) ?? (_profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(_profile));
             if (source is not null)
             {
                 AvatarPreviewImage.Source = source;
@@ -212,20 +285,63 @@ public partial class ProfileEditView : UserControl
         }
     }
 
-    private BitmapImage? TryLoadPendingCustomImage()
+    private void UpdateBannerPresentation()
     {
-        if (string.IsNullOrWhiteSpace(_customAvatarSourcePath) || !File.Exists(_customAvatarSourcePath)) return null;
+        var normalized = ProfileBannerCatalog.Normalize(_selectedBannerKey);
+        BannerPreviewGrid.Background = ProfileBannerCatalog.CreateBrush(normalized);
+        BannerPreviewImage.Source = null;
+        BannerPreviewImage.Visibility = Visibility.Collapsed;
+
+        if (string.Equals(normalized, ProfileBannerCatalog.CustomKey, StringComparison.OrdinalIgnoreCase))
+        {
+            var source = TryLoadPendingImage(_customBannerSourcePath)
+                         ?? (_profile is null ? null : ProfileBannerCatalog.TryLoadCustomImage(_profile.GrevId, _presentation));
+            if (source is not null)
+            {
+                BannerPreviewImage.Source = source;
+                BannerPreviewImage.Visibility = Visibility.Visible;
+            }
+            BannerChoiceText.Text = "Custom banner";
+        }
+        else
+        {
+            BannerChoiceText.Text = ProfileBannerCatalog.Presets.First(item => item.Key == normalized).Name;
+        }
+
+        foreach (var button in BannerButtonsPanel.Children.OfType<Button>())
+        {
+            if (button.Tag is not string key) continue;
+            var preset = ProfileBannerCatalog.Presets.First(item => item.Key == key);
+            button.Content = string.Equals(key, normalized, StringComparison.OrdinalIgnoreCase)
+                ? $"✓ {preset.Name}"
+                : preset.Name;
+        }
+    }
+
+    private void UpdateShowcasePresentation()
+    {
+        TopPlayedShowcaseButton.Content = _selectedShowcaseMode == ProfileShowcaseMode.TopPlayed ? "✓ Top Played" : "Top Played";
+        RecentShowcaseButton.Content = _selectedShowcaseMode == ProfileShowcaseMode.RecentActivity ? "✓ Recent Activity" : "Recent Activity";
+        MilestonesShowcaseButton.Content = _selectedShowcaseMode == ProfileShowcaseMode.Milestones ? "✓ Milestones" : "Milestones";
+    }
+
+    private static BitmapImage? TryLoadPendingImage(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return null;
         try
         {
             var image = new BitmapImage();
             image.BeginInit();
             image.CacheOption = BitmapCacheOption.OnLoad;
-            image.UriSource = new Uri(_customAvatarSourcePath, UriKind.Absolute);
+            image.UriSource = new Uri(path, UriKind.Absolute);
             image.EndInit();
             image.Freeze();
             return image;
         }
-        catch { return null; }
+        catch
+        {
+            return null;
+        }
     }
 
     private void UpdateRolePresentation()
