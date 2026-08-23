@@ -8,7 +8,7 @@ public partial class MainWindow
 
         // WPF can raise Initialized while InitializeComponent is still unwinding, before the
         // MainWindow constructor has assigned services such as _runtimeSessions. Defer all
-        // backbone integration wiring until Loaded, when constructor-owned services are ready and
+        // shell-owned integration wiring until Loaded, when constructor-owned services are ready and
         // the native window is being shown. Every integration has its own one-time guard.
         Loaded += (_, _) => InitializeBackboneIntegrations();
     }
@@ -21,6 +21,9 @@ public partial class MainWindow
 
         // Completed-session history is always local-first and exists whether Grev.dad is linked or not.
         InitializeSessionHistoryIntegration();
+
+        // Profile presentation is local-only and deliberately separate from permanent identity data.
+        InitializeProfilePresentationIntegration();
 
         // Online identity is a shell foundation, not a page-owned feature. Initialize it only after
         // MainWindow construction has completed so these consumers cannot observe half-built services.
