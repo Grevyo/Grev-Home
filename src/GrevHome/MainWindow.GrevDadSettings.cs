@@ -164,9 +164,26 @@ public partial class MainWindow
         }
 
         var service = RequireGrevDadAccountService();
+        var maintenance = _grevDadMaintenance;
+        if (maintenance is null)
+        {
+            _profileEditView.ShowGrevDadStatus("Grev.dad integration is still initializing. Try Link Grev.dad again.");
+            return;
+        }
+
         try
         {
-            _profileEditView.ShowGrevDadStatus("Creating a secure Grev.dad link request…");
+            _profileEditView.ShowGrevDadStatus("Checking the live Grev.dad integration contract…");
+            var capabilities = await maintenance.GetCapabilitiesAsync(forceRefresh: true);
+            if (!capabilities.Capabilities.Linking || !capabilities.Capabilities.DeviceTokens)
+            {
+                _profileEditView.ShowGrevDadStatus(
+                    $"Grev.dad {capabilities.Environment} API {capabilities.ApiVersion} is online but does not advertise the required linking and device-token capabilities.");
+                return;
+            }
+
+            _profileEditView.ShowGrevDadStatus(
+                $"Grev.dad {capabilities.Environment} API {capabilities.ApiVersion} is ready. Creating a secure link request…");
             var link = await service.BeginLinkAsync(profile, Environment.MachineName);
             _activeGrevDadLinks[profile.GrevId] = link;
             _profileEditView.SetGrevDadState(service.GetLastSnapshot(profile.GrevId), link);
@@ -176,7 +193,8 @@ public partial class MainWindow
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex) || ex is ArgumentException)
         {
-            _profileEditView.ShowGrevDadStatus($"Grev.dad link could not start: {ex.Message}");
+            _profileEditView.ShowGrevDadStatus(
+                $"Grev.dad linking is not ready on {service.BaseUri.Host}: {ex.Message}");
         }
     }
 
