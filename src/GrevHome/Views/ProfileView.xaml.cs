@@ -8,15 +8,25 @@ namespace GrevHome.Views;
 
 public partial class ProfileView : UserControl
 {
+    private ProfilePresentationSettings _presentation = ProfilePresentationSettings.Default;
+    private ProfileStatsSnapshot? _lastStats;
+    private SolidColorBrush _levelBandBrush = new(Color.FromRgb(125, 137, 156));
+    private string? _currentGrevId;
+
     public event EventHandler? EditProfileRequested;
 
     public ProfileView()
     {
         InitializeComponent();
+        ApplyPresentation(ProfilePresentationSettings.Default);
     }
 
     public void SetProfile(LocalProfile? profile, string? sessionStatus = null, bool canEdit = true)
     {
+        _currentGrevId = profile?.GrevId;
+        _lastStats = null;
+        ApplyPresentation(ProfilePresentationSettings.Default);
+
         if (profile is null)
         {
             AvatarImage.Source = null;
@@ -62,6 +72,47 @@ public partial class ProfileView : UserControl
         ShowStatsLoading("Reading Grev Home activity…");
     }
 
+    public void SetPresentation(ProfilePresentationSettings settings)
+    {
+        _presentation = settings;
+        ApplyPresentation(settings);
+        if (_lastStats is not null)
+        {
+            RenderShowcase(_lastStats);
+        }
+    }
+
+    private void ApplyPresentation(ProfilePresentationSettings settings)
+    {
+        _presentation = settings;
+        var normalizedBanner = ProfileBannerCatalog.Normalize(settings.BannerKey);
+        ProfileBannerGrid.Background = ProfileBannerCatalog.CreateBrush(normalizedBanner);
+        ProfileBannerImage.Source = null;
+        ProfileBannerImage.Visibility = Visibility.Collapsed;
+
+        if (!string.IsNullOrWhiteSpace(_currentGrevId) &&
+            string.Equals(normalizedBanner, ProfileBannerCatalog.CustomKey, StringComparison.OrdinalIgnoreCase))
+        {
+            var source = ProfileBannerCatalog.TryLoadCustomImage(_currentGrevId, settings);
+            if (source is not null)
+            {
+                ProfileBannerImage.Source = source;
+                ProfileBannerImage.Visibility = Visibility.Visible;
+            }
+        }
+
+        BannerLabelText.Text = string.Equals(normalizedBanner, ProfileBannerCatalog.CustomKey, StringComparison.OrdinalIgnoreCase)
+            ? "CUSTOM PROFILE BANNER"
+            : $"{ProfileBannerCatalog.Presets.First(preset => preset.Key == normalizedBanner).Name.ToUpperInvariant()} PROFILE BANNER";
+
+        ShowcaseModeText.Text = settings.ShowcaseMode switch
+        {
+            ProfileShowcaseMode.RecentActivity => "RECENT ACTIVITY",
+            ProfileShowcaseMode.Milestones => "MILESTONES",
+            _ => "TOP PLAYED"
+        };
+    }
+
     private void ApplyRolePresentation(AccountRole role)
     {
         var roleBrush = (SolidColorBrush)FindResource(role switch
@@ -96,13 +147,15 @@ public partial class ProfileView : UserControl
 
     public void SetStats(ProfileStatsSnapshot stats)
     {
-        var levelBrush = GetLevelBandBrush(stats.Progression.Level);
+        _lastStats = stats;
+        _levelBandBrush = GetLevelBandBrush(stats.Progression.Level);
         LevelText.Text = $"LEVEL {stats.Progression.Level}";
         LevelNumberText.Text = stats.Progression.Level.ToString();
-        LevelText.Foreground = levelBrush;
-        LevelNumberText.Foreground = levelBrush;
-        LevelProgressBar.Foreground = levelBrush;
-        LevelBadgeBorder.BorderBrush = levelBrush;
+        LevelText.Foreground = _levelBandBrush;
+        LevelNumberText.Foreground = _levelBandBrush;
+        LevelProgressBar.Foreground = _levelBandBrush;
+        LevelBadgeBorder.BorderBrush = _levelBandBrush;
+        BannerTierStrip.Fill = _levelBandBrush;
         LevelProgressBar.Value = stats.Progression.ProgressPercent;
         XpText.Text = $"{stats.Progression.XpIntoLevel:N0} / {stats.Progression.XpRequiredForNextLevel:N0} XP to next level  •  {stats.Progression.TotalXp:N0} total XP";
         TotalTimeText.Text = FormatDuration(stats.TotalTrackedSeconds);
@@ -147,48 +200,150 @@ public partial class ProfileView : UserControl
         SourcesPanel.Children.Clear();
         foreach (var source in stats.Sources)
         {
-            var card = new Border
+            SourcesPanel.Children.Add(CreateSourceCard(source));
+        }
+
+        RenderShowcase(stats);
+    }
+
+    private void RenderShowcase(ProfileStatsSnapshot stats)
+    {
+        ShowcasePanel.Children.Clear();
+        ShowcaseEmptyText.Visibility = Visibility.Collapsed;
+
+        switch (_presentation.ShowcaseMode)
+        {
+            case ProfileShowcaseMode.RecentActivity:
+                ShowcaseTitleText.Text = "Recent Activity";
+                ShowcaseSubtitleText.Text = "The latest things this profile has been doing in Grev Home.";
+                foreach (var activity in stats.RecentActivity.Take(3))
+                {
+                    ShowcasePanel.Children.Add(CreateShowcaseCard(
+                        activity.IsRunning ? "LIVE" : FormatRelativeTime(activity.LastActivityAtUtc).ToUpperInvariant(),
+                        activity.AppName,
+                        activity.IsRunning
+                            ? $"Running now  •  {FormatDuration(activity.TotalSeconds)} tracked"
+                            : $"{FormatDuration(activity.TotalSeconds)} total  •  {activity.SessionCount:N0} sessions"));
+                }
+                break;
+
+            case ProfileShowcaseMode.Milestones:
+                ShowcaseTitleText.Text = "Milestone Cabinet";
+                ShowcaseSubtitleText.Text = "Achievements earned from actual Grev Home activity.";
+                var milestones = stats.Milestones
+                    .OrderByDescending(milestone => milestone.IsEarned)
+                    .ThenByDescending(milestone => milestone.ProgressValue / (double)Math.Max(1, milestone.TargetValue))
+                    .Take(3)
+                    .ToArray();
+                foreach (var milestone in milestones)
+                {
+                    ShowcasePanel.Children.Add(CreateShowcaseCard(
+                        milestone.IsEarned ? "EARNED" : "IN PROGRESS",
+                        milestone.Title,
+                        milestone.IsEarned ? milestone.Description : milestone.ProgressLabel));
+                }
+                break;
+
+            default:
+                ShowcaseTitleText.Text = "Top Played";
+                ShowcaseSubtitleText.Text = "The apps that define this Grev Home profile most.";
+                var rank = 1;
+                foreach (var app in stats.TopApps.Take(3))
+                {
+                    ShowcasePanel.Children.Add(CreateShowcaseCard(
+                        $"#{rank++:00}",
+                        app.AppName,
+                        $"{FormatDuration(app.TotalSeconds)}  •  {app.SessionCount:N0} sessions{(app.IsRunning ? "  •  RUNNING" : string.Empty)}"));
+                }
+                break;
+        }
+
+        ShowcaseEmptyText.Visibility = ShowcasePanel.Children.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private UIElement CreateShowcaseCard(string eyebrow, string title, string detail)
+    {
+        var card = new Border
+        {
+            MinHeight = 126,
+            Padding = new Thickness(16),
+            Margin = new Thickness(6),
+            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
+            BorderBrush = _levelBandBrush,
+            BorderThickness = new Thickness(1, 4, 1, 1),
+            CornerRadius = new CornerRadius(0)
+        };
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = eyebrow,
+            FontSize = 10,
+            FontWeight = FontWeights.Bold,
+            Foreground = _levelBandBrush
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = title,
+            Margin = new Thickness(0, 8, 0, 0),
+            FontSize = 19,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = detail,
+            Margin = new Thickness(0, 7, 0, 0),
+            FontSize = 11,
+            Foreground = (Brush)FindResource("MutedBrush"),
+            TextWrapping = TextWrapping.Wrap
+        });
+        card.Child = stack;
+        return card;
+    }
+
+    private UIElement CreateSourceCard(ProfileStatSourceSnapshot source)
+    {
+        var card = new Border
+        {
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 4, 0, 0),
+            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(0)
+        };
+        var stack = new StackPanel();
+        stack.Children.Add(new TextBlock
+        {
+            Text = $"{source.DisplayName}  •  {(source.IsConnected ? "CONNECTED" : "UNAVAILABLE")}",
+            FontWeight = FontWeights.SemiBold,
+            Foreground = source.IsConnected
+                ? (Brush)FindResource("AccentBrush")
+                : (Brush)FindResource("MutedBrush")
+        });
+        stack.Children.Add(new TextBlock
+        {
+            Text = source.IsConnected
+                ? $"{FormatDuration(source.TotalSeconds)}  •  {source.CompletedSessions:N0} sessions  •  {source.UniqueApps:N0} apps"
+                : source.Status,
+            Margin = new Thickness(0, 5, 0, 0),
+            FontSize = 12,
+            Foreground = (Brush)FindResource("MutedBrush"),
+            TextWrapping = TextWrapping.Wrap
+        });
+        if (source.IsConnected)
+        {
+            stack.Children.Add(new TextBlock
             {
-                Padding = new Thickness(12),
+                Text = source.Status,
                 Margin = new Thickness(0, 4, 0, 0),
-                Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(0)
-            };
-            var stack = new StackPanel();
-            stack.Children.Add(new TextBlock
-            {
-                Text = $"{source.DisplayName}  •  {(source.IsConnected ? "CONNECTED" : "UNAVAILABLE")}",
-                FontWeight = FontWeights.SemiBold,
-                Foreground = source.IsConnected
-                    ? (Brush)FindResource("AccentBrush")
-                    : (Brush)FindResource("MutedBrush")
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = source.IsConnected
-                    ? $"{FormatDuration(source.TotalSeconds)}  •  {source.CompletedSessions:N0} sessions  •  {source.UniqueApps:N0} apps"
-                    : source.Status,
-                Margin = new Thickness(0, 5, 0, 0),
-                FontSize = 12,
+                FontSize = 11,
                 Foreground = (Brush)FindResource("MutedBrush"),
                 TextWrapping = TextWrapping.Wrap
             });
-            if (source.IsConnected)
-            {
-                stack.Children.Add(new TextBlock
-                {
-                    Text = source.Status,
-                    Margin = new Thickness(0, 4, 0, 0),
-                    FontSize = 11,
-                    Foreground = (Brush)FindResource("MutedBrush"),
-                    TextWrapping = TextWrapping.Wrap
-                });
-            }
-            card.Child = stack;
-            SourcesPanel.Children.Add(card);
         }
+        card.Child = stack;
+        return card;
     }
 
     public void ShowStatsError(string message) => ShowStatsLoading($"Profile activity unavailable: {message}");
@@ -306,11 +461,12 @@ public partial class ProfileView : UserControl
     {
         LevelText.Text = "LEVEL —";
         LevelNumberText.Text = "—";
-        var neutralBrush = new SolidColorBrush(Color.FromRgb(125, 137, 156));
-        LevelText.Foreground = neutralBrush;
-        LevelNumberText.Foreground = neutralBrush;
-        LevelProgressBar.Foreground = neutralBrush;
-        LevelBadgeBorder.BorderBrush = neutralBrush;
+        _levelBandBrush = new SolidColorBrush(Color.FromRgb(125, 137, 156));
+        LevelText.Foreground = _levelBandBrush;
+        LevelNumberText.Foreground = _levelBandBrush;
+        LevelProgressBar.Foreground = _levelBandBrush;
+        LevelBadgeBorder.BorderBrush = _levelBandBrush;
+        BannerTierStrip.Fill = _levelBandBrush;
         LevelProgressBar.Value = 0;
         XpText.Text = message;
         TotalTimeText.Text = "—";
@@ -326,13 +482,13 @@ public partial class ProfileView : UserControl
         MilestonesPanel.Children.Clear();
         MilestoneSummaryText.Text = message;
         SourcesPanel.Children.Clear();
+        ShowcasePanel.Children.Clear();
+        ShowcaseEmptyText.Visibility = Visibility.Visible;
+        ShowcaseSubtitleText.Text = message;
     }
 
     private static SolidColorBrush GetLevelBandBrush(int level)
     {
-        // Every block of ten levels gets a deterministic, high-contrast accent. The hue advances
-        // by 47 degrees per band, which avoids adjacent decades looking nearly identical while
-        // remaining stable all the way through Grev Home's level 999 cap.
         var band = Math.Max(0, (level - 1) / 10);
         var hue = (195d + band * 47d) % 360d;
         var color = ColorFromHsv(hue, 0.68d, 0.95d);
