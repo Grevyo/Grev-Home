@@ -10,6 +10,8 @@ public partial class ProfilePhotoPickerView : UserControl
     private static readonly HashSet<string> SupportedExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp" };
 
+    private string _purposeNoun = "profile photo";
+
     public event EventHandler? HomeRequested;
     public event EventHandler? UpRequested;
     public event EventHandler? CancelRequested;
@@ -21,9 +23,16 @@ public partial class ProfilePhotoPickerView : UserControl
         InitializeComponent();
     }
 
+    public void SetPurpose(string heading, string purposeNoun)
+    {
+        HeadingText.Text = heading;
+        _purposeNoun = string.IsNullOrWhiteSpace(purposeNoun) ? "profile image" : purposeNoun.Trim();
+        DescriptionText.Text = $"Choose a PNG, JPG, JPEG or BMP image. Grev Home copies it into the profile so the original can move later.";
+    }
+
     public void ShowHome(IReadOnlyList<FileHomeLocation> locations)
     {
-        PathText.Text = "Photo locations";
+        PathText.Text = "Image locations";
         UpButton.IsEnabled = false;
         EntriesPanel.Children.Clear();
 
@@ -32,7 +41,7 @@ public partial class ProfilePhotoPickerView : UserControl
             AddButton(location.Name, location.Detail, location.Path, isFolder: true);
         }
 
-        StatusText.Text = "Open Pictures, Downloads, Documents or a drive, then choose an image file.";
+        StatusText.Text = $"Open Pictures, Downloads, Documents or a drive, then choose an image file for the {_purposeNoun}.";
     }
 
     public void ShowDirectory(string path, IReadOnlyList<FileBrowserEntry> entries, bool canGoUp)
@@ -53,8 +62,8 @@ public partial class ProfilePhotoPickerView : UserControl
         }
 
         StatusText.Text = EntriesPanel.Children.Count == 0
-            ? "No supported profile photos are visible in this folder."
-            : "Folders open inside Grev Home. Select an image file to use it as the pending profile photo.";
+            ? $"No supported images for the {_purposeNoun} are visible in this folder."
+            : $"Folders open inside Grev Home. Select an image file to use it as the pending {_purposeNoun}.";
     }
 
     public void ShowError(string message) => StatusText.Text = message;
