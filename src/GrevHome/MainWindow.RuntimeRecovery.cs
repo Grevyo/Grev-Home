@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.IO;
 using GrevHome.Apps;
+using GrevHome.Games;
 using GrevHome.Navigation;
 using GrevHome.Notifications;
 
@@ -61,10 +62,28 @@ public partial class MainWindow
                     snapshot.AppId,
                     StringComparison.OrdinalIgnoreCase));
 
+            // Individual games intentionally are not fake InstalledApp manifests. Reconstruct the
+            // exact runtime entry from the owning GrevID's game library and platform resolver so
+            // Restart keeps the normal crash-safe close/finalize/relaunch flow while still using
+            // that same profile's emulator binaries, BIOS/config and save data.
+            if (entry is null &&
+                snapshot.AppId.StartsWith("game.", StringComparison.OrdinalIgnoreCase) &&
+                !string.IsNullOrWhiteSpace(snapshot.PrimaryGrevId) &&
+                _gameLibraryService is not null)
+            {
+                var games = await _gameLibraryService.GetForProfileAsync(snapshot.PrimaryGrevId);
+                var game = games.FirstOrDefault(candidate =>
+                    string.Equals(candidate.GameId, snapshot.AppId, StringComparison.OrdinalIgnoreCase));
+                if (game is not null)
+                {
+                    entry = _gameLaunchResolver.Resolve(game, installed, snapshot.PrimaryGrevId);
+                }
+            }
+
             if (entry is null)
             {
                 throw new InvalidOperationException(
-                    $"{snapshot.AppName} is no longer registered as an installed app for the launch profile, so Grev Home will not guess how to restart it.");
+                    $"{snapshot.AppName} is no longer registered in the launch profile's app or game library, so Grev Home will not guess how to restart it.");
             }
 
             _overlayWindow.Dismiss();
@@ -73,7 +92,7 @@ public partial class MainWindow
             UpdateRuntimeSurfaces();
             Hide();
         }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or Win32Exception)
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException or Win32Exception)
         {
             UpdateRuntimeSurfaces();
 
