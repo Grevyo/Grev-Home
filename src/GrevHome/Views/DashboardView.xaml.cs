@@ -5,6 +5,7 @@ using GrevHome.Notifications;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
 using GrevHome.Transfers;
+using GrevHome.Presentation;
 
 namespace GrevHome.Views;
 
@@ -67,15 +68,13 @@ public partial class DashboardView : UserControl
         {
             ContinueButton.Visibility = Visibility.Visible;
             ContinueButton.Tag = continueApp.AppId;
-            ContinueAppNameText.Text = continueApp.AppName;
-            ContinueDetailText.Text = $"Last played {FormatLastPlayed(continueApp.LastPlayedAtUtc)}  •  {FormatDuration(continueApp.TotalSeconds)} total";
+            ContinueButton.Content = CreateActivityTile(continueApp, "CONTINUE");
         }
         else
         {
             ContinueButton.Visibility = Visibility.Collapsed;
             ContinueButton.Tag = null;
-            ContinueAppNameText.Text = string.Empty;
-            ContinueDetailText.Text = string.Empty;
+            ContinueButton.Content = null;
         }
 
         RecentAppsPanel.Children.Clear();
@@ -145,20 +144,31 @@ public partial class DashboardView : UserControl
                     : "This app is no longer installed."
         };
 
-        var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
-        {
-            Text = item.AppName,
-            Style = (Style)FindResource("DashboardTileTitleStyle")
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = $"{FormatLastPlayed(item.LastPlayedAtUtc)}  •  {FormatDuration(item.TotalSeconds)} total",
-            Style = (Style)FindResource("DashboardTileDetailStyle")
-        });
-        button.Content = stack;
+        button.Content = CreateActivityTile(item, "RECENT");
         button.Click += ActivityApp_Click;
         return button;
+    }
+
+    private static FrameworkElement CreateActivityTile(DashboardAppActivity item, string badge)
+    {
+        var presentation = item.Presentation;
+        var tile = AppArtworkFactory.CreateTile(
+            presentation?.DisplayName ?? item.AppName,
+            presentation?.TileMediaPath ?? presentation?.IconPath,
+            presentation?.TileColor);
+        var grid = new Grid();
+        grid.Children.Add(tile);
+        var detail = new Border
+        {
+            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(205, 8, 12, 20)),
+            Padding = new Thickness(8, 4),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Top,
+            CornerRadius = new CornerRadius(5),
+            Child = new TextBlock { Text = badge, FontSize = 10, FontWeight = FontWeights.Bold, Foreground = System.Windows.Media.Brushes.White }
+        };
+        grid.Children.Add(detail);
+        return grid;
     }
 
     private void ActivityApp_Click(object sender, RoutedEventArgs e)
