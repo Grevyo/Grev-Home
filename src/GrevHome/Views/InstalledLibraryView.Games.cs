@@ -71,41 +71,21 @@ public partial class InstalledLibraryView
             ? ""
             : $"{_games.Count} game{(_games.Count == 1 ? string.Empty : "s")}";
 
-        var pcsx2Package = _storeCatalog.Find("pcsx2");
         foreach (var game in _games)
         {
             var available = GameLibraryService.IsSourceAvailable(game);
-            var tileColor = pcsx2Package?.Presentation.TileColor ?? "#0F2F6E";
+            var emulatorPackage = _storeCatalog.Find(game.Platform == GamePlatform.PlayStation2 ? "pcsx2" : "retroarch");
+            var tileColor = GameArtworkFactory.GetTileColor(game);
             var tile = string.IsNullOrWhiteSpace(game.TileMediaPath)
                 ? AppArtworkFactory.CreateTile(
                     game.DisplayName,
-                    pcsx2Package?.Presentation.IconAsset,
+                    emulatorPackage?.Presentation.IconAsset,
                     tileColor)
                 : AppArtworkFactory.CreateFullTile(game.TileMediaPath, tileColor);
 
             var content = new Grid();
             content.Children.Add(tile);
-            var platformBadge = new Border
-            {
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Top,
-                Margin = new Thickness(8, 6, 8, 0),
-                Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0),
-                Child = !string.IsNullOrWhiteSpace(game.IconPath)
-                    ? AppArtworkFactory.CreateTransparent(game.IconPath, 34)
-                    : new TextBlock
-                    {
-                        Text = available ? "PLAYSTATION 2" : "FILE MISSING",
-                        FontSize = 10,
-                        FontWeight = FontWeights.Bold,
-                        Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 },
-                        Foreground = available
-                            ? Brushes.White
-                            : new SolidColorBrush(Color.FromRgb(255, 118, 118))
-                    }
-            };
-            content.Children.Add(platformBadge);
+            content.Children.Add(GameArtworkFactory.CreateConsoleMark(game, available));
 
             var button = new Button
             {
