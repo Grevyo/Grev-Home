@@ -68,6 +68,7 @@ public partial class DashboardView : UserControl
         {
             ContinueButton.Visibility = Visibility.Visible;
             ContinueButton.Tag = continueApp.AppId;
+            ContinueButton.Padding = new Thickness(0, 0, 0, 0);
             ContinueButton.Content = CreateActivityTile(continueApp, "CONTINUE");
         }
         else
@@ -144,6 +145,7 @@ public partial class DashboardView : UserControl
                     : "This app is no longer installed."
         };
 
+        button.Padding = new Thickness(0, 0, 0, 0);
         button.Content = CreateActivityTile(item, "RECENT");
         button.Click += ActivityApp_Click;
         return button;
@@ -152,12 +154,32 @@ public partial class DashboardView : UserControl
     private static FrameworkElement CreateActivityTile(DashboardAppActivity item, string badge)
     {
         var presentation = item.Presentation;
+        if (!string.IsNullOrWhiteSpace(presentation?.TileMediaPath))
+        {
+            var fullTile = AppArtworkFactory.Create(
+                presentation.TileMediaPath,
+                presentation.TileColor,
+                285,
+                145,
+                9);
+            var fullGrid = new Grid();
+            fullGrid.Children.Add(fullTile);
+            fullGrid.Children.Add(CreateActivityOverlay(item, badge, presentation.DisplayName));
+            return fullGrid;
+        }
+
         var tile = AppArtworkFactory.CreateTile(
             presentation?.DisplayName ?? item.AppName,
             presentation?.TileMediaPath ?? presentation?.IconPath,
             presentation?.TileColor);
         var grid = new Grid();
         grid.Children.Add(tile);
+        grid.Children.Add(CreateActivityOverlay(item, badge, presentation?.DisplayName ?? item.AppName));
+        return grid;
+    }
+
+    private static FrameworkElement CreateActivityOverlay(DashboardAppActivity item, string badge, string displayName)
+    {
         var detail = new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(205, 8, 12, 20)),
@@ -165,10 +187,19 @@ public partial class DashboardView : UserControl
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             CornerRadius = new CornerRadius(5),
-            Child = new TextBlock { Text = badge, FontSize = 10, FontWeight = FontWeights.Bold, Foreground = System.Windows.Media.Brushes.White }
+            Child = new StackPanel
+            {
+                Children =
+                {
+                    new TextBlock { Text = badge, FontSize = 10, FontWeight = FontWeights.Bold, Foreground = System.Windows.Media.Brushes.White },
+                    new TextBlock { Text = $"{displayName}  •  {FormatLastPlayed(item.LastPlayedAtUtc)}", FontSize = 11, Foreground = System.Windows.Media.Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis }
+                }
+            }
         };
-        grid.Children.Add(detail);
-        return grid;
+        detail.HorizontalAlignment = HorizontalAlignment.Stretch;
+        detail.VerticalAlignment = VerticalAlignment.Bottom;
+        detail.CornerRadius = new CornerRadius(0);
+        return detail;
     }
 
     private void ActivityApp_Click(object sender, RoutedEventArgs e)
