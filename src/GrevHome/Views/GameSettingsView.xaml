@@ -17,6 +17,9 @@
                     <TextBlock Text="ICON" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="IconStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                     <Button Content="Choose Icon Picture or GIF" Margin="0,10,0,0" MinWidth="260" HorizontalAlignment="Left" Click="ChooseIcon_Click" />
+                    <TextBlock Text="SAVED ICONS" Margin="0,16,0,6" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="NoSavedIconsText" Text="No reusable icons uploaded yet." Foreground="{StaticResource MutedBrush}" />
+                    <WrapPanel x:Name="SavedIconsPanel" />
 
                     <TextBlock Text="FULL TILE" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="TileStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
@@ -26,6 +29,7 @@
             </Border>
 
             <WrapPanel Margin="0,18,0,0">
+                <Button Content="Set Back to Default" MinWidth="210" Margin="0,0,10,10" Click="Reset_Click" />
                 <Button Content="Back" MinWidth="130" Margin="0,0,10,10" Click="Back_Click" />
             </WrapPanel>
             <TextBlock x:Name="StatusText" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
