@@ -32,12 +32,6 @@
                             HorizontalAlignment="Left"
                             Click="Platform_Click" />
                     <StackPanel x:Name="PlatformChoicesPanel" Visibility="Collapsed" Margin="0,6,0,0">
-                        <Button Content="PlayStation 2"
-                                Tag="PlayStation2"
-                                Width="280"
-                                Height="50"
-                                HorizontalAlignment="Left"
-                                Click="PlatformChoice_Click" />
                     </StackPanel>
 
                     <Border Margin="0,22,0,20" BorderBrush="#2B3344" BorderThickness="0,1,0,0" />
