@@ -14,6 +14,7 @@ public partial class InstalledLibraryView
 
     public event EventHandler? AddGameRequested;
     public event Action<GameLibraryEntry>? GameLaunchRequested;
+    public event Action<GameLibraryEntry>? GameSettingsRequested;
 
     public void InitializeGameLibraryUi()
     {
@@ -74,28 +75,29 @@ public partial class InstalledLibraryView
         foreach (var game in _games)
         {
             var available = GameLibraryService.IsSourceAvailable(game);
-            var tile = AppArtworkFactory.CreateTile(
-                game.DisplayName,
-                pcsx2Package?.Presentation.IconAsset,
-                pcsx2Package?.Presentation.TileColor ?? "#0F2F6E");
+            var tileColor = pcsx2Package?.Presentation.TileColor ?? "#0F2F6E";
+            var tile = string.IsNullOrWhiteSpace(game.TileMediaPath)
+                ? AppArtworkFactory.CreateTile(
+                    game.DisplayName,
+                    game.IconPath ?? pcsx2Package?.Presentation.IconAsset,
+                    tileColor)
+                : AppArtworkFactory.CreateFullTile(game.TileMediaPath, tileColor);
 
             var content = new Grid();
             content.Children.Add(tile);
             var platformBadge = new Border
             {
-                HorizontalAlignment = HorizontalAlignment.Left,
-                VerticalAlignment = VerticalAlignment.Bottom,
-                Margin = new Thickness(12),
-                Padding = new Thickness(8, 3, 8, 3),
-                Background = new SolidColorBrush(Color.FromArgb(220, 7, 10, 15)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(72, 92, 130)),
-                BorderThickness = new Thickness(1),
-                CornerRadius = new CornerRadius(0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Margin = new Thickness(8, 6, 8, 0),
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
                 Child = new TextBlock
                 {
                     Text = available ? "PLAYSTATION 2" : "FILE MISSING",
                     FontSize = 10,
                     FontWeight = FontWeights.Bold,
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 },
                     Foreground = available
                         ? Brushes.White
                         : new SolidColorBrush(Color.FromRgb(255, 118, 118))
@@ -118,6 +120,7 @@ public partial class InstalledLibraryView
                     : $"The saved game file is unavailable: {game.SourcePath}"
             };
             button.Click += Game_Click;
+            button.PreviewMouseRightButtonUp += Game_RightClick;
             GamesPanel.Children.Add(button);
         }
 
@@ -127,6 +130,39 @@ public partial class InstalledLibraryView
                 ? "No games have been added for this GrevID yet."
                 : $"{_games.Count} individual game{(_games.Count == 1 ? string.Empty : "s")} in this GrevID's library.";
         }
+    }
+
+    private void Game_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Button { Tag: GameLibraryEntry game } button)
+        {
+            e.Handled = true;
+            button.Focus();
+            OpenGameActionMenu(game, button);
+        }
+    }
+
+    private void OpenGameActionMenu(GameLibraryEntry game, Button originButton)
+    {
+        CancelControllerAppPress();
+        _actionMenuGame = game;
+        _actionMenuEntry = null;
+        _actionMenuOriginButton = originButton;
+        _pendingForceKillSessionId = null;
+        AppActionTitleText.Text = game.DisplayName;
+        AppActionStateText.Text = $"{GameLibraryService.GetPlatformDisplayName(game.Platform)} game • Open launches it through its emulator.";
+        AppActionOpenButton.Visibility = Visibility.Visible;
+        AppActionSettingsButton.Visibility = Visibility.Visible;
+        AppActionSwitchButton.Visibility = Visibility.Collapsed;
+        AppActionRestartButton.Visibility = Visibility.Collapsed;
+        AppActionCloseButton.Visibility = Visibility.Collapsed;
+        AppActionForceKillButton.Visibility = Visibility.Collapsed;
+        AppActionAppKillerButton.Visibility = Visibility.Collapsed;
+        AppActionRunningAppsButton.Visibility = Visibility.Collapsed;
+        AppActionStoreButton.Visibility = Visibility.Collapsed;
+        AppActionOverlay.Visibility = Visibility.Visible;
+        FocusFirstActionButton();
+        ActionMenuOpened?.Invoke(this, EventArgs.Empty);
     }
 
     private void Game_Click(object sender, RoutedEventArgs e)
