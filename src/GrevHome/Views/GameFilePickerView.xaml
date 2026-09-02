@@ -1,0 +1,41 @@
+<UserControl x:Class="GrevHome.Views.GameFilePickerView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <Grid Margin="72,38">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock x:Name="HeadingText" Text="Choose Game File" FontSize="40" FontWeight="SemiBold" />
+            <TextBlock x:Name="DescriptionText"
+                       Margin="0,6,0,18"
+                       FontSize="15"
+                       Foreground="{StaticResource MutedBrush}"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <Grid Grid.Row="1" Margin="0,0,0,16">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <Button Content="Home" Width="110" Height="46" Margin="0,0,8,0" Click="Home_Click" />
+            <Button Grid.Column="1" x:Name="UpButton" Content="Up" Width="110" Height="46" Margin="0,0,12,0" Click="Up_Click" />
+            <TextBlock Grid.Column="2" x:Name="PathText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{StaticResource MutedBrush}" />
+            <Button Grid.Column="3" Content="Cancel" Width="120" Height="46" Click="Cancel_Click" />
+        </Grid>
+
+        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <WrapPanel x:Name="EntriesPanel" />
+        </ScrollViewer>
+
+        <TextBlock Grid.Row="3" x:Name="StatusText" Margin="0,14,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+    </Grid>
+</UserControl>
