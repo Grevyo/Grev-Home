@@ -1,4 +1,5 @@
 using GrevHome.Apps;
+using GrevHome.Games;
 using GrevHome.Runtime;
 using GrevHome.Storage;
 
@@ -30,19 +31,23 @@ public sealed record DashboardDataSnapshot(
 }
 
 /// <summary>
-/// Builds account-facing dashboard state from the existing Grev Home sources of truth.
-/// It deliberately does not create a second activity database: completed runtime sessions are
-/// already persisted by PlaytimeService, while launch availability comes from InstalledAppService.
+/// Builds account-facing dashboard state from Grev Home's existing sources of truth. Completed
+/// runtime sessions stay in PlaytimeService; launch availability is resolved against either the
+/// installed app catalogue or the owning GrevID's individual-game library. No second activity
+/// database is created merely to make emulated games appear in Continue/Recent.
 /// </summary>
 public sealed class DashboardDataService
 {
     private readonly PlaytimeService _playtime;
     private readonly InstalledAppService _installedApps;
+    private readonly GameLibraryService _games;
+    private readonly GameLaunchResolver _gameLaunchResolver = new();
 
     public DashboardDataService(AppPaths paths, InstalledAppService installedApps)
     {
         _playtime = new PlaytimeService(paths);
         _installedApps = installedApps;
+        _games = new GameLibraryService(paths);
     }
 
     public async Task<DashboardDataSnapshot> GetForGrevIdAsync(
@@ -56,28 +61,56 @@ public sealed class DashboardDataService
 
         var playtime = await _playtime.GetForGrevIdAsync(grevId, cancellationToken);
         var installed = await _installedApps.GetInstalledForUserAsync(grevId, cancellationToken);
+        var games = await _games.GetForProfileAsync(grevId, cancellationToken);
         var installedByAppId = installed
             .GroupBy(entry => entry.Manifest.Definition.AppId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(
                 group => group.Key,
                 group => group.OrderByDescending(entry => entry.AvailableToCurrentUser).First(),
                 StringComparer.OrdinalIgnoreCase);
+        var gamesById = games.ToDictionary(game => game.GameId, StringComparer.OrdinalIgnoreCase);
 
         var recent = playtime.Apps.Values
             .OrderByDescending(stat => stat.LastPlayedAtUtc)
             .ThenBy(stat => stat.AppName, StringComparer.OrdinalIgnoreCase)
             .Select(stat =>
             {
-                installedByAppId.TryGetValue(stat.AppId, out var installedEntry);
+                if (installedByAppId.TryGetValue(stat.AppId, out var installedEntry))
+                {
+                    return new DashboardAppActivity(
+                        stat.AppId,
+                        stat.AppName,
+                        stat.TotalSeconds,
+                        stat.SessionCount,
+                        stat.LastPlayedAtUtc,
+                        true,
+                        installedEntry.AvailableToCurrentUser,
+                        installedEntry.AvailabilityMessage);
+                }
+
+                if (gamesById.TryGetValue(stat.AppId, out var game))
+                {
+                    var (canLaunch, message) = ResolveGameAvailability(game, installed, grevId);
+                    return new DashboardAppActivity(
+                        stat.AppId,
+                        game.DisplayName,
+                        stat.TotalSeconds,
+                        stat.SessionCount,
+                        stat.LastPlayedAtUtc,
+                        true,
+                        canLaunch,
+                        message);
+                }
+
                 return new DashboardAppActivity(
                     stat.AppId,
                     stat.AppName,
                     stat.TotalSeconds,
                     stat.SessionCount,
                     stat.LastPlayedAtUtc,
-                    installedEntry is not null,
-                    installedEntry?.AvailableToCurrentUser == true,
-                    installedEntry?.AvailabilityMessage);
+                    false,
+                    false,
+                    null);
             })
             .ToArray();
 
@@ -100,8 +133,40 @@ public sealed class DashboardDataService
         }
 
         var installed = await _installedApps.GetInstalledForUserAsync(grevId, cancellationToken);
-        return installed.FirstOrDefault(entry =>
+        var app = installed.FirstOrDefault(entry =>
             entry.AvailableToCurrentUser &&
             string.Equals(entry.Manifest.Definition.AppId, appId, StringComparison.OrdinalIgnoreCase));
+        if (app is not null)
+        {
+            return app;
+        }
+
+        if (!appId.StartsWith("game.", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        var games = await _games.GetForProfileAsync(grevId, cancellationToken);
+        var game = games.FirstOrDefault(candidate =>
+            string.Equals(candidate.GameId, appId, StringComparison.OrdinalIgnoreCase));
+        return game is null
+            ? null
+            : _gameLaunchResolver.Resolve(game, installed, grevId);
+    }
+
+    private (bool CanLaunch, string? Message) ResolveGameAvailability(
+        GameLibraryEntry game,
+        IReadOnlyList<InstalledAppEntry> installed,
+        string grevId)
+    {
+        try
+        {
+            _gameLaunchResolver.Resolve(game, installed, grevId);
+            return (true, null);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            return (false, ex.Message);
+        }
     }
 }
