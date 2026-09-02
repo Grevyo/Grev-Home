@@ -156,12 +156,11 @@ public partial class DashboardView : UserControl
         var presentation = item.Presentation;
         if (!string.IsNullOrWhiteSpace(presentation?.TileMediaPath))
         {
-            var fullTile = AppArtworkFactory.Create(
+            var fullTile = AppArtworkFactory.CreateFullTile(
                 presentation.TileMediaPath,
                 presentation.TileColor,
                 285,
-                145,
-                9);
+                145);
             var fullGrid = new Grid();
             fullGrid.Children.Add(fullTile);
             fullGrid.Children.Add(CreateLastPlayedTimestamp(item));
