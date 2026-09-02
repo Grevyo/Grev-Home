@@ -41,21 +41,22 @@ public partial class DashboardView
             button.Padding = new Thickness(0);
             var content = new Grid();
             content.Children.Add(string.IsNullOrWhiteSpace(game.TileMediaPath)
-                ? AppArtworkFactory.CreateTile(game.DisplayName, game.IconPath, "#0F2F6E")
+                ? AppArtworkFactory.CreateTile(game.DisplayName, null, "#0F2F6E")
                 : AppArtworkFactory.CreateFullTile(game.TileMediaPath, "#0F2F6E"));
-            content.Children.Add(new TextBlock
-            {
-                Text = available
-                    ? GameLibraryService.GetPlatformDisplayName(game.Platform)
-                    : $"{GameLibraryService.GetPlatformDisplayName(game.Platform)} • FILE MISSING",
-                Margin = new Thickness(8, 6, 8, 0),
-                FontSize = 11,
-                FontWeight = FontWeights.SemiBold,
-                Foreground = System.Windows.Media.Brushes.White,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Top,
-                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 }
-            });
+            var platformMark = !string.IsNullOrWhiteSpace(game.IconPath)
+                ? AppArtworkFactory.Create(game.IconPath, 34, 5)
+                : new TextBlock
+                {
+                    Text = available ? GameLibraryService.GetPlatformDisplayName(game.Platform) : "FILE MISSING",
+                    FontSize = 11,
+                    FontWeight = FontWeights.SemiBold,
+                    Foreground = System.Windows.Media.Brushes.White,
+                    Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 }
+                };
+            platformMark.Margin = new Thickness(8, 6, 8, 0);
+            platformMark.HorizontalAlignment = HorizontalAlignment.Left;
+            platformMark.VerticalAlignment = VerticalAlignment.Top;
+            content.Children.Add(platformMark);
             button.Content = content;
             button.Click += Game_Click;
             GamesPanel.Children.Add(button);
