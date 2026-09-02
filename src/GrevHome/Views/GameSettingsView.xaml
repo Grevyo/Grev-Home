@@ -17,6 +17,13 @@
                     <TextBlock Text="CONSOLE LOGO" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="IconStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                     <Button Content="Choose Console Logo Picture or GIF" Margin="0,10,0,0" MinWidth="300" HorizontalAlignment="Left" Click="ChooseIcon_Click" />
+                    <TextBlock Text="Logo position" Margin="0,14,0,6" Foreground="{StaticResource MutedBrush}" />
+                    <ComboBox x:Name="LogoPositionBox" Width="240" MinHeight="44" HorizontalAlignment="Left" />
+                    <CheckBox x:Name="LogoBackgroundCheckBox" Content="Show a background behind the console logo" Margin="0,14,0,0" />
+                    <TextBlock Text="Logo background colour (#RRGGBB)" Margin="0,10,0,6" Foreground="{StaticResource MutedBrush}" />
+                    <TextBox x:Name="LogoBackgroundColorBox" Width="180" MinHeight="42" Padding="10" HorizontalAlignment="Left" />
+                    <TextBlock Text="Console logo scale" Margin="0,14,0,6" Foreground="{StaticResource MutedBrush}" />
+                    <Slider x:Name="LogoScaleSlider" Width="300" Minimum="0.5" Maximum="2.5" TickFrequency="0.25" IsSnapToTickEnabled="True" HorizontalAlignment="Left" />
                     <TextBlock Text="SAVED CONSOLE LOGOS" Margin="0,16,0,6" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="NoSavedIconsText" Text="No reusable console logos uploaded yet." Foreground="{StaticResource MutedBrush}" />
                     <WrapPanel x:Name="SavedIconsPanel" />
@@ -24,7 +31,10 @@
                     <TextBlock Text="FULL TILE" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="TileStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                     <Button Content="Choose Full Tile Picture or GIF" Margin="0,10,0,0" MinWidth="280" HorizontalAlignment="Left" Click="ChooseTile_Click" />
+                    <TextBlock Text="Tile background colour (#RRGGBB)" Margin="0,14,0,6" Foreground="{StaticResource MutedBrush}" />
+                    <TextBox x:Name="TileColorBox" Width="180" MinHeight="42" Padding="10" HorizontalAlignment="Left" />
                     <TextBlock Text="The full tile fills the game tile. The console logo is independent and replaces the platform text at the top-left." Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <Button Content="Save Tile and Console Logo Layout" Margin="0,16,0,0" MinWidth="310" HorizontalAlignment="Left" Click="SaveLayout_Click" />
                 </StackPanel>
             </Border>
 
