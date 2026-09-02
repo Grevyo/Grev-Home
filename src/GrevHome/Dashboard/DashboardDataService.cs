@@ -2,6 +2,7 @@ using GrevHome.Apps;
 using GrevHome.Games;
 using GrevHome.Runtime;
 using GrevHome.Storage;
+using GrevHome.Store;
 
 namespace GrevHome.Dashboard;
 
@@ -13,7 +14,8 @@ public sealed record DashboardAppActivity(
     DateTimeOffset LastPlayedAtUtc,
     bool IsInstalled,
     bool CanLaunch,
-    string? AvailabilityMessage);
+    string? AvailabilityMessage,
+    ResolvedAppPresentation? Presentation);
 
 public sealed record DashboardDataSnapshot(
     long TotalPlaytimeSeconds,
@@ -42,12 +44,15 @@ public sealed class DashboardDataService
     private readonly InstalledAppService _installedApps;
     private readonly GameLibraryService _games;
     private readonly GameLaunchResolver _gameLaunchResolver = new();
+    private readonly GrevStoreCatalogService _storeCatalog = new();
+    private readonly AppPresentationService _presentation;
 
     public DashboardDataService(AppPaths paths, InstalledAppService installedApps)
     {
         _playtime = new PlaytimeService(paths);
         _installedApps = installedApps;
         _games = new GameLibraryService(paths);
+        _presentation = new AppPresentationService(paths);
     }
 
     public async Task<DashboardDataSnapshot> GetForGrevIdAsync(
@@ -73,19 +78,24 @@ public sealed class DashboardDataService
         var recent = playtime.Apps.Values
             .OrderByDescending(stat => stat.LastPlayedAtUtc)
             .ThenBy(stat => stat.AppName, StringComparer.OrdinalIgnoreCase)
-            .Select(stat =>
+            .Select(async stat =>
             {
                 if (installedByAppId.TryGetValue(stat.AppId, out var installedEntry))
                 {
+                    var package = _storeCatalog.Find(stat.AppId);
+                    var presentation = package is null
+                        ? null
+                        : await _presentation.ResolveAsync(grevId, package, cancellationToken);
                     return new DashboardAppActivity(
                         stat.AppId,
-                        stat.AppName,
+                        presentation?.DisplayName ?? stat.AppName,
                         stat.TotalSeconds,
                         stat.SessionCount,
                         stat.LastPlayedAtUtc,
                         true,
                         installedEntry.AvailableToCurrentUser,
-                        installedEntry.AvailabilityMessage);
+                        installedEntry.AvailabilityMessage,
+                        presentation);
                 }
 
                 if (gamesById.TryGetValue(stat.AppId, out var game))
@@ -99,7 +109,8 @@ public sealed class DashboardDataService
                         stat.LastPlayedAtUtc,
                         true,
                         canLaunch,
-                        message);
+                        message,
+                        null);
                 }
 
                 return new DashboardAppActivity(
@@ -110,16 +121,19 @@ public sealed class DashboardDataService
                     stat.LastPlayedAtUtc,
                     false,
                     false,
+                    null,
                     null);
             })
             .ToArray();
 
+        var resolvedRecent = await Task.WhenAll(recent);
+
         return new DashboardDataSnapshot(
-            recent.Sum(item => item.TotalSeconds),
-            recent.Sum(item => item.SessionCount),
-            recent.Length,
-            recent.FirstOrDefault(item => item.CanLaunch),
-            recent);
+            resolvedRecent.Sum(item => item.TotalSeconds),
+            resolvedRecent.Sum(item => item.SessionCount),
+            resolvedRecent.Length,
+            resolvedRecent.FirstOrDefault(item => item.CanLaunch),
+            resolvedRecent);
     }
 
     public async Task<InstalledAppEntry?> GetLaunchEntryAsync(
