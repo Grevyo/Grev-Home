@@ -14,11 +14,13 @@ public partial class GameSettingsView : UserControl
     public event EventHandler? ChooseTileRequested;
     public event Action<string>? ReusableIconRequested;
     public event EventHandler? ResetRequested;
+    public event Action<GamePresentationLayout>? SaveLayoutRequested;
     public event EventHandler? BackRequested;
 
     public GameSettingsView()
     {
         InitializeComponent();
+        LogoPositionBox.ItemsSource = Enum.GetValues<GameConsoleLogoPosition>();
     }
 
     public void SetGame(GameLibraryEntry game, string ownerName, string grevId, IReadOnlyList<string> reusableIcons)
@@ -28,6 +30,11 @@ public partial class GameSettingsView : UserControl
         DisplayNameBox.Text = game.DisplayName;
         IconStatusText.Text = string.IsNullOrWhiteSpace(game.IconPath) ? "Showing the console name as text." : "Custom console logo configured for this GrevID.";
         TileStatusText.Text = string.IsNullOrWhiteSpace(game.TileMediaPath) ? "No custom full tile configured." : "Custom full tile configured for this GrevID.";
+        TileColorBox.Text = string.IsNullOrWhiteSpace(game.TileColor) ? GameArtworkFactory.DefaultTileColor : game.TileColor;
+        LogoPositionBox.SelectedItem = game.ConsoleLogoPosition;
+        LogoBackgroundCheckBox.IsChecked = game.ConsoleLogoHasBackground;
+        LogoBackgroundColorBox.Text = string.IsNullOrWhiteSpace(game.ConsoleLogoBackgroundColor) ? "#000000" : game.ConsoleLogoBackgroundColor;
+        LogoScaleSlider.Value = Math.Clamp(game.ConsoleLogoScale, 0.5, 2.5);
         SavedIconsPanel.Children.Clear();
         NoSavedIconsText.Visibility = reusableIcons.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         foreach (var iconPath in reusableIcons)
@@ -57,5 +64,17 @@ public partial class GameSettingsView : UserControl
         if (sender is Button { Tag: string iconPath }) ReusableIconRequested?.Invoke(iconPath);
     }
     private void Reset_Click(object sender, RoutedEventArgs e) => ResetRequested?.Invoke(this, EventArgs.Empty);
+    private void SaveLayout_Click(object sender, RoutedEventArgs e)
+    {
+        var position = LogoPositionBox.SelectedItem is GameConsoleLogoPosition selected
+            ? selected
+            : GameConsoleLogoPosition.TopLeft;
+        SaveLayoutRequested?.Invoke(new GamePresentationLayout(
+            TileColorBox.Text,
+            position,
+            LogoBackgroundCheckBox.IsChecked == true,
+            LogoBackgroundColorBox.Text,
+            LogoScaleSlider.Value));
+    }
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 }
