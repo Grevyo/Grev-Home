@@ -186,7 +186,7 @@ public partial class DashboardView : UserControl
         if (!item.AppId.StartsWith("game.", StringComparison.OrdinalIgnoreCase) ||
             string.IsNullOrWhiteSpace(item.Presentation?.IconPath)) return;
 
-        var logo = AppArtworkFactory.Create(item.Presentation.IconPath, 34, 5);
+        var logo = AppArtworkFactory.CreateTransparent(item.Presentation.IconPath, 34);
         logo.Margin = new Thickness(8, 6, 8, 0);
         logo.HorizontalAlignment = HorizontalAlignment.Left;
         logo.VerticalAlignment = VerticalAlignment.Top;
