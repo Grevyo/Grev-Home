@@ -11,6 +11,7 @@ public enum Route
     ProfilePhotoPicker,
     GameAdd,
     GameFilePicker,
+    GameSettings,
     GrevStore,
     GrevStoreApp,
     InstalledLibrary,
