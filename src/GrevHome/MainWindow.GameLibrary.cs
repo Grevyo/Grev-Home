@@ -51,6 +51,8 @@ public partial class MainWindow
         _gameSettingsView.SaveNameRequested += name => _ = SaveGameNameAsync(name);
         _gameSettingsView.ChooseIconRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.Icon);
         _gameSettingsView.ChooseTileRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.TileMedia);
+        _gameSettingsView.ReusableIconRequested += path => _ = UseReusableGameIconAsync(path);
+        _gameSettingsView.ResetRequested += (_, _) => _ = ResetGamePresentationAsync();
 
         _gameAddView.BackRequested += (_, _) => _navigation.GoBack();
         _gameAddView.ChooseFileRequested += OpenGameFilePicker;
@@ -113,7 +115,11 @@ public partial class MainWindow
     {
         var primary = _session.PrimaryUser;
         if (_gameSettingsEntry is null || primary?.GrevId is null) return;
-        _gameSettingsView.SetGame(_gameSettingsEntry, primary.DisplayName, primary.GrevId);
+        _gameSettingsView.SetGame(
+            _gameSettingsEntry,
+            primary.DisplayName,
+            primary.GrevId,
+            _gameLibraryService?.GetReusableIcons(primary.GrevId) ?? Array.Empty<string>());
     }
 
     private async Task SaveGameNameAsync(string displayName)
@@ -161,6 +167,42 @@ public partial class MainWindow
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {
             _gameSettingsView.ShowStatus($"Could not save the artwork: {ex.Message}");
+        }
+    }
+
+    private async Task UseReusableGameIconAsync(string iconPath)
+    {
+        var service = _gameLibraryService;
+        var primary = _session.PrimaryUser;
+        if (service is null || primary?.GrevId is null || _gameSettingsEntry is null) return;
+        try
+        {
+            _gameSettingsEntry = await service.UseReusableIconAsync(primary.GrevId, _gameSettingsEntry.GameId, iconPath);
+            RenderGameSettings();
+            await RefreshProfileGamesAsync();
+            _gameSettingsView.ShowStatus("Saved icon applied. The full-tile override was cleared so the icon is visible now.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus($"Could not apply the saved icon: {ex.Message}");
+        }
+    }
+
+    private async Task ResetGamePresentationAsync()
+    {
+        var service = _gameLibraryService;
+        var primary = _session.PrimaryUser;
+        if (service is null || primary?.GrevId is null || _gameSettingsEntry is null) return;
+        try
+        {
+            _gameSettingsEntry = await service.ResetPresentationAsync(primary.GrevId, _gameSettingsEntry.GameId);
+            RenderGameSettings();
+            await RefreshProfileGamesAsync();
+            _gameSettingsView.ShowStatus("Game name, icon and full tile restored to their defaults. Saved reusable icons were kept.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus($"Could not restore defaults: {ex.Message}");
         }
     }
 
