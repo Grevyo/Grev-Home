@@ -69,7 +69,7 @@ public partial class DashboardView : UserControl
             ContinueButton.Visibility = Visibility.Visible;
             ContinueButton.Tag = continueApp.AppId;
             ContinueButton.Padding = new Thickness(0, 0, 0, 0);
-            ContinueButton.Content = CreateActivityTile(continueApp, "CONTINUE");
+            ContinueButton.Content = CreateActivityTile(continueApp);
         }
         else
         {
@@ -146,12 +146,12 @@ public partial class DashboardView : UserControl
         };
 
         button.Padding = new Thickness(0, 0, 0, 0);
-        button.Content = CreateActivityTile(item, "RECENT");
+        button.Content = CreateActivityTile(item);
         button.Click += ActivityApp_Click;
         return button;
     }
 
-    private static FrameworkElement CreateActivityTile(DashboardAppActivity item, string badge)
+    private static FrameworkElement CreateActivityTile(DashboardAppActivity item)
     {
         var presentation = item.Presentation;
         if (!string.IsNullOrWhiteSpace(presentation?.TileMediaPath))
@@ -164,7 +164,7 @@ public partial class DashboardView : UserControl
                 9);
             var fullGrid = new Grid();
             fullGrid.Children.Add(fullTile);
-            fullGrid.Children.Add(CreateActivityOverlay(item, badge, presentation.DisplayName));
+            fullGrid.Children.Add(CreateLastPlayedTimestamp(item));
             return fullGrid;
         }
 
@@ -174,32 +174,28 @@ public partial class DashboardView : UserControl
             presentation?.TileColor);
         var grid = new Grid();
         grid.Children.Add(tile);
-        grid.Children.Add(CreateActivityOverlay(item, badge, presentation?.DisplayName ?? item.AppName));
+        grid.Children.Add(CreateLastPlayedTimestamp(item));
         return grid;
     }
 
-    private static FrameworkElement CreateActivityOverlay(DashboardAppActivity item, string badge, string displayName)
+    private static FrameworkElement CreateLastPlayedTimestamp(DashboardAppActivity item)
     {
-        var detail = new Border
+        return new TextBlock
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(205, 8, 12, 20)),
-            Padding = new Thickness(8, 4, 8, 4),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            Text = item.LastPlayedAtUtc.ToLocalTime().ToString("d MMM yyyy  HH:mm"),
+            Margin = new Thickness(8, 6, 8, 0),
+            FontSize = 11,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = System.Windows.Media.Brushes.White,
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Top,
-            CornerRadius = new CornerRadius(5),
-            Child = new StackPanel
+            Effect = new System.Windows.Media.Effects.DropShadowEffect
             {
-                Children =
-                {
-                    new TextBlock { Text = badge, FontSize = 10, FontWeight = FontWeights.Bold, Foreground = System.Windows.Media.Brushes.White },
-                    new TextBlock { Text = $"{displayName}  •  {FormatLastPlayed(item.LastPlayedAtUtc)}", FontSize = 11, Foreground = System.Windows.Media.Brushes.White, TextTrimming = TextTrimming.CharacterEllipsis }
-                }
+                BlurRadius = 4,
+                ShadowDepth = 1,
+                Opacity = 0.95
             }
         };
-        detail.HorizontalAlignment = HorizontalAlignment.Stretch;
-        detail.VerticalAlignment = VerticalAlignment.Bottom;
-        detail.CornerRadius = new CornerRadius(0);
-        return detail;
     }
 
     private void ActivityApp_Click(object sender, RoutedEventArgs e)
