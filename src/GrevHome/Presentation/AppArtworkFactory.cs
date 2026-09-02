@@ -93,6 +93,33 @@ public static class AppArtworkFactory
         return tile;
     }
 
+    public static FrameworkElement CreateFullTile(
+        string assetPath,
+        string? backgroundColor,
+        double width = DefaultThemeMetrics.AppTileWidth,
+        double height = DefaultThemeMetrics.AppTileHeight)
+    {
+        var host = new Border
+        {
+            Width = width,
+            Height = height,
+            Background = new SolidColorBrush(ParseColor(backgroundColor)),
+            CornerRadius = new CornerRadius(9),
+            ClipToBounds = true
+        };
+        var image = TryCreateImage(assetPath);
+        if (image is not null)
+        {
+            image.Stretch = Stretch.UniformToFill;
+            host.Child = image;
+        }
+        else
+        {
+            host.Child = Create(assetPath, backgroundColor, width, height, 9);
+        }
+        return host;
+    }
+
     private static FrameworkElement? TryCreateBuiltInGraphic(string? assetPath, double size)
     {
         if (!string.Equals(assetPath, SteamBuiltInAsset, StringComparison.OrdinalIgnoreCase))
