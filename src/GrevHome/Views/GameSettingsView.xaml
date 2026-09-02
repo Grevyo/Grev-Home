@@ -14,17 +14,17 @@
                     <TextBox x:Name="DisplayNameBox" MinHeight="48" Padding="12" FontSize="18" />
                     <Button Content="Save Game Name" Margin="0,10,0,0" MinWidth="190" HorizontalAlignment="Left" Click="SaveName_Click" />
 
-                    <TextBlock Text="ICON" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="CONSOLE LOGO" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="IconStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                    <Button Content="Choose Icon Picture or GIF" Margin="0,10,0,0" MinWidth="260" HorizontalAlignment="Left" Click="ChooseIcon_Click" />
-                    <TextBlock Text="SAVED ICONS" Margin="0,16,0,6" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                    <TextBlock x:Name="NoSavedIconsText" Text="No reusable icons uploaded yet." Foreground="{StaticResource MutedBrush}" />
+                    <Button Content="Choose Console Logo Picture or GIF" Margin="0,10,0,0" MinWidth="300" HorizontalAlignment="Left" Click="ChooseIcon_Click" />
+                    <TextBlock Text="SAVED CONSOLE LOGOS" Margin="0,16,0,6" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="NoSavedIconsText" Text="No reusable console logos uploaded yet." Foreground="{StaticResource MutedBrush}" />
                     <WrapPanel x:Name="SavedIconsPanel" />
 
                     <TextBlock Text="FULL TILE" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="TileStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                     <Button Content="Choose Full Tile Picture or GIF" Margin="0,10,0,0" MinWidth="280" HorizontalAlignment="Left" Click="ChooseTile_Click" />
-                    <TextBlock Text="The full tile fills the entire game tile on Installed Apps and Home. The icon is used when no full tile has been selected." Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <TextBlock Text="The full tile fills the game tile. The console logo is independent and replaces the platform text at the top-left." Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 
