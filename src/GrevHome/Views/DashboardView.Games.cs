@@ -44,7 +44,7 @@ public partial class DashboardView
                 ? AppArtworkFactory.CreateTile(game.DisplayName, null, "#0F2F6E")
                 : AppArtworkFactory.CreateFullTile(game.TileMediaPath, "#0F2F6E"));
             var platformMark = !string.IsNullOrWhiteSpace(game.IconPath)
-                ? AppArtworkFactory.Create(game.IconPath, 34, 5)
+                ? AppArtworkFactory.CreateTransparent(game.IconPath, 34)
                 : new TextBlock
                 {
                     Text = available ? GameLibraryService.GetPlatformDisplayName(game.Platform) : "FILE MISSING",
