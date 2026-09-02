@@ -6,6 +6,7 @@ using GrevHome.Presentation;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Store;
+using GrevHome.Games;
 
 namespace GrevHome.Views;
 
@@ -17,11 +18,13 @@ public partial class InstalledLibraryView : UserControl
     private string _filter = "All";
     private SessionUser? _primaryUser;
     private InstalledAppEntry? _actionMenuEntry;
+    private GameLibraryEntry? _actionMenuGame;
     private LaunchSessionSnapshot? _actionMenuSession;
     private Button? _actionMenuOriginButton;
     private Guid? _pendingForceKillSessionId;
     private int? _pendingControllerIndex;
     private InstalledAppEntry? _pendingControllerEntry;
+    private GameLibraryEntry? _pendingControllerGame;
     private Button? _pendingControllerButton;
     private bool _pendingControllerLongPress;
 
@@ -100,13 +103,18 @@ public partial class InstalledLibraryView : UserControl
             return false;
         }
 
-        if (Keyboard.FocusedElement is not Button { Tag: InstalledAppEntry entry } button || !button.IsEnabled)
+        if (Keyboard.FocusedElement is not Button button || !button.IsEnabled)
         {
             return false;
         }
 
+        var entry = button.Tag as InstalledAppEntry;
+        var game = button.Tag as GameLibraryEntry;
+        if (entry is null && game is null) return false;
+
         _pendingControllerIndex = controllerIndex;
         _pendingControllerEntry = entry;
+        _pendingControllerGame = game;
         _pendingControllerButton = button;
         _pendingControllerLongPress = false;
 
@@ -119,32 +127,42 @@ public partial class InstalledLibraryView : UserControl
 
     public void HandleControllerAppLongPress(int controllerIndex)
     {
-        if (_pendingControllerIndex != controllerIndex || _pendingControllerEntry is null || _pendingControllerButton is null)
+        if (_pendingControllerIndex != controllerIndex || (_pendingControllerEntry is null && _pendingControllerGame is null) || _pendingControllerButton is null)
         {
             return;
         }
 
         _pendingControllerLongPress = true;
         RestorePendingControllerButtonTag();
-        OpenActionMenu(_pendingControllerEntry, _pendingControllerButton);
+        if (_pendingControllerEntry is not null) OpenActionMenu(_pendingControllerEntry, _pendingControllerButton);
+        else OpenGameActionMenu(_pendingControllerGame!, _pendingControllerButton);
     }
 
     public void CompleteControllerAppPress(int controllerIndex)
     {
-        if (_pendingControllerIndex != controllerIndex || _pendingControllerEntry is null)
+        if (_pendingControllerIndex != controllerIndex || (_pendingControllerEntry is null && _pendingControllerGame is null))
         {
             return;
         }
 
         var entry = _pendingControllerEntry;
+        var game = _pendingControllerGame;
         var wasLongPress = _pendingControllerLongPress;
         RestorePendingControllerButtonTag();
         ClearPendingControllerPress();
 
         if (!wasLongPress)
         {
-            StatusText.Text = $"Starting {entry.Manifest.Definition.Name}...";
-            LaunchRequested?.Invoke(entry);
+            if (entry is not null)
+            {
+                StatusText.Text = $"Starting {entry.Manifest.Definition.Name}...";
+                LaunchRequested?.Invoke(entry);
+            }
+            else if (game is not null)
+            {
+                StatusText.Text = $"Starting {game.DisplayName}...";
+                GameLaunchRequested?.Invoke(game);
+            }
         }
     }
 
@@ -169,6 +187,7 @@ public partial class InstalledLibraryView : UserControl
         AppActionOverlay.Visibility = Visibility.Collapsed;
         _pendingForceKillSessionId = null;
         _actionMenuEntry = null;
+        _actionMenuGame = null;
         _actionMenuSession = null;
 
         var origin = _actionMenuOriginButton;
@@ -265,6 +284,7 @@ public partial class InstalledLibraryView : UserControl
     {
         CancelControllerAppPress();
         _actionMenuEntry = entry;
+        _actionMenuGame = null;
         _actionMenuOriginButton = originButton;
         _pendingForceKillSessionId = null;
         AppActionTitleText.Text = _storeCatalog.Find(entry.Manifest.Definition.AppId)?.Presentation.DisplayName
@@ -279,6 +299,9 @@ public partial class InstalledLibraryView : UserControl
     {
         var matching = GetMatchingSessions(entry).ToArray();
         _actionMenuSession = matching.Length == 1 ? matching[0] : null;
+
+        AppActionSettingsButton.Visibility = Visibility.Visible;
+        AppActionStoreButton.Visibility = Visibility.Visible;
 
         AppActionOpenButton.Visibility = matching.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
         AppActionSwitchButton.Visibility = matching.Length == 1 ? Visibility.Visible : Visibility.Collapsed;
@@ -347,9 +370,9 @@ public partial class InstalledLibraryView : UserControl
 
     private void RestorePendingControllerButtonTag()
     {
-        if (_pendingControllerButton is not null && _pendingControllerEntry is not null)
+        if (_pendingControllerButton is not null && (_pendingControllerEntry is not null || _pendingControllerGame is not null))
         {
-            _pendingControllerButton.Tag = _pendingControllerEntry;
+            _pendingControllerButton.Tag = (object?)_pendingControllerEntry ?? _pendingControllerGame;
         }
     }
 
@@ -357,6 +380,7 @@ public partial class InstalledLibraryView : UserControl
     {
         _pendingControllerIndex = null;
         _pendingControllerEntry = null;
+        _pendingControllerGame = null;
         _pendingControllerButton = null;
         _pendingControllerLongPress = false;
     }
@@ -366,6 +390,10 @@ public partial class InstalledLibraryView : UserControl
         if (_actionMenuEntry is not null)
         {
             ActionMenuLaunchRequested?.Invoke(_actionMenuEntry);
+        }
+        else if (_actionMenuGame is not null)
+        {
+            GameLaunchRequested?.Invoke(_actionMenuGame);
         }
     }
 
@@ -382,6 +410,10 @@ public partial class InstalledLibraryView : UserControl
         if (_actionMenuEntry is not null)
         {
             SettingsRequested?.Invoke(_actionMenuEntry);
+        }
+        else if (_actionMenuGame is not null)
+        {
+            GameSettingsRequested?.Invoke(_actionMenuGame);
         }
     }
 
