@@ -299,7 +299,7 @@ public partial class MainWindow
             _headerCloseGrevHomeArmed = true;
             _headerPowerExpiresAt = now.AddSeconds(8);
             UpdatePowerMenuButtons();
-            ShowPowerMenuStatus("Close Grev Home armed. Select it again within 8 seconds to confirm.");
+            ClearPowerMenuStatus();
             return;
         }
 
