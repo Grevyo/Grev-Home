@@ -8,7 +8,38 @@ namespace GrevHome.Games;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum GamePlatform
 {
-    PlayStation2
+    PlayStation2,
+    Arcade,
+    Atari2600,
+    Atari5200,
+    Atari7800,
+    AtariJaguar,
+    AtariLynx,
+    NintendoEntertainmentSystem,
+    SuperNintendo,
+    Nintendo64,
+    GameBoy,
+    GameBoyColor,
+    GameBoyAdvance,
+    NintendoDS,
+    Nintendo3DS,
+    GameCube,
+    Wii,
+    SegaMasterSystem,
+    SegaGenesis,
+    SegaGameGear,
+    SegaCD,
+    Sega32X,
+    SegaSaturn,
+    SegaDreamcast,
+    PlayStation,
+    PlayStationPortable,
+    PcEngine,
+    PcEngineCD,
+    NeoGeoPocket,
+    WonderSwan,
+    Commodore64,
+    CommodoreAmiga
 }
 
 public sealed record GameLibraryEntry(
@@ -118,7 +149,7 @@ public sealed class GameLibraryService
             var prefix = platform switch
             {
                 GamePlatform.PlayStation2 => "game.ps2",
-                _ => "game"
+                _ => $"game.retroarch.{platform.ToString().ToLowerInvariant()}"
             };
             var entry = new GameLibraryEntry(
                 $"{prefix}.{Guid.NewGuid():N}",
@@ -313,6 +344,37 @@ public sealed class GameLibraryService
     public static string GetPlatformDisplayName(GamePlatform platform) => platform switch
     {
         GamePlatform.PlayStation2 => "PlayStation 2",
+        GamePlatform.Arcade => "Arcade",
+        GamePlatform.Atari2600 => "Atari 2600",
+        GamePlatform.Atari5200 => "Atari 5200",
+        GamePlatform.Atari7800 => "Atari 7800",
+        GamePlatform.AtariJaguar => "Atari Jaguar",
+        GamePlatform.AtariLynx => "Atari Lynx",
+        GamePlatform.NintendoEntertainmentSystem => "Nintendo Entertainment System",
+        GamePlatform.SuperNintendo => "Super Nintendo",
+        GamePlatform.Nintendo64 => "Nintendo 64",
+        GamePlatform.GameBoy => "Game Boy",
+        GamePlatform.GameBoyColor => "Game Boy Color",
+        GamePlatform.GameBoyAdvance => "Game Boy Advance",
+        GamePlatform.NintendoDS => "Nintendo DS",
+        GamePlatform.Nintendo3DS => "Nintendo 3DS",
+        GamePlatform.GameCube => "Nintendo GameCube",
+        GamePlatform.Wii => "Nintendo Wii",
+        GamePlatform.SegaMasterSystem => "Sega Master System",
+        GamePlatform.SegaGenesis => "Sega Mega Drive / Genesis",
+        GamePlatform.SegaGameGear => "Sega Game Gear",
+        GamePlatform.SegaCD => "Sega CD / Mega-CD",
+        GamePlatform.Sega32X => "Sega 32X",
+        GamePlatform.SegaSaturn => "Sega Saturn",
+        GamePlatform.SegaDreamcast => "Sega Dreamcast",
+        GamePlatform.PlayStation => "PlayStation",
+        GamePlatform.PlayStationPortable => "PlayStation Portable",
+        GamePlatform.PcEngine => "PC Engine / TurboGrafx-16",
+        GamePlatform.PcEngineCD => "PC Engine CD / TurboGrafx-CD",
+        GamePlatform.NeoGeoPocket => "Neo Geo Pocket / Color",
+        GamePlatform.WonderSwan => "WonderSwan / Color",
+        GamePlatform.Commodore64 => "Commodore 64",
+        GamePlatform.CommodoreAmiga => "Commodore Amiga",
         _ => platform.ToString()
     };
 
@@ -322,8 +384,41 @@ public sealed class GameLibraryService
         {
             ".iso", ".chd", ".bin", ".img", ".cso", ".zso", ".gz", ".mdf", ".nrg", ".isz"
         },
+        GamePlatform.Arcade => Extensions(".zip", ".7z", ".chd"),
+        GamePlatform.Atari2600 => Extensions(".a26", ".bin", ".zip", ".7z"),
+        GamePlatform.Atari5200 => Extensions(".a52", ".bin", ".rom", ".zip", ".7z"),
+        GamePlatform.Atari7800 => Extensions(".a78", ".bin", ".zip", ".7z"),
+        GamePlatform.AtariJaguar => Extensions(".j64", ".jag", ".rom", ".abs", ".cof", ".zip", ".7z"),
+        GamePlatform.AtariLynx => Extensions(".lnx", ".o", ".zip", ".7z"),
+        GamePlatform.NintendoEntertainmentSystem => Extensions(".nes", ".fds", ".unf", ".unif", ".zip", ".7z"),
+        GamePlatform.SuperNintendo => Extensions(".sfc", ".smc", ".fig", ".swc", ".zip", ".7z"),
+        GamePlatform.Nintendo64 => Extensions(".z64", ".n64", ".v64", ".zip", ".7z"),
+        GamePlatform.GameBoy => Extensions(".gb", ".zip", ".7z"),
+        GamePlatform.GameBoyColor => Extensions(".gbc", ".zip", ".7z"),
+        GamePlatform.GameBoyAdvance => Extensions(".gba", ".zip", ".7z"),
+        GamePlatform.NintendoDS => Extensions(".nds", ".zip", ".7z"),
+        GamePlatform.Nintendo3DS => Extensions(".3ds", ".3dsx", ".cci", ".cxi", ".app"),
+        GamePlatform.GameCube or GamePlatform.Wii => Extensions(".iso", ".gcm", ".gcz", ".rvz", ".wia", ".wbfs", ".dol", ".elf"),
+        GamePlatform.SegaMasterSystem => Extensions(".sms", ".bin", ".rom", ".zip", ".7z"),
+        GamePlatform.SegaGenesis => Extensions(".md", ".gen", ".bin", ".smd", ".zip", ".7z"),
+        GamePlatform.SegaGameGear => Extensions(".gg", ".bin", ".zip", ".7z"),
+        GamePlatform.SegaCD => Extensions(".cue", ".chd", ".iso", ".bin"),
+        GamePlatform.Sega32X => Extensions(".32x", ".bin", ".zip", ".7z"),
+        GamePlatform.SegaSaturn => Extensions(".cue", ".chd", ".iso", ".ccd", ".mds"),
+        GamePlatform.SegaDreamcast => Extensions(".cue", ".chd", ".cdi", ".gdi"),
+        GamePlatform.PlayStation => Extensions(".cue", ".chd", ".pbp", ".iso", ".ccd", ".m3u"),
+        GamePlatform.PlayStationPortable => Extensions(".iso", ".cso", ".pbp", ".elf"),
+        GamePlatform.PcEngine => Extensions(".pce", ".zip", ".7z"),
+        GamePlatform.PcEngineCD => Extensions(".cue", ".chd", ".ccd", ".toc", ".m3u"),
+        GamePlatform.NeoGeoPocket => Extensions(".ngp", ".ngc", ".zip", ".7z"),
+        GamePlatform.WonderSwan => Extensions(".ws", ".wsc", ".zip", ".7z"),
+        GamePlatform.Commodore64 => Extensions(".d64", ".d71", ".d81", ".t64", ".tap", ".crt", ".prg", ".zip"),
+        GamePlatform.CommodoreAmiga => Extensions(".adf", ".adz", ".dms", ".fdi", ".ipf", ".hdf", ".lha", ".zip"),
         _ => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     };
+
+    private static IReadOnlySet<string> Extensions(params string[] values) =>
+        new HashSet<string>(values, StringComparer.OrdinalIgnoreCase);
 
     public static bool IsSourceAvailable(GameLibraryEntry game) =>
         !string.IsNullOrWhiteSpace(game.SourcePath) && File.Exists(game.SourcePath);
