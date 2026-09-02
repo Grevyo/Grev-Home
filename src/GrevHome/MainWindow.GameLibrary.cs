@@ -4,7 +4,6 @@ using System.Windows;
 using GrevHome.Games;
 using GrevHome.Navigation;
 using GrevHome.Views;
-using Microsoft.Win32;
 
 namespace GrevHome;
 
@@ -13,6 +12,7 @@ public partial class MainWindow
     private readonly GameAddView _gameAddView = new();
     private readonly GameFilePickerView _gameFilePickerView = new();
     private readonly GameSettingsView _gameSettingsView = new();
+    private readonly ProfilePhotoPickerView _gameArtworkPickerView = new();
     private readonly GameLaunchResolver _gameLaunchResolver = new();
     private GameLibraryService? _gameLibraryService;
     private GamePlatform _pendingGamePlatform = GamePlatform.PlayStation2;
@@ -22,6 +22,8 @@ public partial class MainWindow
     private bool _gameAddInProgress;
     private bool _gameLibraryIntegrationReady;
     private GameLibraryEntry? _gameSettingsEntry;
+    private string? _gameArtworkCurrentPath;
+    private GameVisualAssetSlot _pendingGameArtworkSlot;
 
     private void InitializeGameLibraryIntegration()
     {
@@ -49,11 +51,17 @@ public partial class MainWindow
 
         _gameSettingsView.BackRequested += (_, _) => _navigation.GoBack();
         _gameSettingsView.SaveNameRequested += name => _ = SaveGameNameAsync(name);
-        _gameSettingsView.ChooseIconRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.Icon);
-        _gameSettingsView.ChooseTileRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.TileMedia);
+        _gameSettingsView.ChooseIconRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.Icon);
+        _gameSettingsView.ChooseTileRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.TileMedia);
         _gameSettingsView.ReusableIconRequested += path => _ = UseReusableGameIconAsync(path);
         _gameSettingsView.ResetRequested += (_, _) => _ = ResetGamePresentationAsync();
         _gameSettingsView.SaveLayoutRequested += layout => _ = SaveGamePresentationLayoutAsync(layout);
+
+        _gameArtworkPickerView.HomeRequested += (_, _) => ShowGameArtworkHome();
+        _gameArtworkPickerView.UpRequested += (_, _) => NavigateGameArtworkUp();
+        _gameArtworkPickerView.CancelRequested += (_, _) => _navigation.GoBack();
+        _gameArtworkPickerView.NavigateRequested += NavigateGameArtworkPath;
+        _gameArtworkPickerView.PhotoSelected += path => _ = SaveSelectedGameArtworkAsync(path);
 
         _gameAddView.BackRequested += (_, _) => _navigation.GoBack();
         _gameAddView.ChooseFileRequested += OpenGameFilePicker;
@@ -80,6 +88,10 @@ public partial class MainWindow
                 case Route.GameSettings:
                     RouteHost.Content = _gameSettingsView;
                     RenderGameSettings();
+                    FocusRouteSoon();
+                    break;
+                case Route.GameArtworkPicker:
+                    RouteHost.Content = _gameArtworkPickerView;
                     FocusRouteSoon();
                     break;
                 case Route.InstalledLibrary:
@@ -141,25 +153,72 @@ public partial class MainWindow
         }
     }
 
-    private async Task ChooseGameArtworkAsync(GameVisualAssetSlot slot)
+    private void OpenGameArtworkPicker(GameVisualAssetSlot slot)
+    {
+        if (_session.PrimaryUser?.GrevId is null || _gameSettingsEntry is null) return;
+        _pendingGameArtworkSlot = slot;
+        _gameArtworkCurrentPath = null;
+        _gameArtworkPickerView.SetPurpose(
+            slot == GameVisualAssetSlot.Icon ? "Choose Console Logo" : "Choose Full Game Tile",
+            slot == GameVisualAssetSlot.Icon ? "console logo" : "full game tile");
+        ShowGameArtworkHome();
+        _navigation.Navigate(Route.GameArtworkPicker);
+    }
+
+    private void ShowGameArtworkHome()
+    {
+        _gameArtworkCurrentPath = null;
+        try
+        {
+            var locations = _fileSystem.GetHomeLocations(_paths.Root)
+                .Where(location => location.Name is not "Test Area" and not "Grev Home Data")
+                .ToArray();
+            _gameArtworkPickerView.ShowHome(locations);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _gameArtworkPickerView.ShowError(ex.Message);
+        }
+    }
+
+    private void NavigateGameArtworkPath(string path)
+    {
+        try
+        {
+            var entries = _fileSystem.GetEntries(path);
+            _gameArtworkCurrentPath = path;
+            _gameArtworkPickerView.ShowDirectory(path, entries, _fileSystem.GetParent(path) is not null);
+            FocusRouteSoon();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException)
+        {
+            _gameArtworkPickerView.ShowError(ex.Message);
+        }
+    }
+
+    private void NavigateGameArtworkUp()
+    {
+        if (string.IsNullOrWhiteSpace(_gameArtworkCurrentPath))
+        {
+            ShowGameArtworkHome();
+            return;
+        }
+        var parent = _fileSystem.GetParent(_gameArtworkCurrentPath);
+        if (parent is null) ShowGameArtworkHome();
+        else NavigateGameArtworkPath(parent);
+    }
+
+    private async Task SaveSelectedGameArtworkAsync(string path)
     {
         var service = _gameLibraryService;
         var primary = _session.PrimaryUser;
+        var slot = _pendingGameArtworkSlot;
         if (service is null || primary?.GrevId is null || _gameSettingsEntry is null) return;
-
-        var picker = new OpenFileDialog
-        {
-            Title = slot == GameVisualAssetSlot.Icon ? "Choose Console Logo" : "Choose Full Game Tile",
-            Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif",
-            CheckFileExists = true,
-            Multiselect = false
-        };
-        if (picker.ShowDialog(this) != true) return;
 
         try
         {
-            _gameSettingsEntry = await service.SaveCustomAssetAsync(primary.GrevId, _gameSettingsEntry.GameId, slot, picker.FileName);
-            RenderGameSettings();
+            _gameSettingsEntry = await service.SaveCustomAssetAsync(primary.GrevId, _gameSettingsEntry.GameId, slot, path);
+            if (_navigation.Current == Route.GameArtworkPicker) _navigation.GoBack();
             await RefreshProfileGamesAsync();
             _gameSettingsView.ShowStatus(slot == GameVisualAssetSlot.Icon
                 ? "Custom console logo saved for this GrevID."
@@ -167,7 +226,7 @@ public partial class MainWindow
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {
-            _gameSettingsView.ShowStatus($"Could not save the artwork: {ex.Message}");
+            _gameArtworkPickerView.ShowError($"Could not save the artwork: {ex.Message}");
         }
     }
 
