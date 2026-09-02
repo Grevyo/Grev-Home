@@ -26,7 +26,7 @@ public partial class GameSettingsView : UserControl
         _game = game;
         IdentityText.Text = $"{game.DisplayName} • {GameLibraryService.GetPlatformDisplayName(game.Platform)} • {ownerName} • {grevId}";
         DisplayNameBox.Text = game.DisplayName;
-        IconStatusText.Text = string.IsNullOrWhiteSpace(game.IconPath) ? "Using the emulator's default icon." : "Custom icon configured for this GrevID.";
+        IconStatusText.Text = string.IsNullOrWhiteSpace(game.IconPath) ? "Showing the console name as text." : "Custom console logo configured for this GrevID.";
         TileStatusText.Text = string.IsNullOrWhiteSpace(game.TileMediaPath) ? "No custom full tile configured." : "Custom full tile configured for this GrevID.";
         SavedIconsPanel.Children.Clear();
         NoSavedIconsText.Visibility = reusableIcons.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -40,7 +40,7 @@ public partial class GameSettingsView : UserControl
                 Padding = new Thickness(5),
                 Tag = iconPath,
                 Content = AppArtworkFactory.Create(iconPath, 58, 8),
-                ToolTip = "Use this saved icon for the current game"
+                ToolTip = "Use this saved console logo for the current game"
             };
             button.Click += ReusableIcon_Click;
             SavedIconsPanel.Children.Add(button);
