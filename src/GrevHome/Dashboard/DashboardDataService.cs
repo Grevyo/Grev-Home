@@ -101,6 +101,13 @@ public sealed class DashboardDataService
                 if (gamesById.TryGetValue(stat.AppId, out var game))
                 {
                     var (canLaunch, message) = ResolveGameAvailability(game, installed, grevId);
+                    var presentation = new ResolvedAppPresentation(
+                        game.DisplayName,
+                        "#0F2F6E",
+                        game.IconPath,
+                        game.TileMediaPath,
+                        null,
+                        !string.IsNullOrWhiteSpace(game.IconPath) || !string.IsNullOrWhiteSpace(game.TileMediaPath));
                     return new DashboardAppActivity(
                         stat.AppId,
                         game.DisplayName,
@@ -110,7 +117,7 @@ public sealed class DashboardDataService
                         true,
                         canLaunch,
                         message,
-                        null);
+                        presentation);
                 }
 
                 return new DashboardAppActivity(
