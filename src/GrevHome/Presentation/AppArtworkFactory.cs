@@ -120,6 +120,16 @@ public static class AppArtworkFactory
         return host;
     }
 
+    public static FrameworkElement CreateTransparent(string? assetPath, double size)
+    {
+        var image = TryCreateImage(assetPath);
+        if (image is null) return new Grid { Width = size, Height = size, Background = Brushes.Transparent };
+        image.Width = size;
+        image.Height = size;
+        image.Stretch = Stretch.Uniform;
+        return image;
+    }
+
     private static FrameworkElement? TryCreateBuiltInGraphic(string? assetPath, double size)
     {
         if (!string.Equals(assetPath, SteamBuiltInAsset, StringComparison.OrdinalIgnoreCase))
