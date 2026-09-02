@@ -130,7 +130,11 @@ public sealed class GrevStoreCatalogService
                     new(AppControllerControl.RightShoulder, new(AppControllerOutputKind.KeyboardShortcut, "TAB")))),
             RuntimePolicy: new AppRuntimePolicy(
                 AppWindowMode.Maximized,
-                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden),
+                // PCSX2 temporarily hides its main Qt window while Windows-owned setup surfaces,
+                // including the BIOS file picker, are active. Keep the shell hidden for the full
+                // managed process lifetime; RuntimeSessionManager.SessionEnded still restores Grev
+                // Home as soon as the real PCSX2 process exits.
+                AppWindowReturnBehavior.KeepShellHidden),
             VersionPolicy: new AppVersionPolicy(
                 CurrentVersion: PCSX2InstallerService.SupportedVersion,
                 NativeAutoUpdate: false),
