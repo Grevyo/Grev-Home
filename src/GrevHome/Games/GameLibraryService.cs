@@ -16,7 +16,15 @@ public sealed record GameLibraryEntry(
     string DisplayName,
     GamePlatform Platform,
     string SourcePath,
-    DateTimeOffset AddedAtUtc);
+    DateTimeOffset AddedAtUtc,
+    string? IconPath = null,
+    string? TileMediaPath = null);
+
+public enum GameVisualAssetSlot
+{
+    Icon,
+    TileMedia
+}
 
 internal sealed record GameLibraryDocument(
     int SchemaVersion,
@@ -148,6 +156,97 @@ public sealed class GameLibraryService
         finally
         {
             _writeGate.Release();
+        }
+    }
+
+    public async Task<GameLibraryEntry> SaveDisplayNameAsync(
+        string grevId,
+        string gameId,
+        string displayName,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = displayName.Trim();
+        if (string.IsNullOrWhiteSpace(normalized) || normalized.Length > 100)
+        {
+            throw new InvalidOperationException("Game names must contain 1 to 100 characters.");
+        }
+
+        return await UpdateAsync(grevId, gameId, game => game with { DisplayName = normalized }, cancellationToken);
+    }
+
+    public async Task<GameLibraryEntry> SaveCustomAssetAsync(
+        string grevId,
+        string gameId,
+        GameVisualAssetSlot slot,
+        string sourcePath,
+        CancellationToken cancellationToken = default)
+    {
+        var source = Path.GetFullPath(sourcePath);
+        ValidateVisualAsset(source);
+        var root = Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
+        Directory.CreateDirectory(root);
+        var stem = slot == GameVisualAssetSlot.Icon ? "icon" : "tile";
+        var extension = Path.GetExtension(source).ToLowerInvariant();
+        var target = Path.Combine(root, stem + extension);
+        var temporary = Path.Combine(root, $"{stem}-{Guid.NewGuid():N}{extension}.tmp");
+        try
+        {
+            File.Copy(source, temporary, overwrite: false);
+            File.Move(temporary, target, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+
+        foreach (var old in Directory.EnumerateFiles(root, stem + ".*"))
+        {
+            if (!PathsEqual(old, target)) File.Delete(old);
+        }
+
+        return await UpdateAsync(
+            grevId,
+            gameId,
+            game => slot == GameVisualAssetSlot.Icon
+                ? game with { IconPath = target }
+                : game with { TileMediaPath = target },
+            cancellationToken);
+    }
+
+    private async Task<GameLibraryEntry> UpdateAsync(
+        string grevId,
+        string gameId,
+        Func<GameLibraryEntry, GameLibraryEntry> update,
+        CancellationToken cancellationToken)
+    {
+        await _writeGate.WaitAsync(cancellationToken);
+        try
+        {
+            var games = (await GetForProfileAsync(grevId, cancellationToken)).ToList();
+            var index = games.FindIndex(game => string.Equals(game.GameId, gameId, StringComparison.OrdinalIgnoreCase));
+            if (index < 0) throw new InvalidOperationException("That game is no longer in this GrevID's library.");
+            games[index] = update(games[index]);
+            await WriteAsync(grevId, games, cancellationToken);
+            return games[index];
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    private static void ValidateVisualAsset(string source)
+    {
+        if (!File.Exists(source)) throw new FileNotFoundException("That image file no longer exists.", source);
+        var extension = Path.GetExtension(source);
+        if (extension is not (".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif") &&
+            extension is not (".PNG" or ".JPG" or ".JPEG" or ".BMP" or ".GIF"))
+        {
+            throw new InvalidDataException("Choose a PNG, JPG, JPEG, BMP, or GIF image.");
+        }
+        if (new FileInfo(source).Length > 25L * 1024L * 1024L)
+        {
+            throw new InvalidDataException("Game artwork must be 25 MB or smaller.");
         }
     }
 
