@@ -26,6 +26,7 @@ public sealed class GameLibraryService
 {
     private const int SchemaVersion = 1;
     private readonly AppPaths _paths;
+    private readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
     {
         WriteIndented = true
@@ -92,32 +93,40 @@ public sealed class GameLibraryService
         string? displayName = null,
         CancellationToken cancellationToken = default)
     {
-        _paths.EnsureProfileLayout(grevId);
-        var fullPath = ValidateGamePath(platform, sourcePath);
-        var games = (await GetForProfileAsync(grevId, cancellationToken)).ToList();
-
-        var existing = games.FirstOrDefault(game => PathsEqual(game.SourcePath, fullPath));
-        if (existing is not null)
+        await _writeGate.WaitAsync(cancellationToken);
+        try
         {
-            return existing;
+            _paths.EnsureProfileLayout(grevId);
+            var fullPath = ValidateGamePath(platform, sourcePath);
+            var games = (await GetForProfileAsync(grevId, cancellationToken)).ToList();
+
+            var existing = games.FirstOrDefault(game => PathsEqual(game.SourcePath, fullPath));
+            if (existing is not null)
+            {
+                return existing;
+            }
+
+            var name = NormalizeDisplayName(displayName, fullPath);
+            var prefix = platform switch
+            {
+                GamePlatform.PlayStation2 => "game.ps2",
+                _ => "game"
+            };
+            var entry = new GameLibraryEntry(
+                $"{prefix}.{Guid.NewGuid():N}",
+                name,
+                platform,
+                fullPath,
+                DateTimeOffset.UtcNow);
+
+            games.Add(entry);
+            await WriteAsync(grevId, games, cancellationToken);
+            return entry;
         }
-
-        var name = NormalizeDisplayName(displayName, fullPath);
-        var prefix = platform switch
+        finally
         {
-            GamePlatform.PlayStation2 => "game.ps2",
-            _ => "game"
-        };
-        var entry = new GameLibraryEntry(
-            $"{prefix}.{Guid.NewGuid():N}",
-            name,
-            platform,
-            fullPath,
-            DateTimeOffset.UtcNow);
-
-        games.Add(entry);
-        await WriteAsync(grevId, games, cancellationToken);
-        return entry;
+            _writeGate.Release();
+        }
     }
 
     public async Task RemoveAsync(
@@ -125,13 +134,21 @@ public sealed class GameLibraryService
         string gameId,
         CancellationToken cancellationToken = default)
     {
-        var games = (await GetForProfileAsync(grevId, cancellationToken)).ToList();
-        var removed = games.RemoveAll(game => string.Equals(game.GameId, gameId, StringComparison.OrdinalIgnoreCase));
-        if (removed == 0)
+        await _writeGate.WaitAsync(cancellationToken);
+        try
         {
-            return;
+            var games = (await GetForProfileAsync(grevId, cancellationToken)).ToList();
+            var removed = games.RemoveAll(game => string.Equals(game.GameId, gameId, StringComparison.OrdinalIgnoreCase));
+            if (removed == 0)
+            {
+                return;
+            }
+            await WriteAsync(grevId, games, cancellationToken);
         }
-        await WriteAsync(grevId, games, cancellationToken);
+        finally
+        {
+            _writeGate.Release();
+        }
     }
 
     public static string GetPlatformDisplayName(GamePlatform platform) => platform switch
