@@ -14,7 +14,27 @@ public partial class GameAddView : UserControl
     public GameAddView()
     {
         InitializeComponent();
+        PopulatePlatformChoices();
         UpdatePresentation();
+    }
+
+    private void PopulatePlatformChoices()
+    {
+        PlatformChoicesPanel.Children.Clear();
+        foreach (var platform in Enum.GetValues<GamePlatform>())
+        {
+            var button = new Button
+            {
+                Content = GameLibraryService.GetPlatformDisplayName(platform),
+                Tag = platform.ToString(),
+                Width = 340,
+                MinHeight = 46,
+                Margin = new Thickness(0, 0, 0, 4),
+                HorizontalAlignment = HorizontalAlignment.Left
+            };
+            button.Click += PlatformChoice_Click;
+            PlatformChoicesPanel.Children.Add(button);
+        }
     }
 
     public void SetOwner(string displayName, string grevId)
@@ -54,7 +74,7 @@ public partial class GameAddView : UserControl
         {
             GamePlatform.PlayStation2 =>
                 "Choose your own dumped PS2 game image. Grev Home stores its location and launches it through this profile's PCSX2 installation.",
-            _ => $"Choose a supported {name} game file."
+            _ => $"Choose a supported {name} game file. Grev Home launches it through this profile's RetroArch installation and a compatible installed core."
         };
     }
 }
