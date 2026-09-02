@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Media;
 using GrevHome.Games;
 using GrevHome.Presentation;
@@ -24,6 +23,10 @@ public partial class InstalledLibraryView
         }
 
         _gameUiInitialized = true;
+
+        // InstalledLibraryView owns the existing app filter. Render the game layer after that
+        // filter has updated so Games/All can independently show or hide the two tile surfaces
+        // without changing the established installed-app rendering contract in this first pass.
         RoutedEventHandler refresh = (_, _) => Dispatcher.BeginInvoke(new Action(RenderGames));
         AllFilterButton.Click += refresh;
         AppsFilterButton.Click += refresh;
@@ -139,13 +142,6 @@ public partial class InstalledLibraryView
         GameLaunchRequested?.Invoke(game);
     }
 
-    private void AddGame_Click(object sender, RoutedEventArgs e) => AddGameRequested?.Invoke(this, EventArgs.Empty);
-
-    // These handlers remain no-ops only while older XAML from an interrupted hot update is being
-    // replaced in the same branch. The final InstalledLibraryView.xaml does not contain the inline
-    // Add Game overlay; Add Game navigates to the dedicated controller-first GameAdd route instead.
-    private void GamePlatform_Click(object sender, RoutedEventArgs e) { }
-    private void GamePlatformChoice_Click(object sender, RoutedEventArgs e) { }
-    private void ChooseGameFile_Click(object sender, RoutedEventArgs e) => AddGameRequested?.Invoke(this, EventArgs.Empty);
-    private void CancelAddGame_Click(object sender, RoutedEventArgs e) { }
+    private void AddGame_Click(object sender, RoutedEventArgs e) =>
+        AddGameRequested?.Invoke(this, EventArgs.Empty);
 }
