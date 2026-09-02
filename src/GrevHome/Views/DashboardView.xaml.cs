@@ -163,18 +163,34 @@ public partial class DashboardView : UserControl
                 145);
             var fullGrid = new Grid();
             fullGrid.Children.Add(fullTile);
+            AddGameConsoleLogo(fullGrid, item);
             fullGrid.Children.Add(CreateLastPlayedTimestamp(item));
             return fullGrid;
         }
 
         var tile = AppArtworkFactory.CreateTile(
             presentation?.DisplayName ?? item.AppName,
-            presentation?.TileMediaPath ?? presentation?.IconPath,
+            item.AppId.StartsWith("game.", StringComparison.OrdinalIgnoreCase)
+                ? null
+                : presentation?.TileMediaPath ?? presentation?.IconPath,
             presentation?.TileColor);
         var grid = new Grid();
         grid.Children.Add(tile);
+        AddGameConsoleLogo(grid, item);
         grid.Children.Add(CreateLastPlayedTimestamp(item));
         return grid;
+    }
+
+    private static void AddGameConsoleLogo(Grid grid, DashboardAppActivity item)
+    {
+        if (!item.AppId.StartsWith("game.", StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(item.Presentation?.IconPath)) return;
+
+        var logo = AppArtworkFactory.Create(item.Presentation.IconPath, 34, 5);
+        logo.Margin = new Thickness(8, 6, 8, 0);
+        logo.HorizontalAlignment = HorizontalAlignment.Left;
+        logo.VerticalAlignment = VerticalAlignment.Top;
+        grid.Children.Add(logo);
     }
 
     private static FrameworkElement CreateLastPlayedTimestamp(DashboardAppActivity item)
