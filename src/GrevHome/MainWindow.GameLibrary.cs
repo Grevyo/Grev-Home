@@ -148,7 +148,7 @@ public partial class MainWindow
 
         var picker = new OpenFileDialog
         {
-            Title = slot == GameVisualAssetSlot.Icon ? "Choose Game Icon" : "Choose Full Game Tile",
+            Title = slot == GameVisualAssetSlot.Icon ? "Choose Console Logo" : "Choose Full Game Tile",
             Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif",
             CheckFileExists = true,
             Multiselect = false
@@ -161,7 +161,7 @@ public partial class MainWindow
             RenderGameSettings();
             await RefreshProfileGamesAsync();
             _gameSettingsView.ShowStatus(slot == GameVisualAssetSlot.Icon
-                ? "Custom game icon saved for this GrevID."
+                ? "Custom console logo saved for this GrevID."
                 : "Custom full game tile saved for this GrevID and applied to Installed Apps and Home.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
@@ -180,7 +180,7 @@ public partial class MainWindow
             _gameSettingsEntry = await service.UseReusableIconAsync(primary.GrevId, _gameSettingsEntry.GameId, iconPath);
             RenderGameSettings();
             await RefreshProfileGamesAsync();
-            _gameSettingsView.ShowStatus("Saved icon applied. The full-tile override was cleared so the icon is visible now.");
+            _gameSettingsView.ShowStatus("Saved console logo applied at the top-left. The full-tile artwork was left unchanged.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {
@@ -198,7 +198,7 @@ public partial class MainWindow
             _gameSettingsEntry = await service.ResetPresentationAsync(primary.GrevId, _gameSettingsEntry.GameId);
             RenderGameSettings();
             await RefreshProfileGamesAsync();
-            _gameSettingsView.ShowStatus("Game name, icon and full tile restored to their defaults. Saved reusable icons were kept.");
+            _gameSettingsView.ShowStatus("Game name, console logo and full tile restored to their defaults. Saved reusable console logos were kept.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {
