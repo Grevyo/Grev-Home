@@ -214,7 +214,7 @@ public sealed class GameLibraryService
             grevId,
             gameId,
             game => slot == GameVisualAssetSlot.Icon
-                ? game with { IconPath = target, TileMediaPath = null }
+                ? game with { IconPath = target }
                 : game with { TileMediaPath = target },
             cancellationToken);
     }
@@ -241,7 +241,7 @@ public sealed class GameLibraryService
         {
             throw new InvalidOperationException("That reusable game icon is no longer available.");
         }
-        return UpdateAsync(grevId, gameId, game => game with { IconPath = icon, TileMediaPath = null }, cancellationToken);
+        return UpdateAsync(grevId, gameId, game => game with { IconPath = icon }, cancellationToken);
     }
 
     public async Task<GameLibraryEntry> ResetPresentationAsync(
