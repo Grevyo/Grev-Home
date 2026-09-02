@@ -40,23 +40,11 @@ public partial class DashboardView
 
             button.Padding = new Thickness(0);
             var content = new Grid();
+            var tileColor = GameArtworkFactory.GetTileColor(game);
             content.Children.Add(string.IsNullOrWhiteSpace(game.TileMediaPath)
-                ? AppArtworkFactory.CreateTile(game.DisplayName, null, "#0F2F6E")
-                : AppArtworkFactory.CreateFullTile(game.TileMediaPath, "#0F2F6E"));
-            var platformMark = !string.IsNullOrWhiteSpace(game.IconPath)
-                ? AppArtworkFactory.CreateTransparent(game.IconPath, 34)
-                : new TextBlock
-                {
-                    Text = available ? GameLibraryService.GetPlatformDisplayName(game.Platform) : "FILE MISSING",
-                    FontSize = 11,
-                    FontWeight = FontWeights.SemiBold,
-                    Foreground = System.Windows.Media.Brushes.White,
-                    Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 }
-                };
-            platformMark.Margin = new Thickness(8, 6, 8, 0);
-            platformMark.HorizontalAlignment = HorizontalAlignment.Left;
-            platformMark.VerticalAlignment = VerticalAlignment.Top;
-            content.Children.Add(platformMark);
+                ? AppArtworkFactory.CreateTile(game.DisplayName, null, tileColor)
+                : AppArtworkFactory.CreateFullTile(game.TileMediaPath, tileColor));
+            content.Children.Add(GameArtworkFactory.CreateConsoleMark(game, available));
             button.Content = content;
             button.Click += Game_Click;
             GamesPanel.Children.Add(button);
