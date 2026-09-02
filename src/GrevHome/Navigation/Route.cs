@@ -9,6 +9,7 @@ public enum Route
     ProfileView,
     ProfileEdit,
     ProfilePhotoPicker,
+    GameAdd,
     GameFilePicker,
     GrevStore,
     GrevStoreApp,
