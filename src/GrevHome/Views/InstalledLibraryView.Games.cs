@@ -79,7 +79,7 @@ public partial class InstalledLibraryView
             var tile = string.IsNullOrWhiteSpace(game.TileMediaPath)
                 ? AppArtworkFactory.CreateTile(
                     game.DisplayName,
-                    game.IconPath ?? pcsx2Package?.Presentation.IconAsset,
+                    pcsx2Package?.Presentation.IconAsset,
                     tileColor)
                 : AppArtworkFactory.CreateFullTile(game.TileMediaPath, tileColor);
 
@@ -87,21 +87,23 @@ public partial class InstalledLibraryView
             content.Children.Add(tile);
             var platformBadge = new Border
             {
-                HorizontalAlignment = HorizontalAlignment.Right,
+                HorizontalAlignment = HorizontalAlignment.Left,
                 VerticalAlignment = VerticalAlignment.Top,
                 Margin = new Thickness(8, 6, 8, 0),
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
-                Child = new TextBlock
-                {
-                    Text = available ? "PLAYSTATION 2" : "FILE MISSING",
-                    FontSize = 10,
-                    FontWeight = FontWeights.Bold,
-                    Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 },
-                    Foreground = available
-                        ? Brushes.White
-                        : new SolidColorBrush(Color.FromRgb(255, 118, 118))
-                }
+                Child = !string.IsNullOrWhiteSpace(game.IconPath)
+                    ? AppArtworkFactory.Create(game.IconPath, 34, 5)
+                    : new TextBlock
+                    {
+                        Text = available ? "PLAYSTATION 2" : "FILE MISSING",
+                        FontSize = 10,
+                        FontWeight = FontWeights.Bold,
+                        Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 },
+                        Foreground = available
+                            ? Brushes.White
+                            : new SolidColorBrush(Color.FromRgb(255, 118, 118))
+                    }
             };
             content.Children.Add(platformBadge);
 
