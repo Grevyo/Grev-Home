@@ -39,7 +39,7 @@ public partial class GameSettingsView : UserControl
                 Margin = new Thickness(0, 0, 8, 8),
                 Padding = new Thickness(5),
                 Tag = iconPath,
-                Content = AppArtworkFactory.Create(iconPath, 58, 8),
+                Content = AppArtworkFactory.CreateTransparent(iconPath, 58),
                 ToolTip = "Use this saved console logo for the current game"
             };
             button.Click += ReusableIcon_Click;
