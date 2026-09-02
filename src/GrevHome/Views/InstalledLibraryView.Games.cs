@@ -93,7 +93,7 @@ public partial class InstalledLibraryView
                 Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0),
                 Child = !string.IsNullOrWhiteSpace(game.IconPath)
-                    ? AppArtworkFactory.Create(game.IconPath, 34, 5)
+                    ? AppArtworkFactory.CreateTransparent(game.IconPath, 34)
                     : new TextBlock
                     {
                         Text = available ? "PLAYSTATION 2" : "FILE MISSING",
