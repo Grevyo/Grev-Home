@@ -30,6 +30,7 @@ public partial class MainWindow
 
         _installedLibraryView.AddGameRequested += (_, _) => OpenGameAdd();
         _installedLibraryView.GameLaunchRequested += game => _ = LaunchGameAsync(game);
+        _dashboardView.GameRequested += game => _ = LaunchGameAsync(game);
 
         _gameAddView.BackRequested += (_, _) => _navigation.GoBack();
         _gameAddView.ChooseFileRequested += OpenGameFilePicker;
@@ -54,16 +55,17 @@ public partial class MainWindow
                     FocusRouteSoon();
                     break;
                 case Route.InstalledLibrary:
-                    _ = RefreshInstalledGamesAsync();
+                case Route.Dashboard:
+                    _ = RefreshProfileGamesAsync();
                     break;
             }
         };
 
         _session.Changed += (_, _) =>
         {
-            if (_navigation.Current == Route.InstalledLibrary)
+            if (_navigation.Current is Route.InstalledLibrary or Route.Dashboard)
             {
-                Dispatcher.BeginInvoke(new Action(() => _ = RefreshInstalledGamesAsync()));
+                Dispatcher.BeginInvoke(new Action(() => _ = RefreshProfileGamesAsync()));
             }
         };
     }
@@ -165,7 +167,7 @@ public partial class MainWindow
             var game = await service.AddAsync(primary.GrevId, _pendingGamePlatform, path);
 
             // GameFilePicker -> GameAdd -> InstalledLibrary. Return through both existing history
-            // entries so the Installed screen keeps the same Back destination it had before Add Game.
+            // entries so Installed keeps the same Back destination it had before Add Game.
             if (_navigation.Current == Route.GameFilePicker)
             {
                 _navigation.GoBack();
@@ -175,9 +177,9 @@ public partial class MainWindow
                 _navigation.GoBack();
             }
 
-            await RefreshInstalledGamesAsync();
+            await RefreshProfileGamesAsync();
             _installedLibraryView.ShowGameStatus(
-                $"Added {game.DisplayName} • {GameLibraryService.GetPlatformDisplayName(game.Platform)}. Select its tile to launch it.");
+                $"Added {game.DisplayName} • {GameLibraryService.GetPlatformDisplayName(game.Platform)}. It is now available here and on Home.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
         {
@@ -185,7 +187,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task RefreshInstalledGamesAsync()
+    private async Task RefreshProfileGamesAsync()
     {
         var service = _gameLibraryService;
         var primary = _session.PrimaryUser;
@@ -196,7 +198,14 @@ public partial class MainWindow
 
         if (primary?.GrevId is null)
         {
-            _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
+            if (_navigation.Current == Route.InstalledLibrary)
+            {
+                _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
+            }
+            if (_navigation.Current == Route.Dashboard)
+            {
+                _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
+            }
             return;
         }
 
@@ -207,6 +216,10 @@ public partial class MainWindow
             {
                 _installedLibraryView.SetGames(games, primary);
             }
+            else if (_navigation.Current == Route.Dashboard)
+            {
+                _dashboardView.SetGames(games);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -214,6 +227,11 @@ public partial class MainWindow
             {
                 _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
                 _installedLibraryView.ShowGameStatus($"Game library unavailable: {ex.Message}");
+            }
+            else if (_navigation.Current == Route.Dashboard)
+            {
+                _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
+                _dashboardView.ShowStatus($"Game library unavailable: {ex.Message}");
             }
         }
     }
@@ -223,7 +241,7 @@ public partial class MainWindow
         var primary = _session.PrimaryUser;
         if (primary?.GrevId is null)
         {
-            _installedLibraryView.ShowGameStatus("Choose a persistent Primary User before launching a game.");
+            ShowGameLaunchError("Choose a persistent Primary User before launching a game.");
             return;
         }
 
@@ -234,12 +252,25 @@ public partial class MainWindow
             var launched = await _runtimeSessions.LaunchAsync(runtimeEntry, _session);
             _foregroundLaunchSessionId = launched.LaunchSessionId;
             _installedLibraryView.ShowLaunchStarted(launched);
+            _dashboardView.ShowStatus($"Starting {game.DisplayName}…");
             UpdateRuntimeSurfaces();
             Hide();
         }
-        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or Win32Exception)
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException or InvalidDataException or Win32Exception)
         {
-            _installedLibraryView.ShowLaunchError(ex.Message);
+            ShowGameLaunchError(ex.Message);
+        }
+    }
+
+    private void ShowGameLaunchError(string message)
+    {
+        if (_navigation.Current == Route.Dashboard)
+        {
+            _dashboardView.ShowStatus($"Game launch failed: {message}");
+        }
+        else
+        {
+            _installedLibraryView.ShowLaunchError(message);
         }
     }
 }
