@@ -183,14 +183,10 @@ public partial class DashboardView : UserControl
 
     private static void AddGameConsoleLogo(Grid grid, DashboardAppActivity item)
     {
-        if (!item.AppId.StartsWith("game.", StringComparison.OrdinalIgnoreCase) ||
-            string.IsNullOrWhiteSpace(item.Presentation?.IconPath)) return;
-
-        var logo = AppArtworkFactory.CreateTransparent(item.Presentation.IconPath, 34);
-        logo.Margin = new Thickness(8, 6, 8, 0);
-        logo.HorizontalAlignment = HorizontalAlignment.Left;
-        logo.VerticalAlignment = VerticalAlignment.Top;
-        grid.Children.Add(logo);
+        if (item.Game is not null)
+        {
+            grid.Children.Add(GameArtworkFactory.CreateConsoleMark(item.Game, item.CanLaunch));
+        }
     }
 
     private static FrameworkElement CreateLastPlayedTimestamp(DashboardAppActivity item)
