@@ -49,13 +49,36 @@ public sealed record GameLibraryEntry(
     string SourcePath,
     DateTimeOffset AddedAtUtc,
     string? IconPath = null,
-    string? TileMediaPath = null);
+    string? TileMediaPath = null,
+    string? TileColor = null,
+    GameConsoleLogoPosition ConsoleLogoPosition = GameConsoleLogoPosition.TopLeft,
+    bool ConsoleLogoHasBackground = false,
+    string? ConsoleLogoBackgroundColor = null,
+    double ConsoleLogoScale = 1.0);
 
 public enum GameVisualAssetSlot
 {
     Icon,
     TileMedia
 }
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum GameConsoleLogoPosition
+{
+    TopLeft,
+    TopCenter,
+    TopRight,
+    BottomLeft,
+    BottomCenter,
+    BottomRight
+}
+
+public sealed record GamePresentationLayout(
+    string TileColor,
+    GameConsoleLogoPosition ConsoleLogoPosition,
+    bool ConsoleLogoHasBackground,
+    string ConsoleLogoBackgroundColor,
+    double ConsoleLogoScale);
 
 internal sealed record GameLibraryDocument(
     int SchemaVersion,
@@ -287,12 +310,47 @@ public sealed class GameLibraryService
             {
                 DisplayName = NormalizeDisplayName(null, game.SourcePath),
                 IconPath = null,
-                TileMediaPath = null
+                TileMediaPath = null,
+                TileColor = null,
+                ConsoleLogoPosition = GameConsoleLogoPosition.TopLeft,
+                ConsoleLogoHasBackground = false,
+                ConsoleLogoBackgroundColor = null,
+                ConsoleLogoScale = 1.0
             },
             cancellationToken);
         var root = Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
         if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         return updated;
+    }
+
+    public Task<GameLibraryEntry> SavePresentationLayoutAsync(
+        string grevId,
+        string gameId,
+        GamePresentationLayout layout,
+        CancellationToken cancellationToken = default)
+    {
+        var tileColor = NormalizeColor(layout.TileColor, "tile colour");
+        var logoBackground = NormalizeColor(layout.ConsoleLogoBackgroundColor, "console-logo background colour");
+        var scale = Math.Clamp(layout.ConsoleLogoScale, 0.5, 2.5);
+        return UpdateAsync(grevId, gameId, game => game with
+        {
+            TileColor = tileColor,
+            ConsoleLogoPosition = layout.ConsoleLogoPosition,
+            ConsoleLogoHasBackground = layout.ConsoleLogoHasBackground,
+            ConsoleLogoBackgroundColor = logoBackground,
+            ConsoleLogoScale = scale
+        }, cancellationToken);
+    }
+
+    private static string NormalizeColor(string value, string label)
+    {
+        var color = value.Trim();
+        if (color.Length != 7 || color[0] != '#' ||
+            !int.TryParse(color[1..], System.Globalization.NumberStyles.HexNumber, null, out _))
+        {
+            throw new InvalidOperationException($"The {label} must use #RRGGBB format.");
+        }
+        return color.ToUpperInvariant();
     }
 
     private string GetReusableIconRoot(string grevId) =>
