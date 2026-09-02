@@ -161,7 +161,7 @@ public partial class DashboardView : UserControl
         var detail = new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromArgb(205, 8, 12, 20)),
-            Padding = new Thickness(8, 4),
+            Padding = new Thickness(8, 4, 8, 4),
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
             CornerRadius = new CornerRadius(5),
