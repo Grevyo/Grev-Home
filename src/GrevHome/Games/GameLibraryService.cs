@@ -183,11 +183,15 @@ public sealed class GameLibraryService
     {
         var source = Path.GetFullPath(sourcePath);
         ValidateVisualAsset(source);
-        var root = Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
+        var root = slot == GameVisualAssetSlot.Icon
+            ? GetReusableIconRoot(grevId)
+            : Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
         Directory.CreateDirectory(root);
         var stem = slot == GameVisualAssetSlot.Icon ? "icon" : "tile";
         var extension = Path.GetExtension(source).ToLowerInvariant();
-        var target = Path.Combine(root, stem + extension);
+        var target = slot == GameVisualAssetSlot.Icon
+            ? Path.Combine(root, $"icon-{Guid.NewGuid():N}{extension}")
+            : Path.Combine(root, stem + extension);
         var temporary = Path.Combine(root, $"{stem}-{Guid.NewGuid():N}{extension}.tmp");
         try
         {
@@ -199,7 +203,9 @@ public sealed class GameLibraryService
             if (File.Exists(temporary)) File.Delete(temporary);
         }
 
-        foreach (var old in Directory.EnumerateFiles(root, stem + ".*"))
+        foreach (var old in slot == GameVisualAssetSlot.TileMedia
+                     ? Directory.EnumerateFiles(root, stem + ".*")
+                     : Array.Empty<string>())
         {
             if (!PathsEqual(old, target)) File.Delete(old);
         }
@@ -208,10 +214,58 @@ public sealed class GameLibraryService
             grevId,
             gameId,
             game => slot == GameVisualAssetSlot.Icon
-                ? game with { IconPath = target }
+                ? game with { IconPath = target, TileMediaPath = null }
                 : game with { TileMediaPath = target },
             cancellationToken);
     }
+
+    public IReadOnlyList<string> GetReusableIcons(string grevId)
+    {
+        var root = GetReusableIconRoot(grevId);
+        if (!Directory.Exists(root)) return Array.Empty<string>();
+        return Directory.EnumerateFiles(root)
+            .Where(path => IsSupportedVisualExtension(Path.GetExtension(path)))
+            .OrderByDescending(File.GetLastWriteTimeUtc)
+            .ToArray();
+    }
+
+    public Task<GameLibraryEntry> UseReusableIconAsync(
+        string grevId,
+        string gameId,
+        string iconPath,
+        CancellationToken cancellationToken = default)
+    {
+        var root = Path.GetFullPath(GetReusableIconRoot(grevId)) + Path.DirectorySeparatorChar;
+        var icon = Path.GetFullPath(iconPath);
+        if (!icon.StartsWith(root, StringComparison.OrdinalIgnoreCase) || !File.Exists(icon))
+        {
+            throw new InvalidOperationException("That reusable game icon is no longer available.");
+        }
+        return UpdateAsync(grevId, gameId, game => game with { IconPath = icon, TileMediaPath = null }, cancellationToken);
+    }
+
+    public async Task<GameLibraryEntry> ResetPresentationAsync(
+        string grevId,
+        string gameId,
+        CancellationToken cancellationToken = default)
+    {
+        var updated = await UpdateAsync(
+            grevId,
+            gameId,
+            game => game with
+            {
+                DisplayName = NormalizeDisplayName(null, game.SourcePath),
+                IconPath = null,
+                TileMediaPath = null
+            },
+            cancellationToken);
+        var root = Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
+        if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        return updated;
+    }
+
+    private string GetReusableIconRoot(string grevId) =>
+        Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "GameIcons");
 
     private async Task<GameLibraryEntry> UpdateAsync(
         string grevId,
@@ -239,8 +293,7 @@ public sealed class GameLibraryService
     {
         if (!File.Exists(source)) throw new FileNotFoundException("That image file no longer exists.", source);
         var extension = Path.GetExtension(source);
-        if (extension is not (".png" or ".jpg" or ".jpeg" or ".bmp" or ".gif") &&
-            extension is not (".PNG" or ".JPG" or ".JPEG" or ".BMP" or ".GIF"))
+        if (!IsSupportedVisualExtension(extension))
         {
             throw new InvalidDataException("Choose a PNG, JPG, JPEG, BMP, or GIF image.");
         }
@@ -249,6 +302,13 @@ public sealed class GameLibraryService
             throw new InvalidDataException("Game artwork must be 25 MB or smaller.");
         }
     }
+
+    private static bool IsSupportedVisualExtension(string extension) =>
+        extension.Equals(".png", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".jpg", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".jpeg", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".bmp", StringComparison.OrdinalIgnoreCase) ||
+        extension.Equals(".gif", StringComparison.OrdinalIgnoreCase);
 
     public static string GetPlatformDisplayName(GamePlatform platform) => platform switch
     {
