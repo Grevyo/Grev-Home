@@ -12,6 +12,19 @@
                        Foreground="{StaticResource MutedBrush}"
                        TextWrapping="Wrap" />
 
+            <Border Margin="0,0,0,18"
+                    Padding="16,12"
+                    Background="#171D29"
+                    BorderBrush="#415274"
+                    BorderThickness="1"
+                    CornerRadius="8">
+                <TextBlock Text="The emulator must already be installed and set up before adding a game. PlayStation 2 requires PCSX2; every other listed platform requires RetroArch and a compatible installed core."
+                           FontSize="13"
+                           FontWeight="SemiBold"
+                           Foreground="#E8ECF5"
+                           TextWrapping="Wrap" />
+            </Border>
+
             <Border Padding="22"
                     Background="#11151E"
                     BorderBrush="#2B3344"
