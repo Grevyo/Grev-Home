@@ -1,6 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Games;
+using GrevHome.Presentation;
 
 namespace GrevHome.Views;
 
@@ -37,30 +38,25 @@ public partial class DashboardView
                     : $"Game file unavailable: {game.SourcePath}"
             };
 
-            var stack = new StackPanel();
-            stack.Children.Add(new TextBlock
-            {
-                Text = game.DisplayName,
-                Style = (Style)FindResource("DashboardTileTitleStyle"),
-                TextTrimming = TextTrimming.CharacterEllipsis
-            });
-            stack.Children.Add(new TextBlock
+            button.Padding = new Thickness(0);
+            var content = new Grid();
+            content.Children.Add(string.IsNullOrWhiteSpace(game.TileMediaPath)
+                ? AppArtworkFactory.CreateTile(game.DisplayName, game.IconPath, "#0F2F6E")
+                : AppArtworkFactory.CreateFullTile(game.TileMediaPath, "#0F2F6E"));
+            content.Children.Add(new TextBlock
             {
                 Text = available
                     ? GameLibraryService.GetPlatformDisplayName(game.Platform)
                     : $"{GameLibraryService.GetPlatformDisplayName(game.Platform)} • FILE MISSING",
-                Style = (Style)FindResource("DashboardTileDetailStyle")
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = available ? "Play" : "Reconnect the game file or drive",
-                Margin = new Thickness(0, 7, 0, 0),
+                Margin = new Thickness(8, 6, 8, 0),
                 FontSize = 11,
-                FontWeight = FontWeights.Bold,
-                Foreground = (System.Windows.Media.Brush)FindResource(available ? "AccentBrush" : "MutedBrush")
+                FontWeight = FontWeights.SemiBold,
+                Foreground = System.Windows.Media.Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Top,
+                Effect = new System.Windows.Media.Effects.DropShadowEffect { BlurRadius = 4, ShadowDepth = 1, Opacity = 0.95 }
             });
-
-            button.Content = stack;
+            button.Content = content;
             button.Click += Game_Click;
             GamesPanel.Children.Add(button);
         }
