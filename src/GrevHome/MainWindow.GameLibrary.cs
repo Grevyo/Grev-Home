@@ -15,6 +15,9 @@ public partial class MainWindow
     private GameLibraryService? _gameLibraryService;
     private GamePlatform _pendingGamePlatform = GamePlatform.PlayStation2;
     private string? _gameFileCurrentPath;
+    private string? _renderedGameLibraryOwnerGrevId;
+    private int _gameLibraryRefreshGeneration;
+    private bool _gameAddInProgress;
     private bool _gameLibraryIntegrationReady;
 
     private void InitializeGameLibraryIntegration()
@@ -63,11 +66,32 @@ public partial class MainWindow
 
         _session.Changed += (_, _) =>
         {
-            if (_navigation.Current is Route.InstalledLibrary or Route.Dashboard)
+            // Never leave one profile's game objects clickable while another Primary GrevID is
+            // becoming active. In-flight reads are invalidated and both cached surfaces are cleared
+            // synchronously on the UI thread before the replacement library is loaded.
+            if (Dispatcher.CheckAccess())
             {
-                Dispatcher.BeginInvoke(new Action(() => _ = RefreshProfileGamesAsync()));
+                InvalidateProfileGameLibrary();
+            }
+            else
+            {
+                Dispatcher.BeginInvoke(new Action(InvalidateProfileGameLibrary));
             }
         };
+    }
+
+    private void InvalidateProfileGameLibrary()
+    {
+        Interlocked.Increment(ref _gameLibraryRefreshGeneration);
+        _renderedGameLibraryOwnerGrevId = null;
+        var primary = _session.PrimaryUser;
+        _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
+        _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
+
+        if (_navigation.Current is Route.InstalledLibrary or Route.Dashboard)
+        {
+            _ = RefreshProfileGamesAsync();
+        }
     }
 
     private void OpenGameAdd()
@@ -161,7 +185,13 @@ public partial class MainWindow
         {
             return;
         }
+        if (_gameAddInProgress)
+        {
+            _gameFilePickerView.ShowError("That game is already being added.");
+            return;
+        }
 
+        _gameAddInProgress = true;
         try
         {
             var game = await service.AddAsync(primary.GrevId, _pendingGamePlatform, path);
@@ -185,6 +215,10 @@ public partial class MainWindow
         {
             _gameFilePickerView.ShowError(ex.Message);
         }
+        finally
+        {
+            _gameAddInProgress = false;
+        }
     }
 
     private async Task RefreshProfileGamesAsync()
@@ -198,41 +232,47 @@ public partial class MainWindow
 
         if (primary?.GrevId is null)
         {
-            if (_navigation.Current == Route.InstalledLibrary)
-            {
-                _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
-            }
-            if (_navigation.Current == Route.Dashboard)
-            {
-                _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
-            }
+            Interlocked.Increment(ref _gameLibraryRefreshGeneration);
+            _renderedGameLibraryOwnerGrevId = null;
+            _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
+            _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
             return;
+        }
+
+        var ownerGrevId = primary.GrevId;
+        var generation = Interlocked.Increment(ref _gameLibraryRefreshGeneration);
+        if (!string.Equals(_renderedGameLibraryOwnerGrevId, ownerGrevId, StringComparison.OrdinalIgnoreCase))
+        {
+            _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
+            _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
         }
 
         try
         {
-            var games = await service.GetForProfileAsync(primary.GrevId);
-            if (_navigation.Current == Route.InstalledLibrary)
+            var games = await service.GetForProfileAsync(ownerGrevId);
+            if (generation != Volatile.Read(ref _gameLibraryRefreshGeneration) ||
+                !string.Equals(_session.PrimaryUser?.GrevId, ownerGrevId, StringComparison.OrdinalIgnoreCase))
             {
-                _installedLibraryView.SetGames(games, primary);
+                return;
             }
-            else if (_navigation.Current == Route.Dashboard)
-            {
-                _dashboardView.SetGames(games);
-            }
+
+            _renderedGameLibraryOwnerGrevId = ownerGrevId;
+            _installedLibraryView.SetGames(games, primary);
+            _dashboardView.SetGames(games);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
-            if (_navigation.Current == Route.InstalledLibrary)
+            if (generation != Volatile.Read(ref _gameLibraryRefreshGeneration) ||
+                !string.Equals(_session.PrimaryUser?.GrevId, ownerGrevId, StringComparison.OrdinalIgnoreCase))
             {
-                _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
-                _installedLibraryView.ShowGameStatus($"Game library unavailable: {ex.Message}");
+                return;
             }
-            else if (_navigation.Current == Route.Dashboard)
-            {
-                _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
-                _dashboardView.ShowStatus($"Game library unavailable: {ex.Message}");
-            }
+
+            _renderedGameLibraryOwnerGrevId = null;
+            _installedLibraryView.SetGames(Array.Empty<GameLibraryEntry>(), primary);
+            _dashboardView.SetGames(Array.Empty<GameLibraryEntry>());
+            _installedLibraryView.ShowGameStatus($"Game library unavailable: {ex.Message}");
+            _dashboardView.ShowStatus($"Game library unavailable: {ex.Message}");
         }
     }
 
