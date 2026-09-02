@@ -3,6 +3,7 @@ using GrevHome.Games;
 using GrevHome.Runtime;
 using GrevHome.Storage;
 using GrevHome.Store;
+using GrevHome.Presentation;
 
 namespace GrevHome.Dashboard;
 
@@ -15,7 +16,8 @@ public sealed record DashboardAppActivity(
     bool IsInstalled,
     bool CanLaunch,
     string? AvailabilityMessage,
-    ResolvedAppPresentation? Presentation);
+    ResolvedAppPresentation? Presentation,
+    GameLibraryEntry? Game);
 
 public sealed record DashboardDataSnapshot(
     long TotalPlaytimeSeconds,
@@ -95,7 +97,8 @@ public sealed class DashboardDataService
                         true,
                         installedEntry.AvailableToCurrentUser,
                         installedEntry.AvailabilityMessage,
-                        presentation);
+                        presentation,
+                        null);
                 }
 
                 if (gamesById.TryGetValue(stat.AppId, out var game))
@@ -103,7 +106,7 @@ public sealed class DashboardDataService
                     var (canLaunch, message) = ResolveGameAvailability(game, installed, grevId);
                     var presentation = new ResolvedAppPresentation(
                         game.DisplayName,
-                        "#0F2F6E",
+                        GameArtworkFactory.GetTileColor(game),
                         game.IconPath,
                         game.TileMediaPath,
                         null,
@@ -117,7 +120,8 @@ public sealed class DashboardDataService
                         true,
                         canLaunch,
                         message,
-                        presentation);
+                        presentation,
+                        game);
                 }
 
                 return new DashboardAppActivity(
@@ -128,6 +132,7 @@ public sealed class DashboardDataService
                     stat.LastPlayedAtUtc,
                     false,
                     false,
+                    null,
                     null,
                     null);
             })
