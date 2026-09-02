@@ -22,8 +22,10 @@ public partial class MainWindow
         // Completed-session history is always local-first and exists whether Grev.dad is linked or not.
         InitializeSessionHistoryIntegration();
 
-        // Profile presentation is local-only and deliberately separate from permanent identity data.
+        // Profile presentation and the per-profile game library are local-only. Neither changes the
+        // permanent GrevID identity or depends on Grev.dad being connected.
         InitializeProfilePresentationIntegration();
+        InitializeGameLibraryIntegration();
 
         // Online identity is a shell foundation, not a page-owned feature. Initialize it only after
         // MainWindow construction has completed so these consumers cannot observe half-built services.
