@@ -8,7 +8,7 @@ namespace GrevHome.Views;
 public partial class ProfilePhotoPickerView : UserControl
 {
     private static readonly HashSet<string> SupportedExtensions =
-        new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp" };
+        new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
 
     private string _purposeNoun = "profile photo";
 
@@ -27,7 +27,7 @@ public partial class ProfilePhotoPickerView : UserControl
     {
         HeadingText.Text = heading;
         _purposeNoun = string.IsNullOrWhiteSpace(purposeNoun) ? "profile image" : purposeNoun.Trim();
-        DescriptionText.Text = $"Choose a PNG, JPG, JPEG or BMP image. Grev Home copies it into the profile so the original can move later.";
+        DescriptionText.Text = $"Choose a PNG, JPG, JPEG, BMP or GIF image. Grev Home copies it into the profile so the original can move later.";
     }
 
     public void ShowHome(IReadOnlyList<FileHomeLocation> locations)
