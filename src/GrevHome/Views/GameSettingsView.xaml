@@ -1,0 +1,34 @@
+<UserControl x:Class="GrevHome.Views.GameSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Margin="72,38" MaxWidth="900">
+            <TextBlock Text="App Settings" FontSize="40" FontWeight="SemiBold" />
+            <TextBlock x:Name="IdentityText" Margin="0,6,0,22" FontSize="15" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+
+            <Border Padding="24" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16">
+                <StackPanel>
+                    <TextBlock Text="GAME PRESENTATION" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="Game name" Margin="0,18,0,6" Foreground="{StaticResource MutedBrush}" />
+                    <TextBox x:Name="DisplayNameBox" MinHeight="48" Padding="12" FontSize="18" />
+                    <Button Content="Save Game Name" Margin="0,10,0,0" MinWidth="190" HorizontalAlignment="Left" Click="SaveName_Click" />
+
+                    <TextBlock Text="ICON" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="IconStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <Button Content="Choose Icon Picture or GIF" Margin="0,10,0,0" MinWidth="260" HorizontalAlignment="Left" Click="ChooseIcon_Click" />
+
+                    <TextBlock Text="FULL TILE" Margin="0,24,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="TileStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <Button Content="Choose Full Tile Picture or GIF" Margin="0,10,0,0" MinWidth="280" HorizontalAlignment="Left" Click="ChooseTile_Click" />
+                    <TextBlock Text="The full tile fills the entire game tile on Installed Apps and Home. The icon is used when no full tile has been selected." Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                </StackPanel>
+            </Border>
+
+            <WrapPanel Margin="0,18,0,0">
+                <Button Content="Back" MinWidth="130" Margin="0,0,10,10" Click="Back_Click" />
+            </WrapPanel>
+            <TextBlock x:Name="StatusText" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>
