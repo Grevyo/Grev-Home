@@ -4,6 +4,7 @@ using System.Windows;
 using GrevHome.Games;
 using GrevHome.Navigation;
 using GrevHome.Views;
+using Microsoft.Win32;
 
 namespace GrevHome;
 
@@ -11,6 +12,7 @@ public partial class MainWindow
 {
     private readonly GameAddView _gameAddView = new();
     private readonly GameFilePickerView _gameFilePickerView = new();
+    private readonly GameSettingsView _gameSettingsView = new();
     private readonly GameLaunchResolver _gameLaunchResolver = new();
     private GameLibraryService? _gameLibraryService;
     private GamePlatform _pendingGamePlatform = GamePlatform.PlayStation2;
@@ -19,6 +21,7 @@ public partial class MainWindow
     private int _gameLibraryRefreshGeneration;
     private bool _gameAddInProgress;
     private bool _gameLibraryIntegrationReady;
+    private GameLibraryEntry? _gameSettingsEntry;
 
     private void InitializeGameLibraryIntegration()
     {
@@ -32,8 +35,22 @@ public partial class MainWindow
         _installedLibraryView.InitializeGameLibraryUi();
 
         _installedLibraryView.AddGameRequested += (_, _) => OpenGameAdd();
-        _installedLibraryView.GameLaunchRequested += game => _ = LaunchGameAsync(game);
+        _installedLibraryView.GameLaunchRequested += game =>
+        {
+            CloseInstalledLibraryActionMenuForAction();
+            _ = LaunchGameAsync(game);
+        };
+        _installedLibraryView.GameSettingsRequested += game =>
+        {
+            CloseInstalledLibraryActionMenuForAction();
+            OpenGameSettings(game);
+        };
         _dashboardView.GameRequested += game => _ = LaunchGameAsync(game);
+
+        _gameSettingsView.BackRequested += (_, _) => _navigation.GoBack();
+        _gameSettingsView.SaveNameRequested += name => _ = SaveGameNameAsync(name);
+        _gameSettingsView.ChooseIconRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.Icon);
+        _gameSettingsView.ChooseTileRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.TileMedia);
 
         _gameAddView.BackRequested += (_, _) => _navigation.GoBack();
         _gameAddView.ChooseFileRequested += OpenGameFilePicker;
@@ -57,6 +74,11 @@ public partial class MainWindow
                     RouteHost.Content = _gameFilePickerView;
                     FocusRouteSoon();
                     break;
+                case Route.GameSettings:
+                    RouteHost.Content = _gameSettingsView;
+                    RenderGameSettings();
+                    FocusRouteSoon();
+                    break;
                 case Route.InstalledLibrary:
                 case Route.Dashboard:
                     _ = RefreshProfileGamesAsync();
@@ -78,6 +100,68 @@ public partial class MainWindow
                 Dispatcher.BeginInvoke(new Action(InvalidateProfileGameLibrary));
             }
         };
+    }
+
+    private void OpenGameSettings(GameLibraryEntry game)
+    {
+        if (_session.PrimaryUser?.GrevId is null) return;
+        _gameSettingsEntry = game;
+        _navigation.Navigate(Route.GameSettings);
+    }
+
+    private void RenderGameSettings()
+    {
+        var primary = _session.PrimaryUser;
+        if (_gameSettingsEntry is null || primary?.GrevId is null) return;
+        _gameSettingsView.SetGame(_gameSettingsEntry, primary.DisplayName, primary.GrevId);
+    }
+
+    private async Task SaveGameNameAsync(string displayName)
+    {
+        var service = _gameLibraryService;
+        var primary = _session.PrimaryUser;
+        if (service is null || primary?.GrevId is null || _gameSettingsEntry is null) return;
+        try
+        {
+            _gameSettingsEntry = await service.SaveDisplayNameAsync(primary.GrevId, _gameSettingsEntry.GameId, displayName);
+            RenderGameSettings();
+            await RefreshProfileGamesAsync();
+            _gameSettingsView.ShowStatus("Game name saved for this GrevID.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus($"Could not save the game name: {ex.Message}");
+        }
+    }
+
+    private async Task ChooseGameArtworkAsync(GameVisualAssetSlot slot)
+    {
+        var service = _gameLibraryService;
+        var primary = _session.PrimaryUser;
+        if (service is null || primary?.GrevId is null || _gameSettingsEntry is null) return;
+
+        var picker = new OpenFileDialog
+        {
+            Title = slot == GameVisualAssetSlot.Icon ? "Choose Game Icon" : "Choose Full Game Tile",
+            Filter = "Images (*.png;*.jpg;*.jpeg;*.bmp;*.gif)|*.png;*.jpg;*.jpeg;*.bmp;*.gif",
+            CheckFileExists = true,
+            Multiselect = false
+        };
+        if (picker.ShowDialog(this) != true) return;
+
+        try
+        {
+            _gameSettingsEntry = await service.SaveCustomAssetAsync(primary.GrevId, _gameSettingsEntry.GameId, slot, picker.FileName);
+            RenderGameSettings();
+            await RefreshProfileGamesAsync();
+            _gameSettingsView.ShowStatus(slot == GameVisualAssetSlot.Icon
+                ? "Custom game icon saved for this GrevID."
+                : "Custom full game tile saved for this GrevID and applied to Installed Apps and Home.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus($"Could not save the artwork: {ex.Message}");
+        }
     }
 
     private void InvalidateProfileGameLibrary()
