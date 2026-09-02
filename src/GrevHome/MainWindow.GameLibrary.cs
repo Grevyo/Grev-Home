@@ -53,6 +53,7 @@ public partial class MainWindow
         _gameSettingsView.ChooseTileRequested += (_, _) => _ = ChooseGameArtworkAsync(GameVisualAssetSlot.TileMedia);
         _gameSettingsView.ReusableIconRequested += path => _ = UseReusableGameIconAsync(path);
         _gameSettingsView.ResetRequested += (_, _) => _ = ResetGamePresentationAsync();
+        _gameSettingsView.SaveLayoutRequested += layout => _ = SaveGamePresentationLayoutAsync(layout);
 
         _gameAddView.BackRequested += (_, _) => _navigation.GoBack();
         _gameAddView.ChooseFileRequested += OpenGameFilePicker;
@@ -203,6 +204,24 @@ public partial class MainWindow
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {
             _gameSettingsView.ShowStatus($"Could not restore defaults: {ex.Message}");
+        }
+    }
+
+    private async Task SaveGamePresentationLayoutAsync(GamePresentationLayout layout)
+    {
+        var service = _gameLibraryService;
+        var primary = _session.PrimaryUser;
+        if (service is null || primary?.GrevId is null || _gameSettingsEntry is null) return;
+        try
+        {
+            _gameSettingsEntry = await service.SavePresentationLayoutAsync(primary.GrevId, _gameSettingsEntry.GameId, layout);
+            RenderGameSettings();
+            await RefreshProfileGamesAsync();
+            _gameSettingsView.ShowStatus("Tile colour and console-logo layout saved for this GrevID.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus($"Could not save the presentation layout: {ex.Message}");
         }
     }
 
