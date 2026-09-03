@@ -22,6 +22,7 @@ public partial class DashboardView
         GamesSummaryText.Text = _homeGames.Count == 0
             ? "No games added yet"
             : $"Open all {_homeGames.Count} game{(_homeGames.Count == 1 ? string.Empty : "s")}";
+        RenderDashboardTiles();
     }
 
     private void Game_Click(object sender, RoutedEventArgs e)

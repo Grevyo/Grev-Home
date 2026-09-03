@@ -83,25 +83,25 @@
                        FontWeight="Bold"
                        Foreground="{StaticResource MutedBrush}" />
             <WrapPanel Margin="0,0,0,22">
-                <Button x:Name="YourGamesButton" Style="{StaticResource DashboardTileStyle}" Click="YourGames_Click">
+                <Button x:Name="YourGamesButton" Tag="your-games" Style="{StaticResource DashboardTileStyle}" Click="YourGames_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Your Games" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock x:Name="GamesSummaryText" Text="Open your complete game library" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource DashboardTileStyle}" Click="InstalledApps_Click">
+                <Button x:Name="InstalledAppsButton" Tag="installed-apps" Style="{StaticResource DashboardTileStyle}" Click="InstalledApps_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Installed Apps" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock Text="Apps, emulators and individual games" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource DashboardTileStyle}" Click="Store_Click">
+                <Button x:Name="StoreButton" Tag="grev-store" Style="{StaticResource DashboardTileStyle}" Click="Store_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Grev Store" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock Text="Browse supported apps" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource DashboardTileStyle}" Click="Files_Click">
+                <Button x:Name="FilesButton" Tag="files" Style="{StaticResource DashboardTileStyle}" Click="Files_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Files" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock Text="Browse local files and folders" Style="{StaticResource DashboardTileDetailStyle}" />
@@ -116,7 +116,9 @@
                        Foreground="{StaticResource MutedBrush}" />
             <WrapPanel>
                 <Button x:Name="RunningAppsButton"
+                        Tag="running-apps"
                         Style="{StaticResource DashboardTileStyle}"
+                        PreviewMouseRightButtonUp="DashboardTile_RightClick"
                         Click="RunningApps_Click">
                     <StackPanel>
                         <TextBlock Text="Running Apps" Style="{StaticResource DashboardTileTitleStyle}" />
@@ -125,7 +127,7 @@
                                    Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource DashboardTileStyle}" Click="ActivityCenter_Click">
+                <Button x:Name="ActivityCenterButton" Tag="activity-center" Style="{StaticResource DashboardTileStyle}" Click="ActivityCenter_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Activity Center" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock x:Name="ActivityCenterDetailText"
@@ -133,21 +135,23 @@
                                    Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource DashboardTileStyle}" Click="AppKiller_Click">
+                <Button x:Name="AppKillerButton" Tag="app-killer" Style="{StaticResource DashboardTileStyle}" Click="AppKiller_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="App Killer" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock Text="Manage or force-close a stuck app" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-                <Button Style="{StaticResource DashboardTileStyle}" Click="Settings_Click">
+                <Button x:Name="SettingsButton" Tag="settings" Style="{StaticResource DashboardTileStyle}" Click="Settings_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Settings" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock Text="Grev Home and controller settings" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
                 <Button x:Name="AdminConsoleButton"
+                        Tag="admin-console"
                         Style="{StaticResource DashboardTileStyle}"
                         Visibility="Collapsed"
+                        PreviewMouseRightButtonUp="DashboardTile_RightClick"
                         Click="AdminConsole_Click">
                     <StackPanel>
                         <TextBlock Text="Admin Console" Style="{StaticResource DashboardTileTitleStyle}" />

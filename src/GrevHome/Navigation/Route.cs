@@ -5,6 +5,8 @@ public enum Route
     Login,
     CreateProfile,
     Dashboard,
+    DashboardTileSettings,
+    DashboardTileArtworkPicker,
     ProfilePlayers,
     ProfileView,
     ProfileEdit,

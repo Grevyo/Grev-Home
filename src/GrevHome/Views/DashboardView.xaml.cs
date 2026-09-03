@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using GrevHome.Dashboard;
 using GrevHome.Notifications;
 using GrevHome.Profiles;
@@ -23,6 +24,11 @@ public partial class DashboardView : UserControl
     public event EventHandler? StoreRequested;
     public event EventHandler? ActivityCenterRequested;
     public event Action<string>? ActivityAppRequested;
+    public event Action<string>? TileSettingsRequested;
+    private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations = new Dictionary<string, ResolvedDashboardTile>();
+    private Button? _pendingTileButton;
+    private string? _pendingTileId;
+    private bool _pendingTileLongPress;
 
     public DashboardView()
     {
@@ -55,6 +61,7 @@ public partial class DashboardView : UserControl
     public void SetRunningCount(int runningCount)
     {
         RunningCountText.Text = $"{runningCount} active";
+        RenderDashboardTiles();
     }
 
     public void SetDashboardData(DashboardDataSnapshot snapshot)
@@ -122,6 +129,72 @@ public partial class DashboardView : UserControl
         ActivityCenterDetailText.Text = parts.Count == 0
             ? "Notifications and downloads"
             : string.Join("  •  ", parts);
+        RenderDashboardTiles();
+    }
+
+    public void SetTilePresentations(IReadOnlyDictionary<string, ResolvedDashboardTile> presentations)
+    {
+        _tilePresentations = presentations;
+        RenderDashboardTiles();
+    }
+
+    public bool BeginControllerTilePress()
+    {
+        if (Keyboard.FocusedElement is not Button { Tag: string tileId } button ||
+            !DashboardTileCatalog.All.Any(item => item.Id == tileId)) return false;
+        _pendingTileButton = button;
+        _pendingTileId = tileId;
+        _pendingTileLongPress = false;
+        return true;
+    }
+
+    public void HandleControllerTileLongPress()
+    {
+        if (_pendingTileButton is null || _pendingTileId is null) return;
+        _pendingTileLongPress = true;
+        TileSettingsRequested?.Invoke(_pendingTileId);
+    }
+
+    public void CompleteControllerTilePress()
+    {
+        var button = _pendingTileButton;
+        var longPress = _pendingTileLongPress;
+        _pendingTileButton = null; _pendingTileId = null; _pendingTileLongPress = false;
+        if (!longPress) button?.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+    }
+
+    public void CancelControllerTilePress()
+    {
+        _pendingTileButton = null; _pendingTileId = null; _pendingTileLongPress = false;
+    }
+
+    public bool SuppressPendingTileClick(object sender) => sender == _pendingTileButton;
+
+    private void RenderDashboardTiles()
+    {
+        RenderDashboardTile(YourGamesButton, "your-games", GamesSummaryText.Text);
+        RenderDashboardTile(InstalledAppsButton, "installed-apps", DashboardTileCatalog.Get("installed-apps").Detail);
+        RenderDashboardTile(StoreButton, "grev-store", DashboardTileCatalog.Get("grev-store").Detail);
+        RenderDashboardTile(FilesButton, "files", DashboardTileCatalog.Get("files").Detail);
+        RenderDashboardTile(RunningAppsButton, "running-apps", RunningCountText.Text);
+        RenderDashboardTile(ActivityCenterButton, "activity-center", ActivityCenterDetailText.Text);
+        RenderDashboardTile(AppKillerButton, "app-killer", DashboardTileCatalog.Get("app-killer").Detail);
+        RenderDashboardTile(SettingsButton, "settings", DashboardTileCatalog.Get("settings").Detail);
+        RenderDashboardTile(AdminConsoleButton, "admin-console", DashboardTileCatalog.Get("admin-console").Detail);
+    }
+
+    private void RenderDashboardTile(Button button, string id, string detail)
+    {
+        var tile = _tilePresentations.TryGetValue(id, out var resolved) ? resolved : new ResolvedDashboardTile(id, DashboardTileCatalog.Get(id).Name, detail, DashboardTileCatalog.Get(id).Color, null, false);
+        button.Padding = new Thickness(0);
+        if (!string.IsNullOrWhiteSpace(tile.TileMediaPath)) button.Content = AppArtworkFactory.CreateFullTile(tile.TileMediaPath, tile.TileColor, 285, 145);
+        else button.Content = AppArtworkFactory.CreateTile(tile.DisplayName, null, tile.TileColor);
+        button.ToolTip = $"{tile.DisplayName} • {detail} • Hold A or right-click for appearance settings";
+    }
+
+    private void DashboardTile_RightClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+    {
+        if (sender is Button { Tag: string tileId }) { e.Handled = true; TileSettingsRequested?.Invoke(tileId); }
     }
 
     public void ShowStatus(string message)
@@ -255,31 +328,36 @@ public partial class DashboardView : UserControl
         ManageUsersRequested?.Invoke(this, EventArgs.Empty);
 
     private void InstalledApps_Click(object sender, RoutedEventArgs e) =>
-        InstalledAppsRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, InstalledAppsRequested);
 
     private void YourGames_Click(object sender, RoutedEventArgs e) =>
-        YourGamesRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, YourGamesRequested);
 
     private void RunningApps_Click(object sender, RoutedEventArgs e) =>
-        RunningAppsRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, RunningAppsRequested);
 
     private void ActivityCenter_Click(object sender, RoutedEventArgs e) =>
-        ActivityCenterRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, ActivityCenterRequested);
 
     private void AppKiller_Click(object sender, RoutedEventArgs e) =>
-        AppKillerRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, AppKillerRequested);
 
     private void Settings_Click(object sender, RoutedEventArgs e) =>
-        SettingsRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, SettingsRequested);
 
     private void AdminConsole_Click(object sender, RoutedEventArgs e) =>
-        AdminConsoleRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, AdminConsoleRequested);
 
     private void Files_Click(object sender, RoutedEventArgs e) =>
-        FilesRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, FilesRequested);
 
     private void Store_Click(object sender, RoutedEventArgs e) =>
-        StoreRequested?.Invoke(this, EventArgs.Empty);
+        InvokeUnlessPending(sender, StoreRequested);
+
+    private void InvokeUnlessPending(object sender, EventHandler? handler)
+    {
+        if (!SuppressPendingTileClick(sender)) handler?.Invoke(this, EventArgs.Empty);
+    }
 
     private void Logout_Click(object sender, RoutedEventArgs e) =>
         LogoutRequested?.Invoke(this, EventArgs.Empty);
