@@ -151,7 +151,7 @@ public partial class DashboardView : UserControl
         {
             FriendsPanel.Children.Add(new Border
             {
-                Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12), CornerRadius = new CornerRadius(9),
+                Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12), CornerRadius = new CornerRadius(9),
                 Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush"),
                 Child = new StackPanel { Children = { new TextBlock { Text = friend.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold }, new TextBlock { Text = $"{friend.Presence.Availability}  •  {friend.Presence.ActivityText}", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis } } }
             });
