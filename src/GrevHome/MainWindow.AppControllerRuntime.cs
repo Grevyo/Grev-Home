@@ -332,7 +332,8 @@ public partial class MainWindow
                     observedVisibleWindow = true;
                     hiddenSince = null;
                 }
-                else if (returnBehavior == AppWindowReturnBehavior.KeepShellHidden)
+                else if (snapshot.KeepShellHiddenWhileRunning ||
+                         returnBehavior == AppWindowReturnBehavior.KeepShellHidden)
                 {
                     hiddenSince = null;
                 }

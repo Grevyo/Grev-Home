@@ -184,6 +184,13 @@ Runtime behavior has one source of truth for each concern.
 - normal versus maximized activation;
 - whether Grev Home should return when the app window becomes minimized/hidden.
 
+That policy is copied into each managed runtime session when it launches and persisted with crash
+recovery state. Directly launched individual games always keep the shell hidden for the complete
+emulator process lifetime. This prevents a temporary emulator setup surface, BIOS picker, file
+dialog or main-window recreation from being misread as an app exit. `SessionEnded` remains the
+only automatic return path for those sessions; Return Home and Grev Overlay continue to work at
+all times.
+
 Do not duplicate `SingleInstance` or process-ownership rules in Store UI logic.
 
 ### Ordinary app default

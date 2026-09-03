@@ -197,7 +197,12 @@ public sealed class RuntimeSessionManager : IDisposable
             if (_active.ContainsKey(launchSessionId))
                 throw new InvalidOperationException("The previous runtime session has not finished its local completion commit, so Grev Home did not start a replacement yet.");
 
-            return await LaunchAsync(entry, snapshot.PrimaryGrevId, snapshot.Participants, cancellationToken);
+            return await LaunchAsync(
+                entry,
+                snapshot.PrimaryGrevId,
+                snapshot.Participants,
+                snapshot.KeepShellHiddenWhileRunning,
+                cancellationToken);
         }
         finally
         {
@@ -208,6 +213,7 @@ public sealed class RuntimeSessionManager : IDisposable
     public Task<LaunchSessionSnapshot> LaunchAsync(
         InstalledAppEntry entry,
         SessionContext sessionContext,
+        bool keepShellHiddenWhileRunning = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -220,13 +226,14 @@ public sealed class RuntimeSessionManager : IDisposable
             .ToArray();
         if (participants.Length == 0)
             throw new InvalidOperationException("At least one user must be signed in before launching an app.");
-        return LaunchAsync(entry, primary.GrevId, participants, cancellationToken);
+        return LaunchAsync(entry, primary.GrevId, participants, keepShellHiddenWhileRunning, cancellationToken);
     }
 
     public Task<LaunchSessionSnapshot> LaunchAsync(
         InstalledAppEntry entry,
         string? primaryGrevId,
         IReadOnlyList<LaunchParticipant> participants,
+        bool keepShellHiddenWhileRunning = false,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entry);
@@ -266,6 +273,7 @@ public sealed class RuntimeSessionManager : IDisposable
             systemInstalled ? launch.AdditionalProcessNames : null,
             launch.EffectiveTrackDescendantProcesses,
             launch.EffectiveForceKillEntireProcessTree,
+            keepShellHiddenWhileRunning,
             participants.ToArray(),
             rootIdentity,
             startedAtUtc);
@@ -351,6 +359,7 @@ public sealed class RuntimeSessionManager : IDisposable
                 record.AdditionalProcessNames,
                 record.TrackDescendantProcesses ?? true,
                 record.ForceKillEntireProcessTree ?? true,
+                record.KeepShellHiddenWhileRunning ?? false,
                 record.Participants ?? Array.Empty<LaunchParticipant>(),
                 record.RootProcessId,
                 aliveProcesses,
@@ -705,7 +714,8 @@ public sealed class RuntimeSessionManager : IDisposable
                     tracked.TrackDescendantProcesses,
                     tracked.ForceKillEntireProcessTree,
                     tracked.AccumulatedSuspendedSeconds,
-                    tracked.SuspendedAtUtc);
+                    tracked.SuspendedAtUtc,
+                    tracked.KeepShellHiddenWhileRunning);
             }).OrderByDescending(record => record.StartedAtUtc).ToArray();
             try
             {

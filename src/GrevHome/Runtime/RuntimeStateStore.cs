@@ -20,7 +20,8 @@ public sealed record RuntimeSessionRecoveryRecord(
     bool? TrackDescendantProcesses = null,
     bool? ForceKillEntireProcessTree = null,
     long AccumulatedSuspendedSeconds = 0,
-    DateTimeOffset? SuspendedAtUtc = null);
+    DateTimeOffset? SuspendedAtUtc = null,
+    bool? KeepShellHiddenWhileRunning = null);
 
 public sealed class RuntimeStateStore
 {

@@ -77,7 +77,10 @@ public sealed class GrevStoreCatalogService
             ControllerProfile: AppControllerProfileDefaults.Empty,
             RuntimePolicy: new AppRuntimePolicy(
                 AppWindowMode.Normal,
-                AppWindowReturnBehavior.ReturnHomeWhenMinimizedOrHidden),
+                // RetroArch may temporarily hide its main window while its own file browser,
+                // core options or setup surfaces are active. The managed process lifetime—not
+                // temporary HWND visibility—owns automatic return to Grev Home.
+                AppWindowReturnBehavior.KeepShellHidden),
             VersionPolicy: new AppVersionPolicy(
                 CurrentVersion: RetroArchInstallerService.SupportedVersion,
                 NativeAutoUpdate: false),

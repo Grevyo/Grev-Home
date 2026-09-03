@@ -31,7 +31,8 @@ public sealed record LaunchSessionSnapshot(
     int RootProcessId,
     IReadOnlyList<int> ProcessIds,
     string? FailureMessage,
-    long? TrackedDurationSeconds = null)
+    long? TrackedDurationSeconds = null,
+    bool KeepShellHiddenWhileRunning = false)
 {
     public TimeSpan Elapsed => TrackedDurationSeconds is long seconds
         ? TimeSpan.FromSeconds(Math.Max(0, seconds))
@@ -53,6 +54,7 @@ internal sealed class TrackedLaunchSession
     public IReadOnlyList<string> AdditionalProcessNames { get; }
     public bool TrackDescendantProcesses { get; }
     public bool ForceKillEntireProcessTree { get; }
+    public bool KeepShellHiddenWhileRunning { get; }
     public IReadOnlyList<LaunchParticipant> Participants { get; }
     public DateTimeOffset StartedAtUtc { get; }
     public DateTimeOffset LastObservedAliveAtUtc { get; private set; }
@@ -87,6 +89,7 @@ internal sealed class TrackedLaunchSession
         IReadOnlyList<string>? additionalProcessNames,
         bool trackDescendantProcesses,
         bool forceKillEntireProcessTree,
+        bool keepShellHiddenWhileRunning,
         IReadOnlyList<LaunchParticipant> participants,
         RuntimeProcessIdentity rootProcess,
         DateTimeOffset startedAtUtc)
@@ -99,6 +102,7 @@ internal sealed class TrackedLaunchSession
             additionalProcessNames,
             trackDescendantProcesses,
             forceKillEntireProcessTree,
+            keepShellHiddenWhileRunning,
             participants,
             rootProcess.ProcessId,
             new[] { rootProcess },
@@ -119,6 +123,7 @@ internal sealed class TrackedLaunchSession
         IReadOnlyList<string>? additionalProcessNames,
         bool trackDescendantProcesses,
         bool forceKillEntireProcessTree,
+        bool keepShellHiddenWhileRunning,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -141,6 +146,7 @@ internal sealed class TrackedLaunchSession
             .ToArray();
         TrackDescendantProcesses = trackDescendantProcesses;
         ForceKillEntireProcessTree = forceKillEntireProcessTree;
+        KeepShellHiddenWhileRunning = keepShellHiddenWhileRunning;
         Participants = participants;
         RootProcessId = rootProcessId;
         StartedAtUtc = startedAtUtc;
@@ -164,6 +170,7 @@ internal sealed class TrackedLaunchSession
         IReadOnlyList<string>? additionalProcessNames,
         bool trackDescendantProcesses,
         bool forceKillEntireProcessTree,
+        bool keepShellHiddenWhileRunning,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -181,6 +188,7 @@ internal sealed class TrackedLaunchSession
             additionalProcessNames,
             trackDescendantProcesses,
             forceKillEntireProcessTree,
+            keepShellHiddenWhileRunning,
             participants,
             rootProcessId,
             processes,
@@ -323,7 +331,8 @@ internal sealed class TrackedLaunchSession
                 RootProcessId,
                 _processes.Keys.OrderBy(id => id).ToArray(),
                 FailureMessage,
-                trackedSeconds);
+                trackedSeconds,
+                KeepShellHiddenWhileRunning);
         }
     }
 

@@ -455,7 +455,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            var launched = await _runtimeSessions.LaunchAsync(entry, _session);
+            var package = _grevStoreCatalog.Find(entry.Manifest.Definition.AppId);
+            var keepShellHidden = package?.EffectiveRuntimePolicy.ReturnBehavior ==
+                                  AppWindowReturnBehavior.KeepShellHidden;
+            var launched = await _runtimeSessions.LaunchAsync(entry, _session, keepShellHidden);
             _foregroundLaunchSessionId = launched.LaunchSessionId;
             _installedLibraryView.ShowLaunchStarted(launched);
             UpdateRuntimeSurfaces();
