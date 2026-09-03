@@ -14,6 +14,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? LogoutRequested;
     public event EventHandler? ManageUsersRequested;
     public event EventHandler? InstalledAppsRequested;
+    public event EventHandler? YourGamesRequested;
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? AppKillerRequested;
     public event EventHandler? SettingsRequested;
@@ -255,6 +256,9 @@ public partial class DashboardView : UserControl
 
     private void InstalledApps_Click(object sender, RoutedEventArgs e) =>
         InstalledAppsRequested?.Invoke(this, EventArgs.Empty);
+
+    private void YourGames_Click(object sender, RoutedEventArgs e) =>
+        YourGamesRequested?.Invoke(this, EventArgs.Empty);
 
     private void RunningApps_Click(object sender, RoutedEventArgs e) =>
         RunningAppsRequested?.Invoke(this, EventArgs.Empty);

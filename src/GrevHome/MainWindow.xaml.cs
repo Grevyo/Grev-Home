@@ -70,6 +70,7 @@ public partial class MainWindow : Window
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
+        _dashboardView.YourGamesRequested += (_, _) => _ = OpenInstalledLibraryAsync("Games");
         _dashboardView.RunningAppsRequested += (_, _) => OpenRunningApps();
         _dashboardView.AppKillerRequested += (_, _) => OpenAppKiller();
         _dashboardView.SettingsRequested += (_, _) => OpenSettings();
@@ -191,7 +192,7 @@ public partial class MainWindow : Window
         _navigation.Reset(Route.Dashboard);
     }
 
-    private async Task OpenInstalledLibraryAsync()
+    private async Task OpenInstalledLibraryAsync(string filter = "All")
     {
         if (!_session.HasSignedInUsers)
         {
@@ -202,6 +203,7 @@ public partial class MainWindow : Window
         var primary = _session.PrimaryUser;
         var entries = await _installedApps.GetInstalledForUserAsync(primary?.GrevId);
         _installedLibraryView.SetLibrary(entries, primary);
+        _installedLibraryView.SelectFilter(filter);
         _navigation.Navigate(Route.InstalledLibrary);
     }
 

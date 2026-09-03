@@ -77,35 +77,18 @@
                 <WrapPanel x:Name="RecentAppsPanel" />
             </StackPanel>
 
-            <StackPanel x:Name="GamesSection"
-                        Visibility="Collapsed"
-                        Margin="0,0,0,22">
-                <Grid Margin="10,0,10,8">
-                    <StackPanel>
-                        <TextBlock Text="YOUR GAMES"
-                                   FontSize="13"
-                                   FontWeight="Bold"
-                                   Foreground="{StaticResource MutedBrush}" />
-                        <TextBlock Text="Individual games added to this GrevID"
-                                   Margin="0,4,0,0"
-                                   FontSize="13"
-                                   Foreground="{StaticResource MutedBrush}" />
-                    </StackPanel>
-                    <TextBlock x:Name="GamesSummaryText"
-                               HorizontalAlignment="Right"
-                               VerticalAlignment="Center"
-                               FontSize="12"
-                               Foreground="{StaticResource MutedBrush}" />
-                </Grid>
-                <WrapPanel x:Name="GamesPanel" />
-            </StackPanel>
-
             <TextBlock Text="APPS &amp; CONTENT"
                        Margin="10,0,0,8"
                        FontSize="13"
                        FontWeight="Bold"
                        Foreground="{StaticResource MutedBrush}" />
             <WrapPanel Margin="0,0,0,22">
+                <Button x:Name="YourGamesButton" Style="{StaticResource DashboardTileStyle}" Click="YourGames_Click">
+                    <StackPanel>
+                        <TextBlock Text="Your Games" Style="{StaticResource DashboardTileTitleStyle}" />
+                        <TextBlock x:Name="GamesSummaryText" Text="Open your complete game library" Style="{StaticResource DashboardTileDetailStyle}" />
+                    </StackPanel>
+                </Button>
                 <Button Style="{StaticResource DashboardTileStyle}" Click="InstalledApps_Click">
                     <StackPanel>
                         <TextBlock Text="Installed Apps" Style="{StaticResource DashboardTileTitleStyle}" />

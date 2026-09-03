@@ -20,6 +20,10 @@ The first schema stores:
 - absolute source-file path;
 - time added.
 
+Home exposes one **Your Games** navigation tile rather than rendering the complete game collection
+as a permanent dashboard section. Selecting it opens Installed Apps with the Games filter already
+active, where the complete per-GrevID library and its controller action menus remain available.
+
 Grev Home stores the location only. It does not copy disc images into `C:\GrevHome`, and it never
 shares one profile's library tiles with another Primary GrevID.
 

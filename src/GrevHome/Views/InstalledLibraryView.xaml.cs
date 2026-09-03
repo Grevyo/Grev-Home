@@ -66,6 +66,13 @@ public partial class InstalledLibraryView : UserControl
         Render();
     }
 
+    public void SelectFilter(string filter)
+    {
+        _filter = filter is "Games" or "Apps" or "Emulators" or "Tools" ? filter : "All";
+        Render();
+        RenderGames();
+    }
+
     public void SetRunningSessions(IReadOnlyList<LaunchSessionSnapshot> sessions)
     {
         _runningSessions = sessions;
