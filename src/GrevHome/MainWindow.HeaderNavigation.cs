@@ -201,6 +201,7 @@ public partial class MainWindow
             _activityVolumeButton,
             _activityWifiButton,
             _activityBluetoothButton,
+            ShellFriendsButton,
             ProfileBubbleButton,
             ShellSettingsButton,
             ShellPowerButton
@@ -210,6 +211,8 @@ public partial class MainWindow
             .Select(button => button!)
             .ToList();
     }
+
+    private void ShellFriends_Click(object sender, RoutedEventArgs e) => OpenFriends();
 
     private void ShellPower_Click(object sender, RoutedEventArgs e)
     {

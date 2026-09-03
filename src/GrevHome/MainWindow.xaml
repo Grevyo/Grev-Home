@@ -38,6 +38,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
 
                     <Button x:Name="ShellBackButton"
@@ -58,8 +59,10 @@
                                FontWeight="Bold"
                                Foreground="#C9D3E8" />
 
+                    <Button x:Name="ShellFriendsButton" Grid.Column="3" Content="Friends" Width="112" Height="48" Margin="14,0,0,0" Visibility="Collapsed" Click="ShellFriends_Click" />
+
                     <Button x:Name="ProfileBubbleButton"
-                            Grid.Column="3"
+                            Grid.Column="4"
                             Visibility="Collapsed"
                             MinWidth="0"
                             MaxWidth="520"
@@ -76,7 +79,7 @@
                     </Button>
 
                     <Button x:Name="ShellSettingsButton"
-                            Grid.Column="4"
+                            Grid.Column="5"
                             Content="Settings"
                             Width="118"
                             Height="48"
@@ -84,7 +87,7 @@
                             Click="ShellSettings_Click" />
 
                     <Button x:Name="ShellPowerButton"
-                            Grid.Column="5"
+                            Grid.Column="6"
                             Content="⏻"
                             Width="58"
                             Height="Auto"

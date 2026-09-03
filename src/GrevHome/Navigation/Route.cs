@@ -7,6 +7,7 @@ public enum Route
     Dashboard,
     DashboardTileSettings,
     DashboardTileArtworkPicker,
+    Friends,
     ProfilePlayers,
     ProfileView,
     ProfileEdit,

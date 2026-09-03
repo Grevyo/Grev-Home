@@ -26,3 +26,12 @@ shipped fallback -> active theme default -> GrevID dashboard override
 Continue/Recent entries are dynamic app/game content rather than fixed destinations. They continue
 to resolve through the owning app/game presentation contract, so the same custom artwork appears
 there without duplicating dashboard overrides.
+
+Shipped destination defaults use distinct built-in vector symbols rather than the shared neutral
+missing-artwork mark. These vectors remain available offline and can be replaced by theme defaults
+or a GrevID override.
+
+The Friends dashboard section and header action are conditional online surfaces. They are hidden
+for Unlinked, Linking, Expired, Revoked and Error states, and shown only for Linked or Offline state
+where a previously valid Grev.dad connection exists. Offline state may display the last safe cached
+friends snapshot; it never blocks local Home navigation.

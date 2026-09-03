@@ -7,6 +7,7 @@ using GrevHome.Profiles;
 using GrevHome.Sessions;
 using GrevHome.Transfers;
 using GrevHome.Presentation;
+using GrevHome.Online;
 
 namespace GrevHome.Views;
 
@@ -25,6 +26,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? ActivityCenterRequested;
     public event Action<string>? ActivityAppRequested;
     public event Action<string>? TileSettingsRequested;
+    public event EventHandler? FriendsRequested;
     private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations = new Dictionary<string, ResolvedDashboardTile>();
     private Button? _pendingTileButton;
     private string? _pendingTileId;
@@ -138,6 +140,24 @@ public partial class DashboardView : UserControl
         RenderDashboardTiles();
     }
 
+    public void SetFriends(bool available, IReadOnlyList<GrevDadFriend> friends, bool offline)
+    {
+        FriendsSection.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        FriendsPanel.Children.Clear();
+        if (!available) return;
+        var online = friends.Count(friend => !string.Equals(friend.Presence.Availability, "offline", StringComparison.OrdinalIgnoreCase));
+        FriendsSummaryText.Text = offline ? $"Offline • {friends.Count} cached" : $"{online} online • {friends.Count} total";
+        foreach (var friend in friends.OrderByDescending(item => !string.Equals(item.Presence.Availability, "offline", StringComparison.OrdinalIgnoreCase)).ThenBy(item => item.DisplayName).Take(6))
+        {
+            FriendsPanel.Children.Add(new Border
+            {
+                Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12), CornerRadius = new CornerRadius(9),
+                Background = (System.Windows.Media.Brush)FindResource("SurfaceBrush"),
+                Child = new StackPanel { Children = { new TextBlock { Text = friend.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold }, new TextBlock { Text = $"{friend.Presence.Availability}  •  {friend.Presence.ActivityText}", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis } } }
+            });
+        }
+    }
+
     public bool BeginControllerTilePress()
     {
         if (Keyboard.FocusedElement is not Button { Tag: string tileId } button ||
@@ -185,10 +205,11 @@ public partial class DashboardView : UserControl
 
     private void RenderDashboardTile(Button button, string id, string detail)
     {
-        var tile = _tilePresentations.TryGetValue(id, out var resolved) ? resolved : new ResolvedDashboardTile(id, DashboardTileCatalog.Get(id).Name, detail, DashboardTileCatalog.Get(id).Color, null, false);
+        var definition = DashboardTileCatalog.Get(id);
+        var tile = _tilePresentations.TryGetValue(id, out var resolved) ? resolved : new ResolvedDashboardTile(id, definition.Name, detail, definition.Color, null, definition.IconAsset, false);
         button.Padding = new Thickness(0);
         if (!string.IsNullOrWhiteSpace(tile.TileMediaPath)) button.Content = AppArtworkFactory.CreateFullTile(tile.TileMediaPath, tile.TileColor, 285, 145);
-        else button.Content = AppArtworkFactory.CreateTile(tile.DisplayName, null, tile.TileColor);
+        else button.Content = AppArtworkFactory.CreateTile(tile.DisplayName, tile.IconAsset, tile.TileColor);
         button.ToolTip = $"{tile.DisplayName} • {detail} • Hold A or right-click for appearance settings";
     }
 
@@ -361,4 +382,6 @@ public partial class DashboardView : UserControl
 
     private void Logout_Click(object sender, RoutedEventArgs e) =>
         LogoutRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Friends_Click(object sender, RoutedEventArgs e) => FriendsRequested?.Invoke(this, EventArgs.Empty);
 }

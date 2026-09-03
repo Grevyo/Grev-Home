@@ -132,6 +132,34 @@ public static class AppArtworkFactory
 
     private static FrameworkElement? TryCreateBuiltInGraphic(string? assetPath, double size)
     {
+        if (assetPath?.StartsWith("builtin://dashboard/", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            var glyph = assetPath[20..].ToLowerInvariant() switch
+            {
+                "games" => "\uE7FC",
+                "apps" => "\uE71D",
+                "store" => "\uE719",
+                "files" => "\uE8B7",
+                "running" => "\uE768",
+                "activity" => "\uE7ED",
+                "killer" => "\uE711",
+                "settings" => "\uE713",
+                "admin" => "\uE77B",
+                "friends" => "\uE716",
+                _ => "\uE10C"
+            };
+            return new TextBlock
+            {
+                Text = glyph,
+                FontFamily = new FontFamily("Segoe MDL2 Assets"),
+                FontSize = size * 0.58,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextAlignment = TextAlignment.Center
+            };
+        }
+
         if (!string.Equals(assetPath, SteamBuiltInAsset, StringComparison.OrdinalIgnoreCase))
         {
             return null;

@@ -160,6 +160,15 @@
                 </Button>
             </WrapPanel>
 
+            <StackPanel x:Name="FriendsSection" Visibility="Collapsed" Margin="0,24,0,0">
+                <Grid Margin="10,0,10,8">
+                    <TextBlock Text="FRIENDS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                </Grid>
+                <WrapPanel x:Name="FriendsPanel" />
+                <Button Content="Open Friends" Width="285" Height="54" Margin="8" HorizontalAlignment="Left" Click="Friends_Click" />
+            </StackPanel>
+
             <TextBlock x:Name="DashboardStatusText"
                        Visibility="Collapsed"
                        Margin="10,18,10,0"

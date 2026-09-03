@@ -5,23 +5,23 @@ using GrevHome.Storage;
 
 namespace GrevHome.Presentation;
 
-public sealed record DashboardTileDefinition(string Id, string Name, string Detail, string Color);
+public sealed record DashboardTileDefinition(string Id, string Name, string Detail, string Color, string IconAsset);
 public sealed record DashboardTileOverride(string? DisplayName = null, string? TileColor = null, string? TileMediaFile = null);
-public sealed record ResolvedDashboardTile(string Id, string DisplayName, string Detail, string TileColor, string? TileMediaPath, bool HasOverride);
+public sealed record ResolvedDashboardTile(string Id, string DisplayName, string Detail, string TileColor, string? TileMediaPath, string IconAsset, bool HasOverride);
 
 public static class DashboardTileCatalog
 {
     public static IReadOnlyList<DashboardTileDefinition> All { get; } =
     [
-        new("your-games", "Your Games", "Open your complete game library", "#243451"),
-        new("installed-apps", "Installed Apps", "Apps, emulators and individual games", "#243451"),
-        new("grev-store", "Grev Store", "Browse supported apps", "#243451"),
-        new("files", "Files", "Browse local files and folders", "#243451"),
-        new("running-apps", "Running Apps", "0 active", "#151923"),
-        new("activity-center", "Activity Center", "Notifications and downloads", "#151923"),
-        new("app-killer", "App Killer", "Manage or force-close a stuck app", "#151923"),
-        new("settings", "Settings", "Grev Home and controller settings", "#151923"),
-        new("admin-console", "Admin Console", "Machine, apps and account administration", "#151923")
+        new("your-games", "Your Games", "Open your complete game library", "#243451", "builtin://dashboard/games"),
+        new("installed-apps", "Installed Apps", "Apps, emulators and individual games", "#243451", "builtin://dashboard/apps"),
+        new("grev-store", "Grev Store", "Browse supported apps", "#243451", "builtin://dashboard/store"),
+        new("files", "Files", "Browse local files and folders", "#243451", "builtin://dashboard/files"),
+        new("running-apps", "Running Apps", "0 active", "#151923", "builtin://dashboard/running"),
+        new("activity-center", "Activity Center", "Notifications and downloads", "#151923", "builtin://dashboard/activity"),
+        new("app-killer", "App Killer", "Manage or force-close a stuck app", "#151923", "builtin://dashboard/killer"),
+        new("settings", "Settings", "Grev Home and controller settings", "#151923", "builtin://dashboard/settings"),
+        new("admin-console", "Admin Console", "Machine, apps and account administration", "#151923", "builtin://dashboard/admin")
     ];
 
     public static DashboardTileDefinition Get(string id) =>
@@ -60,6 +60,7 @@ public sealed class DashboardTilePresentationService
             definition.Detail,
             NormalizeColor(value.TileColor) ?? definition.Color,
             media,
+            definition.IconAsset,
             !string.IsNullOrWhiteSpace(value.DisplayName) || !string.IsNullOrWhiteSpace(value.TileColor) || media is not null);
     }
 
