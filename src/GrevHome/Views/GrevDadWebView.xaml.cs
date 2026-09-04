@@ -110,7 +110,8 @@ public partial class GrevDadWebView : UserControl, IDisposable
             if(kind.GetString()=="text")
             {
                 if(_browser is not null) _browser.Visibility=Visibility.Hidden;
-                KeyboardOverlay.Open("Enter website text",string.Empty,256,json.RootElement.GetProperty("password").GetBoolean());
+                KeyboardOverlay.Open(json.RootElement.GetProperty("title").GetString()??"Website text",
+                    json.RootElement.GetProperty("initial").GetString(),256,json.RootElement.GetProperty("password").GetBoolean());
             }
             else if(kind.GetString()=="select")
             {
@@ -167,7 +168,9 @@ public partial class GrevDadWebView : UserControl, IDisposable
         activate(){if(!selected||!selected.isConnected)return null;
           if(selected.matches('select')){editing=selected;return {kind:'select',options:Array.from(selected.options).map(o=>({text:o.text,value:o.value,disabled:o.disabled}))};}
           if(selected.matches('textarea,input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color])')){
-            editing=selected;return {kind:'text',password:selected.type==='password'};}
+            editing=selected;return {kind:'text',password:selected.type==='password',
+              title:selected.getAttribute('aria-label')||selected.placeholder||(selected.type==='password'?'Password':'Website text'),
+              initial:selected.type==='password'?'':selected.value};}
           if(selected.matches('input[type=file],input[type=color],input[type=range]'))return null;
           selected.click();return null;},
         setValue(value){if(!editing||!editing.isConnected)return;editing.value=value;

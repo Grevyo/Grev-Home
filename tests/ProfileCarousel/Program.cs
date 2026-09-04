@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
+using System.Windows.Markup;
+using System.Xml.Linq;
 using GrevHome.Input;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
@@ -11,7 +13,14 @@ internal static class Program
     [STAThread]
     private static void Main()
     {
-        var app=new GrevHome.App();app.InitializeComponent();
+        // Load only the app's styles, never its real startup/lifecycle handler.
+        var app=new Application {ShutdownMode=ShutdownMode.OnExplicitShutdown};
+        XNamespace presentation="http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        var source=XDocument.Load("src/GrevHome/App.xaml");
+        var resources=new XElement(presentation+"ResourceDictionary",
+            new XAttribute(XNamespace.Xmlns+"x","http://schemas.microsoft.com/winfx/2006/xaml"),
+            source.Root!.Element(presentation+"Application.Resources")!.Nodes());
+        app.Resources=(ResourceDictionary)XamlReader.Parse(resources.ToString());
         var login=new LoginView();
         var window=new Window {Content=login,Width=1280,Height=720,WindowStyle=WindowStyle.None};
         window.Show();
@@ -36,6 +45,7 @@ internal static class Program
         keyboard.Cancel();Check(keyboard.Value==string.Empty,"Password keyboard must clear on close");
         window.Close();
         Console.WriteLine("Profile carousel tests passed: four-card layout, offscreen controller navigation and password masking.");
+        app.Shutdown();
     }
     private static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
