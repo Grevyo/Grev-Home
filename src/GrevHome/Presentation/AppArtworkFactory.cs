@@ -146,6 +146,7 @@ public static class AppArtworkFactory
                 "settings" => "\uE713",
                 "admin" => "\uE77B",
                 "friends" => "\uE716",
+                "web" => "\uE774",
                 _ => "\uE10C"
             };
             return new TextBlock

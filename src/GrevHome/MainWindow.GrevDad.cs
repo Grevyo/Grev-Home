@@ -30,6 +30,7 @@ public partial class MainWindow
         _grevDadAccounts = new GrevDadAccountService(_paths);
         _grevDadPrivacy = new GrevDadPrivacySettingsService(_paths);
         InitializeGrevDadFriendsIntegration();
+        InitializeGrevDadWebIntegration();
 
         _session.Changed += (_, _) => Dispatcher.BeginInvoke(new Action(() => _ = HandleGrevDadSessionChangedAsync()));
         _runtimeSessions.SessionChanged += HandleGrevDadRuntimeChanged;

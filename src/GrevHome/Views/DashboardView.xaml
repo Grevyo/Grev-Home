@@ -107,6 +107,7 @@
                         <TextBlock Text="Browse local files and folders" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="GrevDadButton" Tag="grev-dad" Content="Grev.dad" Style="{StaticResource DashboardTileStyle}" Click="GrevDad_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
             </WrapPanel>
 
             <TextBlock Text="SYSTEM"

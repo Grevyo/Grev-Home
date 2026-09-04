@@ -638,6 +638,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        if(_navigation.Current==Route.Login && Keyboard.FocusedElement is Button profileButton && _loginView.MoveProfileFocus(action.Value,profileButton))
+        { e.Handled=true;return; }
         HandleInput(action.Value, controllerIndex: null);
         e.Handled = true;
     }
@@ -686,6 +688,8 @@ public partial class MainWindow : Window
             _overlayWindow.HandleControllerInput(action);
             return;
         }
+
+        if(_navigation.Current==Route.GrevDadWeb && _grevDadWebView.HandleInput(action)) return;
 
         switch (action)
         {

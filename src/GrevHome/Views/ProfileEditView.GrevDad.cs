@@ -16,6 +16,8 @@ public partial class ProfileEditView
     private readonly TextBlock _grevDadStatusText = new();
     private readonly Button _grevDadLinkButton = new();
     private readonly Button _grevDadOpenApprovalButton = new();
+    private readonly Button _grevDadCopyCodeButton = new();
+    private readonly Button _grevDadWebsiteButton = new();
     private readonly Button _grevDadCheckButton = new();
     private readonly Button _grevDadCancelButton = new();
     private readonly Button _grevDadUnlinkButton = new();
@@ -36,6 +38,7 @@ public partial class ProfileEditView
     public event EventHandler? CancelGrevDadLinkRequested;
     public event EventHandler? UnlinkGrevDadRequested;
     public event Action<Uri>? OpenGrevDadApprovalRequested;
+    public event EventHandler? OpenGrevDadWebsiteRequested;
     public event Action<GrevDadPrivacySettings>? SaveGrevDadPrivacyRequested;
 
     public void InitializeGrevDadEditor()
@@ -101,10 +104,20 @@ public partial class ProfileEditView
             }
         });
         ConfigureGrevDadButton(_grevDadCheckButton, "Check approval", 165, (_, _) => CheckGrevDadLinkRequested?.Invoke(this, EventArgs.Empty));
+        ConfigureGrevDadButton(_grevDadCopyCodeButton,"Copy code",150,(_,_)=>
+        {
+            if(_grevDadLinkStart is not { } link || link.ExpiresAtUtc<=DateTimeOffset.UtcNow)
+            { ShowGrevDadStatus("That code has expired. Start a new link request.");return; }
+            try { Clipboard.SetText(link.UserCode);ShowGrevDadStatus("Approval code copied. Choose Open approval page to continue."); }
+            catch(System.Runtime.InteropServices.ExternalException) {ShowGrevDadStatus("The clipboard is busy. Try Copy code again.");}
+        });
+        ConfigureGrevDadButton(_grevDadWebsiteButton,"Open Grev.dad",170,(_,_)=>OpenGrevDadWebsiteRequested?.Invoke(this,EventArgs.Empty));
         ConfigureGrevDadButton(_grevDadCancelButton, "Cancel link", 150, (_, _) => CancelGrevDadLinkRequested?.Invoke(this, EventArgs.Empty));
         ConfigureGrevDadButton(_grevDadUnlinkButton, "Unlink Grev.dad", 170, (_, _) => UnlinkGrevDadRequested?.Invoke(this, EventArgs.Empty));
         accountActions.Children.Add(_grevDadLinkButton);
         accountActions.Children.Add(_grevDadOpenApprovalButton);
+        accountActions.Children.Add(_grevDadCopyCodeButton);
+        accountActions.Children.Add(_grevDadWebsiteButton);
         accountActions.Children.Add(_grevDadCheckButton);
         accountActions.Children.Add(_grevDadCancelButton);
         accountActions.Children.Add(_grevDadUnlinkButton);
@@ -234,6 +247,8 @@ public partial class ProfileEditView
 
         SetButtonState(_grevDadLinkButton, _canManageGrevDad && relinkable, relinkable);
         SetButtonState(_grevDadOpenApprovalButton, _canManageGrevDad && linking && _grevDadLinkStart is not null, linking && _grevDadLinkStart is not null);
+        SetButtonState(_grevDadCopyCodeButton,_canManageGrevDad && linking && _grevDadLinkStart is not null,linking && _grevDadLinkStart is not null);
+        SetButtonState(_grevDadWebsiteButton,_canManageGrevDad,true);
         SetButtonState(_grevDadCheckButton, _canManageGrevDad && linking, linking);
         SetButtonState(_grevDadCancelButton, _canManageGrevDad && linking, linking);
         SetButtonState(_grevDadUnlinkButton, _canManageGrevDad && (linked || state is GrevDadConnectionState.Expired or GrevDadConnectionState.Revoked or GrevDadConnectionState.Error), linked || state is GrevDadConnectionState.Expired or GrevDadConnectionState.Revoked or GrevDadConnectionState.Error);

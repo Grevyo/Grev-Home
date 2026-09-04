@@ -22,6 +22,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? SettingsRequested;
     public event EventHandler? AdminConsoleRequested;
     public event EventHandler? FilesRequested;
+    public event EventHandler? GrevDadRequested;
     public event EventHandler? StoreRequested;
     public event EventHandler? ActivityCenterRequested;
     public event Action<string>? ActivityAppRequested;
@@ -196,6 +197,7 @@ public partial class DashboardView : UserControl
         RenderDashboardTile(InstalledAppsButton, "installed-apps", DashboardTileCatalog.Get("installed-apps").Detail);
         RenderDashboardTile(StoreButton, "grev-store", DashboardTileCatalog.Get("grev-store").Detail);
         RenderDashboardTile(FilesButton, "files", DashboardTileCatalog.Get("files").Detail);
+        RenderDashboardTile(GrevDadButton, "grev-dad", DashboardTileCatalog.Get("grev-dad").Detail);
         RenderDashboardTile(RunningAppsButton, "running-apps", RunningCountText.Text);
         RenderDashboardTile(ActivityCenterButton, "activity-center", ActivityCenterDetailText.Text);
         RenderDashboardTile(AppKillerButton, "app-killer", DashboardTileCatalog.Get("app-killer").Detail);
@@ -374,6 +376,8 @@ public partial class DashboardView : UserControl
 
     private void Store_Click(object sender, RoutedEventArgs e) =>
         InvokeUnlessPending(sender, StoreRequested);
+
+    private void GrevDad_Click(object sender, RoutedEventArgs e) => InvokeUnlessPending(sender,GrevDadRequested);
 
     private void InvokeUnlessPending(object sender, EventHandler? handler)
     {

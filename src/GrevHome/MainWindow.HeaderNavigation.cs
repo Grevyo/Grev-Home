@@ -74,6 +74,7 @@ public partial class MainWindow
 
     private void CorrectHeaderNavigation(InputAction action, Button originalFocus)
     {
+        if(_navigation.Current==Route.GrevDadWeb && _grevDadWebView.OwnsControllerInput) return;
         if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
             _overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
         {
@@ -128,6 +129,7 @@ public partial class MainWindow
         {
             return false;
         }
+        if (_loginView.MoveProfileFocus(action,originalFocus)) return true;
 
         var createAccount = _loginView.CreateAccountFocusTarget;
         var profiles = _loginView.ProfileFocusTargets

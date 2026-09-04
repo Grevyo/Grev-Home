@@ -31,6 +31,7 @@ public partial class MainWindow
         _profileEditView.CancelGrevDadLinkRequested += (_, _) => _ = CancelGrevDadLinkFromProfileAsync();
         _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
         _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
+        _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(RequireGrevDadAccountService().BaseUri);
 
         var service = RequireGrevDadAccountService();
         service.SnapshotChanged += (grevId, snapshot) => Dispatcher.BeginInvoke(new Action(() =>
@@ -308,19 +309,7 @@ public partial class MainWindow
 
     private void OpenGrevDadApprovalPage(Uri uri)
     {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = uri.AbsoluteUri,
-                UseShellExecute = true
-            });
-            _profileEditView.ShowGrevDadStatus("Opened the Grev.dad approval page in your default browser.");
-        }
-        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
-        {
-            _profileEditView.ShowGrevDadStatus($"Windows could not open the approval page: {ex.Message}");
-        }
+        OpenGrevDadWebsite(uri);
     }
 
     private void StartGrevDadLinkPolling(string grevId, int intervalSeconds)

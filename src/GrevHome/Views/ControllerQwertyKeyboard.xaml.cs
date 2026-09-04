@@ -10,6 +10,8 @@ public partial class ControllerQwertyKeyboard : UserControl
     private readonly List<Button> _keyButtons = new();
     private bool _upperCase = true;
     private int _maxLength = 50;
+    private bool _password;
+    private bool _symbols;
 
     public event Action<string>? Completed;
     public event EventHandler? Cancelled;
@@ -25,8 +27,12 @@ public partial class ControllerQwertyKeyboard : UserControl
         BuildKeyboard();
     }
 
-    public void Open(string title, string? initialValue, int maxLength)
+    public void Open(string title, string? initialValue, int maxLength, bool password = false)
     {
+        _password = password;
+        _symbols = false;
+        const string letters="1234567890QWERTYUIOPASDFGHJKLZXCVBNM";
+        for(var i=0;i<_keyButtons.Count;i++) _keyButtons[i].Tag=letters[i];
         _maxLength = Math.Max(1, maxLength);
         var safeInitialValue = initialValue ?? string.Empty;
         Value = safeInitialValue.Length > _maxLength
@@ -199,7 +205,17 @@ public partial class ControllerQwertyKeyboard : UserControl
     private void Close()
     {
         Visibility = Visibility.Collapsed;
+        if (_password) { Value=string.Empty; ValueText.Text=string.Empty; }
         Closed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Symbols_Click(object sender, RoutedEventArgs e)
+    {
+        _symbols=!_symbols;
+        const string letters="1234567890QWERTYUIOPASDFGHJKLZXCVBNM";
+        const string symbols="!@#$%^&*()_+-=[]{};:'\"\\|,.<>/?`~012345";
+        for(var i=0;i<_keyButtons.Count;i++) _keyButtons[i].Tag=_symbols?symbols[i]:letters[i];
+        UpdatePresentation();
     }
 
     private static void MoveFocus(FocusNavigationDirection direction)
@@ -223,7 +239,7 @@ public partial class ControllerQwertyKeyboard : UserControl
 
     private void UpdatePresentation()
     {
-        ValueText.Text = string.IsNullOrEmpty(Value) ? " " : Value;
+        ValueText.Text = string.IsNullOrEmpty(Value) ? " " : _password ? new string('•',Value.Length) : Value;
         ShiftButton.Content = _upperCase ? "Shift • ABC" : "Shift • abc";
 
         foreach (var button in _keyButtons)
