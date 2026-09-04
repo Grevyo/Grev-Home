@@ -67,6 +67,8 @@ public partial class MainWindow : Window
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
 
         _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
+        _createProfileView.OnboardingFinished += (_,_)=>ReturnToLogin();
+        _createProfileView.OnboardingSkipped += profile=>_ = SkipGrevDadOnboardingAsync(profile);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
@@ -538,10 +540,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            await _profileService.CreateAsync(request.Username, request.Role);
+            var created = await _profileService.CreateAsync(request.Username, request.Role);
             _profiles = await _profileService.GetProfilesAsync();
             RefreshSessionSurfaces();
-            ReturnToLogin();
+            _createProfileView.ShowGrevDadStep(created);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
