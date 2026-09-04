@@ -216,10 +216,12 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
 public sealed class ProfileStatsService
 {
     private readonly IReadOnlyList<IProfileStatsSource> _sources;
+    private readonly GrevHome.Storage.AppPaths _paths;
 
-    public ProfileStatsService(IEnumerable<IProfileStatsSource> sources)
+    public ProfileStatsService(IEnumerable<IProfileStatsSource> sources, GrevHome.Storage.AppPaths? paths = null)
     {
         _sources = sources.ToArray();
+        _paths = paths ?? new GrevHome.Storage.AppPaths();
     }
 
     public async Task<ProfileStatsSnapshot> GetAsync(
@@ -262,10 +264,26 @@ public sealed class ProfileStatsService
         var activeSessions = grevHome?.ActiveSessions ?? 0;
         var uniqueApps = grevHome?.UniqueApps ?? 0;
 
-        // Grev Level deliberately uses Grev Home's own tracked activity only. External providers
-        // can enrich/showcase a profile later without double-counting imported hours as progression.
+        // Standalone profiles use Home progression; linked profiles use the shared balance.
+        // Downloaded XP never enters the locally earned activity upload.
         var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds, completedSessions, uniqueApps);
         var progression = CalculateLevel(xp);
+        var cloud = await GrevHome.Online.GrevDadAccountDataStore.ReadAsync(_paths,grevId,cancellationToken);
+        if (cloud?.SharedProgression is { TotalXp: >= 0, HomeTotalXp: >= 0, XpPerLevel: 500 } shared)
+        {
+            // The shared balance already includes uploaded Home XP. Only locally
+            // pending Home earnings are added to its offline display estimate.
+            var total = checked(shared.TotalXp + Math.Max(0,xp-shared.HomeTotalXp));
+            progression = new ProfileLevelProgress((int)Math.Min(int.MaxValue,total/500+1),total,total%500,500,(total%500)/5d);
+        }
+        var milestones=CalculateMilestones(totalSeconds,completedSessions,uniqueApps,progression.Level).ToList();
+        foreach(var achievement in cloud?.Achievements ?? [])
+        {
+            var localId=achievement.Id.StartsWith("grev-home:",StringComparison.Ordinal) ? achievement.Id[10..] : null;
+            var index=milestones.FindIndex(m=>m.MilestoneId==localId);
+            if(index>=0) milestones[index]=milestones[index] with {IsEarned=true,ProgressValue=milestones[index].TargetValue,ProgressLabel="Unlocked • shared account"};
+            else milestones.Add(new ProfileMilestoneStat(achievement.Id,achievement.Name,achievement.Description,true,1,1,$"Unlocked • {achievement.Source}"));
+        }
 
         return new ProfileStatsSnapshot(
             progression,
@@ -276,7 +294,7 @@ public sealed class ProfileStatsService
             grevHome?.LastActivityAtUtc,
             grevHome?.TopApps ?? Array.Empty<ProfileTopAppStat>(),
             grevHome?.RecentActivity ?? Array.Empty<ProfileRecentActivityStat>(),
-            CalculateMilestones(totalSeconds, completedSessions, uniqueApps, progression.Level),
+            milestones,
             sources);
     }
 

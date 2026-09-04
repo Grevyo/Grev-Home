@@ -7,14 +7,15 @@
   <WrapPanel>
    <Button x:Name="BrowseButton" Content="Browse page" Margin="4" Padding="18,10" Click="Browse_Click"/>
    <Button Content="Previous page" Margin="4" Padding="18,10" Click="Previous_Click"/>
-   <Button Content="Grev.dad home" Margin="4" Padding="18,10" Click="Home_Click"/>
+   <Button x:Name="BrowserHomeButton" Content="Grev.dad home" Margin="4" Padding="18,10" Click="Home_Click"/>
    <Button Content="Scroll up" Margin="4" Padding="18,10" Click="ScrollUp_Click"/>
    <Button Content="Scroll down" Margin="4" Padding="18,10" Click="ScrollDown_Click"/>
    <Button Content="Reload" Margin="4" Padding="18,10" Click="Reload_Click"/>
    <Button Content="Back to Grev Home" Margin="4" Padding="18,10" Click="Exit_Click"/>
   </WrapPanel>
   <Grid x:Name="BrowserHost" Grid.Row="1" Margin="0,8" Background="#10151F"/>
-  <TextBlock x:Name="HintText" Grid.Row="2" Margin="4,8" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Text="Choose Browse page. D-pad selects links and fields; A opens or types; B returns to these controls."/>
+  <StackPanel Grid.Row="2"><TextBlock x:Name="AddressText" FontSize="12" TextTrimming="CharacterEllipsis"/>
+  <TextBlock x:Name="HintText" Margin="4,8" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Text="Choose Browse page. D-pad selects links and fields; A opens or types; B returns to these controls."/></StackPanel>
   <Border x:Name="ChoicesOverlay" Grid.RowSpan="3" Background="#F010151F" Visibility="Collapsed" Padding="40" KeyboardNavigation.DirectionalNavigation="Cycle">
    <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="ChoicesPanel"/></ScrollViewer>
   </Border>

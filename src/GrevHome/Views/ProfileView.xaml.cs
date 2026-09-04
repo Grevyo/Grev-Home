@@ -193,7 +193,7 @@ public partial class ProfileView : UserControl
 
         MilestonesPanel.Children.Clear();
         var earnedCount = stats.Milestones.Count(milestone => milestone.IsEarned);
-        MilestoneSummaryText.Text = $"{earnedCount} of {stats.Milestones.Count} earned from real Grev Home activity.";
+        MilestoneSummaryText.Text = $"{earnedCount} of {stats.Milestones.Count} milestones and shared account achievements unlocked.";
         foreach (var milestone in stats.Milestones)
         {
             MilestonesPanel.Children.Add(CreateMilestoneCard(milestone));

@@ -3,6 +3,7 @@ using System.IO;
 using GrevHome.Online;
 using GrevHome.Runtime;
 using GrevHome.Storage;
+using GrevHome.Profiles;
 
 var root = Path.Combine(Path.GetTempPath(),"GrevHome-account-test-"+Guid.NewGuid().ToString("N"));
 var paths = new AppPaths(root);
@@ -30,10 +31,25 @@ try
         Check(display.Apps["pcsx2"].SessionCount==2,"Session totals must merge by source");
         Check((await playtime.GetLocalForGrevIdAsync(grevId)).Apps["pcsx2"].TotalSeconds==90,"Cloud must never enter upload snapshot");
     }
+    cloud = cloud with {
+        SharedProgression = new SharedAccountProgression(1143,3,500,143),
+        Achievements = [new CloudAchievement("site:test","Website award","Earned on Grev.dad","Website",1000),
+            new CloudAchievement("grev-home:first-session","Home: First Boot","First session","Grev Home",1000)]
+    };
+    await GrevDadAccountDataStore.SaveAsync(paths,grevId,cloud,default);
+    var statsService = new ProfileStatsService([new GrevHomeProfileStatsSource(playtime)],paths);
+    for(var i=0;i<3;i++)
+    {
+        var stats = await statsService.GetAsync(grevId,[]);
+        Check(stats.Progression.TotalXp==1143 && stats.Progression.Level==3,"Linked profile must use website balance and level rule without recrediting cloud XP");
+        Check(stats.Milestones.Count(m=>m.MilestoneId=="first-session")==1,"Mirrored Home milestone must not be duplicated");
+        Check(stats.Milestones.Any(m=>m.MilestoneId=="site:test" && m.IsEarned),"Website achievement must appear locally");
+    }
     await File.WriteAllTextAsync(paths.GetProfilePlaytimeFile(grevId),JsonSerializer.Serialize(new PlaytimeSnapshot(2,new Dictionary<string,AppPlaytimeStat>())));
     Check((await playtime.GetForGrevIdAsync(grevId)).Apps["pcsx2"].TotalSeconds==180,"Empty local data must preserve cloud history");
     await File.WriteAllTextAsync(Path.Combine(connection,"link.json"),"{\"account\":{\"userId\":\"account-b\"}}");
     Check((await playtime.GetForGrevIdAsync(grevId)).Apps.Count==0,"Another account must never see cached account data");
+    Check(!(await statsService.GetAsync(grevId,[])).Milestones.Any(m=>m.MilestoneId=="site:test"),"Another account must not inherit shared achievements");
     File.Delete(Path.Combine(connection,"link.json"));
     Check((await playtime.GetForGrevIdAsync(grevId)).Apps.Count==0,"Unlinked profile must not read cloud cache");
     Console.WriteLine("Account restore tests passed: source merge, offline delta, replay, empty local data and account isolation.");

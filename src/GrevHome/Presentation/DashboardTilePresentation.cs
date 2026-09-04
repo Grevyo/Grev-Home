@@ -18,6 +18,7 @@ public static class DashboardTileCatalog
         new("grev-store", "Grev Store", "Browse supported apps", "#243451", "builtin://dashboard/store"),
         new("files", "Files", "Browse local files and folders", "#243451", "builtin://dashboard/files"),
         new("grev-dad", "Grev.dad", "Your account, friends and community", "#213E47", "builtin://dashboard/web"),
+        new("web-browser", "Grev's Web Browser", "Search Google and browse the web", "#274431", "builtin://dashboard/web"),
         new("running-apps", "Running Apps", "0 active", "#151923", "builtin://dashboard/running"),
         new("activity-center", "Activity Center", "Notifications and downloads", "#151923", "builtin://dashboard/activity"),
         new("app-killer", "App Killer", "Manage or force-close a stuck app", "#151923", "builtin://dashboard/killer"),

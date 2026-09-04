@@ -14,6 +14,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
     private bool _browsing;
     private bool _busy;
     private int _generation;
+    private bool _generalBrowser;
     public bool OwnsControllerInput => _browsing || ChoicesOverlay.Visibility==Visibility.Visible;
     public event EventHandler? ExitRequested;
     public GrevDadWebView()
@@ -27,16 +28,18 @@ public partial class GrevDadWebView : UserControl, IDisposable
         };
     }
 
-    public async Task OpenAsync(string userDataFolder, Uri home, Uri target)
+    public async Task OpenAsync(string userDataFolder, Uri home, Uri target, bool generalBrowser=false)
     {
         DisposeBrowser();
         _home=home;
+        _generalBrowser=generalBrowser;
+        BrowserHomeButton.Content=generalBrowser?"Google search":"Grev.dad home";
         if (!IsAllowed(target.AbsoluteUri)) { HintText.Text="Only your configured Grev.dad website can open here."; return; }
         var generation=_generation;
         var browser=new WebView2 { DefaultBackgroundColor=System.Drawing.Color.FromArgb(16,21,31),Focusable=false };
         _browser=browser;
         BrowserHost.Children.Add(browser);
-        HintText.Text="Opening Grev.dad…";
+        HintText.Text="Opening browser…";
         try
         {
             var environment=await CoreWebView2Environment.CreateAsync(userDataFolder:userDataFolder);
@@ -52,14 +55,14 @@ public partial class GrevDadWebView : UserControl, IDisposable
             core.DownloadStarting += (_,e)=> {e.Cancel=true; HintText.Text="Downloads are not enabled in this account browser.";};
             core.NavigationStarting += (_,e)=>
             {
-                if(!IsAllowed(e.Uri)) { e.Cancel=true; HintText.Text="External websites stay outside the Grev.dad account browser."; }
-                else { _browsing=false; BrowseButton.Focus(); }
+                if(!IsAllowed(e.Uri)) { e.Cancel=true; HintText.Text=_generalBrowser?"Only HTTPS web pages can open here.":"External websites stay outside the Grev.dad account browser."; }
+                else { _browsing=false;AddressText.Text=new Uri(e.Uri).GetLeftPart(UriPartial.Path); BrowseButton.Focus(); }
             };
             core.NewWindowRequested += (_,e)=> { e.Handled=true; if(IsAllowed(e.Uri)) core.Navigate(e.Uri); };
             core.NavigationCompleted += async (_,e)=>
             {
                 if(generation!=_generation) return;
-                if(!e.IsSuccess) {HintText.Text="Grev.dad could not load. Check your connection, then choose Reload or Back.";return;}
+                if(!e.IsSuccess) {HintText.Text="The page could not load. Check your connection, then choose Reload or Back.";return;}
                 try { await core.ExecuteScriptAsync(ControllerScript); HintText.Text="Browse page: D-pad selects links/fields • A opens or types • B returns to browser controls"; }
                 catch (Exception ex) when(ex is InvalidOperationException or System.Runtime.InteropServices.COMException) {HintText.Text="Choose Reload to reconnect the browser.";}
             };
@@ -67,12 +70,12 @@ public partial class GrevDadWebView : UserControl, IDisposable
         }
         catch(Exception ex) when(ex is WebView2RuntimeNotFoundException or InvalidOperationException or System.Runtime.InteropServices.COMException or IOException or UnauthorizedAccessException)
         {
-            if(generation==_generation) HintText.Text="The Grev.dad browser could not start. Microsoft Edge WebView2 Runtime must be installed. You can still approve the copied code on another device.";
+            if(generation==_generation) HintText.Text="The browser could not start. Microsoft Edge WebView2 Runtime must be installed.";
         }
     }
 
     private bool IsAllowed(string uri) => Uri.TryCreate(uri,UriKind.Absolute,out var target) && target.Scheme=="https" &&
-        string.Equals(target.Host,_home.Host,StringComparison.OrdinalIgnoreCase) && target.Port==_home.Port;
+        (_generalBrowser || string.Equals(target.Host,_home.Host,StringComparison.OrdinalIgnoreCase) && target.Port==_home.Port);
 
     public bool HandleInput(InputAction action)
     {

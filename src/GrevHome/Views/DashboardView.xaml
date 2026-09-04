@@ -108,6 +108,7 @@
                     </StackPanel>
                 </Button>
                 <Button x:Name="GrevDadButton" Tag="grev-dad" Content="Grev.dad" Style="{StaticResource DashboardTileStyle}" Click="GrevDad_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
+                <Button x:Name="WebBrowserButton" Tag="web-browser" Content="Grev's Web Browser" Style="{StaticResource DashboardTileStyle}" Click="WebBrowser_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
             </WrapPanel>
 
             <TextBlock Text="SYSTEM"
