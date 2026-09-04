@@ -43,10 +43,27 @@ internal static class Program
         var value=(TextBlock)keyboard.FindName("ValueText");
         Check(!value.Text.Contains("secret"),"Password text must be masked");
         keyboard.Cancel();Check(keyboard.Value==string.Empty,"Password keyboard must clear on close");
+
+        var dashboard=new DashboardView();
+        window.Content=dashboard;
+        window.UpdateLayout();Pump();
+        var browserButton=(Button)dashboard.FindName("WebBrowserButton");
+        var appsCarousel=FindParent<ScrollViewer>(browserButton);
+        Check(appsCarousel is not null && appsCarousel.ScrollableWidth>0,"Dashboard app tiles must remain in one horizontally scrollable row");
+        browserButton.Focus();Pump();
+        Check(appsCarousel.HorizontalOffset>0,"Controller focus must carry the dashboard carousel indicator to an offscreen tile");
+        Check(appsCarousel.OpacityMask is System.Windows.Media.LinearGradientBrush,"Scrollable dashboard rows must fade at their offscreen edges");
         window.Close();
-        Console.WriteLine("Profile carousel tests passed: four-card layout, offscreen controller navigation and password masking.");
+        Console.WriteLine("Carousel tests passed: profiles, dashboard focus scrolling, edge fades and password masking.");
         app.Shutdown();
     }
     private static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);
     private static void Check(bool value,string message){if(!value)throw new Exception(message);}
+    private static T? FindParent<T>(DependencyObject child) where T:DependencyObject
+    {
+        DependencyObject? current=child;
+        while((current=System.Windows.Media.VisualTreeHelper.GetParent(current)) is not null)
+            if(current is T match)return match;
+        return null;
+    }
 }

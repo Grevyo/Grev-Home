@@ -24,6 +24,16 @@
             <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
+        <Style x:Key="DashboardCarouselStyle" TargetType="ScrollViewer">
+            <Setter Property="HorizontalScrollBarVisibility" Value="Hidden" />
+            <Setter Property="VerticalScrollBarVisibility" Value="Disabled" />
+            <Setter Property="PanningMode" Value="HorizontalOnly" />
+            <Setter Property="CanContentScroll" Value="False" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="ClipToBounds" Value="True" />
+            <EventSetter Event="ScrollChanged" Handler="Carousel_ScrollChanged" />
+            <EventSetter Event="PreviewMouseWheel" Handler="Carousel_PreviewMouseWheel" />
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto"
@@ -57,7 +67,8 @@
                            FontSize="14"
                            Foreground="{StaticResource MutedBrush}"
                            TextWrapping="Wrap" />
-                <WrapPanel>
+                <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
+                    <StackPanel Orientation="Horizontal">
                     <Button x:Name="ContinueButton"
                             Style="{StaticResource DashboardTileStyle}"
                             Visibility="Collapsed"
@@ -73,8 +84,9 @@
                                        Style="{StaticResource DashboardTileDetailStyle}" />
                         </StackPanel>
                     </Button>
-                </WrapPanel>
-                <WrapPanel x:Name="RecentAppsPanel" />
+                    <StackPanel x:Name="RecentAppsPanel" Orientation="Horizontal" />
+                    </StackPanel>
+                </ScrollViewer>
             </StackPanel>
 
             <TextBlock Text="APPS &amp; CONTENT"
@@ -82,7 +94,8 @@
                        FontSize="13"
                        FontWeight="Bold"
                        Foreground="{StaticResource MutedBrush}" />
-            <WrapPanel Margin="0,0,0,22">
+            <ScrollViewer Style="{StaticResource DashboardCarouselStyle}" Margin="0,0,0,22">
+                <StackPanel Orientation="Horizontal">
                 <Button x:Name="YourGamesButton" Tag="your-games" Style="{StaticResource DashboardTileStyle}" Click="YourGames_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Your Games" Style="{StaticResource DashboardTileTitleStyle}" />
@@ -109,14 +122,16 @@
                 </Button>
                 <Button x:Name="GrevDadButton" Tag="grev-dad" Content="Grev.dad" Style="{StaticResource DashboardTileStyle}" Click="GrevDad_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="WebBrowserButton" Tag="web-browser" Content="Grev's Web Browser" Style="{StaticResource DashboardTileStyle}" Click="WebBrowser_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
-            </WrapPanel>
+                </StackPanel>
+            </ScrollViewer>
 
             <TextBlock Text="SYSTEM"
                        Margin="10,0,0,8"
                        FontSize="13"
                        FontWeight="Bold"
                        Foreground="{StaticResource MutedBrush}" />
-            <WrapPanel>
+            <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
+                <StackPanel Orientation="Horizontal">
                 <Button x:Name="RunningAppsButton"
                         Tag="running-apps"
                         Style="{StaticResource DashboardTileStyle}"
@@ -160,15 +175,20 @@
                         <TextBlock Text="Machine, apps and account administration" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
-            </WrapPanel>
+                </StackPanel>
+            </ScrollViewer>
 
             <StackPanel x:Name="FriendsSection" Visibility="Collapsed" Margin="0,24,0,0">
                 <Grid Margin="10,0,10,8">
                     <TextBlock Text="FRIENDS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedBrush}" />
                 </Grid>
-                <WrapPanel x:Name="FriendsPanel" />
-                <Button Content="Open Friends" Width="285" Height="54" Margin="8" HorizontalAlignment="Left" Click="Friends_Click" />
+                <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
+                    <StackPanel Orientation="Horizontal">
+                        <StackPanel x:Name="FriendsPanel" Orientation="Horizontal" />
+                        <Button Content="Open Friends" Width="285" Height="86" Margin="8" Click="Friends_Click" />
+                    </StackPanel>
+                </ScrollViewer>
             </StackPanel>
 
             <TextBlock x:Name="DashboardStatusText"

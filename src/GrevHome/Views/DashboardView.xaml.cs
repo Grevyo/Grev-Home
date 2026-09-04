@@ -8,6 +8,7 @@ using GrevHome.Sessions;
 using GrevHome.Transfers;
 using GrevHome.Presentation;
 using GrevHome.Online;
+using System.Windows.Media;
 
 namespace GrevHome.Views;
 
@@ -37,8 +38,53 @@ public partial class DashboardView : UserControl
     public DashboardView()
     {
         InitializeComponent();
+        AddHandler(Keyboard.GotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(Dashboard_GotKeyboardFocus), true);
         SetDashboardData(DashboardDataSnapshot.Empty);
         SetSystemActivity(NotificationSnapshot.Empty, TransferSnapshot.Empty);
+    }
+
+    private void Dashboard_GotKeyboardFocus(object sender, KeyboardFocusChangedEventArgs e)
+    {
+        if (e.NewFocus is not Button button) return;
+        var carousel = FindAncestor<ScrollViewer>(button);
+        if (carousel is null || carousel.HorizontalScrollBarVisibility != ScrollBarVisibility.Hidden) return;
+        button.BringIntoView(new Rect(-18,0,button.ActualWidth+36,button.ActualHeight));
+        UpdateCarouselFade(carousel);
+    }
+
+    private static T? FindAncestor<T>(DependencyObject? child) where T : DependencyObject
+    {
+        while (child is not null)
+        {
+            child = VisualTreeHelper.GetParent(child);
+            if (child is T match) return match;
+        }
+        return null;
+    }
+
+    private void Carousel_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (sender is not ScrollViewer carousel || carousel.ScrollableWidth <= 0) return;
+        carousel.ScrollToHorizontalOffset(carousel.HorizontalOffset-e.Delta);
+        e.Handled=true;
+    }
+
+    private void Carousel_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        if (sender is ScrollViewer carousel) UpdateCarouselFade(carousel);
+    }
+
+    private static void UpdateCarouselFade(ScrollViewer carousel)
+    {
+        var canGoLeft=carousel.HorizontalOffset>1;
+        var canGoRight=carousel.HorizontalOffset<carousel.ScrollableWidth-1;
+        carousel.OpacityMask=new LinearGradientBrush(new GradientStopCollection
+        {
+            new(canGoLeft?Colors.Transparent:Colors.Black,0),
+            new(Colors.Black,canGoLeft?0.035:0),
+            new(Colors.Black,canGoRight?0.965:1),
+            new(canGoRight?Colors.Transparent:Colors.Black,1)
+        },new Point(0,0),new Point(1,0));
     }
 
     public void SetSession(SessionContext session)
