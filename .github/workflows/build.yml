@@ -28,3 +28,6 @@ jobs:
 
       - name: Build
         run: dotnet build .\src\GrevHome\GrevHome.csproj --configuration Release --nologo
+
+      - name: Verify account restore isolation
+        run: dotnet run --project .\tests\AccountRestore\AccountRestore.csproj --configuration Release

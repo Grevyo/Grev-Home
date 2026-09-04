@@ -24,6 +24,7 @@ public partial class ProfileView : UserControl
     public void SetProfile(LocalProfile? profile, string? sessionStatus = null, bool canEdit = true)
     {
         _currentGrevId = profile?.GrevId;
+        _cloudLinked = false;
         SetCloudAccountData(null,false);
         _lastStats = null;
         ApplyPresentation(ProfilePresentationSettings.Default);
