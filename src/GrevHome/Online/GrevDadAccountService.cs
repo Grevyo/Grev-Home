@@ -447,7 +447,7 @@ public sealed class GrevDadAccountService : IDisposable
         {
             try
             {
-                using var request = CreateAuthorizedRequest(HttpMethod.Post, "api/grev-home/link/revoke", token);
+                using var request = CreateAuthorizedRequest(HttpMethod.Post, "api/grev-home/token/revoke", token);
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (response.StatusCode != HttpStatusCode.Unauthorized)
                 {

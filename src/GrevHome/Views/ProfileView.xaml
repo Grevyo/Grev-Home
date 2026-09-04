@@ -135,6 +135,7 @@
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource AccentBrush}" />
                             </WrapPanel>
+                            <TextBlock x:Name="CloudAccountText" Margin="0,6,0,0" FontSize="12" TextWrapping="Wrap" Visibility="Collapsed" />
                             <TextBlock x:Name="StatusMessageText"
                                        Margin="0,10,0,0"
                                        MaxWidth="690"

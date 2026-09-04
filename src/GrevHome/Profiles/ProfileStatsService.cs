@@ -173,7 +173,7 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
             completedSeconds + activeSeconds,
             stored.Apps.Values.Sum(app => app.SessionCount),
             active.Length,
-            combined.Count,
+            Math.Max(combined.Keys.Count(id=>id!="cloud-legacy-history"),stored.UniqueAppsFloor),
             lastActivity,
             topApps,
             recentActivity);

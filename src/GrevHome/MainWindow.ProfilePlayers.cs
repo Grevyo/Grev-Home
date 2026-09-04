@@ -371,6 +371,11 @@ public partial class MainWindow
         try
         {
             var stats = await statsService.GetAsync(grevId, _runtimeSessions.GetActiveSessions());
+            var cloud = await GrevHome.Online.GrevDadAccountDataStore.ReadAsync(_paths,grevId);
+            var local = await new GrevHome.Runtime.PlaytimeService(_paths).GetLocalForGrevIdAsync(grevId);
+            var own = cloud?.Sources.FirstOrDefault(s=>string.Equals(s.GrevId,grevId,StringComparison.OrdinalIgnoreCase));
+            var pending = local.Apps.Values.Sum(a=>a.TotalSeconds) > (own?.TotalSeconds ?? 0) ||
+                local.Apps.Values.Sum(a=>a.SessionCount) > (own?.CompletedSessions ?? 0);
             if (_navigation.Current != Route.ProfileView ||
                 !string.Equals(GetProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             {
@@ -378,6 +383,7 @@ public partial class MainWindow
             }
 
             _profileView.SetStats(stats);
+            _profileView.SetCloudAccountData(cloud,pending);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {

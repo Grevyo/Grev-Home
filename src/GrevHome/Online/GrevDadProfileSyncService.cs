@@ -128,7 +128,14 @@ public sealed class GrevDadProfileSyncService : IDisposable
             }
 
             var cursor = await ReadCursorAsync(grevId, cancellationToken);
-            var progression = await ReadStableLocalProgressionAsync(grevId, cancellationToken);
+            var local = await _playtime.GetLocalForGrevIdAsync(grevId,cancellationToken);
+            var totalSeconds = local.Apps.Values.Sum(a=>a.TotalSeconds);
+            var completedSessions = local.Apps.Values.Sum(a=>a.SessionCount);
+            var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds,completedSessions,local.Apps.Count);
+            var progression = new GrevDadSyncApiProgression(xp,GrevHomeProgressionPolicy.CalculateLevel(xp).Level,
+                totalSeconds,completedSessions,local.Apps.Count);
+            var profile = (await new ProfileService(_paths).GetProfilesAsync(cancellationToken))
+                .First(p=>string.Equals(p.GrevId,grevId,StringComparison.OrdinalIgnoreCase));
             var privacy = await _privacy.GetAsync(grevId, cancellationToken);
             GrevDadSyncApiResponse? lastResponse = null;
             var sentAnyRequest = false;
@@ -153,6 +160,8 @@ public sealed class GrevDadProfileSyncService : IDisposable
                     grevId,
                     token,
                     progression,
+                    local,
+                    profile.CreatedAtUtc,
                     sessions,
                     privacy.HistoryVisibility,
                     cancellationToken);
@@ -192,6 +201,17 @@ public sealed class GrevDadProfileSyncService : IDisposable
                 }
             }
 
+            using (var restoreRequest = new HttpRequestMessage(HttpMethod.Get,"api/grev-home/account-data"))
+            {
+                restoreRequest.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer",token);
+                using var restoreResponse = await _http.SendAsync(restoreRequest,cancellationToken);
+                restoreResponse.EnsureSuccessStatusCode();
+                var data = await restoreResponse.Content.ReadFromJsonAsync<GrevDadAccountData>(_json,cancellationToken)
+                    ?? throw new InvalidDataException("Empty cloud account response.");
+                if (data.UserId != account.Account?.UserId) throw new InvalidDataException("Cloud account identity mismatch.");
+                await GrevDadAccountDataStore.SaveAsync(_paths,grevId,data,cancellationToken);
+            }
+
             if (lastResponse?.GrevHome is null || lastResponse.GrevDad is null)
             {
                 return null;
@@ -222,7 +242,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
         string grevId,
         CancellationToken cancellationToken)
     {
-        var playtime = await _playtime.GetForGrevIdAsync(grevId, cancellationToken);
+        var playtime = await _playtime.GetLocalForGrevIdAsync(grevId, cancellationToken);
         var totalSeconds = playtime.Apps.Values.Sum(app => app.TotalSeconds);
         var completedSessions = playtime.Apps.Values.Sum(app => app.SessionCount);
         var uniqueApps = playtime.Apps.Count;
@@ -246,6 +266,8 @@ public sealed class GrevDadProfileSyncService : IDisposable
         string grevId,
         string token,
         GrevDadSyncApiProgression progression,
+        PlaytimeSnapshot local,
+        DateTimeOffset profileCreatedAt,
         IReadOnlyList<LocalSessionHistoryEntry> sessions,
         string historyVisibility,
         CancellationToken cancellationToken)
@@ -256,6 +278,9 @@ public sealed class GrevDadProfileSyncService : IDisposable
         var body = new
         {
             progression,
+            profileCreatedAt = profileCreatedAt.ToUnixTimeSeconds(),
+            apps = local.Apps.Values.Select(a=>new {a.AppId,a.AppName,a.TotalSeconds,a.SessionCount,
+                lastPlayedAt=a.LastPlayedAtUtc.ToUnixTimeSeconds()}).ToArray(),
             sessions = sessions.Select(session => new
             {
                 sessionId = session.SessionId,

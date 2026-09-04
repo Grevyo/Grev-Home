@@ -15,7 +15,8 @@ public sealed record AppPlaytimeStat(
 public sealed record PlaytimeSnapshot(
     int SchemaVersion,
     IReadOnlyDictionary<string, AppPlaytimeStat> Apps,
-    IReadOnlyList<Guid>? AppliedSessionIds = null);
+    IReadOnlyList<Guid>? AppliedSessionIds = null,
+    int UniqueAppsFloor = 0);
 
 public sealed class PlaytimeService
 {
@@ -129,6 +130,14 @@ public sealed class PlaytimeService
     }
 
     public async Task<PlaytimeSnapshot> GetForGrevIdAsync(
+        string grevId,
+        CancellationToken cancellationToken = default)
+    {
+        var local = await GetLocalForGrevIdAsync(grevId,cancellationToken);
+        return await GrevHome.Online.GrevDadAccountDataStore.CombineAsync(_paths,grevId,local,cancellationToken);
+    }
+
+    public async Task<PlaytimeSnapshot> GetLocalForGrevIdAsync(
         string grevId,
         CancellationToken cancellationToken = default)
     {

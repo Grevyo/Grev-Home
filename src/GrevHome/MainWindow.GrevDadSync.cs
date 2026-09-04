@@ -100,8 +100,12 @@ public partial class MainWindow
                 }
                 else
                 {
-                    ClearGrevDadSyncRetry(grevId);
+                    // Refresh other devices' account statistics without requiring a restart.
+                    _grevDadSyncRetries[grevId] = new GrevDadSyncRetryState(0,DateTimeOffset.UtcNow+TimeSpan.FromMinutes(2));
+                    EnsureGrevDadSyncRetryTimerRunning();
                 }
+                if (string.Equals(GetProfileTarget()?.GrevId,grevId,StringComparison.OrdinalIgnoreCase))
+                    await LoadProfileStatsAsync(grevId);
                 return;
             }
 
