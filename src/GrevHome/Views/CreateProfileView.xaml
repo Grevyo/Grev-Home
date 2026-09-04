@@ -5,6 +5,7 @@
              Focusable="False">
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <Grid>
             <StackPanel x:Name="AccountDetailsStep" Margin="72,42" HorizontalAlignment="Center" Width="900">
                 <TextBlock Text="Create account"
                            HorizontalAlignment="Center"
@@ -85,6 +86,7 @@
                     <Button x:Name="SkipGrevDadButton" Content="Skip for now" Width="190" Height="56" Margin="6" Click="SkipGrevDad_Click" />
                 </StackPanel>
             </StackPanel>
+            </Grid>
         </ScrollViewer>
 
         <local:ControllerQwertyKeyboard x:Name="KeyboardOverlay" Panel.ZIndex="100" />
