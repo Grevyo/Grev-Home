@@ -194,7 +194,8 @@ public sealed class GrevStoreCatalogService
                     AdditionalProcessNames: ["steamwebhelper"],
                     TrackDescendantProcesses: false,
                     ForceKillEntireProcessTree: false,
-                    ActivationUri: "steam://open/bigpicture"),
+                    ActivationUri: "steam://open/bigpicture",
+                    TrackForegroundUsageOnly: true),
                 SupportsController: true,
                 Description: "Steam game launcher opened directly into its controller-focused Big Picture interface, with native Steam account and game-library data left under Steam's control."),
             Presentation: new AppPresentationDefaults(
@@ -251,6 +252,7 @@ public sealed class GrevStoreCatalogService
                 "Official Steam Windows bootstrap installer with existing-install detection and native Steam self-updating left intact.",
                 "Global App library membership is per GrevID even though the Steam Windows installation and game libraries are shared.",
                 "Every Grev Home Open requests Steam's Big Picture surface explicitly, including when the single-instance Steam client is already running in the tray; -gamepadui remains the cold-start preference.",
+                "Steam launcher playtime counts only while a Steam or Steam Web Helper window is foreground; tray/background lifetime is excluded.",
                 "A successful first install/adoption launches through the Grev Home runtime immediately, so the same Big Picture activation runs without requiring a second Open action.",
                 "Closing or minimizing the Steam UI returns to Grev Home like Discord; when a Steam-launched child game owns foreground, launcher-aware monitoring keeps Grev Home hidden so it does not jump over the game.",
                 "Temporary per-GrevID Emulated Keyboard & Mouse controls support first-run updates, login, Steam Guard and setup, with the same reversible switch in App Settings.",
@@ -272,7 +274,8 @@ public sealed class GrevStoreCatalogService
                     Arguments: "--processStart Discord.exe",
                     WorkingDirectory: "%LOCALAPPDATA%\\Discord",
                     ProcessName: "Discord",
-                    SingleInstance: true),
+                    SingleInstance: true,
+                    TrackForegroundUsageOnly: true),
                 SupportsController: false,
                 Description: "Discord desktop for text, voice and video. The Windows-user Discord account/data stays native while Grev Home adds controller-first launch, navigation and app management."),
             Presentation: new AppPresentationDefaults(
@@ -330,7 +333,7 @@ public sealed class GrevStoreCatalogService
                 "Global App library membership is per GrevID even though the Windows installation is shared.",
                 "Per-GrevID editable controller profile and reusable first-launch controller guide.",
                 "Grev Desktop controls: right stick moves the pointer, RT left-clicks, LT right-clicks, left stick scrolls, X opens the keyboard and B sends Escape.",
-                "Launch maximized through the Grev Home runtime for Return Home, Overlay, Running Apps, App Killer, restart/recovery and tracked usage."
+                "Launch maximized through the Grev Home runtime for Return Home, Overlay, Running Apps and App Killer; playtime counts only while Discord is the foreground app, not while it sits in the tray."
             ])
     ];
 

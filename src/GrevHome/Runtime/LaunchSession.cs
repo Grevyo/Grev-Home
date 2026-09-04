@@ -55,6 +55,7 @@ internal sealed class TrackedLaunchSession
     public bool TrackDescendantProcesses { get; }
     public bool ForceKillEntireProcessTree { get; }
     public bool KeepShellHiddenWhileRunning { get; }
+    public bool TrackForegroundUsageOnly { get; }
     public IReadOnlyList<LaunchParticipant> Participants { get; }
     public DateTimeOffset StartedAtUtc { get; }
     public DateTimeOffset LastObservedAliveAtUtc { get; private set; }
@@ -90,6 +91,7 @@ internal sealed class TrackedLaunchSession
         bool trackDescendantProcesses,
         bool forceKillEntireProcessTree,
         bool keepShellHiddenWhileRunning,
+        bool trackForegroundUsageOnly,
         IReadOnlyList<LaunchParticipant> participants,
         RuntimeProcessIdentity rootProcess,
         DateTimeOffset startedAtUtc)
@@ -103,6 +105,7 @@ internal sealed class TrackedLaunchSession
             trackDescendantProcesses,
             forceKillEntireProcessTree,
             keepShellHiddenWhileRunning,
+            trackForegroundUsageOnly,
             participants,
             rootProcess.ProcessId,
             new[] { rootProcess },
@@ -124,6 +127,7 @@ internal sealed class TrackedLaunchSession
         bool trackDescendantProcesses,
         bool forceKillEntireProcessTree,
         bool keepShellHiddenWhileRunning,
+        bool trackForegroundUsageOnly,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -147,6 +151,7 @@ internal sealed class TrackedLaunchSession
         TrackDescendantProcesses = trackDescendantProcesses;
         ForceKillEntireProcessTree = forceKillEntireProcessTree;
         KeepShellHiddenWhileRunning = keepShellHiddenWhileRunning;
+        TrackForegroundUsageOnly = trackForegroundUsageOnly;
         Participants = participants;
         RootProcessId = rootProcessId;
         StartedAtUtc = startedAtUtc;
@@ -171,6 +176,7 @@ internal sealed class TrackedLaunchSession
         bool trackDescendantProcesses,
         bool forceKillEntireProcessTree,
         bool keepShellHiddenWhileRunning,
+        bool trackForegroundUsageOnly,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
@@ -189,6 +195,7 @@ internal sealed class TrackedLaunchSession
             trackDescendantProcesses,
             forceKillEntireProcessTree,
             keepShellHiddenWhileRunning,
+            trackForegroundUsageOnly,
             participants,
             rootProcessId,
             processes,

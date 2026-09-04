@@ -99,7 +99,11 @@ public sealed class RuntimeSessionManager : IDisposable
     {
         if (_disposed) return;
         var sessions = _active.Values.ToArray();
-        foreach (var tracked in sessions) tracked.MarkResumed(resumedAtUtc);
+        foreach (var tracked in sessions)
+        {
+            if (tracked.TrackForegroundUsageOnly) UpdateForegroundUsageState(tracked,resumedAtUtc);
+            else tracked.MarkResumed(resumedAtUtc);
+        }
         if (sessions.Length == 0) return;
         PersistRuntimeState(force: true);
         foreach (var tracked in sessions) SessionChanged?.Invoke(tracked.Snapshot());
@@ -265,6 +269,11 @@ public sealed class RuntimeSessionManager : IDisposable
         var startedAtUtc = DateTimeOffset.UtcNow;
         var launch = entry.Manifest.Definition.Launch;
         var systemInstalled = entry.Manifest.Definition.InstallStrategy == InstallStrategy.SystemInstalled;
+        // Existing installations may have manifests written before this policy field existed.
+        // Preserve the corrected behavior for the two known always-running tray clients without
+        // forcing a repair/reinstall; new manifests carry the explicit policy as well.
+        var foregroundUsageOnly = launch.TrackForegroundUsageOnly ||
+            entry.Manifest.Definition.AppId is "steam" or "discord";
         var tracked = new TrackedLaunchSession(
             entry.Manifest.Definition.AppId,
             entry.Manifest.Definition.Name,
@@ -274,9 +283,11 @@ public sealed class RuntimeSessionManager : IDisposable
             launch.EffectiveTrackDescendantProcesses,
             launch.EffectiveForceKillEntireProcessTree,
             keepShellHiddenWhileRunning,
+            foregroundUsageOnly,
             participants.ToArray(),
             rootIdentity,
             startedAtUtc);
+        if (tracked.TrackForegroundUsageOnly) tracked.MarkSuspended(startedAtUtc);
         RefreshDeclaredProcesses(tracked);
         if (!_active.TryAdd(tracked.LaunchSessionId, tracked))
             throw new InvalidOperationException("Grev Home could not register the new runtime session.");
@@ -360,6 +371,7 @@ public sealed class RuntimeSessionManager : IDisposable
                 record.TrackDescendantProcesses ?? true,
                 record.ForceKillEntireProcessTree ?? true,
                 record.KeepShellHiddenWhileRunning ?? false,
+                record.TrackForegroundUsageOnly ?? false,
                 record.Participants ?? Array.Empty<LaunchParticipant>(),
                 record.RootProcessId,
                 aliveProcesses,
@@ -505,6 +517,7 @@ public sealed class RuntimeSessionManager : IDisposable
                 {
                     noProcessesSince = null;
                     tracked.MarkObservedAlive(DateTimeOffset.UtcNow);
+                    if (tracked.TrackForegroundUsageOnly) UpdateForegroundUsageState(tracked,DateTimeOffset.UtcNow);
                     PersistRuntimeState(force: false);
                 }
                 else
@@ -560,6 +573,15 @@ public sealed class RuntimeSessionManager : IDisposable
         {
             _finalizing.TryRemove(tracked.LaunchSessionId, out _);
         }
+    }
+
+    private void UpdateForegroundUsageState(TrackedLaunchSession tracked, DateTimeOffset observedAtUtc)
+    {
+        var foregroundProcessId = _processWindows.GetForegroundProcessId();
+        if (foregroundProcessId.HasValue && GetValidatedProcessIds(tracked).Contains(foregroundProcessId.Value))
+            tracked.MarkResumed(observedAtUtc);
+        else
+            tracked.MarkSuspended(observedAtUtc);
     }
 
     private void StartCompletionRetry(RuntimePendingCompletionRecord pending)
@@ -715,7 +737,8 @@ public sealed class RuntimeSessionManager : IDisposable
                     tracked.ForceKillEntireProcessTree,
                     tracked.AccumulatedSuspendedSeconds,
                     tracked.SuspendedAtUtc,
-                    tracked.KeepShellHiddenWhileRunning);
+                    tracked.KeepShellHiddenWhileRunning,
+                    tracked.TrackForegroundUsageOnly);
             }).OrderByDescending(record => record.StartedAtUtc).ToArray();
             try
             {

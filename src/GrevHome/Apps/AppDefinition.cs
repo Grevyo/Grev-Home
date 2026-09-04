@@ -38,7 +38,8 @@ public sealed record AppLaunchDefinition(
     IReadOnlyList<string>? AdditionalProcessNames = null,
     bool? TrackDescendantProcesses = null,
     bool? ForceKillEntireProcessTree = null,
-    string? ActivationUri = null)
+    string? ActivationUri = null,
+    bool TrackForegroundUsageOnly = false)
 {
     // Nullable package flags preserve the historical runtime behavior for manifests written
     // before launcher-specific process tracking existed. Packages such as Steam can opt out of
