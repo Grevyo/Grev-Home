@@ -94,8 +94,18 @@ public partial class ProfileEditView
         _grevDadApprovalText.TextWrapping = TextWrapping.Wrap;
         stack.Children.Add(_grevDadApprovalText);
 
+        stack.Children.Add(new TextBlock
+        {
+            Text = "First open Grev.dad and sign in to the account you want to link. Return here to generate a code, approve it on the website, then choose Check approval.",
+            Margin = new Thickness(0, 14, 0, 10),
+            Foreground = (Brush)FindResource("MutedBrush"),
+            TextWrapping = TextWrapping.Wrap
+        });
+        ConfigureGrevDadButton(_grevDadWebsiteButton,"Open Grev.dad • sign in",230,(_,_)=>OpenGrevDadWebsiteRequested?.Invoke(this,EventArgs.Empty));
+        _grevDadWebsiteButton.HorizontalAlignment = HorizontalAlignment.Left;
+        stack.Children.Add(_grevDadWebsiteButton);
         var accountActions = new WrapPanel { Margin = new Thickness(0, 14, 0, 0) };
-        ConfigureGrevDadButton(_grevDadLinkButton, "Link Grev.dad", 170, (_, _) => LinkGrevDadRequested?.Invoke(this, EventArgs.Empty));
+        ConfigureGrevDadButton(_grevDadLinkButton, "Generate approval code", 230, (_, _) => LinkGrevDadRequested?.Invoke(this, EventArgs.Empty));
         ConfigureGrevDadButton(_grevDadOpenApprovalButton, "Open approval page", 200, (_, _) =>
         {
             if (_grevDadLinkStart is { } link)
@@ -111,13 +121,11 @@ public partial class ProfileEditView
             try { Clipboard.SetText(link.UserCode);ShowGrevDadStatus("Approval code copied. Choose Open approval page to continue."); }
             catch(System.Runtime.InteropServices.ExternalException) {ShowGrevDadStatus("The clipboard is busy. Try Copy code again.");}
         });
-        ConfigureGrevDadButton(_grevDadWebsiteButton,"Open Grev.dad",170,(_,_)=>OpenGrevDadWebsiteRequested?.Invoke(this,EventArgs.Empty));
         ConfigureGrevDadButton(_grevDadCancelButton, "Cancel link", 150, (_, _) => CancelGrevDadLinkRequested?.Invoke(this, EventArgs.Empty));
         ConfigureGrevDadButton(_grevDadUnlinkButton, "Unlink Grev.dad", 170, (_, _) => UnlinkGrevDadRequested?.Invoke(this, EventArgs.Empty));
         accountActions.Children.Add(_grevDadLinkButton);
         accountActions.Children.Add(_grevDadOpenApprovalButton);
         accountActions.Children.Add(_grevDadCopyCodeButton);
-        accountActions.Children.Add(_grevDadWebsiteButton);
         accountActions.Children.Add(_grevDadCheckButton);
         accountActions.Children.Add(_grevDadCancelButton);
         accountActions.Children.Add(_grevDadUnlinkButton);
@@ -212,7 +220,7 @@ public partial class ProfileEditView
         if (snapshot.State == GrevDadConnectionState.Linking && _grevDadLinkStart is { } link)
         {
             _grevDadCodeText.Text = $"Approval code: {link.UserCode}";
-            _grevDadApprovalText.Text = $"Approve this code on Grev.dad • expires {link.ExpiresAtUtc.ToLocalTime():t}";
+            _grevDadApprovalText.Text = $"Paste this code on your Grev.dad profile, or choose Open approval page to fill it automatically. After approving on the website, choose Check approval here. Expires {link.ExpiresAtUtc.ToLocalTime():t}.";
         }
         else
         {
@@ -250,6 +258,20 @@ public partial class ProfileEditView
         SetButtonState(_grevDadCopyCodeButton,_canManageGrevDad && linking && _grevDadLinkStart is not null,linking && _grevDadLinkStart is not null);
         SetButtonState(_grevDadWebsiteButton,_canManageGrevDad,true);
         SetButtonState(_grevDadCheckButton, _canManageGrevDad && linking, linking);
+        if (linking)
+        {
+            _grevDadCheckButton.Background = new SolidColorBrush(Color.FromRgb(24, 105, 57));
+            _grevDadCheckButton.Foreground = Brushes.White;
+            _grevDadOpenApprovalButton.Background = new SolidColorBrush(Color.FromRgb(24, 105, 57));
+            _grevDadOpenApprovalButton.Foreground = Brushes.White;
+        }
+        else
+        {
+            _grevDadCheckButton.ClearValue(Button.BackgroundProperty);
+            _grevDadCheckButton.ClearValue(Button.ForegroundProperty);
+            _grevDadOpenApprovalButton.ClearValue(Button.BackgroundProperty);
+            _grevDadOpenApprovalButton.ClearValue(Button.ForegroundProperty);
+        }
         SetButtonState(_grevDadCancelButton, _canManageGrevDad && linking, linking);
         SetButtonState(_grevDadUnlinkButton, _canManageGrevDad && (linked || state is GrevDadConnectionState.Expired or GrevDadConnectionState.Revoked or GrevDadConnectionState.Error), linked || state is GrevDadConnectionState.Expired or GrevDadConnectionState.Revoked or GrevDadConnectionState.Error);
     }

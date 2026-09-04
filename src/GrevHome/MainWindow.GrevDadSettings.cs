@@ -31,7 +31,7 @@ public partial class MainWindow
         _profileEditView.CancelGrevDadLinkRequested += (_, _) => _ = CancelGrevDadLinkFromProfileAsync();
         _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
         _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
-        _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(RequireGrevDadAccountService().BaseUri);
+        _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
 
         var service = RequireGrevDadAccountService();
         service.SnapshotChanged += (grevId, snapshot) => Dispatcher.BeginInvoke(new Action(() =>
