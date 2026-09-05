@@ -186,7 +186,7 @@ public partial class ProfileEditView
         InitializeGrevDadEditor();
         _grevDadProfile = profile;
         _canManageGrevDad = profile is not null && canManage;
-        _grevDadEditorCard.Visibility = profile is null ? Visibility.Collapsed : Visibility.Visible;
+        _grevDadEditorCard.Visibility = profile is null || profile.IsBuiltInGuest ? Visibility.Collapsed : Visibility.Visible;
         RenderGrevDadPrivacy();
 
         if (profile is null)

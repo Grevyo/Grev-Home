@@ -145,6 +145,24 @@ internal static class Program
         {
             if(Directory.Exists(motionRoot))Directory.Delete(motionRoot,true);
         }
+
+        var guestRoot=Path.Combine(Path.GetTempPath(),"GrevHomeBuiltInGuestTest-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var profilesService=new ProfileService(new AppPaths(guestRoot));
+            var builtInGuest=profilesService.EnsureBuiltInGuestAsync().GetAwaiter().GetResult();
+            Check(builtInGuest.IsBuiltInGuest && builtInGuest.Role==AccountRole.Guest && builtInGuest.DisplayName=="Guest","A fixed built-in Guest must exist on a new Grev Home system");
+            var firstCreated=profilesService.CreateAsync("Owner",AccountRole.Standard).GetAwaiter().GetResult();
+            Check(firstCreated.Role==AccountRole.Admin,"The built-in Guest must not prevent the first real account becoming Admin");
+            var guestRenameBlocked=false;
+            try { profilesService.UpdateDisplayNameAsync(builtInGuest.GrevId,"Renamed").GetAwaiter().GetResult(); }
+            catch(InvalidOperationException) { guestRenameBlocked=true; }
+            Check(guestRenameBlocked,"The built-in Guest identity must be immutable");
+        }
+        finally
+        {
+            if(Directory.Exists(guestRoot))Directory.Delete(guestRoot,true);
+        }
         window.Close();
         Console.WriteLine("Carousel tests passed: profiles, dashboard and settings hubs, focus scrolling, edge fades and password masking.");
         app.Shutdown();

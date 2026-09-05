@@ -90,6 +90,10 @@ public partial class ProfileEditView : UserControl
         _selectedRole = profile.Role;
         _customAvatarSourcePath = null;
         _customBannerSourcePath = null;
+        var pictureOnly = profile.IsBuiltInGuest;
+        BannerSettingsSection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
+        ProfileDetailsSection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
+        ProfileAppearanceRoleSection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
         IdentityText.Text = $"@{profile.Username}  •  {profile.GrevId}  •  Username and GrevID are permanent";
         DisplayNameTextBox.Text = profile.DisplayName;
         DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
@@ -107,7 +111,9 @@ public partial class ProfileEditView : UserControl
             ? "Guest role and its grey profile border are locked for this session. An Admin must change the account role."
             : $"Role: {profile.Role} • only an Admin can change account roles and their profile-border style.";
 
-        StatusText.Text = "Display Name, status, About, picture, banner and showcase are local profile settings. Saving never renames the Username, GrevID or profile folder.";
+        StatusText.Text = pictureOnly
+            ? "This is Grev Home's built-in living-room Guest. Its identity and permissions are fixed; only its picture can be changed."
+            : "Display Name, status, About, picture, banner and showcase are local profile settings. Saving never renames the Username, GrevID or profile folder.";
         UpdateAvatarPresentation();
         UpdateBannerPresentation();
         UpdateShowcasePresentation();

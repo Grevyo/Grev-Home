@@ -9,6 +9,8 @@ namespace GrevHome.Profiles;
 
 public sealed class ProfileService
 {
+    public const string BuiltInGuestGrevId = "GREVHOME-GUEST";
+    public const string BuiltInGuestUsername = "guest";
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
     public const int MaxBioLength = 160;
@@ -30,6 +32,39 @@ public sealed class ProfileService
     public ProfileService(AppPaths paths)
     {
         _paths = paths;
+    }
+
+    public async Task<LocalProfile> EnsureBuiltInGuestAsync(CancellationToken cancellationToken = default)
+    {
+        var existing = await GetProfilesAsync(cancellationToken);
+        var guest = existing.FirstOrDefault(profile => profile.IsBuiltInGuest ||
+            string.Equals(profile.GrevId, BuiltInGuestGrevId, StringComparison.OrdinalIgnoreCase));
+        if (guest is not null)
+        {
+            var repaired = guest with
+            {
+                GrevId = BuiltInGuestGrevId,
+                Username = BuiltInGuestUsername,
+                DisplayName = "Guest",
+                Role = AccountRole.Guest,
+                Bio = string.Empty,
+                StatusMessage = string.Empty,
+                IsBuiltInGuest = true
+            };
+            if (repaired != guest) await WriteMetadataAsync(repaired, cancellationToken);
+            return repaired;
+        }
+
+        var profile = new LocalProfile(
+            BuiltInGuestGrevId,
+            BuiltInGuestUsername,
+            "Guest",
+            DateTimeOffset.UtcNow,
+            AccountRole.Guest,
+            IsBuiltInGuest: true);
+        _paths.EnsureProfileLayout(profile.GrevId);
+        await WriteMetadataAsync(profile, cancellationToken);
+        return profile;
     }
 
     public async Task<IReadOnlyList<LocalProfile>> GetProfilesAsync(CancellationToken cancellationToken = default)
@@ -147,7 +182,8 @@ public sealed class ProfileService
         }
 
         return profiles
-            .OrderBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(profile => profile.IsBuiltInGuest)
+            .ThenBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(profile => profile.Username, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -163,7 +199,7 @@ public sealed class ProfileService
             throw new InvalidOperationException($"A local account with username '{username}' already exists.");
         }
 
-        if (existing.Count == 0) role = AccountRole.Admin;
+        if (existing.All(profile => profile.IsBuiltInGuest)) role = AccountRole.Admin;
 
         var grevId = CreateUniqueGrevId(username, existing);
         var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow, role, ProfileAvatarCatalog.DefaultKey);
@@ -186,6 +222,7 @@ public sealed class ProfileService
     {
         displayName = ValidateDisplayName(displayName);
         var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest name is fixed. Only its profile picture can be changed.");
         var updated = profile with { DisplayName = displayName };
         await WriteMetadataAsync(updated, cancellationToken);
         return updated;
@@ -215,6 +252,7 @@ public sealed class ProfileService
         EnsureProfileIdentitySetHealthy(profiles);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest role is fixed.");
         EnsureRoleChangeIsSafe(profile, role, profiles);
         var updated = profile with { Role = role };
         await WriteMetadataAsync(updated, cancellationToken);
@@ -235,6 +273,14 @@ public sealed class ProfileService
         var profiles = await GetProfilesAsync(cancellationToken);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
+
+        if (profile.IsBuiltInGuest)
+        {
+            displayName = profile.DisplayName;
+            newRole = AccountRole.Guest;
+            bio = profile.Bio;
+            statusMessage = profile.StatusMessage;
+        }
 
         var normalizedBio = bio is null ? profile.Bio : ValidateBio(bio);
         var normalizedStatusMessage = statusMessage is null ? profile.StatusMessage : ValidateStatusMessage(statusMessage);

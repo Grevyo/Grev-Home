@@ -207,6 +207,10 @@
                         <TextBlock Text="These shortcuts are machine-wide and continue working while external apps are running."
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
+                        <TextBlock Text="Bluetooth and USB living-room remotes that Windows exposes as keyboard/HID controls work automatically: direction pad navigates, OK/Enter selects, Back returns, and previous/next/play/pause/stop media buttons map to Grev Home navigation. Pair Bluetooth remotes from Connections first."
+                                   Margin="0,9,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
 
                         <TextBlock Text="RETURN HOME" Margin="0,22,0,8" FontSize="13" FontWeight="Bold" />
                         <StackPanel x:Name="ReturnHomeBindingsPanel" />

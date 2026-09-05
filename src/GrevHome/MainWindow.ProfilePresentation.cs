@@ -105,7 +105,7 @@ public partial class MainWindow
         var actor = _session.PrimaryUser;
         var profile = _profiles.FirstOrDefault(candidate =>
             string.Equals(candidate.GrevId, request.GrevId, StringComparison.OrdinalIgnoreCase));
-        if (service is null || actor?.GrevId is null || profile is null ||
+        if (service is null || actor?.GrevId is null || profile is null || profile.IsBuiltInGuest ||
             !AccountAuthorizationService.CanEditProfile(actor.Role, actor.GrevId, profile.GrevId))
         {
             return;

@@ -793,10 +793,10 @@ public partial class GrevOverlayWindow : Window
         {
             Key.Up => InputAction.Up,
             Key.Down => InputAction.Down,
-            Key.Left => InputAction.Left,
-            Key.Right => InputAction.Right,
-            Key.Enter or Key.Space => InputAction.Accept,
-            Key.Escape => InputAction.Back,
+            Key.Left or Key.MediaPreviousTrack => InputAction.Left,
+            Key.Right or Key.MediaNextTrack or Key.BrowserForward => InputAction.Right,
+            Key.Enter or Key.Space or Key.Select or Key.MediaPlayPause => InputAction.Accept,
+            Key.Escape or Key.BrowserBack or Key.MediaStop => InputAction.Back,
             _ => (InputAction?)null
         };
 

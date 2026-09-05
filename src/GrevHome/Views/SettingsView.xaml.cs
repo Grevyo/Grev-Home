@@ -20,7 +20,7 @@ public partial class SettingsView : UserControl
         new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
         {
             ["settings-account"] = ["Display name", "Username and GrevID", "Profile identity"],
-            ["settings-controller"] = ["Return Home shortcuts", "Grev Overlay shortcuts", "Hold duration", "Reset shortcuts"],
+            ["settings-controller"] = ["Controllers and living-room remotes", "Return Home shortcuts", "Grev Overlay shortcuts", "Hold duration", "Reset shortcuts"],
             ["settings-audio"] = ["Master volume", "Mute", "Output device"],
             ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
             ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],

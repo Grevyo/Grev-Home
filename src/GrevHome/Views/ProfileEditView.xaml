@@ -70,7 +70,7 @@
                             </Grid>
                         </Border>
 
-                        <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                        <Border x:Name="BannerSettingsSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE BANNER" FontSize="18" FontWeight="SemiBold" />
                                 <TextBlock Text="Choose a Grev Home banner preset or use your own wide image." Margin="0,4,0,14" Style="{StaticResource EditHint}" />
@@ -109,7 +109,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                        <Border x:Name="ProfileDetailsSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE DETAILS" FontSize="18" FontWeight="SemiBold" />
                                 <TextBlock Text="These are the details people see on your Grev Home profile." Margin="0,4,0,18" Style="{StaticResource EditHint}" />
@@ -169,7 +169,7 @@
                             </StackPanel>
                         </Border>
 
-                        <Border Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                        <Border x:Name="ProfileAppearanceRoleSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE APPEARANCE &amp; ROLE" FontSize="18" FontWeight="SemiBold" />
                                 <TextBlock Text="Choose what this profile showcases. Role styling remains separate from level and banner styling." Margin="0,4,0,16" Style="{StaticResource EditHint}" />
