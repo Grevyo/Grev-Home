@@ -48,6 +48,11 @@ public partial class MainWindow
 
     private void HandleHeaderNavigationInput(ControllerInputEventArgs input)
     {
+        if (_startupIntroPlaying)
+        {
+            return;
+        }
+
         if (input.Action is not (InputAction.Up or InputAction.Down or InputAction.Left or InputAction.Right))
         {
             return;

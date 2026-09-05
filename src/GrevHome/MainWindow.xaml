@@ -337,5 +337,69 @@
                 </Border>
             </Grid>
         </Border>
+
+        <Border x:Name="StartupIntroOverlay"
+                Background="#05070C"
+                Panel.ZIndex="500"
+                Focusable="False">
+            <Grid ClipToBounds="True">
+                <Ellipse x:Name="IntroOuterGlow"
+                         Width="560"
+                         Height="560"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         Opacity="0">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#997EA6FF" Offset="0" />
+                            <GradientStop Color="#337EA6FF" Offset="0.42" />
+                            <GradientStop Color="#0005070C" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                    <Ellipse.RenderTransform>
+                        <ScaleTransform x:Name="IntroGlowScale" ScaleX="0.25" ScaleY="0.25" />
+                    </Ellipse.RenderTransform>
+                    <Ellipse.RenderTransformOrigin>0.5,0.5</Ellipse.RenderTransformOrigin>
+                </Ellipse>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid x:Name="IntroMark" Width="132" Height="132" HorizontalAlignment="Center" Opacity="0">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="IntroMarkScale" ScaleX="0.55" ScaleY="0.55" />
+                        </Grid.RenderTransform>
+                        <Grid.RenderTransformOrigin>0.5,0.5</Grid.RenderTransformOrigin>
+                        <Border Width="86" Height="86" BorderBrush="#B9CEFF" BorderThickness="6" CornerRadius="18" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform><RotateTransform Angle="45" /></Border.RenderTransform>
+                        </Border>
+                        <Border Width="38" Height="38" Background="#7EA6FF" CornerRadius="8" RenderTransformOrigin="0.5,0.5">
+                            <Border.RenderTransform><RotateTransform Angle="45" /></Border.RenderTransform>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock x:Name="IntroTitleText"
+                               Text="GREV HOME"
+                               Margin="0,24,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="48"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               Opacity="0" />
+                    <Border x:Name="IntroLightBar"
+                            Width="0"
+                            Height="2"
+                            Margin="0,14,0,0"
+                            HorizontalAlignment="Center"
+                            Background="#7EA6FF" />
+                    <TextBlock x:Name="IntroTaglineText"
+                               Text="YOUR PC. YOUR WAY."
+                               Margin="0,13,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#AEBBD3"
+                               Opacity="0" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

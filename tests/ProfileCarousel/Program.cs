@@ -4,8 +4,10 @@ using System.Windows.Threading;
 using System.Windows.Markup;
 using System.Xml.Linq;
 using GrevHome.Input;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
+using GrevHome.Storage;
 using GrevHome.Views;
 
 internal static class Program
@@ -81,6 +83,30 @@ internal static class Program
         powerTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("PowerSection")).IsVisible,"A settings tile must open its dedicated settings page");
         Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");
+
+        var themeTile=(Button)settings.FindName("ThemeMotionSectionButton");
+        themeTile.Focus();Pump();
+        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count==3,"Theme focus must preview its motion controls");
+        themeTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
+        Check(((FrameworkElement)settings.FindName("ThemeMotionSection")).IsVisible,"Theme & Motion must have a dedicated controller page");
+        ShellMotionSettings? changedMotion=null;
+        settings.MotionSettingsChanged+=value=>changedMotion=value;
+        ((Button)settings.FindName("ScreenTransitionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(changedMotion?.ScreenTransitionsEnabled==false,"Screen transitions must be switchable from the controller settings page");
+
+        var motionRoot=Path.Combine(Path.GetTempPath(),"GrevHomeMotionTest-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var motionService=new ShellMotionSettingsService(new AppPaths(motionRoot));
+            Check(motionService.Load()==new ShellMotionSettings(),"Motion settings must default to enabled");
+            var savedMotion=new ShellMotionSettings(false,false);
+            motionService.SaveAsync(savedMotion).GetAwaiter().GetResult();
+            Check(motionService.Load()==savedMotion,"Motion settings must survive an application restart");
+        }
+        finally
+        {
+            if(Directory.Exists(motionRoot))Directory.Delete(motionRoot,true);
+        }
         window.Close();
         Console.WriteLine("Carousel tests passed: profiles, dashboard and settings hubs, focus scrolling, edge fades and password masking.");
         app.Shutdown();

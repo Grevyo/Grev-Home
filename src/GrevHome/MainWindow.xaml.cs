@@ -39,6 +39,9 @@ public partial class MainWindow : Window
     private readonly RunningAppsView _runningAppsView = new();
     private readonly AppKillerView _appKillerView = new();
     private readonly SettingsView _settingsView = new();
+    private readonly ShellMotionSettingsService _shellMotionSettingsService;
+    private ShellMotionSettings _shellMotionSettings;
+    private bool _startupIntroPlaying;
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
     private Guid? _foregroundLaunchSessionId;
     private ShortcutRecordRequest? _pendingShortcutRecord;
@@ -46,6 +49,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _shellMotionSettingsService = new ShellMotionSettingsService(_paths);
+        _shellMotionSettings = _shellMotionSettingsService.Load();
+        _settingsView.SetMotionSettings(_shellMotionSettings);
         _controllerShortcuts = new ControllerShortcutService(_paths);
         _controllerInput = new ControllerInputService(_controllerShortcuts);
         _profileService = new ProfileService(_paths);
@@ -98,6 +104,8 @@ public partial class MainWindow : Window
         _settingsView.AdjustShortcutHoldRequested += AdjustShortcutHold;
         _settingsView.ResetShortcutsRequested += (_, _) => ResetShortcuts();
         _settingsView.CancelShortcutCaptureRequested += (_, _) => CancelShortcutRecording();
+        _settingsView.MotionSettingsChanged += settings => _ = SaveMotionSettingsAsync(settings);
+        _settingsView.StartupIntroPreviewRequested += (_, _) => BeginStartupIntro(force: true);
 
         _overlayWindow.ResumeRequested += SwitchToSession;
         _overlayWindow.SwitchRequested += SwitchToSession;
@@ -129,6 +137,7 @@ public partial class MainWindow : Window
         _controllerInput.ShortcutCaptureTimedOut += () =>
             Dispatcher.BeginInvoke(new Action(ShortcutRecordingTimedOut));
 
+        Loaded += (_, _) => BeginStartupIntro();
         Loaded += async (_, _) => await InitializeAsync();
         Closed += (_, _) =>
         {
@@ -628,6 +637,12 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (_startupIntroPlaying)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (Keyboard.FocusedElement is TextBox && e.Key != Key.Escape)
         {
             return;
@@ -657,6 +672,11 @@ public partial class MainWindow : Window
 
     private void HandleInput(InputAction action, int? controllerIndex)
     {
+        if (_startupIntroPlaying)
+        {
+            return;
+        }
+
         if (_storeInstallBusy)
         {
             return;

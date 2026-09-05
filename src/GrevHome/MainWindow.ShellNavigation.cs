@@ -73,6 +73,7 @@ public partial class MainWindow
         UpdateShellBackButtonState();
 
         var transition = _pendingShellNavigationTransition;
+        AnimateRouteTransition(transition);
         var backBookmark = _pendingBackFocusBookmark;
         _pendingBackFocusBookmark = null;
         var requestVersion = ++_shellFocusRequestVersion;

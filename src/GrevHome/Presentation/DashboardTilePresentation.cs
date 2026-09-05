@@ -29,6 +29,7 @@ public static class DashboardTileCatalog
         new("settings-display", "Display", "Resolution and refresh rate", "#193E48", "builtin://dashboard/display"),
         new("settings-connections", "Connections", "Wi-Fi and Bluetooth", "#24412F", "builtin://dashboard/connections"),
         new("settings-system", "System Information", "Machine, storage and controllers", "#3B3525", "builtin://dashboard/system"),
+        new("settings-theme", "Theme & Motion", "Transitions and startup presentation", "#342A52", "builtin://dashboard/theme"),
         new("settings-power", "Power", "Sleep, restart and shut down", "#482629", "builtin://dashboard/power"),
         new("admin-console", "Admin Console", "Machine, apps and account administration", "#151923", "builtin://dashboard/admin")
     ];

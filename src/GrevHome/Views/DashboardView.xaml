@@ -170,6 +170,7 @@
                 <Button x:Name="SettingsDisplayButton" Tag="settings-display" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsConnectionsButton" Tag="settings-connections" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsSystemButton" Tag="settings-system" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
+                <Button x:Name="SettingsThemeButton" Tag="settings-theme" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsPowerButton" Tag="settings-power" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="AdminConsoleButton"
                         Tag="admin-console"

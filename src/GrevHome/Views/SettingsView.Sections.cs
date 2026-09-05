@@ -11,6 +11,7 @@ public enum SettingsPage
     Display,
     Connections,
     SystemInformation,
+    ThemeAndMotion,
     Power
 }
 
@@ -45,6 +46,9 @@ public partial class SettingsView
 
     private void SystemStatusSectionButton_Click(object sender, RoutedEventArgs e) =>
         OpenSettingsSection(SystemStatusSection, SystemStatusSectionContent, "System Information");
+
+    private void ThemeMotionSectionButton_Click(object sender, RoutedEventArgs e) =>
+        OpenSettingsSection(ThemeMotionSection, ThemeMotionSectionContent, "Theme & Motion");
 
     private void PowerSectionButton_Click(object sender, RoutedEventArgs e) =>
         OpenSettingsSection(PowerSection, PowerSectionContent, "Power");
@@ -84,6 +88,9 @@ public partial class SettingsView
             case SettingsPage.SystemInformation:
                 OpenSettingsSection(SystemStatusSection, SystemStatusSectionContent, "System Information");
                 break;
+            case SettingsPage.ThemeAndMotion:
+                OpenSettingsSection(ThemeMotionSection, ThemeMotionSectionContent, "Theme & Motion");
+                break;
             case SettingsPage.Power:
                 OpenSettingsSection(PowerSection, PowerSectionContent, "Power");
                 break;
@@ -96,6 +103,7 @@ public partial class SettingsView
         SettingsDetailHeader.Visibility=Visibility.Collapsed;
         foreach(var section in SettingsSections()) section.Visibility=Visibility.Collapsed;
         ShowSettingsPreview(AccountSectionButton);
+        AnimateSettingsSurface(SettingsHub);
         Dispatcher.BeginInvoke(new Action(()=>AccountSectionButton.Focus()));
     }
 
@@ -113,11 +121,12 @@ public partial class SettingsView
         SettingsDetailTitle.Text=title;
         foreach(var section in SettingsSections()) section.Visibility=section==selected?Visibility.Visible:Visibility.Collapsed;
         content.Visibility=Visibility.Visible;
+        AnimateSettingsSurface(selected);
         Dispatcher.BeginInvoke(new Action(()=>FindButtons(content).FirstOrDefault()?.Focus()));
     }
 
     private IEnumerable<StackPanel> SettingsSections() =>
-        [AccountSection,ControllerShortcutsSection,AudioSection,DisplaySection,ConnectionsSection,SystemStatusSection,PowerSection];
+        [AccountSection,ControllerShortcutsSection,AudioSection,DisplaySection,ConnectionsSection,SystemStatusSection,ThemeMotionSection,PowerSection];
 
     private static IEnumerable<Button> FindButtons(DependencyObject root)
     {

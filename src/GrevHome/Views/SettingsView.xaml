@@ -84,6 +84,7 @@
                         <Button x:Name="DisplaySectionButton" Tag="settings-display" Style="{StaticResource SettingsHubTileStyle}" Click="DisplaySectionButton_Click" />
                         <Button x:Name="ConnectionsSectionButton" Tag="settings-connections" Style="{StaticResource SettingsHubTileStyle}" Click="ConnectionsSectionButton_Click" />
                         <Button x:Name="SystemStatusSectionButton" Tag="settings-system" Style="{StaticResource SettingsHubTileStyle}" Click="SystemStatusSectionButton_Click" />
+                        <Button x:Name="ThemeMotionSectionButton" Tag="settings-theme" Style="{StaticResource SettingsHubTileStyle}" Click="ThemeMotionSectionButton_Click" />
                         <Button x:Name="PowerSectionButton" Tag="settings-power" Style="{StaticResource SettingsHubTileStyle}" Click="PowerSectionButton_Click" />
                     </StackPanel>
                 </ScrollViewer>
@@ -386,6 +387,52 @@
 
                         <TextBlock x:Name="SystemStatusText"
                                    Margin="0,14,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="ThemeMotionSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="ThemeMotionSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock Text="Grev Default"
+                                   FontSize="24"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="These motion preferences belong to the active Grev Home presentation. Future themes can supply their own visual transitions while respecting your on/off choices."
+                                   Margin="0,7,0,18"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <WrapPanel>
+                            <Button x:Name="ScreenTransitionsButton"
+                                    Content="Screen transitions: On"
+                                    MinWidth="260"
+                                    MinHeight="64"
+                                    Margin="0,0,10,10"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="ScreenTransitions_Click" />
+                            <Button x:Name="StartupIntroButton"
+                                    Content="Startup intro: On"
+                                    MinWidth="260"
+                                    MinHeight="64"
+                                    Margin="0,0,10,10"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="StartupIntro_Click" />
+                            <Button Content="Preview startup intro"
+                                    MinWidth="260"
+                                    MinHeight="64"
+                                    Margin="0,0,10,10"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="PreviewStartupIntro_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="MotionSettingsStatusText"
+                                   Margin="0,10,0,0"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
                     </StackPanel>

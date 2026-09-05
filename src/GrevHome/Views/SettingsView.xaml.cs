@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using GrevHome.Input;
 using GrevHome.Machine;
 using GrevHome.Presentation;
@@ -24,6 +25,7 @@ public partial class SettingsView : UserControl
             ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
             ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],
             ["settings-system"] = ["Machine and Windows", ".NET runtime", "Storage", "Connected controllers"],
+            ["settings-theme"] = ["Screen transitions", "Startup intro", "Preview intro"],
             ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation"]
         };
 
@@ -36,6 +38,7 @@ public partial class SettingsView : UserControl
     private DateTimeOffset _pendingPowerExpiresAt;
     private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations =
         new Dictionary<string, ResolvedDashboardTile>(StringComparer.OrdinalIgnoreCase);
+    private ShellMotionSettings _motionSettings = new();
 
     public event EventHandler? BackRequested;
     public event Action<string>? SaveDisplayNameRequested;
@@ -44,6 +47,8 @@ public partial class SettingsView : UserControl
     public event Action<ShortcutHoldAdjustment>? AdjustShortcutHoldRequested;
     public event EventHandler? ResetShortcutsRequested;
     public event EventHandler? CancelShortcutCaptureRequested;
+    public event Action<ShellMotionSettings>? MotionSettingsChanged;
+    public event EventHandler? StartupIntroPreviewRequested;
 
     public SettingsView()
     {
@@ -66,7 +71,7 @@ public partial class SettingsView : UserControl
                  {
                      AccountSectionButton, ControllerShortcutsSectionButton, AudioSectionButton,
                      DisplaySectionButton, ConnectionsSectionButton, SystemStatusSectionButton,
-                     PowerSectionButton
+                     ThemeMotionSectionButton, PowerSectionButton
                  })
         {
             if (button.Tag is not string id) continue;
@@ -80,6 +85,49 @@ public partial class SettingsView : UserControl
                 : AppArtworkFactory.CreateTile(tile.DisplayName, tile.IconAsset, tile.TileColor);
             button.ToolTip = $"{tile.DisplayName} • {tile.Detail}";
         }
+    }
+
+    public void SetMotionSettings(ShellMotionSettings settings)
+    {
+        _motionSettings = settings;
+        ScreenTransitionsButton.Content = $"Screen transitions: {(settings.ScreenTransitionsEnabled ? "On" : "Off")}";
+        StartupIntroButton.Content = $"Startup intro: {(settings.StartupIntroEnabled ? "On" : "Off")}";
+    }
+
+    public void ShowMotionStatus(string message) => MotionSettingsStatusText.Text = message;
+
+    private void ScreenTransitions_Click(object sender, RoutedEventArgs e)
+    {
+        var next = _motionSettings with { ScreenTransitionsEnabled = !_motionSettings.ScreenTransitionsEnabled };
+        SetMotionSettings(next);
+        MotionSettingsChanged?.Invoke(next);
+    }
+
+    private void StartupIntro_Click(object sender, RoutedEventArgs e)
+    {
+        var next = _motionSettings with { StartupIntroEnabled = !_motionSettings.StartupIntroEnabled };
+        SetMotionSettings(next);
+        MotionSettingsChanged?.Invoke(next);
+    }
+
+    private void PreviewStartupIntro_Click(object sender, RoutedEventArgs e) =>
+        StartupIntroPreviewRequested?.Invoke(this, EventArgs.Empty);
+
+    private void AnimateSettingsSurface(UIElement surface)
+    {
+        surface.BeginAnimation(OpacityProperty, null);
+        if (!_motionSettings.ScreenTransitionsEnabled)
+        {
+            surface.Opacity = 1;
+            return;
+        }
+
+        surface.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(0.12, 1, TimeSpan.FromMilliseconds(240))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            });
     }
 
     private void ShowSettingsPreview(Button button)

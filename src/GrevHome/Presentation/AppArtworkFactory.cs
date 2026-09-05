@@ -150,6 +150,7 @@ public static class AppArtworkFactory
                 "display" => "\uE7F4",
                 "connections" => "\uE701",
                 "system" => "\uE946",
+                "theme" => "\uE771",
                 "power" => "\uE7E8",
                 "admin" => "\uE77B",
                 "friends" => "\uE716",

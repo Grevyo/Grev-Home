@@ -19,6 +19,8 @@ public sealed class AppPaths
     public string NotificationFile => Path.Combine(NotificationData, "notifications.json");
     public string TransferData => Path.Combine(Data, "Transfers");
     public string TransferStateFile => Path.Combine(TransferData, "transfers.json");
+    public string PresentationData => Path.Combine(Data, "Presentation");
+    public string ShellMotionSettingsFile => Path.Combine(PresentationData, "shell-motion.json");
     public string Profiles => Path.Combine(Root, "Profiles");
     public string GuestShared => Path.Combine(Profiles, "_GuestShared");
     public string GuestStats => Path.Combine(GuestShared, "Stats");
@@ -119,6 +121,7 @@ public sealed class AppPaths
         Directory.CreateDirectory(InputData);
         Directory.CreateDirectory(NotificationData);
         Directory.CreateDirectory(TransferData);
+        Directory.CreateDirectory(PresentationData);
         Directory.CreateDirectory(Profiles);
         Directory.CreateDirectory(Global);
         Directory.CreateDirectory(GlobalApps);

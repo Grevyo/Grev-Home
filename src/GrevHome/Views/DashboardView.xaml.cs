@@ -257,6 +257,7 @@ public partial class DashboardView : UserControl
         RenderDashboardTile(SettingsDisplayButton, "settings-display", DashboardTileCatalog.Get("settings-display").Detail);
         RenderDashboardTile(SettingsConnectionsButton, "settings-connections", DashboardTileCatalog.Get("settings-connections").Detail);
         RenderDashboardTile(SettingsSystemButton, "settings-system", DashboardTileCatalog.Get("settings-system").Detail);
+        RenderDashboardTile(SettingsThemeButton, "settings-theme", DashboardTileCatalog.Get("settings-theme").Detail);
         RenderDashboardTile(SettingsPowerButton, "settings-power", DashboardTileCatalog.Get("settings-power").Detail);
         RenderDashboardTile(AdminConsoleButton, "admin-console", DashboardTileCatalog.Get("admin-console").Detail);
     }
@@ -435,6 +436,7 @@ public partial class DashboardView : UserControl
             "settings-display" => SettingsPage.Display,
             "settings-connections" => SettingsPage.Connections,
             "settings-system" => SettingsPage.SystemInformation,
+            "settings-theme" => SettingsPage.ThemeAndMotion,
             "settings-power" => SettingsPage.Power,
             _ => (SettingsPage?)null
         };
