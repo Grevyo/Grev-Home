@@ -91,7 +91,7 @@ public partial class SettingsView : UserControl
         SettingsPreviewItems.ItemsSource = items;
     }
 
-    private void SettingsHubTile_MouseEnter(object sender, MouseEventArgs e)
+    private void SettingsHubTile_MouseMove(object sender, MouseEventArgs e)
     {
         if (sender is Button button) ShowSettingsPreview(button);
     }

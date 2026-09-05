@@ -49,7 +49,7 @@
             <Setter Property="Padding" Value="20" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
-            <EventSetter Event="MouseEnter" Handler="SettingsHubTile_MouseEnter" />
+            <EventSetter Event="MouseMove" Handler="SettingsHubTile_MouseMove" />
         </Style>
     </UserControl.Resources>
 
