@@ -53,8 +53,20 @@ internal static class Program
         browserButton.Focus();Pump();
         Check(appsCarousel.HorizontalOffset>0,"Controller focus must carry the dashboard carousel indicator to an offscreen tile");
         Check(appsCarousel.OpacityMask is System.Windows.Media.LinearGradientBrush,"Scrollable dashboard rows must fade at their offscreen edges");
+
+        var settings=new SettingsView();
+        window.Content=settings;
+        window.UpdateLayout();Pump();
+        var settingsCarousel=(ScrollViewer)settings.FindName("SettingsHubCarousel");
+        var powerTile=(Button)settings.FindName("PowerSectionButton");
+        Check(settingsCarousel.ScrollableWidth>0,"Every settings area must remain a tile in one horizontal hub row");
+        powerTile.Focus();Pump();
+        Check(settingsCarousel.HorizontalOffset>0,"Settings tile focus must scroll the hub carousel");
+        powerTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
+        Check(((FrameworkElement)settings.FindName("PowerSection")).IsVisible,"A settings tile must open its dedicated settings page");
+        Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");
         window.Close();
-        Console.WriteLine("Carousel tests passed: profiles, dashboard focus scrolling, edge fades and password masking.");
+        Console.WriteLine("Carousel tests passed: profiles, dashboard and settings hubs, focus scrolling, edge fades and password masking.");
         app.Shutdown();
     }
     private static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);

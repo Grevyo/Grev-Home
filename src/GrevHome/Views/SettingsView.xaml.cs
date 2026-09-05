@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using GrevHome.Input;
 using GrevHome.Machine;
 using GrevHome.Profiles;
@@ -32,6 +34,8 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         BuildDisplayNameKeyboard();
+        AddHandler(Keyboard.GotKeyboardFocusEvent,new KeyboardFocusChangedEventHandler(Settings_GotKeyboardFocus),true);
+        ShowSettingsHub();
     }
 
     public void SetState(LocalProfile? profile, ControllerShortcutConfiguration shortcuts)
@@ -445,8 +449,38 @@ public partial class SettingsView : UserControl
     private void CancelPowerAction_Click(object sender, RoutedEventArgs e) =>
         ResetPowerConfirmation();
 
-    private void Back_Click(object sender, RoutedEventArgs e) =>
-        BackRequested?.Invoke(this, EventArgs.Empty);
+    private void Back_Click(object sender, RoutedEventArgs e)
+    {
+        if(!TryReturnToSettingsHub())BackRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Settings_GotKeyboardFocus(object sender,KeyboardFocusChangedEventArgs e)
+    {
+        if(e.NewFocus is Button button && SettingsHub.IsVisible)
+        {
+            button.BringIntoView(new Rect(-18,0,button.ActualWidth+36,button.ActualHeight));
+            UpdateSettingsHubFade();
+        }
+    }
+
+    private void SettingsHubCarousel_PreviewMouseWheel(object sender,MouseWheelEventArgs e)
+    {
+        SettingsHubCarousel.ScrollToHorizontalOffset(SettingsHubCarousel.HorizontalOffset-e.Delta);
+        e.Handled=SettingsHubCarousel.ScrollableWidth>0;
+    }
+
+    private void SettingsHubCarousel_ScrollChanged(object sender,ScrollChangedEventArgs e)=>UpdateSettingsHubFade();
+
+    private void UpdateSettingsHubFade()
+    {
+        var left=SettingsHubCarousel.HorizontalOffset>1;
+        var right=SettingsHubCarousel.HorizontalOffset<SettingsHubCarousel.ScrollableWidth-1;
+        SettingsHubCarousel.OpacityMask=new LinearGradientBrush(new GradientStopCollection
+        {
+            new(left?Colors.Transparent:Colors.Black,0),new(Colors.Black,left?0.035:0),
+            new(Colors.Black,right?0.965:1),new(right?Colors.Transparent:Colors.Black,1)
+        },new Point(0,0),new Point(1,0));
+    }
 
     private static string FormatAction(ControllerShortcutAction action) =>
         action == ControllerShortcutAction.ReturnHome ? "Return Home" : "Grev Overlay";

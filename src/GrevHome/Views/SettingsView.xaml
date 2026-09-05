@@ -42,6 +42,14 @@
                 </Setter.Value>
             </Setter>
         </Style>
+        <Style x:Key="SettingsHubTileStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Width" Value="285" />
+            <Setter Property="Height" Value="145" />
+            <Setter Property="Margin" Value="8" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+        </Style>
     </UserControl.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -65,16 +73,33 @@
                         Click="Back_Click" />
             </Grid>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="AccountSectionButton"
-                        Content="ACCOUNT  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="AccountSectionButton_Click" />
+            <StackPanel x:Name="SettingsHub">
+                <TextBlock Text="SYSTEM" Margin="10,0,0,8" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                <ScrollViewer x:Name="SettingsHubCarousel" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" PanningMode="HorizontalOnly" CanContentScroll="False" Focusable="False" ClipToBounds="True" ScrollChanged="SettingsHubCarousel_ScrollChanged" PreviewMouseWheel="SettingsHubCarousel_PreviewMouseWheel">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="AccountSectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="AccountSectionButton_Click"><StackPanel><TextBlock Text="👤" FontSize="34"/><TextBlock Text="Account" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Profile name and identity" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                        <Button x:Name="ControllerShortcutsSectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="ControllerShortcutsSectionButton_Click"><StackPanel><TextBlock Text="🎮" FontSize="34"/><TextBlock Text="Controller Shortcuts" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Return Home and Overlay" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                        <Button x:Name="AudioSectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="AudioSectionButton_Click"><StackPanel><TextBlock Text="🔊" FontSize="34"/><TextBlock Text="Audio" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Volume and output device" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                        <Button x:Name="DisplaySectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="DisplaySectionButton_Click"><StackPanel><TextBlock Text="▣" FontSize="34"/><TextBlock Text="Display" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Resolution and refresh rate" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                        <Button x:Name="ConnectionsSectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="ConnectionsSectionButton_Click"><StackPanel><TextBlock Text="⌁" FontSize="34"/><TextBlock Text="Connections" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Wi-Fi and Bluetooth" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                        <Button x:Name="SystemStatusSectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="SystemStatusSectionButton_Click"><StackPanel><TextBlock Text="ⓘ" FontSize="34"/><TextBlock Text="System Information" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Machine, storage and controllers" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                        <Button x:Name="PowerSectionButton" Style="{StaticResource SettingsHubTileStyle}" Click="PowerSectionButton_Click"><StackPanel><TextBlock Text="⏻" FontSize="34"/><TextBlock Text="Power" FontSize="20" FontWeight="SemiBold" Margin="0,12,0,0"/><TextBlock Text="Sleep, restart and shut down" Foreground="{StaticResource MutedBrush}" Margin="0,7,0,0"/></StackPanel></Button>
+                    </StackPanel>
+                </ScrollViewer>
+                <TextBlock Text="◀  ▶  Choose a settings tile  •  A Open" Margin="10,8,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+            </StackPanel>
+
+            <Grid x:Name="SettingsDetailHeader" Visibility="Collapsed" Margin="0,0,0,16">
+                <TextBlock x:Name="SettingsDetailTitle" Text="Settings" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Content="Back to Settings" MinWidth="190" HorizontalAlignment="Right" Style="{StaticResource WrappedSettingsButtonStyle}" Click="BackToSettings_Click" />
+            </Grid>
+
+            <StackPanel x:Name="AccountSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="AccountSectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>
@@ -132,16 +157,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="ControllerShortcutsSectionButton"
-                        Content="CONTROLLER SYSTEM SHORTCUTS  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="ControllerShortcutsSectionButton_Click" />
+            <StackPanel x:Name="ControllerShortcutsSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="ControllerShortcutsSectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>
@@ -203,16 +224,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="AudioSectionButton"
-                        Content="AUDIO  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="AudioSectionButton_Click" />
+            <StackPanel x:Name="AudioSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="AudioSectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>
@@ -236,16 +253,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="DisplaySectionButton"
-                        Content="DISPLAY  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="DisplaySectionButton_Click" />
+            <StackPanel x:Name="DisplaySection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="DisplaySectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>
@@ -267,16 +280,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="ConnectionsSectionButton"
-                        Content="CONNECTIONS  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="ConnectionsSectionButton_Click" />
+            <StackPanel x:Name="ConnectionsSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="ConnectionsSectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>
@@ -303,16 +312,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="SystemStatusSectionButton"
-                        Content="SYSTEM STATUS  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="SystemStatusSectionButton_Click" />
+            <StackPanel x:Name="SystemStatusSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="SystemStatusSectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>
@@ -350,16 +355,12 @@
                 </Border>
             </StackPanel>
 
-            <StackPanel Margin="0,0,0,16">
-                <Button x:Name="PowerSectionButton"
-                        Content="POWER  ▾"
-                        Style="{StaticResource SettingsSectionHeaderButtonStyle}"
-                        Click="PowerSectionButton_Click" />
+            <StackPanel x:Name="PowerSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="PowerSectionContent"
                         Visibility="Collapsed"
                         Background="#11151E"
                         BorderBrush="#2B3344"
-                        BorderThickness="1,0,1,1"
+                        BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
                     <StackPanel>

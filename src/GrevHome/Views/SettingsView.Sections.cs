@@ -6,72 +6,87 @@ namespace GrevHome.Views;
 public partial class SettingsView
 {
     private void AccountSectionButton_Click(object sender, RoutedEventArgs e) =>
-        ToggleSettingsSection(AccountSectionButton, AccountSectionContent, "ACCOUNT");
+        OpenSettingsSection(AccountSection, AccountSectionContent, "Account");
 
     private void ControllerShortcutsSectionButton_Click(object sender, RoutedEventArgs e) =>
-        ToggleSettingsSection(
-            ControllerShortcutsSectionButton,
+        OpenSettingsSection(
+            ControllerShortcutsSection,
             ControllerShortcutsSectionContent,
-            "CONTROLLER SYSTEM SHORTCUTS");
+            "Controller System Shortcuts");
 
     private void AudioSectionButton_Click(object sender, RoutedEventArgs e)
     {
-        ToggleSettingsSection(AudioSectionButton, AudioSectionContent, "AUDIO");
-        if (AudioSectionContent.Visibility == Visibility.Visible)
-        {
-            RefreshAudio();
-        }
+        OpenSettingsSection(AudioSection, AudioSectionContent, "Audio");
+        RefreshAudio();
     }
 
     private void DisplaySectionButton_Click(object sender, RoutedEventArgs e)
     {
-        ToggleSettingsSection(DisplaySectionButton, DisplaySectionContent, "DISPLAY");
-        if (DisplaySectionContent.Visibility == Visibility.Visible)
-        {
-            RefreshDisplay();
-        }
+        OpenSettingsSection(DisplaySection, DisplaySectionContent, "Display");
+        RefreshDisplay();
     }
 
     private async void ConnectionsSectionButton_Click(object sender, RoutedEventArgs e)
     {
-        ToggleSettingsSection(ConnectionsSectionButton, ConnectionsSectionContent, "CONNECTIONS");
-        if (ConnectionsSectionContent.Visibility == Visibility.Visible)
-        {
-            await RefreshConnectionsAsync();
-        }
+        OpenSettingsSection(ConnectionsSection, ConnectionsSectionContent, "Connections");
+        await RefreshConnectionsAsync();
     }
 
     private void SystemStatusSectionButton_Click(object sender, RoutedEventArgs e) =>
-        ToggleSettingsSection(SystemStatusSectionButton, SystemStatusSectionContent, "SYSTEM STATUS");
+        OpenSettingsSection(SystemStatusSection, SystemStatusSectionContent, "System Information");
 
     private void PowerSectionButton_Click(object sender, RoutedEventArgs e) =>
-        ToggleSettingsSection(PowerSectionButton, PowerSectionContent, "POWER");
+        OpenSettingsSection(PowerSection, PowerSectionContent, "Power");
 
     public void OpenAudioSection()
     {
-        EnsureSettingsSectionOpen(AudioSectionButton, AudioSectionContent, "AUDIO");
+        OpenSettingsSection(AudioSection, AudioSectionContent, "Audio");
         RefreshAudio();
     }
 
     public async void OpenConnectionsSection()
     {
-        EnsureSettingsSectionOpen(ConnectionsSectionButton, ConnectionsSectionContent, "CONNECTIONS");
+        OpenSettingsSection(ConnectionsSection, ConnectionsSectionContent, "Connections");
         await RefreshConnectionsAsync();
     }
 
-    private static void ToggleSettingsSection(Button header, UIElement content, string title)
+    public void ShowSettingsHub()
     {
-        var expand = content.Visibility != Visibility.Visible;
-        content.Visibility = expand ? Visibility.Visible : Visibility.Collapsed;
-        header.Content = $"{title}  {(expand ? "▴" : "▾")}";
-
-        header.Focus();
+        SettingsHub.Visibility=Visibility.Visible;
+        SettingsDetailHeader.Visibility=Visibility.Collapsed;
+        foreach(var section in SettingsSections()) section.Visibility=Visibility.Collapsed;
+        Dispatcher.BeginInvoke(new Action(()=>AccountSectionButton.Focus()));
     }
 
-    private static void EnsureSettingsSectionOpen(Button header, UIElement content, string title)
+    public bool TryReturnToSettingsHub()
     {
-        content.Visibility = Visibility.Visible;
-        header.Content = $"{title}  ▴";
-        header.Focus();
+        if(SettingsHub.Visibility==Visibility.Visible)return false;
+        ShowSettingsHub();
+        return true;
     }
+
+    private void OpenSettingsSection(StackPanel selected, UIElement content, string title)
+    {
+        SettingsHub.Visibility=Visibility.Collapsed;
+        SettingsDetailHeader.Visibility=Visibility.Visible;
+        SettingsDetailTitle.Text=title;
+        foreach(var section in SettingsSections()) section.Visibility=section==selected?Visibility.Visible:Visibility.Collapsed;
+        content.Visibility=Visibility.Visible;
+        Dispatcher.BeginInvoke(new Action(()=>FindButtons(content).FirstOrDefault()?.Focus()));
+    }
+
+    private IEnumerable<StackPanel> SettingsSections() =>
+        [AccountSection,ControllerShortcutsSection,AudioSection,DisplaySection,ConnectionsSection,SystemStatusSection,PowerSection];
+
+    private static IEnumerable<Button> FindButtons(DependencyObject root)
+    {
+        for(var index=0;index<System.Windows.Media.VisualTreeHelper.GetChildrenCount(root);index++)
+        {
+            var child=System.Windows.Media.VisualTreeHelper.GetChild(root,index);
+            if(child is Button button && button.IsVisible && button.IsEnabled)yield return button;
+            foreach(var nested in FindButtons(child))yield return nested;
+        }
+    }
+
+    private void BackToSettings_Click(object sender,RoutedEventArgs e)=>ShowSettingsHub();
 }

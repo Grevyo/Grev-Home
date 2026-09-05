@@ -236,6 +236,7 @@ public partial class MainWindow : Window
     private void OpenSettings()
     {
         RefreshSettingsState();
+        _settingsView.ShowSettingsHub();
         _navigation.Navigate(Route.Settings);
     }
 
@@ -726,7 +727,7 @@ public partial class MainWindow : Window
                 ReturnToLogin();
                 break;
             case Route.Settings:
-                CloseSettings();
+                if(!_settingsView.TryReturnToSettingsHub())CloseSettings();
                 break;
             case Route.Login:
                 if (_session.HasSignedInUsers)
