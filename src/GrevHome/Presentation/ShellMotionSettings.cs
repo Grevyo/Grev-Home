@@ -6,7 +6,33 @@ namespace GrevHome.Presentation;
 
 public sealed record ShellMotionSettings(
     bool ScreenTransitionsEnabled = true,
-    bool StartupIntroEnabled = true);
+    bool StartupIntroEnabled = true,
+    bool OverlayTransitionsEnabled = true,
+    bool ReturnHomeTransitionEnabled = true,
+    bool TileFocusAnimationEnabled = true,
+    bool ModalTransitionsEnabled = true,
+    bool AmbientBackgroundEnabled = true,
+    bool ButtonPressFeedbackEnabled = true,
+    bool UiSoundsEnabled = true,
+    bool StartupSoundEnabled = true,
+    bool ControllerVibrationEnabled = true,
+    int UiSoundVolumePercent = 50,
+    ShellAnimationSpeed AnimationSpeed = ShellAnimationSpeed.Normal,
+    ShellVibrationStrength VibrationStrength = ShellVibrationStrength.Low);
+
+public enum ShellAnimationSpeed
+{
+    Relaxed,
+    Normal,
+    Fast
+}
+
+public enum ShellVibrationStrength
+{
+    Low,
+    Medium,
+    High
+}
 
 public sealed class ShellMotionSettingsService
 {

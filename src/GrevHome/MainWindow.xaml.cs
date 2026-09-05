@@ -32,6 +32,7 @@ public partial class MainWindow : Window
     private readonly InstalledAppService _installedApps;
     private readonly RuntimeSessionManager _runtimeSessions;
     private readonly GrevOverlayWindow _overlayWindow;
+    private readonly ShellFeedbackPlayer _shellFeedback = new();
     private readonly bool[] _controllers = new bool[4];
     private readonly LoginView _loginView = new();
     private readonly CreateProfileView _createProfileView = new();
@@ -65,6 +66,8 @@ public partial class MainWindow : Window
             new PlaytimeService(_paths),
             new AppLaunchResolver());
         _overlayWindow = new GrevOverlayWindow();
+        _overlayWindow.ConfigurePresentation(_shellMotionSettings);
+        InitializePresentationEffects();
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
@@ -145,6 +148,7 @@ public partial class MainWindow : Window
             _overlayWindow.Dismiss();
             _overlayWindow.Close();
             _controllerInput.Dispose();
+            _shellFeedback.Dispose();
             _runtimeSessions.Dispose();
         };
     }
@@ -683,6 +687,8 @@ public partial class MainWindow : Window
             return;
         }
 
+        HandlePresentationInputFeedback(action, controllerIndex);
+
         if (GetOpenControllerKeyboard() is { } controllerKeyboard)
         {
             controllerKeyboard.HandleControllerInput(action);
@@ -1016,6 +1022,7 @@ public partial class MainWindow : Window
         _foregroundLaunchSessionId = null;
         _navigation.Reset(_session.HasSignedInUsers ? Route.Dashboard : Route.Login);
         RestoreWindowWithoutChangingRoute();
+        AnimateReturnHome();
     }
 
     private void RestoreWindowWithoutChangingRoute()

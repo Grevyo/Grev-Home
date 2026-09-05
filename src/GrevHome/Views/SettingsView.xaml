@@ -424,6 +424,18 @@
                                     Margin="0,0,10,10"
                                     Style="{StaticResource WrappedSettingsButtonStyle}"
                                     Click="StartupIntro_Click" />
+                            <Button x:Name="OverlayTransitionsButton" Content="Overlay transitions: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="OverlayTransitions_Click" />
+                            <Button x:Name="ReturnHomeTransitionButton" Content="Return Home transition: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ReturnHomeTransition_Click" />
+                            <Button x:Name="TileFocusAnimationButton" Content="Tile focus animation: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="TileFocusAnimation_Click" />
+                            <Button x:Name="ModalTransitionsButton" Content="Modal transitions: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ModalTransitions_Click" />
+                            <Button x:Name="AmbientBackgroundButton" Content="Ambient background: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AmbientBackground_Click" />
+                            <Button x:Name="ButtonPressFeedbackButton" Content="Button press feedback: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ButtonPressFeedback_Click" />
+                            <Button x:Name="UiSoundsButton" Content="UI sounds: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="UiSounds_Click" />
+                            <Button x:Name="StartupSoundButton" Content="Startup sound: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="StartupSound_Click" />
+                            <Button x:Name="UiSoundVolumeButton" Content="UI sound volume: 50%" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="UiSoundVolume_Click" />
+                            <Button x:Name="ControllerVibrationButton" Content="Controller vibration: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ControllerVibration_Click" />
+                            <Button x:Name="AnimationSpeedButton" Content="Animation speed: Normal" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AnimationSpeed_Click" />
+                            <Button x:Name="VibrationStrengthButton" Content="Vibration strength: Low" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="VibrationStrength_Click" />
                             <Button Content="Preview startup intro"
                                     MinWidth="260"
                                     MinHeight="64"

@@ -20,6 +20,17 @@
             </RadialGradientBrush>
         </Grid.Background>
 
+        <Grid x:Name="AmbientBackgroundLayer" IsHitTestVisible="False" Opacity="0.42" ClipToBounds="True">
+            <Ellipse x:Name="AmbientGlowOne" Width="760" Height="760" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-250,-330,0,0">
+                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#667EA6FF" Offset="0" /><GradientStop Color="#007EA6FF" Offset="1" /></RadialGradientBrush></Ellipse.Fill>
+                <Ellipse.RenderTransform><TranslateTransform x:Name="AmbientGlowOneTransform" /></Ellipse.RenderTransform>
+            </Ellipse>
+            <Ellipse x:Name="AmbientGlowTwo" Width="680" Height="680" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-230,-330">
+                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#554C20A0" Offset="0" /><GradientStop Color="#004C20A0" Offset="1" /></RadialGradientBrush></Ellipse.Fill>
+                <Ellipse.RenderTransform><TranslateTransform x:Name="AmbientGlowTwoTransform" /></Ellipse.RenderTransform>
+            </Ellipse>
+        </Grid>
+
         <Grid x:Name="ShellInteractionHost" KeyboardNavigation.DirectionalNavigation="Continue">
             <Grid.RowDefinitions>
                 <RowDefinition Height="82" />

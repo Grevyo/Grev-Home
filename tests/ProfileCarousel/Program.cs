@@ -87,20 +87,40 @@ internal static class Program
 
         var themeTile=(Button)settings.FindName("ThemeMotionSectionButton");
         themeTile.Focus();Pump();
-        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count==3,"Theme focus must preview its motion controls");
+        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count==9,"Theme focus must preview every presentation control group");
         themeTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("ThemeMotionSection")).IsVisible,"Theme & Motion must have a dedicated controller page");
         ShellMotionSettings? changedMotion=null;
         settings.MotionSettingsChanged+=value=>changedMotion=value;
         ((Button)settings.FindName("ScreenTransitionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
         Check(changedMotion?.ScreenTransitionsEnabled==false,"Screen transitions must be switchable from the controller settings page");
+        ((Button)settings.FindName("OverlayTransitionsButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(changedMotion?.OverlayTransitionsEnabled==false,"Overlay transitions must be switchable by controller");
+        ((Button)settings.FindName("ControllerVibrationButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(changedMotion?.ControllerVibrationEnabled==false,"Controller vibration must be independently switchable");
+        ((Button)settings.FindName("AnimationSpeedButton")).RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(changedMotion?.AnimationSpeed==ShellAnimationSpeed.Fast,"Animation speed must cycle from Normal to Fast");
 
         var motionRoot=Path.Combine(Path.GetTempPath(),"GrevHomeMotionTest-"+Guid.NewGuid().ToString("N"));
         try
         {
             var motionService=new ShellMotionSettingsService(new AppPaths(motionRoot));
             Check(motionService.Load()==new ShellMotionSettings(),"Motion settings must default to enabled");
-            var savedMotion=new ShellMotionSettings(false,false);
+            var savedMotion=new ShellMotionSettings(
+                ScreenTransitionsEnabled:false,
+                StartupIntroEnabled:false,
+                OverlayTransitionsEnabled:false,
+                ReturnHomeTransitionEnabled:false,
+                TileFocusAnimationEnabled:false,
+                ModalTransitionsEnabled:false,
+                AmbientBackgroundEnabled:false,
+                ButtonPressFeedbackEnabled:false,
+                UiSoundsEnabled:false,
+                StartupSoundEnabled:false,
+                ControllerVibrationEnabled:false,
+                UiSoundVolumePercent:75,
+                AnimationSpeed:ShellAnimationSpeed.Fast,
+                VibrationStrength:ShellVibrationStrength.High);
             motionService.SaveAsync(savedMotion).GetAwaiter().GetResult();
             Check(motionService.Load()==savedMotion,"Motion settings must survive an application restart");
         }

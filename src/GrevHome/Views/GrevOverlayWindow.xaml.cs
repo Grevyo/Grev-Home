@@ -3,7 +3,10 @@ using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
+using System.Windows.Threading;
 using GrevHome.Input;
+using GrevHome.Presentation;
 using GrevHome.Runtime;
 
 namespace GrevHome.Views;
@@ -18,6 +21,8 @@ public partial class GrevOverlayWindow : Window
     private Guid? _pendingAppKillerForceClose;
     private readonly Dictionary<Guid, Button> _appKillerForceButtons = new();
     private OverlayMode _mode = OverlayMode.Home;
+    private ShellMotionSettings _presentation = new();
+    private long _visibilityAnimationVersion;
 
     public event Action<Guid>? ResumeRequested;
     public event EventHandler? ReturnHomeRequested;
@@ -43,6 +48,8 @@ public partial class GrevOverlayWindow : Window
     }
 
     public bool IsOpen => IsVisible;
+
+    public void ConfigurePresentation(ShellMotionSettings settings) => _presentation = settings;
 
     public void Open(
         IReadOnlyList<LaunchSessionSnapshot> sessions,
@@ -107,10 +114,24 @@ public partial class GrevOverlayWindow : Window
 
     public void Dismiss()
     {
-        if (IsVisible)
+        if (!IsVisible) return;
+        var version = ++_visibilityAnimationVersion;
+        if (!_presentation.OverlayTransitionsEnabled)
         {
             Hide();
+            return;
         }
+
+        var duration = ScaleDuration(150);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseIn };
+        var opacity = new DoubleAnimation(1, 0, duration) { EasingFunction = easing };
+        opacity.Completed += (_, _) =>
+        {
+            if (version == _visibilityAnimationVersion && IsVisible) Hide();
+        };
+        OverlayBackdrop.BeginAnimation(OpacityProperty, opacity);
+        OverlayCardScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(1, .97, duration) { EasingFunction = easing });
+        OverlayCardScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(1, .97, duration) { EasingFunction = easing });
     }
 
     public void HandleControllerInput(InputAction action)
@@ -140,6 +161,7 @@ public partial class GrevOverlayWindow : Window
 
     private void ShowAndFocus()
     {
+        ++_visibilityAnimationVersion;
         if (!IsVisible)
         {
             Show();
@@ -147,6 +169,32 @@ public partial class GrevOverlayWindow : Window
 
         Activate();
         FocusFirstButton();
+        OverlayBackdrop.BeginAnimation(OpacityProperty, null);
+        OverlayCardScale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        OverlayCardScale.BeginAnimation(ScaleTransform.ScaleYProperty, null);
+        if (!_presentation.OverlayTransitionsEnabled)
+        {
+            OverlayBackdrop.Opacity = 1;
+            OverlayCardScale.ScaleX = OverlayCardScale.ScaleY = 1;
+            return;
+        }
+
+        var duration = ScaleDuration(210);
+        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
+        OverlayBackdrop.BeginAnimation(OpacityProperty, new DoubleAnimation(0, 1, duration) { EasingFunction = easing });
+        OverlayCardScale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(.96, 1, duration) { EasingFunction = easing });
+        OverlayCardScale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(.96, 1, duration) { EasingFunction = easing });
+    }
+
+    private Duration ScaleDuration(int milliseconds)
+    {
+        var factor = _presentation.AnimationSpeed switch
+        {
+            ShellAnimationSpeed.Relaxed => 1.35,
+            ShellAnimationSpeed.Fast => .72,
+            _ => 1
+        };
+        return TimeSpan.FromMilliseconds(milliseconds * factor);
     }
 
     private void Render()

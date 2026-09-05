@@ -11,8 +11,8 @@
         ShowInTaskbar="False"
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown">
-    <Grid Background="#B8000000">
-        <Border Width="1040"
+    <Grid x:Name="OverlayBackdrop" Background="#B8000000" Opacity="1">
+        <Border x:Name="OverlayCard" Width="1040"
                 MaxHeight="820"
                 Padding="30"
                 HorizontalAlignment="Center"
@@ -20,7 +20,10 @@
                 Background="#FA171B25"
                 BorderBrush="#7180A3"
                 BorderThickness="2"
-                CornerRadius="22">
+                CornerRadius="22" RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <ScaleTransform x:Name="OverlayCardScale" ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />

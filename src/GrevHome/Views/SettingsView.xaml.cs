@@ -25,7 +25,7 @@ public partial class SettingsView : UserControl
             ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
             ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],
             ["settings-system"] = ["Machine and Windows", ".NET runtime", "Storage", "Connected controllers"],
-            ["settings-theme"] = ["Screen transitions", "Startup intro", "Preview intro"],
+            ["settings-theme"] = ["Screen and Return Home transitions", "Overlay and modal motion", "Tile and button feedback", "Ambient background", "UI and startup sounds", "Sound volume", "Controller vibration", "Animation speed", "Preview intro"],
             ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation"]
         };
 
@@ -92,6 +92,18 @@ public partial class SettingsView : UserControl
         _motionSettings = settings;
         ScreenTransitionsButton.Content = $"Screen transitions: {(settings.ScreenTransitionsEnabled ? "On" : "Off")}";
         StartupIntroButton.Content = $"Startup intro: {(settings.StartupIntroEnabled ? "On" : "Off")}";
+        OverlayTransitionsButton.Content = $"Overlay transitions: {(settings.OverlayTransitionsEnabled ? "On" : "Off")}";
+        ReturnHomeTransitionButton.Content = $"Return Home transition: {(settings.ReturnHomeTransitionEnabled ? "On" : "Off")}";
+        TileFocusAnimationButton.Content = $"Tile focus animation: {(settings.TileFocusAnimationEnabled ? "On" : "Off")}";
+        ModalTransitionsButton.Content = $"Modal transitions: {(settings.ModalTransitionsEnabled ? "On" : "Off")}";
+        AmbientBackgroundButton.Content = $"Ambient background: {(settings.AmbientBackgroundEnabled ? "On" : "Off")}";
+        ButtonPressFeedbackButton.Content = $"Button press feedback: {(settings.ButtonPressFeedbackEnabled ? "On" : "Off")}";
+        UiSoundsButton.Content = $"UI sounds: {(settings.UiSoundsEnabled ? "On" : "Off")}";
+        StartupSoundButton.Content = $"Startup sound: {(settings.StartupSoundEnabled ? "On" : "Off")}";
+        UiSoundVolumeButton.Content = $"UI sound volume: {settings.UiSoundVolumePercent}%";
+        ControllerVibrationButton.Content = $"Controller vibration: {(settings.ControllerVibrationEnabled ? "On" : "Off")}";
+        AnimationSpeedButton.Content = $"Animation speed: {settings.AnimationSpeed}";
+        VibrationStrengthButton.Content = $"Vibration strength: {settings.VibrationStrength}";
     }
 
     public void ShowMotionStatus(string message) => MotionSettingsStatusText.Text = message;
@@ -106,6 +118,25 @@ public partial class SettingsView : UserControl
     private void StartupIntro_Click(object sender, RoutedEventArgs e)
     {
         var next = _motionSettings with { StartupIntroEnabled = !_motionSettings.StartupIntroEnabled };
+        SetMotionSettings(next);
+        MotionSettingsChanged?.Invoke(next);
+    }
+
+    private void OverlayTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { OverlayTransitionsEnabled = !_motionSettings.OverlayTransitionsEnabled });
+    private void ReturnHomeTransition_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ReturnHomeTransitionEnabled = !_motionSettings.ReturnHomeTransitionEnabled });
+    private void TileFocusAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileFocusAnimationEnabled = !_motionSettings.TileFocusAnimationEnabled });
+    private void ModalTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ModalTransitionsEnabled = !_motionSettings.ModalTransitionsEnabled });
+    private void AmbientBackground_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { AmbientBackgroundEnabled = !_motionSettings.AmbientBackgroundEnabled });
+    private void ButtonPressFeedback_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ButtonPressFeedbackEnabled = !_motionSettings.ButtonPressFeedbackEnabled });
+    private void UiSounds_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { UiSoundsEnabled = !_motionSettings.UiSoundsEnabled });
+    private void StartupSound_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { StartupSoundEnabled = !_motionSettings.StartupSoundEnabled });
+    private void UiSoundVolume_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { UiSoundVolumePercent = _motionSettings.UiSoundVolumePercent >= 100 ? 25 : _motionSettings.UiSoundVolumePercent + 25 });
+    private void ControllerVibration_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ControllerVibrationEnabled = !_motionSettings.ControllerVibrationEnabled });
+    private void AnimationSpeed_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { AnimationSpeed = _motionSettings.AnimationSpeed switch { ShellAnimationSpeed.Relaxed => ShellAnimationSpeed.Normal, ShellAnimationSpeed.Normal => ShellAnimationSpeed.Fast, _ => ShellAnimationSpeed.Relaxed } });
+    private void VibrationStrength_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { VibrationStrength = _motionSettings.VibrationStrength switch { ShellVibrationStrength.Low => ShellVibrationStrength.Medium, ShellVibrationStrength.Medium => ShellVibrationStrength.High, _ => ShellVibrationStrength.Low } });
+
+    private void ChangeMotion(ShellMotionSettings next)
+    {
         SetMotionSettings(next);
         MotionSettingsChanged?.Invoke(next);
     }

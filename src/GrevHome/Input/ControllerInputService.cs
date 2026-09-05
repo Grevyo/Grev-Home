@@ -144,6 +144,26 @@ public sealed class ControllerInputService : IDisposable
         }
     }
 
+    public void PulseVibration(int controllerIndex, ushort strength, int durationMilliseconds)
+    {
+        if (_disposed || controllerIndex is < 0 or > 3) return;
+        try
+        {
+            SetVibration((uint)controllerIndex, new XInputVibration
+            {
+                LeftMotorSpeed = strength,
+                RightMotorSpeed = (ushort)(strength * 0.72)
+            });
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(durationMilliseconds);
+                if (!_disposed) SetVibration((uint)controllerIndex, default);
+            });
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
+    }
+
     private void Poll(object? stateObject)
     {
         if (_disposed || !Monitor.TryEnter(_pollGate))
@@ -564,6 +584,10 @@ public sealed class ControllerInputService : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        for (uint index = 0; index < 4; index++)
+        {
+            try { SetVibration(index, default); } catch { }
+        }
         _timer.Dispose();
     }
 
@@ -593,6 +617,19 @@ public sealed class ControllerInputService : IDisposable
 
     [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
     private static extern uint XInputGetState(uint userIndex, out XInputState state);
+
+    [DllImport("xinput1_4.dll", EntryPoint = "XInputSetState")]
+    private static extern uint XInputSetState(uint userIndex, ref XInputVibration vibration);
+
+    private static uint SetVibration(uint userIndex, XInputVibration vibration) =>
+        XInputSetState(userIndex, ref vibration);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XInputVibration
+    {
+        public ushort LeftMotorSpeed;
+        public ushort RightMotorSpeed;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct XInputState
