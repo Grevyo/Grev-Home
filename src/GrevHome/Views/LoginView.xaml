@@ -58,7 +58,7 @@
         <StackPanel Grid.Row="3" HorizontalAlignment="Center" Margin="0,14,0,0">
             <TextBlock x:Name="CarouselHintText" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="13" />
             <Button x:Name="CreateAccountButton"
-                    Content="＋ Create Account"
+                    Content="＋ Create New User"
                     Width="240"
                     Height="60"
                     HorizontalAlignment="Center"

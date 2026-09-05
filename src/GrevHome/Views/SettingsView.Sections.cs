@@ -95,6 +95,7 @@ public partial class SettingsView
         SettingsHub.Visibility=Visibility.Visible;
         SettingsDetailHeader.Visibility=Visibility.Collapsed;
         foreach(var section in SettingsSections()) section.Visibility=Visibility.Collapsed;
+        ShowSettingsPreview(AccountSectionButton);
         Dispatcher.BeginInvoke(new Action(()=>AccountSectionButton.Focus()));
     }
 

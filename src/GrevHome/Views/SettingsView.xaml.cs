@@ -15,6 +15,18 @@ public sealed record ShortcutHoldAdjustment(string BindingId, int DeltaMilliseco
 
 public partial class SettingsView : UserControl
 {
+    private static readonly IReadOnlyDictionary<string, string[]> SettingsPreviewCatalog =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["settings-account"] = ["Display name", "Username and GrevID", "Profile identity"],
+            ["settings-controller"] = ["Return Home shortcuts", "Grev Overlay shortcuts", "Hold duration", "Reset shortcuts"],
+            ["settings-audio"] = ["Master volume", "Mute", "Output device"],
+            ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
+            ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],
+            ["settings-system"] = ["Machine and Windows", ".NET runtime", "Storage", "Connected controllers"],
+            ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation"]
+        };
+
     private readonly SystemStatusService _systemStatusService = new();
     private readonly ControllerHardwareService _controllerHardwareService = new();
     private readonly SystemPowerService _systemPowerService = new();
@@ -68,6 +80,20 @@ public partial class SettingsView : UserControl
                 : AppArtworkFactory.CreateTile(tile.DisplayName, tile.IconAsset, tile.TileColor);
             button.ToolTip = $"{tile.DisplayName} • {tile.Detail}";
         }
+    }
+
+    private void ShowSettingsPreview(Button button)
+    {
+        if (button.Tag is not string id || !SettingsPreviewCatalog.TryGetValue(id, out var items)) return;
+        var definition = DashboardTileCatalog.Get(id);
+        var displayName = _tilePresentations.TryGetValue(id, out var tile) ? tile.DisplayName : definition.Name;
+        SettingsPreviewTitle.Text = $"{displayName} includes";
+        SettingsPreviewItems.ItemsSource = items;
+    }
+
+    private void SettingsHubTile_MouseEnter(object sender, MouseEventArgs e)
+    {
+        if (sender is Button button) ShowSettingsPreview(button);
     }
 
     public void SetState(LocalProfile? profile, ControllerShortcutConfiguration shortcuts)
@@ -490,6 +516,7 @@ public partial class SettingsView : UserControl
     {
         if(e.NewFocus is Button button && SettingsHub.IsVisible)
         {
+            ShowSettingsPreview(button);
             button.BringIntoView(new Rect(-18,0,button.ActualWidth+36,button.ActualHeight));
             UpdateSettingsHubFade();
         }

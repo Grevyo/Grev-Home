@@ -48,7 +48,9 @@ public partial class LoginView : UserControl
             : "Choose your profile to enter Grev Home.";
         BackHintText.Visibility = addingPlayer ? Visibility.Visible : Visibility.Collapsed;
 
-        var canCreateAccount = profiles.Count == 0 || session.PrimaryUser is { } primary && AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManageProfiles);
+        var canCreateAccount = !addingPlayer ||
+                               session.PrimaryUser is { } primary &&
+                               AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManageProfiles);
         CreateAccountButton.Visibility = canCreateAccount && !slotsFull ? Visibility.Visible : Visibility.Collapsed;
 
         ProfilesPanel.Children.Clear();

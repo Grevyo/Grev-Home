@@ -28,6 +28,8 @@ internal static class Program
         login.Refresh(profiles.Take(4).ToArray(),new SessionContext(),[true,false,false,false]);
         window.UpdateLayout();Pump();
         var scroll=(ScrollViewer)login.FindName("ProfilesScroll");
+        var createAccount=(Button)login.FindName("CreateAccountButton");
+        Check(createAccount.IsVisible,"Who's Playing must always offer Create Account before a session starts");
         Check(scroll.ScrollableWidth<1,"Four profiles must fit without horizontal scrolling at 720p");
         login.Refresh(profiles,new SessionContext(),[true,false,false,false]);
         window.UpdateLayout();Pump();
@@ -69,10 +71,13 @@ internal static class Program
         window.UpdateLayout();Pump();
         var settingsCarousel=(ScrollViewer)settings.FindName("SettingsHubCarousel");
         var powerTile=(Button)settings.FindName("PowerSectionButton");
+        var previewTitle=(TextBlock)settings.FindName("SettingsPreviewTitle");
+        var previewItems=(ItemsControl)settings.FindName("SettingsPreviewItems");
         Check(settingsCarousel.ActualWidth>=window.ActualWidth-150,"The settings hub must use the same full-width dashboard geometry");
         Check(settingsCarousel.ScrollableWidth>0,"Every settings area must remain a tile in one horizontal hub row");
         powerTile.Focus();Pump();
         Check(settingsCarousel.HorizontalOffset>0,"Settings tile focus must scroll the hub carousel");
+        Check(previewTitle.Text.Contains("Power") && previewItems.Items.Count==4,"Controller focus must preview every setting inside the highlighted tile");
         powerTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("PowerSection")).IsVisible,"A settings tile must open its dedicated settings page");
         Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");

@@ -49,6 +49,7 @@
             <Setter Property="Padding" Value="20" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <EventSetter Event="MouseEnter" Handler="SettingsHubTile_MouseEnter" />
         </Style>
     </UserControl.Resources>
 
@@ -87,6 +88,42 @@
                     </StackPanel>
                 </ScrollViewer>
                 <TextBlock Text="◀  ▶  Choose a settings tile  •  A Open" Margin="10,8,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                <Border Margin="8,22,8,0"
+                        Padding="24,20"
+                        MinHeight="154"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock x:Name="SettingsPreviewTitle"
+                                   Text="Account includes"
+                                   FontSize="22"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="Available in this settings tile"
+                                   Margin="0,4,0,14"
+                                   Foreground="{StaticResource MutedBrush}" />
+                        <ItemsControl x:Name="SettingsPreviewItems">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,10,10"
+                                            Padding="12,7"
+                                            Background="#1A2130"
+                                            BorderBrush="#343D51"
+                                            BorderThickness="1"
+                                            CornerRadius="8">
+                                        <TextBlock Text="{Binding}" FontSize="14" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
             </StackPanel>
 
             <Grid x:Name="SettingsDetailHeader" Visibility="Collapsed" Margin="0,0,0,16">
