@@ -2,195 +2,488 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="WrappedSettingsButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource {x:Type Button}}">
+            <Setter Property="Height" Value="Auto" />
+            <Setter Property="MinHeight" Value="48" />
+            <Setter Property="Padding" Value="14,10" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Center"
+                                   HorizontalAlignment="Center"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SettingsSectionHeaderButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource WrappedSettingsButtonStyle}">
+            <Setter Property="MinHeight" Value="56" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="ContentTemplate">
+                <Setter.Value>
+                    <DataTemplate>
+                        <TextBlock Text="{Binding}"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   Foreground="White"
+                                   TextWrapping="Wrap"
+                                   TextAlignment="Left"
+                                   HorizontalAlignment="Stretch"
+                                   VerticalAlignment="Center" />
+                    </DataTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="SettingsHubTileStyle" TargetType="Button" BasedOn="{StaticResource SharpTileButtonStyle}">
+            <Setter Property="Width" Value="285" />
+            <Setter Property="Height" Value="145" />
+            <Setter Property="Margin" Value="8" />
+            <Setter Property="Padding" Value="20" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <EventSetter Event="MouseMove" Handler="SettingsHubTile_MouseMove" />
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-        <StackPanel Margin="72,38" MaxWidth="1180">
+        <StackPanel Margin="64,38,64,46">
             <Grid Margin="0,0,0,24">
                 <StackPanel>
                     <TextBlock Text="Settings" FontSize="40" FontWeight="SemiBold" />
-                    <TextBlock Text="Account, controller and machine settings for this Grev Home system."
+                    <TextBlock Text="Account, controller and machine settings for this Grev Home system. Open only the section you need."
                                Margin="0,6,0,0"
                                Foreground="{StaticResource MutedBrush}"
-                               FontSize="16" />
+                               FontSize="16"
+                               TextWrapping="Wrap" />
                 </StackPanel>
                 <Button Content="Back"
-                        Width="130"
-                        Height="48"
+                        MinWidth="130"
+                        MinHeight="48"
+                        Height="Auto"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Center"
+                        Style="{StaticResource WrappedSettingsButtonStyle}"
                         Click="Back_Click" />
             </Grid>
 
-            <TextBlock Text="ACCOUNT" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22" Margin="0,0,0,28">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock x:Name="DisplayNameText" Text="Display name" FontSize="24" FontWeight="SemiBold" />
-                            <TextBlock x:Name="UsernameText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" />
-                            <TextBlock x:Name="GrevIdText" Margin="0,3,0,0" Foreground="{StaticResource MutedBrush}" />
-                        </StackPanel>
-                        <Button x:Name="EditDisplayNameButton"
-                                Grid.Column="1"
-                                Content="Edit Display Name"
-                                Width="190"
-                                Height="48"
-                                VerticalAlignment="Center"
-                                Click="EditDisplayName_Click" />
-                    </Grid>
-
-                    <Border x:Name="DisplayNameEditor"
-                            Visibility="Collapsed"
-                            Margin="0,20,0,0"
-                            Padding="18"
-                            Background="#0B0E15"
-                            BorderBrush="#343D51"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <StackPanel>
-                            <TextBlock Text="Display name" FontSize="14" Foreground="{StaticResource MutedBrush}" />
-                            <TextBox x:Name="DisplayNameTextBox"
-                                     Height="52"
-                                     Margin="0,7,0,12"
-                                     Padding="13,7"
-                                     FontSize="21"
-                                     MaxLength="50" />
-                            <UniformGrid x:Name="DisplayNameKeyboard" Columns="10" Margin="0,2,0,4" />
-                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                                <Button Content="Space" Width="220" Height="48" Margin="5" Click="DisplayNameSpace_Click" />
-                                <Button Content="Backspace" Width="170" Height="48" Margin="5" Click="DisplayNameBackspace_Click" />
-                                <Button Content="Save" Width="140" Height="48" Margin="5" Click="SaveDisplayName_Click" />
-                                <Button Content="Cancel" Width="140" Height="48" Margin="5" Click="CancelDisplayName_Click" />
-                            </StackPanel>
-                        </StackPanel>
-                    </Border>
-
-                    <TextBlock x:Name="AccountStatusText"
-                               Margin="0,14,0,0"
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
-            <TextBlock Text="CONTROLLER SYSTEM SHORTCUTS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22" Margin="0,0,0,28">
-                <StackPanel>
-                    <TextBlock Text="These shortcuts are machine-wide and continue working while external apps are running."
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-
-                    <TextBlock Text="RETURN HOME" Margin="0,22,0,8" FontSize="13" FontWeight="Bold" />
-                    <StackPanel x:Name="ReturnHomeBindingsPanel" />
-                    <Button Content="＋ Record another Return Home combination"
-                            Height="52"
-                            Margin="0,6,0,0"
-                            Click="AddReturnHome_Click" />
-
-                    <TextBlock Text="GREV OVERLAY" Margin="0,26,0,8" FontSize="13" FontWeight="Bold" />
-                    <StackPanel x:Name="OverlayBindingsPanel" />
-                    <Button Content="＋ Record another Overlay combination"
-                            Height="52"
-                            Margin="0,6,0,0"
-                            Click="AddOverlay_Click" />
-
-                    <Border x:Name="CapturePanel"
-                            Visibility="Collapsed"
-                            Margin="0,22,0,0"
-                            Padding="20"
-                            Background="#0B0E15"
-                            BorderBrush="{StaticResource AccentBrush}"
-                            BorderThickness="1"
-                            CornerRadius="12">
-                        <StackPanel>
-                            <TextBlock x:Name="CaptureTitleText" Text="Recording combination…" FontSize="20" FontWeight="SemiBold" />
-                            <TextBlock x:Name="CaptureInstructionsText"
-                                       Margin="0,7,0,0"
-                                       Text="Release the button used to start recording, then hold your new combination together and release it."
-                                       Foreground="{StaticResource MutedBrush}"
-                                       TextWrapping="Wrap" />
-                            <Button Content="Cancel recording"
-                                    Width="180"
-                                    Height="46"
-                                    Margin="0,14,0,0"
-                                    HorizontalAlignment="Left"
-                                    Click="CancelCapture_Click" />
-                        </StackPanel>
-                    </Border>
-
-                    <StackPanel Orientation="Horizontal" Margin="0,24,0,0">
-                        <Button Content="Reset shortcuts to defaults"
-                                Width="240"
-                                Height="50"
-                                Margin="0,0,10,0"
-                                Click="ResetShortcuts_Click" />
+            <StackPanel x:Name="SettingsHub">
+                <TextBlock Text="SYSTEM" Margin="10,0,0,8" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                <ScrollViewer x:Name="SettingsHubCarousel" HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" PanningMode="HorizontalOnly" CanContentScroll="False" Focusable="False" ClipToBounds="True" ScrollChanged="SettingsHubCarousel_ScrollChanged" PreviewMouseWheel="SettingsHubCarousel_PreviewMouseWheel">
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="AccountSectionButton" Tag="settings-account" Style="{StaticResource SettingsHubTileStyle}" Click="AccountSectionButton_Click" />
+                        <Button x:Name="ControllerShortcutsSectionButton" Tag="settings-controller" Style="{StaticResource SettingsHubTileStyle}" Click="ControllerShortcutsSectionButton_Click" />
+                        <Button x:Name="AudioSectionButton" Tag="settings-audio" Style="{StaticResource SettingsHubTileStyle}" Click="AudioSectionButton_Click" />
+                        <Button x:Name="DisplaySectionButton" Tag="settings-display" Style="{StaticResource SettingsHubTileStyle}" Click="DisplaySectionButton_Click" />
+                        <Button x:Name="ConnectionsSectionButton" Tag="settings-connections" Style="{StaticResource SettingsHubTileStyle}" Click="ConnectionsSectionButton_Click" />
+                        <Button x:Name="SystemStatusSectionButton" Tag="settings-system" Style="{StaticResource SettingsHubTileStyle}" Click="SystemStatusSectionButton_Click" />
+                        <Button x:Name="ThemeMotionSectionButton" Tag="settings-theme" Style="{StaticResource SettingsHubTileStyle}" Click="ThemeMotionSectionButton_Click" />
+                        <Button x:Name="PowerSectionButton" Tag="settings-power" Style="{StaticResource SettingsHubTileStyle}" Click="PowerSectionButton_Click" />
                     </StackPanel>
+                </ScrollViewer>
+                <TextBlock Text="◀  ▶  Choose a settings tile  •  A Open" Margin="10,8,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                <Border Margin="8,22,8,0"
+                        Padding="24,20"
+                        MinHeight="154"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        CornerRadius="12">
+                    <StackPanel>
+                        <TextBlock x:Name="SettingsPreviewTitle"
+                                   Text="Account includes"
+                                   FontSize="22"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="Available in this settings tile"
+                                   Margin="0,4,0,14"
+                                   Foreground="{StaticResource MutedBrush}" />
+                        <ItemsControl x:Name="SettingsPreviewItems">
+                            <ItemsControl.ItemsPanel>
+                                <ItemsPanelTemplate>
+                                    <WrapPanel />
+                                </ItemsPanelTemplate>
+                            </ItemsControl.ItemsPanel>
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Margin="0,0,10,10"
+                                            Padding="12,7"
+                                            Background="#1A2130"
+                                            BorderBrush="#343D51"
+                                            BorderThickness="1"
+                                            CornerRadius="8">
+                                        <TextBlock Text="{Binding}" FontSize="14" />
+                                    </Border>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                    </StackPanel>
+                </Border>
+            </StackPanel>
 
-                    <TextBlock x:Name="ShortcutStatusText"
-                               Margin="0,14,0,0"
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+            <Grid x:Name="SettingsDetailHeader" Visibility="Collapsed" Margin="0,0,0,16">
+                <TextBlock x:Name="SettingsDetailTitle" Text="Settings" FontSize="30" FontWeight="SemiBold" VerticalAlignment="Center" />
+                <Button Content="Back to Settings" MinWidth="190" HorizontalAlignment="Right" Style="{StaticResource WrappedSettingsButtonStyle}" Click="BackToSettings_Click" />
+            </Grid>
 
-            <TextBlock Text="SYSTEM STATUS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22" Margin="0,0,0,28">
-                <StackPanel>
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock x:Name="MachineNameText" Text="This Grev Machine" FontSize="24" FontWeight="SemiBold" />
-                            <TextBlock x:Name="WindowsText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                            <TextBlock x:Name="MachineResourcesText" Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                            <TextBlock x:Name="MachinePowerText" Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                        </StackPanel>
-                        <Button Grid.Column="1"
-                                Content="Refresh status"
-                                Width="150"
-                                Height="48"
-                                VerticalAlignment="Center"
-                                Click="RefreshSystemStatus_Click" />
-                    </Grid>
+            <StackPanel x:Name="AccountSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="AccountSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="DisplayNameText" Text="Display name" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="UsernameText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="GrevIdText" Margin="0,3,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button x:Name="EditDisplayNameButton"
+                                    Grid.Column="1"
+                                    Content="Edit Display Name"
+                                    MinWidth="190"
+                                    Margin="16,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="EditDisplayName_Click" />
+                        </Grid>
 
-                    <TextBlock Text="STORAGE" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
-                    <StackPanel x:Name="StorageStatusPanel" />
+                        <Border x:Name="DisplayNameEditor"
+                                Visibility="Collapsed"
+                                Margin="0,20,0,0"
+                                Padding="18"
+                                Background="#0B0E15"
+                                BorderBrush="#343D51"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock Text="Display name" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+                                <TextBox x:Name="DisplayNameTextBox"
+                                         Height="52"
+                                         Margin="0,7,0,12"
+                                         Padding="13,7"
+                                         FontSize="21"
+                                         MaxLength="50" />
+                                <UniformGrid x:Name="DisplayNameKeyboard" Columns="10" Margin="0,2,0,4" />
+                                <WrapPanel HorizontalAlignment="Center">
+                                    <Button Content="Space" MinWidth="220" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayNameSpace_Click" />
+                                    <Button Content="Backspace" MinWidth="170" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayNameBackspace_Click" />
+                                    <Button Content="Save" MinWidth="140" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="SaveDisplayName_Click" />
+                                    <Button Content="Cancel" MinWidth="140" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="CancelDisplayName_Click" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
 
-                    <TextBlock Text="CONTROLLERS" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
-                    <StackPanel x:Name="ControllerHardwarePanel" />
+                        <TextBlock x:Name="AccountStatusText"
+                                   Margin="0,14,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
 
-                    <TextBlock x:Name="SystemStatusText"
-                               Margin="0,14,0,0"
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+            <StackPanel x:Name="ControllerShortcutsSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="ControllerShortcutsSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock Text="These shortcuts are machine-wide and continue working while external apps are running."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Bluetooth and USB living-room remotes that Windows exposes as keyboard/HID controls work automatically: direction pad navigates, OK/Enter selects, Back returns, and previous/next/play/pause/stop media buttons map to Grev Home navigation. Pair Bluetooth remotes from Connections first."
+                                   Margin="0,9,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
 
-            <TextBlock Text="POWER" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="2,0,0,8" />
-            <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="14" Padding="22">
-                <StackPanel>
-                    <TextBlock Text="Power actions affect the whole Windows machine. Select an action once to arm it, then select the same action again within 8 seconds to confirm."
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
+                        <TextBlock Text="RETURN HOME" Margin="0,22,0,8" FontSize="13" FontWeight="Bold" />
+                        <StackPanel x:Name="ReturnHomeBindingsPanel" />
+                        <Button Content="＋ Record another Return Home combination"
+                                Margin="0,6,0,0"
+                                Style="{StaticResource WrappedSettingsButtonStyle}"
+                                Click="AddReturnHome_Click" />
 
-                    <WrapPanel Margin="0,18,0,0">
-                        <Button x:Name="SleepButton" Content="Sleep" Width="210" Height="64" Margin="0,0,10,10" Click="Sleep_Click" />
-                        <Button x:Name="RestartButton" Content="Restart" Width="210" Height="64" Margin="0,0,10,10" Click="Restart_Click" />
-                        <Button x:Name="ShutdownButton" Content="Shut Down" Width="210" Height="64" Margin="0,0,10,10" Click="Shutdown_Click" />
-                        <Button Content="Cancel power action" Width="210" Height="64" Margin="0,0,10,10" Click="CancelPowerAction_Click" />
-                    </WrapPanel>
+                        <TextBlock Text="GREV OVERLAY" Margin="0,26,0,8" FontSize="13" FontWeight="Bold" />
+                        <StackPanel x:Name="OverlayBindingsPanel" />
+                        <Button Content="＋ Record another Overlay combination"
+                                Margin="0,6,0,0"
+                                Style="{StaticResource WrappedSettingsButtonStyle}"
+                                Click="AddOverlay_Click" />
 
-                    <TextBlock x:Name="PowerStatusText"
-                               Margin="0,8,0,0"
-                               Text="No power action armed."
-                               Foreground="{StaticResource MutedBrush}"
-                               TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
+                        <Border x:Name="CapturePanel"
+                                Visibility="Collapsed"
+                                Margin="0,22,0,0"
+                                Padding="20"
+                                Background="#0B0E15"
+                                BorderBrush="{StaticResource AccentBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12">
+                            <StackPanel>
+                                <TextBlock x:Name="CaptureTitleText" Text="Recording combination…" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="CaptureInstructionsText"
+                                           Margin="0,7,0,0"
+                                           Text="Release the button used to start recording, then hold your new combination together and release it."
+                                           Foreground="{StaticResource MutedBrush}"
+                                           TextWrapping="Wrap" />
+                                <Button Content="Cancel recording"
+                                        MinWidth="180"
+                                        Margin="0,14,0,0"
+                                        HorizontalAlignment="Left"
+                                        Style="{StaticResource WrappedSettingsButtonStyle}"
+                                        Click="CancelCapture_Click" />
+                            </StackPanel>
+                        </Border>
+
+                        <WrapPanel Margin="0,24,0,0">
+                            <Button Content="Reset shortcuts to defaults"
+                                    MinWidth="240"
+                                    Margin="0,0,10,0"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="ResetShortcuts_Click" />
+                        </WrapPanel>
+
+                        <TextBlock x:Name="ShortcutStatusText"
+                                   Margin="0,14,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="AudioSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="AudioSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock x:Name="AudioOutputText" Text="Current output" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="AudioVolumeText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button Content="Volume -10" MinWidth="150" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioVolumeDown_Click" />
+                            <Button Content="Volume +10" MinWidth="150" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioVolumeUp_Click" />
+                            <Button x:Name="AudioMuteButton" Content="Mute" MinWidth="150" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioMute_Click" />
+                        </WrapPanel>
+
+                        <TextBlock Text="OUTPUT DEVICE" Margin="0,18,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock x:Name="AudioSelectedOutputText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,12,0,0">
+                            <Button x:Name="AudioPreviousOutputButton" Content="← Previous output" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioPreviousOutput_Click" />
+                            <Button x:Name="AudioNextOutputButton" Content="Next output →" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioNextOutput_Click" />
+                            <Button x:Name="AudioApplyOutputButton" Content="Use selected output" MinWidth="210" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AudioApplyOutput_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="AudioStatusText" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="DisplaySection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="DisplaySectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock x:Name="DisplayCurrentModeText" Text="Current primary display" FontSize="22" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="DisplaySelectedModeText" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,16,0,0">
+                            <Button x:Name="DisplayPreviousModeButton" Content="← Previous mode" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayPreviousMode_Click" />
+                            <Button x:Name="DisplayNextModeButton" Content="Next mode →" MinWidth="190" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayNextMode_Click" />
+                            <Button x:Name="DisplayApplyModeButton" Content="Apply selected mode" MinWidth="210" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayApplyMode_Click" />
+                            <Button x:Name="DisplayKeepButton" Content="KEEP DISPLAY" Visibility="Collapsed" MinWidth="180" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayKeep_Click" />
+                            <Button x:Name="DisplayRevertButton" Content="Revert now" Visibility="Collapsed" MinWidth="160" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayRevert_Click" />
+                        </WrapPanel>
+                        <TextBlock Text="A changed mode automatically rolls back after 15 seconds unless Keep Display is selected."
+                                   Margin="0,4,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock x:Name="DisplayStatusText" Margin="0,10,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="ConnectionsSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="ConnectionsSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <Button Content="Refresh connections" MinWidth="190" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="RefreshConnections_Click" />
+
+                        <TextBlock Text="WI-FI" Margin="0,22,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock x:Name="WifiStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <Button x:Name="WifiDisconnectButton" Content="Disconnect Wi-Fi" IsEnabled="False" MinWidth="180" Margin="0,12,0,10" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="WifiDisconnect_Click" />
+                        <TextBlock Text="Available networks with an existing Windows saved profile can reconnect directly. New secured networks still need the future Grev Home credential/profile flow."
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <StackPanel x:Name="WifiNetworksPanel" />
+
+                        <TextBlock Text="BLUETOOTH" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock x:Name="BluetoothStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <Button x:Name="BluetoothToggleButton" Content="Turn Bluetooth On" MinWidth="210" Margin="0,12,0,10" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="BluetoothToggle_Click" />
+                        <TextBlock Text="Select a known device to pair or unpair it. Devices that require a PIN, passkey or manufacturer-specific flow may still require a richer pairing screen later."
+                                   Margin="0,0,0,10"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <StackPanel x:Name="BluetoothDevicesPanel" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="SystemStatusSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="SystemStatusSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="MachineNameText" Text="This Grev Machine" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                <TextBlock x:Name="WindowsText" Margin="0,6,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="MachineResourcesText" Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                <TextBlock x:Name="MachinePowerText" Margin="0,4,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                            </StackPanel>
+                            <Button Grid.Column="1"
+                                    Content="Refresh status"
+                                    MinWidth="160"
+                                    Margin="16,0,0,0"
+                                    VerticalAlignment="Center"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="RefreshSystemStatus_Click" />
+                        </Grid>
+
+                        <TextBlock Text="STORAGE" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
+                        <StackPanel x:Name="StorageStatusPanel" />
+
+                        <TextBlock Text="CONTROLLERS" Margin="0,24,0,8" FontSize="13" FontWeight="Bold" />
+                        <StackPanel x:Name="ControllerHardwarePanel" />
+
+                        <TextBlock x:Name="SystemStatusText"
+                                   Margin="0,14,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="ThemeMotionSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="ThemeMotionSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock Text="Grev Default"
+                                   FontSize="24"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="These motion preferences belong to the active Grev Home presentation. Future themes can supply their own visual transitions while respecting your on/off choices."
+                                   Margin="0,7,0,18"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <WrapPanel>
+                            <Button x:Name="ScreenTransitionsButton"
+                                    Content="Screen transitions: On"
+                                    MinWidth="260"
+                                    MinHeight="64"
+                                    Margin="0,0,10,10"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="ScreenTransitions_Click" />
+                            <Button x:Name="StartupIntroButton"
+                                    Content="Startup intro: On"
+                                    MinWidth="260"
+                                    MinHeight="64"
+                                    Margin="0,0,10,10"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="StartupIntro_Click" />
+                            <Button x:Name="OverlayTransitionsButton" Content="Overlay transitions: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="OverlayTransitions_Click" />
+                            <Button x:Name="ReturnHomeTransitionButton" Content="Return Home transition: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ReturnHomeTransition_Click" />
+                            <Button x:Name="TileFocusAnimationButton" Content="Tile focus animation: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="TileFocusAnimation_Click" />
+                            <Button x:Name="ModalTransitionsButton" Content="Modal transitions: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ModalTransitions_Click" />
+                            <Button x:Name="AmbientBackgroundButton" Content="Ambient background: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AmbientBackground_Click" />
+                            <Button x:Name="DashboardBackgroundsButton" Content="Selected app backgrounds: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DashboardBackgrounds_Click" />
+                            <Button x:Name="ButtonPressFeedbackButton" Content="Button press feedback: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ButtonPressFeedback_Click" />
+                            <Button x:Name="UiSoundsButton" Content="UI sounds: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="UiSounds_Click" />
+                            <Button x:Name="StartupSoundButton" Content="Startup sound: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="StartupSound_Click" />
+                            <Button x:Name="UiSoundVolumeButton" Content="UI sound volume: 50%" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="UiSoundVolume_Click" />
+                            <Button x:Name="ControllerVibrationButton" Content="Controller vibration: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ControllerVibration_Click" />
+                            <Button x:Name="AnimationSpeedButton" Content="Animation speed: Normal" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AnimationSpeed_Click" />
+                            <Button x:Name="VibrationStrengthButton" Content="Vibration strength: Low" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="VibrationStrength_Click" />
+                            <Button Content="Preview startup intro"
+                                    MinWidth="260"
+                                    MinHeight="64"
+                                    Margin="0,0,10,10"
+                                    Style="{StaticResource WrappedSettingsButtonStyle}"
+                                    Click="PreviewStartupIntro_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="MotionSettingsStatusText"
+                                   Margin="0,10,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="PowerSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="PowerSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock Text="Power actions affect the whole Windows machine. Select an action once to arm it, then select the same action again within 8 seconds to confirm."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <WrapPanel Margin="0,18,0,0">
+                            <Button x:Name="SleepButton" Content="Sleep" MinWidth="210" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="Sleep_Click" />
+                            <Button x:Name="RestartButton" Content="Restart" MinWidth="210" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="Restart_Click" />
+                            <Button x:Name="ShutdownButton" Content="Shut Down" MinWidth="210" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="Shutdown_Click" />
+                            <Button Content="Cancel power action" MinWidth="210" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="CancelPowerAction_Click" />
+                        </WrapPanel>
+
+                        <TextBlock x:Name="PowerStatusText"
+                                   Margin="0,8,0,0"
+                                   Text="No power action armed."
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
         </StackPanel>
     </ScrollViewer>
 </UserControl>

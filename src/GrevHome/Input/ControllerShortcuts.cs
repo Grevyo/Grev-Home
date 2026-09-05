@@ -60,6 +60,7 @@ public sealed class ControllerShortcutService
         WriteIndented = true,
         Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
     };
+    private string? _persistenceBlockReason;
 
     public ControllerShortcutService(AppPaths paths)
     {
@@ -72,20 +73,9 @@ public sealed class ControllerShortcutService
 
         if (!File.Exists(_paths.ControllerShortcutsFile))
         {
+            Volatile.Write(ref _persistenceBlockReason, null);
             var defaults = CreateDefaults();
-            try
-            {
-                Save(defaults);
-            }
-            catch (IOException)
-            {
-                // The runtime can still use safe in-memory defaults when the settings file cannot be written.
-            }
-            catch (UnauthorizedAccessException)
-            {
-                // The runtime can still use safe in-memory defaults when the settings file cannot be written.
-            }
-
+            TrySaveDefaults(defaults);
             return defaults;
         }
 
@@ -93,22 +83,38 @@ public sealed class ControllerShortcutService
         {
             var json = File.ReadAllText(_paths.ControllerShortcutsFile);
             var loaded = JsonSerializer.Deserialize<ControllerShortcutConfiguration>(json, _jsonOptions);
-            return NormalizeAndValidate(loaded);
+            if (loaded is { Version: > CurrentVersion })
+            {
+                Volatile.Write(
+                    ref _persistenceBlockReason,
+                    $"Controller shortcut settings use schema {loaded.Version}, which is newer than this Grev Home build supports ({CurrentVersion}). The existing file was left untouched.");
+                return CreateDefaults();
+            }
+
+            var normalized = NormalizeAndValidate(loaded);
+            Volatile.Write(ref _persistenceBlockReason, null);
+            return normalized;
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            return RecoverDefaults($"Controller shortcut JSON could not be parsed: {ex.Message}");
+        }
+        catch (InvalidOperationException ex)
+        {
+            return RecoverDefaults($"Controller shortcut configuration was invalid or unsupported: {ex.Message}");
+        }
+        catch (IOException ex)
+        {
+            Volatile.Write(
+                ref _persistenceBlockReason,
+                $"Controller shortcut settings are temporarily unreadable ({ex.Message}). Grev Home is using in-memory defaults and will not overwrite the existing file.");
             return CreateDefaults();
         }
-        catch (InvalidOperationException)
+        catch (UnauthorizedAccessException ex)
         {
-            return CreateDefaults();
-        }
-        catch (IOException)
-        {
-            return CreateDefaults();
-        }
-        catch (UnauthorizedAccessException)
-        {
+            Volatile.Write(
+                ref _persistenceBlockReason,
+                $"Controller shortcut settings cannot currently be accessed ({ex.Message}). Grev Home is using in-memory defaults and will not overwrite the existing file.");
             return CreateDefaults();
         }
     }
@@ -118,11 +124,26 @@ public sealed class ControllerShortcutService
         var validated = NormalizeAndValidate(configuration);
         _paths.EnsureMachineLayout();
 
+        var blockReason = Volatile.Read(ref _persistenceBlockReason);
+        if (!string.IsNullOrWhiteSpace(blockReason) && File.Exists(_paths.ControllerShortcutsFile))
+        {
+            throw new InvalidOperationException(blockReason);
+        }
+
         var temporaryPath = _paths.ControllerShortcutsFile + ".tmp";
         try
         {
-            File.WriteAllText(temporaryPath, JsonSerializer.Serialize(validated, _jsonOptions));
+            using (var stream = new FileStream(
+                       temporaryPath,
+                       FileMode.Create,
+                       FileAccess.Write,
+                       FileShare.None))
+            {
+                JsonSerializer.Serialize(stream, validated, _jsonOptions);
+                stream.Flush(flushToDisk: true);
+            }
             File.Move(temporaryPath, _paths.ControllerShortcutsFile, overwrite: true);
+            Volatile.Write(ref _persistenceBlockReason, null);
         }
         finally
         {
@@ -159,6 +180,43 @@ public sealed class ControllerShortcutService
                     },
                     HoldMilliseconds: 450)
             });
+
+    private ControllerShortcutConfiguration RecoverDefaults(string reason)
+    {
+        var defaults = CreateDefaults();
+        if (!CorruptDataQuarantine.TryPreserve(
+                _paths,
+                _paths.ControllerShortcutsFile,
+                "ControllerShortcuts",
+                reason,
+                out _))
+        {
+            Volatile.Write(
+                ref _persistenceBlockReason,
+                "Grev Home found invalid controller shortcut data but could not preserve a recovery copy. In-memory defaults are active and the original file will not be overwritten.");
+            return defaults;
+        }
+
+        Volatile.Write(ref _persistenceBlockReason, null);
+        TrySaveDefaults(defaults);
+        return defaults;
+    }
+
+    private void TrySaveDefaults(ControllerShortcutConfiguration defaults)
+    {
+        try
+        {
+            Save(defaults);
+        }
+        catch (IOException)
+        {
+            // Safe in-memory defaults keep controller navigation usable even if persistence fails.
+        }
+        catch (UnauthorizedAccessException)
+        {
+            // Safe in-memory defaults keep controller navigation usable even if persistence fails.
+        }
+    }
 
     private static ControllerShortcutConfiguration NormalizeAndValidate(
         ControllerShortcutConfiguration? configuration)

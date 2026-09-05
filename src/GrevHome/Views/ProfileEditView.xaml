@@ -3,93 +3,219 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:local="clr-namespace:GrevHome.Views"
              Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="EditSectionCard" TargetType="Border">
+            <Setter Property="Background" Value="#11151E" />
+            <Setter Property="BorderBrush" Value="#252D3B" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="0" />
+            <Setter Property="Padding" Value="22" />
+        </Style>
+        <Style x:Key="EditEyebrow" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+        </Style>
+        <Style x:Key="EditHint" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="72,38" MaxWidth="1100">
-                <TextBlock Text="Edit Profile" FontSize="40" FontWeight="SemiBold" />
-                <TextBlock x:Name="IdentityText" Margin="0,6,0,22" FontSize="15" Foreground="{StaticResource MutedBrush}" />
+            <StackPanel Margin="54,26,54,48" MaxWidth="1120">
+                <TextBlock Text="EDIT PROFILE" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="Make this profile yours" Margin="0,3,0,0" FontSize="30" FontWeight="SemiBold" />
+                <TextBlock x:Name="IdentityText" Margin="0,6,0,18" FontSize="13" Foreground="{StaticResource MutedBrush}" />
 
-                <Border Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16" Padding="24">
+                <Border x:Name="ProfileEditCard"
+                        Background="Transparent"
+                        BorderBrush="{StaticResource GuestRoleBrush}"
+                        BorderThickness="0"
+                        CornerRadius="0">
                     <StackPanel>
-                        <TextBlock Text="PROFILE PICTURE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                        <Grid Margin="0,10,0,10">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Border Width="96" Height="96" CornerRadius="48" Background="#1F283A" Margin="0,0,18,0" ClipToBounds="True">
-                                <Grid>
-                                    <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
-                                    <TextBlock x:Name="AvatarPreviewText" FontSize="30" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                </Grid>
-                            </Border>
-                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
-                                <WrapPanel x:Name="AvatarButtonsPanel" />
-                                <WrapPanel Margin="0,8,0,0">
-                                    <Button Content="Choose Custom Photo" Width="200" Height="50" Margin="3" Click="ChoosePhoto_Click" />
-                                </WrapPanel>
-                                <TextBlock x:Name="AvatarChoiceText" Margin="4,8,0,0" Foreground="{StaticResource MutedBrush}" />
+                        <Border Style="{StaticResource EditSectionCard}">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Border x:Name="AvatarPreviewBorder"
+                                        Width="132"
+                                        Height="132"
+                                        CornerRadius="0"
+                                        Background="#1F283A"
+                                        BorderBrush="{StaticResource GuestRoleBrush}"
+                                        BorderThickness="4"
+                                        Margin="0,0,24,0"
+                                        ClipToBounds="True">
+                                    <Grid>
+                                        <Image x:Name="AvatarPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                                        <TextBlock x:Name="AvatarPreviewText" FontSize="42" FontWeight="Bold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    </Grid>
+                                </Border>
+
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                    <TextBlock Text="PROFILE PICTURE" Style="{StaticResource EditEyebrow}" />
+                                    <TextBlock Text="Choose an avatar or use your own photo." Margin="0,5,0,10" Style="{StaticResource EditHint}" />
+                                    <WrapPanel x:Name="AvatarButtonsPanel" />
+                                    <WrapPanel Margin="0,8,0,0">
+                                        <Button Content="Choose Custom Photo" Width="200" Height="48" Margin="3" Click="ChoosePhoto_Click" />
+                                    </WrapPanel>
+                                    <TextBlock x:Name="AvatarChoiceText" Margin="4,8,0,0" Style="{StaticResource EditHint}" />
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+
+                        <Border x:Name="BannerSettingsSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="PROFILE BANNER" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock Text="Choose a Grev Home banner preset or use your own wide image." Margin="0,4,0,14" Style="{StaticResource EditHint}" />
+
+                                <Border x:Name="BannerPreviewBorder"
+                                        Height="174"
+                                        BorderBrush="#354158"
+                                        BorderThickness="1"
+                                        CornerRadius="0"
+                                        ClipToBounds="True">
+                                    <Grid x:Name="BannerPreviewGrid">
+                                        <Image x:Name="BannerPreviewImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                                        <Rectangle Fill="#22000000" />
+                                        <TextBlock Text="GREV HOME"
+                                                   Margin="18"
+                                                   VerticalAlignment="Top"
+                                                   FontSize="11"
+                                                   FontWeight="Bold"
+                                                   Foreground="#D8E0EC" />
+                                        <TextBlock x:Name="BannerChoiceText"
+                                                   Margin="18"
+                                                   VerticalAlignment="Bottom"
+                                                   FontSize="12"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="#E7ECF4" />
+                                    </Grid>
+                                </Border>
+
+                                <WrapPanel x:Name="BannerButtonsPanel" Margin="-3,12,-3,0" />
+                                <Button Content="Choose Custom Banner"
+                                        Width="210"
+                                        Height="48"
+                                        Margin="3,8,3,0"
+                                        HorizontalAlignment="Left"
+                                        Click="ChooseBanner_Click" />
                             </StackPanel>
-                        </Grid>
+                        </Border>
 
-                        <TextBlock Text="DISPLAY NAME" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,14,0,0" />
-                        <Grid Margin="0,8,0,18">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="DisplayNameTextBox" MaxLength="50" Height="52" FontSize="20" Padding="12" IsReadOnly="True" IsTabStop="False" />
-                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenKeyboard_Click" />
-                        </Grid>
+                        <Border x:Name="ProfileDetailsSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="PROFILE DETAILS" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock Text="These are the details people see on your Grev Home profile." Margin="0,4,0,18" Style="{StaticResource EditHint}" />
 
-                        <TextBlock Text="STATUS / TAGLINE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                        <Grid Margin="0,8,0,18">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="StatusMessageTextBox"
-                                     MaxLength="60"
-                                     Height="52"
-                                     FontSize="16"
-                                     Padding="12"
-                                     IsReadOnly="True"
-                                     IsTabStop="False" />
-                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenStatusKeyboard_Click" />
-                        </Grid>
+                                <TextBlock Text="DISPLAY NAME" Style="{StaticResource EditEyebrow}" />
+                                <Grid Margin="0,8,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="DisplayNameTextBox"
+                                             MaxLength="50"
+                                             Height="52"
+                                             FontSize="20"
+                                             Padding="12"
+                                             IsReadOnly="True"
+                                             IsTabStop="True"
+                                             Focusable="True" />
+                                    <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenKeyboard_Click" />
+                                </Grid>
 
-                        <TextBlock Text="ABOUT" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                        <Grid Margin="0,8,0,22">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBox x:Name="BioTextBox"
-                                     MaxLength="160"
-                                     MinHeight="66"
-                                     FontSize="16"
-                                     Padding="12"
-                                     TextWrapping="Wrap"
-                                     VerticalContentAlignment="Center"
-                                     IsReadOnly="True"
-                                     IsTabStop="False" />
-                            <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" VerticalAlignment="Center" Click="OpenBioKeyboard_Click" />
-                        </Grid>
+                                <TextBlock Text="STATUS / TAGLINE" Style="{StaticResource EditEyebrow}" />
+                                <Grid Margin="0,8,0,18">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="StatusMessageTextBox"
+                                             MaxLength="60"
+                                             Height="52"
+                                             FontSize="16"
+                                             Padding="12"
+                                             IsReadOnly="True"
+                                             IsTabStop="True"
+                                             Focusable="True" />
+                                    <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" Click="OpenStatusKeyboard_Click" />
+                                </Grid>
 
-                        <StackPanel x:Name="RolePanel">
-                            <TextBlock Text="ACCOUNT ROLE" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                            <TextBlock x:Name="RoleDescriptionText" Margin="0,6,0,8" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                            <WrapPanel>
-                                <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" Click="Role_Click" />
-                                <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" Click="Role_Click" />
-                                <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" Click="Role_Click" />
-                            </WrapPanel>
-                        </StackPanel>
+                                <TextBlock Text="ABOUT" Style="{StaticResource EditEyebrow}" />
+                                <Grid Margin="0,8,0,0">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBox x:Name="BioTextBox"
+                                             MaxLength="160"
+                                             MinHeight="78"
+                                             FontSize="16"
+                                             Padding="12"
+                                             TextWrapping="Wrap"
+                                             VerticalContentAlignment="Center"
+                                             IsReadOnly="True"
+                                             IsTabStop="True"
+                                             Focusable="True" />
+                                    <Button Grid.Column="1" Content="Open Keyboard" Width="180" Height="52" Margin="10,0,0,0" VerticalAlignment="Center" Click="OpenBioKeyboard_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
 
-                        <TextBlock x:Name="RoleLockedText" Visibility="Collapsed" Margin="0,0,0,6" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <Border x:Name="ProfileAppearanceRoleSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="PROFILE APPEARANCE &amp; ROLE" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock Text="Choose what this profile showcases. Role styling remains separate from level and banner styling." Margin="0,4,0,16" Style="{StaticResource EditHint}" />
 
-                        <Button Content="Save Profile" Width="190" Height="56" Margin="0,26,0,0" HorizontalAlignment="Left" Click="Save_Click" />
-                        <TextBlock x:Name="StatusText" Margin="0,12,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                                <TextBlock Text="PROFILE SHOWCASE" Style="{StaticResource EditEyebrow}" />
+                                <TextBlock Text="Choose which part of your activity gets the large featured area on View Profile." Margin="0,5,0,8" Style="{StaticResource EditHint}" />
+                                <WrapPanel Margin="-3,0,-3,16">
+                                    <Button x:Name="TopPlayedShowcaseButton" Content="Top Played" Tag="TopPlayed" Width="170" Height="48" Margin="3" Click="Showcase_Click" />
+                                    <Button x:Name="RecentShowcaseButton" Content="Recent Activity" Tag="RecentActivity" Width="180" Height="48" Margin="3" Click="Showcase_Click" />
+                                    <Button x:Name="MilestonesShowcaseButton" Content="Milestones" Tag="Milestones" Width="170" Height="48" Margin="3" Click="Showcase_Click" />
+                                </WrapPanel>
+
+                                <StackPanel x:Name="RolePanel">
+                                    <TextBlock Text="ACCOUNT ROLE" Style="{StaticResource EditEyebrow}" />
+                                    <TextBlock x:Name="RoleDescriptionText" Margin="0,6,0,10" Style="{StaticResource EditHint}" />
+                                    <WrapPanel>
+                                        <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource AdminRoleBrush}" Click="Role_Click" />
+                                        <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource StandardRoleBrush}" Click="Role_Click" />
+                                        <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource GuestRoleBrush}" Click="Role_Click" />
+                                    </WrapPanel>
+                                </StackPanel>
+
+                                <TextBlock x:Name="RoleLockedText" Visibility="Collapsed" Margin="3,10,0,0" Style="{StaticResource EditHint}" />
+                            </StackPanel>
+                        </Border>
+
+                        <Border Margin="0,16,0,0"
+                                Padding="18"
+                                Background="#0D1119"
+                                BorderBrush="#252D3B"
+                                BorderThickness="1"
+                                CornerRadius="0">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel VerticalAlignment="Center">
+                                    <TextBlock Text="Ready to save?" FontSize="16" FontWeight="SemiBold" />
+                                    <TextBlock Text="Your Username and GrevID remain permanent." Margin="0,3,0,0" Style="{StaticResource EditHint}" />
+                                </StackPanel>
+                                <Button Grid.Column="1" Content="Save Profile" Width="190" Height="54" Margin="18,0,0,0" Click="Save_Click" />
+                            </Grid>
+                        </Border>
+
+                        <TextBlock x:Name="StatusText" Margin="4,12,4,0" Style="{StaticResource EditHint}" />
                     </StackPanel>
                 </Border>
             </StackPanel>

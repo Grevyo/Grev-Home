@@ -1,7 +1,9 @@
+using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using GrevHome.Input;
+using GrevHome.Machine;
 using GrevHome.Navigation;
 using GrevHome.Runtime;
 
@@ -9,7 +11,14 @@ namespace GrevHome;
 
 public partial class MainWindow
 {
+    private readonly SystemPowerService _headerPowerService = new();
+    private SystemPowerAction? _headerPendingPowerAction;
+    private DateTimeOffset _headerPowerExpiresAt;
+    private bool _headerCloseGrevHomeArmed;
     private bool _headerNavigationHooked;
+    private Button? _headerFlyoutReturnButton;
+
+    private bool IsPowerMenuOpen => PowerMenuOverlay.Visibility == Visibility.Visible;
 
     private void Window_HeaderNavigationLoaded(object sender, RoutedEventArgs e)
     {
@@ -18,8 +27,20 @@ public partial class MainWindow
             return;
         }
 
+        InitializeShellNavigationFinalization();
+        InitializeApplianceLifecycleIntegration();
         RuntimeTestAppRegistrationService.ConfigureForCurrentRun(_paths);
+        InitializeRuntimeRecoveryIntegration();
+        InitializeAppControllerRuntimeIntegration();
         InitializeProfilePlayersIntegration();
+        InitializeDashboardDataIntegration();
+        InitializeDashboardPresentationIntegration();
+        InitializeFilesIntegration();
+        InitializeGrevStoreIntegration();
+        InitializeActivityCenterIntegration();
+        InitializeAppSettingsIntegration();
+        InitializeAdminConsoleIntegration();
+        InitializeOverlayAppKillerIntegration();
 
         _headerNavigationHooked = true;
         _controllerInput.ActionPressed += HandleHeaderNavigationInput;
@@ -27,13 +48,27 @@ public partial class MainWindow
 
     private void HandleHeaderNavigationInput(ControllerInputEventArgs input)
     {
+        if (_startupIntroPlaying)
+        {
+            return;
+        }
+
         if (input.Action is not (InputAction.Up or InputAction.Down or InputAction.Left or InputAction.Right))
         {
             return;
         }
 
         Button? originalFocus = null;
-        Dispatcher.Invoke(() => originalFocus = Keyboard.FocusedElement as Button);
+        Dispatcher.Invoke(() =>
+        {
+            if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null)
+            {
+                return;
+            }
+
+            originalFocus = Keyboard.FocusedElement as Button;
+        });
+
         if (originalFocus is null)
         {
             return;
@@ -44,14 +79,13 @@ public partial class MainWindow
 
     private void CorrectHeaderNavigation(InputAction action, Button originalFocus)
     {
-        if (_overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
+        if(_navigation.Current==Route.GrevDadWeb && _grevDadWebView.OwnsControllerInput) return;
+        if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
+            _overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
         {
             return;
         }
 
-        // The Login screen intentionally has profile cards in a scrolling WrapPanel and
-        // Create Account in a separate row. Give that boundary an explicit controller rule
-        // instead of relying on WPF to infer a spatial relationship across containers.
         if (TryCorrectLoginNavigation(action, originalFocus))
         {
             return;
@@ -60,7 +94,6 @@ public partial class MainWindow
         var currentFocus = Keyboard.FocusedElement as Button;
         if (currentFocus is not null && currentFocus != originalFocus)
         {
-            // Normal WPF directional navigation succeeded; do not add a second movement.
             return;
         }
 
@@ -87,7 +120,6 @@ public partial class MainWindow
             .Where(button => button != originalFocus)
             .ToArray();
 
-        // Only leave the page when the focused control is already on the top-most reachable row.
         if (routeButtons.Any(button => GetCenter(button).Y < originalCenter.Y - 8))
         {
             return;
@@ -102,6 +134,7 @@ public partial class MainWindow
         {
             return false;
         }
+        if (_loginView.MoveProfileFocus(action,originalFocus)) return true;
 
         var createAccount = _loginView.CreateAccountFocusTarget;
         var profiles = _loginView.ProfileFocusTargets
@@ -169,9 +202,185 @@ public partial class MainWindow
 
     private List<Button> GetHeaderButtons()
     {
-        var buttons = new[] { ShellBackButton, ProfileBubbleButton, ShellSettingsButton };
-        return buttons.Where(IsFocusableButton).ToList();
+        var buttons = new Button?[]
+        {
+            ShellBackButton,
+            _activityVolumeButton,
+            _activityWifiButton,
+            _activityBluetoothButton,
+            ShellFriendsButton,
+            ProfileBubbleButton,
+            ShellSettingsButton,
+            ShellPowerButton
+        };
+        return buttons
+            .Where(button => button is not null && IsFocusableButton(button))
+            .Select(button => button!)
+            .ToList();
     }
+
+    private void ShellFriends_Click(object sender, RoutedEventArgs e) => OpenFriends();
+
+    private void ShellPower_Click(object sender, RoutedEventArgs e)
+    {
+        if (IsStoreModalOpen)
+        {
+            return;
+        }
+
+        if (IsPowerMenuOpen)
+        {
+            ClosePowerMenu();
+            return;
+        }
+
+        OpenPowerMenu();
+    }
+
+    private void OpenPowerMenu()
+    {
+        ResetHeaderPowerConfirmation();
+        HideActivityQuickControls();
+        _headerFlyoutReturnButton = ShellPowerButton;
+        ProfileQuickMenuCard.Visibility = Visibility.Collapsed;
+        PowerMenuCard.Visibility = Visibility.Visible;
+        PowerAppKillerButton.IsEnabled = _session.HasSignedInUsers;
+        PowerRunningAppsButton.IsEnabled = _session.HasSignedInUsers;
+        ShellInteractionHost.IsEnabled = false;
+        PowerMenuOverlay.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (PowerAppKillerButton.IsEnabled) PowerAppKillerButton.Focus();
+            else PowerSleepButton.Focus();
+        }));
+    }
+
+    private void ClosePowerMenu(bool returnFocusToHeader = true)
+    {
+        var returnButton = _headerFlyoutReturnButton;
+        _headerFlyoutReturnButton = null;
+        ResetHeaderPowerConfirmation();
+        HideActivityQuickControls();
+        ProfileQuickMenuCard.Visibility = Visibility.Collapsed;
+        PowerMenuCard.Visibility = Visibility.Collapsed;
+        PowerMenuOverlay.Visibility = Visibility.Collapsed;
+        ShellInteractionHost.IsEnabled = true;
+        if (returnFocusToHeader)
+        {
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                if (returnButton is { IsVisible: true, IsEnabled: true }) returnButton.Focus();
+                else if (ShellPowerButton.IsVisible && ShellPowerButton.IsEnabled) ShellPowerButton.Focus();
+            }));
+        }
+    }
+
+    private void ArmOrExecuteHeaderPower(SystemPowerAction action)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (_headerPendingPowerAction != action || _headerCloseGrevHomeArmed || now > _headerPowerExpiresAt)
+        {
+            _headerPendingPowerAction = action;
+            _headerCloseGrevHomeArmed = false;
+            _headerPowerExpiresAt = now.AddSeconds(8);
+            UpdatePowerMenuButtons();
+            ShowPowerMenuStatus($"{FormatHeaderPowerAction(action)} armed. Select it again within 8 seconds to confirm.");
+            return;
+        }
+
+        ResetHeaderPowerConfirmation();
+        try
+        {
+            ShowPowerMenuStatus($"Requesting {FormatHeaderPowerAction(action).ToLowerInvariant()} from Windows…");
+            _headerPowerService.Execute(action);
+            ClosePowerMenu(returnFocusToHeader: false);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception or UnauthorizedAccessException)
+        {
+            ShowPowerMenuStatus($"Windows did not complete the power action: {ex.Message}");
+        }
+    }
+
+    private void ArmOrCloseGrevHome()
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (!_headerCloseGrevHomeArmed || _headerPendingPowerAction is not null || now > _headerPowerExpiresAt)
+        {
+            _headerPendingPowerAction = null;
+            _headerCloseGrevHomeArmed = true;
+            _headerPowerExpiresAt = now.AddSeconds(8);
+            UpdatePowerMenuButtons();
+            ClearPowerMenuStatus();
+            return;
+        }
+
+        ResetHeaderPowerConfirmation();
+        Application.Current.Shutdown();
+    }
+
+    private void ResetHeaderPowerConfirmation()
+    {
+        _headerPendingPowerAction = null;
+        _headerCloseGrevHomeArmed = false;
+        _headerPowerExpiresAt = DateTimeOffset.MinValue;
+        UpdatePowerMenuButtons();
+        ClearPowerMenuStatus();
+    }
+
+    private void ShowPowerMenuStatus(string message)
+    {
+        PowerMenuStatusText.Text = message;
+        PowerMenuStatusText.Visibility = Visibility.Visible;
+    }
+
+    private void ClearPowerMenuStatus()
+    {
+        PowerMenuStatusText.Text = string.Empty;
+        PowerMenuStatusText.Visibility = Visibility.Collapsed;
+    }
+
+    private void UpdatePowerMenuButtons()
+    {
+        PowerSleepButton.Content = _headerPendingPowerAction == SystemPowerAction.Sleep ? "CONFIRM SLEEP" : "Sleep";
+        PowerRestartButton.Content = _headerPendingPowerAction == SystemPowerAction.Restart ? "CONFIRM RESTART" : "Restart";
+        PowerShutdownButton.Content = _headerPendingPowerAction == SystemPowerAction.Shutdown ? "CONFIRM SHUT DOWN" : "Shut Down";
+        PowerCloseGrevHomeButton.Content = _headerCloseGrevHomeArmed ? "CONFIRM CLOSE GREV HOME" : "Close Grev Home";
+    }
+
+    private void PowerAppKiller_Click(object sender, RoutedEventArgs e)
+    {
+        ClosePowerMenu(returnFocusToHeader: false);
+        OpenAppKiller();
+    }
+
+    private void PowerRunningApps_Click(object sender, RoutedEventArgs e)
+    {
+        ClosePowerMenu(returnFocusToHeader: false);
+        OpenRunningApps();
+    }
+
+    private void PowerSleep_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecuteHeaderPower(SystemPowerAction.Sleep);
+
+    private void PowerRestart_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecuteHeaderPower(SystemPowerAction.Restart);
+
+    private void PowerShutdown_Click(object sender, RoutedEventArgs e) =>
+        ArmOrExecuteHeaderPower(SystemPowerAction.Shutdown);
+
+    private void PowerCloseGrevHome_Click(object sender, RoutedEventArgs e) =>
+        ArmOrCloseGrevHome();
+
+    private void PowerMenuCancel_Click(object sender, RoutedEventArgs e) =>
+        ClosePowerMenu();
+
+    private static string FormatHeaderPowerAction(SystemPowerAction action) => action switch
+    {
+        SystemPowerAction.Shutdown => "Shut Down",
+        SystemPowerAction.Restart => "Restart",
+        SystemPowerAction.Sleep => "Sleep",
+        _ => action.ToString()
+    };
 
     private void FocusNearestByHorizontalPosition(IEnumerable<Button> buttons, double sourceX)
     {

@@ -2,6 +2,14 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False">
+    <UserControl.Resources>
+        <Style x:Key="InstalledActionButtonStyle"
+               TargetType="Button"
+               BasedOn="{StaticResource ShellModalActionButtonStyle}">
+            <Setter Property="Width" Value="190" />
+        </Style>
+    </UserControl.Resources>
+
     <Grid Margin="72,38">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -16,31 +24,68 @@
                 <TextBlock x:Name="ContextText"
                            Margin="0,6,0,0"
                            FontSize="15"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap" />
             </StackPanel>
             <Button Content="Back"
                     Width="130"
-                    Height="48"
+                    MinHeight="48"
+                    Height="Auto"
                     HorizontalAlignment="Right"
                     VerticalAlignment="Center"
                     Click="Back_Click" />
         </Grid>
 
-        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,0,0,18">
-            <Button x:Name="AllFilterButton" Tag="All" Content="All" Width="105" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
-            <Button Tag="Application" Content="Apps" Width="105" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
-            <Button Tag="Emulator" Content="Emulators" Width="130" Height="44" Margin="0,0,8,0" Click="Filter_Click" />
-            <Button Tag="Utility" Content="Tools" Width="105" Height="44" Click="Filter_Click" />
-        </StackPanel>
+        <Grid Grid.Row="1" Margin="0,0,0,18">
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="AllFilterButton" Tag="All" Content="All" Width="100" MinHeight="44" Height="Auto" Margin="0,0,8,0" Click="Filter_Click" />
+                <Button x:Name="GamesFilterButton" Tag="Games" Content="Games" Width="110" MinHeight="44" Height="Auto" Margin="0,0,8,0" Click="Filter_Click" />
+                <Button x:Name="AppsFilterButton" Tag="Application" Content="Apps" Width="100" MinHeight="44" Height="Auto" Margin="0,0,8,0" Click="Filter_Click" />
+                <Button x:Name="EmulatorsFilterButton" Tag="Emulator" Content="Emulators" Width="130" MinHeight="44" Height="Auto" Margin="0,0,8,0" Click="Filter_Click" />
+                <Button x:Name="ToolsFilterButton" Tag="Utility" Content="Tools" Width="100" MinHeight="44" Height="Auto" Click="Filter_Click" />
+            </StackPanel>
+            <Button x:Name="AddGameButton"
+                    Content="＋ Add Game"
+                    Width="150"
+                    MinHeight="44"
+                    Height="Auto"
+                    HorizontalAlignment="Right"
+                    Click="AddGame_Click" />
+        </Grid>
 
         <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel>
+                <StackPanel x:Name="GamesSection" Margin="0,0,0,18">
+                    <Grid Margin="8,0,8,8">
+                        <StackPanel>
+                            <TextBlock Text="GAMES" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                            <TextBlock Text="Games added to this player's Grev Home library" Margin="0,3,0,0" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+                        </StackPanel>
+                        <TextBlock x:Name="GamesCountText"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Center"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}" />
+                    </Grid>
+                    <TextBlock x:Name="NoGamesText"
+                               Text="No individual games added yet. Use Add Game to add a PlayStation 2 game."
+                               Margin="8,10,0,10"
+                               FontSize="15"
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                    <WrapPanel x:Name="GamesPanel" />
+                </StackPanel>
+
+                <Border Height="1" Margin="8,0,8,18" Background="#2B3344" />
+
                 <TextBlock x:Name="EmptyText"
-                           Text="Nothing is installed yet. Grev Store and package installation come later."
+                           Text="Nothing is installed yet. Install supported packages from Grev Store."
                            Margin="0,28,0,0"
                            HorizontalAlignment="Center"
                            FontSize="18"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center" />
                 <WrapPanel x:Name="AppsPanel" />
             </StackPanel>
         </ScrollViewer>
@@ -53,9 +98,58 @@
                 BorderThickness="1"
                 CornerRadius="12">
             <TextBlock x:Name="StatusText"
-                       Text="0.3 reads installed app manifests from Global Apps and the current GrevID's Apps folder."
+                       Text="Select an app or game to open it. Hold A or right-click an app tile for more actions."
                        Foreground="{StaticResource MutedBrush}"
                        TextWrapping="Wrap" />
         </Border>
+
+        <Grid x:Name="AppActionOverlay"
+              Grid.RowSpan="4"
+              Panel.ZIndex="50"
+              Background="#CC080A0F"
+              Visibility="Collapsed">
+            <Border MinWidth="620"
+                    MaxWidth="860"
+                    MaxHeight="720"
+                    Margin="36"
+                    Style="{StaticResource ShellModalCardStyle}">
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="0,0,0,16">
+                        <TextBlock Text="APP ACTIONS" Style="{StaticResource ShellModalEyebrowStyle}" />
+                        <TextBlock x:Name="AppActionTitleText" Margin="0,5,0,0" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="AppActionStateText" Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+
+                    <ScrollViewer Grid.Row="1" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <WrapPanel HorizontalAlignment="Center">
+                            <Button x:Name="AppActionOpenButton" Content="Open" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionOpen_Click" />
+                            <Button x:Name="AppActionSwitchButton" Content="Switch to App" Visibility="Collapsed" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionSwitch_Click" />
+                            <Button x:Name="AppActionSettingsButton" Content="App Settings" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionSettings_Click" />
+                            <Button x:Name="AppActionRestartButton" Content="Restart App" Visibility="Collapsed" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionRestart_Click" />
+                            <Button x:Name="AppActionCloseButton" Content="Close App" Visibility="Collapsed" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionClose_Click" />
+                            <Button x:Name="AppActionForceKillButton" Content="Force Kill App" Visibility="Collapsed" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionForceKill_Click" />
+                            <Button x:Name="AppActionAppKillerButton" Content="App Killer" Visibility="Collapsed" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionAppKiller_Click" />
+                            <Button x:Name="AppActionRunningAppsButton" Content="Running Apps" Visibility="Collapsed" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionRunningApps_Click" />
+                            <Button x:Name="AppActionStoreButton" Content="View in Grev Store" Style="{StaticResource InstalledActionButtonStyle}" Click="AppActionStore_Click" />
+                        </WrapPanel>
+                    </ScrollViewer>
+
+                    <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="#2B3344" BorderThickness="0,1,0,0">
+                        <Button x:Name="AppActionCancelButton"
+                                Content="Cancel"
+                                MinWidth="190"
+                                HorizontalAlignment="Center"
+                                Style="{StaticResource ShellModalActionButtonStyle}"
+                                Click="AppActionCancel_Click" />
+                    </Border>
+                </Grid>
+            </Border>
+        </Grid>
     </Grid>
 </UserControl>

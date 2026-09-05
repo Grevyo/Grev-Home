@@ -148,7 +148,7 @@ public partial class RunningAppsView : UserControl
 
         StatusText.Text = _sessions.Count == 0
             ? "Nothing is running through Grev Home right now."
-            : "Switch foregrounds an app. Restart safely closes and relaunches the same managed AppID with its original launch participants. Close requests a normal shutdown; force-close lives in App Killer.";
+            : "Switch foregrounds an app. Restart keeps its graceful close/recovery flow. Close asks the app to exit normally, then finishes the same tracked process tree if the app refuses or only hides to tray. Force Kill in App Killer skips that grace period.";
 
         UpdateElapsedLabels();
     }

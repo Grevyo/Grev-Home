@@ -15,6 +15,13 @@ public enum InputAction
 public sealed record ControllerInputEventArgs(int ControllerIndex, InputAction Action);
 public sealed record ControllerConnectionEventArgs(int ControllerIndex, bool IsConnected);
 public sealed record ControllerShortcutCaptureEventArgs(int ControllerIndex, IReadOnlyList<ControllerButton> Buttons);
+public sealed record ControllerAppControlEventArgs(int ControllerIndex, AppControllerControl Control);
+public sealed record ControllerAnalogEventArgs(
+    int ControllerIndex,
+    short LeftX,
+    short LeftY,
+    short RightX,
+    short RightY);
 
 public sealed class ControllerInputService : IDisposable
 {
@@ -37,32 +44,50 @@ public sealed class ControllerInputService : IDisposable
 
     private static readonly TimeSpan RepeatDelay = TimeSpan.FromMilliseconds(320);
     private static readonly TimeSpan RepeatInterval = TimeSpan.FromMilliseconds(115);
+    private static readonly TimeSpan AcceptLongPressDelay = TimeSpan.FromMilliseconds(650);
     private static readonly TimeSpan CaptureTimeout = TimeSpan.FromSeconds(15);
 
     private readonly ControllerShortcutService _shortcutService;
     private readonly Timer _timer;
     private readonly ushort[] _previousButtons = new ushort[4];
+    private readonly byte[] _previousLeftTriggers = new byte[4];
+    private readonly byte[] _previousRightTriggers = new byte[4];
     private readonly bool[] _connected = new bool[4];
     private readonly InputAction?[] _heldDirection = new InputAction?[4];
     private readonly DateTimeOffset[] _heldDirectionStarted = new DateTimeOffset[4];
     private readonly DateTimeOffset[] _lastDirectionRaised = new DateTimeOffset[4];
+    private readonly bool[] _acceptTracking = new bool[4];
+    private readonly bool[] _acceptLongPressRaised = new bool[4];
+    private readonly DateTimeOffset[] _acceptStarted = new DateTimeOffset[4];
     private readonly Dictionary<(int ControllerIndex, string BindingId), ShortcutPressState> _shortcutStates = new();
     private readonly object _pollGate = new();
     private IReadOnlyList<ControllerShortcutBinding> _shortcutBindings = Array.Empty<ControllerShortcutBinding>();
     private ShortcutCaptureState? _capture;
+    private volatile bool _appInputMode;
     private bool _disposed;
 
     public event Action<ControllerInputEventArgs>? ActionPressed;
+    public event Action<int>? AcceptLongPressed;
+    public event Action<int>? AcceptReleased;
+    public event Action<int>? AcceptCancelled;
     public event Action<ControllerConnectionEventArgs>? ConnectionChanged;
     public event Action<ControllerShortcutEventArgs>? ShortcutRequested;
     public event Action<ControllerShortcutCaptureEventArgs>? ShortcutCaptured;
     public event Action? ShortcutCaptureTimedOut;
+    public event Action<ControllerAppControlEventArgs>? AppControlPressed;
+    public event Action<ControllerAnalogEventArgs>? AnalogChanged;
 
     public ControllerInputService(ControllerShortcutService shortcutService)
     {
         _shortcutService = shortcutService;
         _timer = new Timer(Poll, null, Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
         ReloadShortcuts();
+    }
+
+    public bool AppInputMode
+    {
+        get => _appInputMode;
+        set => _appInputMode = value;
     }
 
     public bool IsCapturingShortcut
@@ -96,6 +121,10 @@ public sealed class ControllerInputService : IDisposable
             _capture = new ShortcutCaptureState(DateTimeOffset.UtcNow);
             _shortcutStates.Clear();
             Array.Fill(_heldDirection, null);
+            for (var index = 0; index < _acceptTracking.Length; index++)
+            {
+                CancelAcceptTracking(index);
+            }
         }
     }
 
@@ -113,6 +142,26 @@ public sealed class ControllerInputService : IDisposable
         {
             _timer.Change(TimeSpan.Zero, TimeSpan.FromMilliseconds(33));
         }
+    }
+
+    public void PulseVibration(int controllerIndex, ushort strength, int durationMilliseconds)
+    {
+        if (_disposed || controllerIndex is < 0 or > 3) return;
+        try
+        {
+            SetVibration((uint)controllerIndex, new XInputVibration
+            {
+                LeftMotorSpeed = strength,
+                RightMotorSpeed = (ushort)(strength * 0.72)
+            });
+            _ = Task.Run(async () =>
+            {
+                await Task.Delay(durationMilliseconds);
+                if (!_disposed) SetVibration((uint)controllerIndex, default);
+            });
+        }
+        catch (DllNotFoundException) { }
+        catch (EntryPointNotFoundException) { }
     }
 
     private void Poll(object? stateObject)
@@ -152,6 +201,7 @@ public sealed class ControllerInputService : IDisposable
                 var state = states[index];
                 var buttons = state.Gamepad.Buttons;
                 var shortcutActive = HandleShortcuts(index, state.Gamepad);
+                HandleAcceptHold(index, buttons, shortcutActive);
 
                 if (!shortcutActive)
                 {
@@ -166,6 +216,17 @@ public sealed class ControllerInputService : IDisposable
                     }
 
                     HandleDirectionalInput(index, GetDirectionalAction(buttons, state.Gamepad));
+
+                    if (AppInputMode)
+                    {
+                        RaiseExtendedAppControls(index, state.Gamepad);
+                        AnalogChanged?.Invoke(new ControllerAnalogEventArgs(
+                            index,
+                            state.Gamepad.ThumbLX,
+                            state.Gamepad.ThumbLY,
+                            state.Gamepad.ThumbRX,
+                            state.Gamepad.ThumbRY));
+                    }
                 }
                 else
                 {
@@ -173,12 +234,97 @@ public sealed class ControllerInputService : IDisposable
                 }
 
                 _previousButtons[index] = buttons;
+                _previousLeftTriggers[index] = state.Gamepad.LeftTrigger;
+                _previousRightTriggers[index] = state.Gamepad.RightTrigger;
             }
         }
         finally
         {
             Monitor.Exit(_pollGate);
         }
+    }
+
+    private void RaiseExtendedAppControls(int index, XInputGamepad gamepad)
+    {
+        RaiseAppIfPressed(index, gamepad.Buttons, XButton, AppControllerControl.X);
+        RaiseAppIfPressed(index, gamepad.Buttons, YButton, AppControllerControl.Y);
+        RaiseAppIfPressed(index, gamepad.Buttons, LeftShoulder, AppControllerControl.LeftShoulder);
+        RaiseAppIfPressed(index, gamepad.Buttons, RightShoulder, AppControllerControl.RightShoulder);
+        RaiseAppIfPressed(index, gamepad.Buttons, StartButton, AppControllerControl.Menu);
+        RaiseAppIfPressed(index, gamepad.Buttons, BackButton, AppControllerControl.View);
+        RaiseAppIfPressed(index, gamepad.Buttons, LeftThumb, AppControllerControl.LeftThumb);
+        RaiseAppIfPressed(index, gamepad.Buttons, RightThumb, AppControllerControl.RightThumb);
+
+        if (gamepad.LeftTrigger >= CaptureTriggerThreshold && _previousLeftTriggers[index] < CaptureTriggerThreshold)
+        {
+            AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, AppControllerControl.LeftTrigger));
+        }
+
+        if (gamepad.RightTrigger >= CaptureTriggerThreshold && _previousRightTriggers[index] < CaptureTriggerThreshold)
+        {
+            AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, AppControllerControl.RightTrigger));
+        }
+    }
+
+    private void RaiseAppIfPressed(int index, ushort buttons, ushort mask, AppControllerControl control)
+    {
+        if (WasPressed(index, buttons, mask))
+        {
+            AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, control));
+        }
+    }
+
+    private void HandleAcceptHold(int index, ushort buttons, bool shortcutActive)
+    {
+        if (shortcutActive)
+        {
+            if (_acceptTracking[index])
+            {
+                CancelAcceptTracking(index);
+            }
+            return;
+        }
+
+        var isDown = HasButton(buttons, AButton);
+        if (!isDown)
+        {
+            if (!_acceptTracking[index])
+            {
+                return;
+            }
+
+            _acceptTracking[index] = false;
+            _acceptLongPressRaised[index] = false;
+            AcceptReleased?.Invoke(index);
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (!_acceptTracking[index])
+        {
+            _acceptTracking[index] = true;
+            _acceptLongPressRaised[index] = false;
+            _acceptStarted[index] = now;
+            return;
+        }
+
+        if (!_acceptLongPressRaised[index] && now - _acceptStarted[index] >= AcceptLongPressDelay)
+        {
+            _acceptLongPressRaised[index] = true;
+            AcceptLongPressed?.Invoke(index);
+        }
+    }
+
+    private void CancelAcceptTracking(int index)
+    {
+        if (!_acceptTracking[index])
+        {
+            return;
+        }
+
+        _acceptTracking[index] = false;
+        _acceptLongPressRaised[index] = false;
+        AcceptCancelled?.Invoke(index);
     }
 
     private void HandleShortcutCapture(IReadOnlyList<XInputState> states)
@@ -400,13 +546,34 @@ public sealed class ControllerInputService : IDisposable
         return y < 0 ? InputAction.Down : InputAction.Up;
     }
 
-    private void Raise(int index, InputAction action) =>
-        ActionPressed?.Invoke(new ControllerInputEventArgs(index, action));
+    private void Raise(int index, InputAction action)
+    {
+        if (!AppInputMode)
+        {
+            ActionPressed?.Invoke(new ControllerInputEventArgs(index, action));
+            return;
+        }
+
+        var control = action switch
+        {
+            InputAction.Up => AppControllerControl.DPadUp,
+            InputAction.Down => AppControllerControl.DPadDown,
+            InputAction.Left => AppControllerControl.DPadLeft,
+            InputAction.Right => AppControllerControl.DPadRight,
+            InputAction.Accept => AppControllerControl.A,
+            InputAction.Back => AppControllerControl.B,
+            _ => throw new ArgumentOutOfRangeException(nameof(action))
+        };
+        AppControlPressed?.Invoke(new ControllerAppControlEventArgs(index, control));
+    }
 
     private void ResetController(int index)
     {
         _previousButtons[index] = 0;
+        _previousLeftTriggers[index] = 0;
+        _previousRightTriggers[index] = 0;
         _heldDirection[index] = null;
+        CancelAcceptTracking(index);
 
         foreach (var key in _shortcutStates.Keys.Where(key => key.ControllerIndex == index).ToArray())
         {
@@ -417,6 +584,10 @@ public sealed class ControllerInputService : IDisposable
     public void Dispose()
     {
         _disposed = true;
+        for (uint index = 0; index < 4; index++)
+        {
+            try { SetVibration(index, default); } catch { }
+        }
         _timer.Dispose();
     }
 
@@ -446,6 +617,19 @@ public sealed class ControllerInputService : IDisposable
 
     [DllImport("xinput1_4.dll", EntryPoint = "XInputGetState")]
     private static extern uint XInputGetState(uint userIndex, out XInputState state);
+
+    [DllImport("xinput1_4.dll", EntryPoint = "XInputSetState")]
+    private static extern uint XInputSetState(uint userIndex, ref XInputVibration vibration);
+
+    private static uint SetVibration(uint userIndex, XInputVibration vibration) =>
+        XInputSetState(userIndex, ref vibration);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct XInputVibration
+    {
+        public ushort LeftMotorSpeed;
+        public ushort RightMotorSpeed;
+    }
 
     [StructLayout(LayoutKind.Sequential)]
     private struct XInputState

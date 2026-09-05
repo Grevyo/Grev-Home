@@ -7,5 +7,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <AssemblyName>GrevHome</AssemblyName>
     <RootNamespace>GrevHome</RootNamespace>
+    <ApplicationIcon>Assets\Brand\GrevHome.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4191.47" />
+    <Resource Include="Assets\Brand\GrevHomeLogo.png" />
+    <Resource Include="Assets\Apps\RetroArch\icon.png" />
+  </ItemGroup>
 </Project>

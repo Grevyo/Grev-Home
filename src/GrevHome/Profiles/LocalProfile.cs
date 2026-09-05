@@ -16,4 +16,5 @@ public sealed record LocalProfile(
     string AvatarKey = ProfileAvatarCatalog.DefaultKey,
     string? AvatarImageFile = null,
     string Bio = "",
-    string StatusMessage = "");
+    string StatusMessage = "",
+    bool IsBuiltInGuest = false);

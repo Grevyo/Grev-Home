@@ -17,12 +17,6 @@ public partial class MainWindow
     private bool _fileOperationBusy;
     private bool _filesIntegrationReady;
 
-    protected override void OnInitialized(EventArgs e)
-    {
-        base.OnInitialized(e);
-        Loaded += (_, _) => InitializeFilesIntegration();
-    }
-
     private void InitializeFilesIntegration()
     {
         if (_filesIntegrationReady)
@@ -40,7 +34,7 @@ public partial class MainWindow
         _fileExplorerView.RefreshRequested += (_, _) => RenderFiles();
         _fileExplorerView.NavigateRequested += NavigateFilesPath;
         _fileExplorerView.ModalOpened += (_, _) => PushFileModalHistory();
-        _fileExplorerView.ModalClosed += (_, _) => _navigation.DiscardBackEntry(Route.Files);
+        _fileExplorerView.ModalClosed += (_, _) => CompleteFileModalHistory();
         _fileExplorerView.NameRequested += request => _ = HandleFileNameRequestAsync(request);
         _fileExplorerView.DeleteRequested += path => _ = DeleteFileItemAsync(path);
         _fileExplorerView.CopyRequested += path => BeginFileTransfer(path, FileTransferMode.Copy);
@@ -72,19 +66,27 @@ public partial class MainWindow
         }
 
         RouteHost.Content = _fileExplorerView;
+        var transition = _fileRouteTransition;
 
-        switch (_fileRouteTransition)
+        switch (transition)
         {
             case FileRouteTransition.Open:
             case FileRouteTransition.ForwardPath:
                 RenderFiles();
                 break;
             case FileRouteTransition.ModalPush:
-                // Keep the current editor/delete overlay intact. This route entry exists so B cancels it first.
+                // Keep the current editor/delete overlay intact. This route entry exists so B
+                // cancels it first, and the modal itself owns controller focus.
+                break;
+            case FileRouteTransition.ModalDismiss:
+                // The modal has already closed through its own action. The matching same-route Back
+                // transition restores the exact parent focus bookmark at shell ApplicationIdle.
                 break;
             case FileRouteTransition.None:
                 if (_fileExplorerView.IsModalOpen)
                 {
+                    // B/Escape reached the same-route modal Back entry. Close the overlay without
+                    // raising ModalClosed again; shell history already owns this Back transition.
                     _fileExplorerView.CloseModals();
                     _fileExplorerView.ShowStatus("Action cancelled.");
                 }
@@ -102,7 +104,13 @@ public partial class MainWindow
         }
 
         _fileRouteTransition = FileRouteTransition.None;
-        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+
+        // A same-route modal push is the one case where the local overlay owns landing focus.
+        // All ordinary route/same-route navigation focus is finalized by MainWindow.ShellNavigation.
+        if (transition == FileRouteTransition.ModalPush)
+        {
+            _fileExplorerView.RefocusModal();
+        }
     }
 
     private void NavigateFilesPath(string path)
@@ -148,13 +156,28 @@ public partial class MainWindow
         _filePathHistory.Push(_fileCurrentPath);
         _fileCurrentPath = path;
         _fileRouteTransition = FileRouteTransition.ForwardPath;
-        _navigation.Navigate(Route.Files, allowSameRoute: true);
+        _navigation.NavigateWithinRoute(Route.Files);
     }
 
     private void PushFileModalHistory()
     {
         _fileRouteTransition = FileRouteTransition.ModalPush;
         _navigation.Navigate(Route.Files, allowSameRoute: true);
+    }
+
+    private void CompleteFileModalHistory()
+    {
+        if (_navigation.Current != Route.Files)
+        {
+            return;
+        }
+
+        _fileRouteTransition = FileRouteTransition.ModalDismiss;
+        if (!_navigation.GoBack())
+        {
+            _fileRouteTransition = FileRouteTransition.None;
+            Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+        }
     }
 
     private void CloseFilesToDashboard()
@@ -213,7 +236,7 @@ public partial class MainWindow
         {
             if (request.Mode == FileNameEditorMode.CreateFolder)
             {
-                await Task.Run(() => _fileSystem.CreateFolder(_fileCurrentPath, request.Name));
+                await Task.Run(() => _fileSystem.CreateFolder(_fileCurrentPath, request.Name, _paths.Root));
                 _fileExplorerView.CloseEditor($"Created folder '{request.Name.Trim()}'.");
             }
             else
@@ -223,7 +246,7 @@ public partial class MainWindow
                     throw new InvalidOperationException("No item is selected for rename.");
                 }
 
-                await Task.Run(() => _fileSystem.Rename(request.SourcePath, request.Name));
+                await Task.Run(() => _fileSystem.Rename(request.SourcePath, request.Name, _paths.Root));
                 _fileExplorerView.CloseEditor($"Renamed item to '{request.Name.Trim()}'.");
             }
 
@@ -250,7 +273,7 @@ public partial class MainWindow
         _fileExplorerView.ShowStatus("Deleting…");
         try
         {
-            await Task.Run(() => _fileSystem.Delete(path));
+            await Task.Run(() => _fileSystem.Delete(path, _paths.Root));
             _fileExplorerView.CloseDelete($"Deleted '{Path.GetFileName(path.TrimEnd('\\'))}'.");
             RenderFiles();
         }
@@ -290,7 +313,7 @@ public partial class MainWindow
 
         try
         {
-            var target = await Task.Run(() => _fileSystem.Paste(transfer, _fileCurrentPath));
+            var target = await Task.Run(() => _fileSystem.Paste(transfer, _fileCurrentPath, _paths.Root));
             if (transfer.Mode == FileTransferMode.Move)
             {
                 _fileTransfer = null;
@@ -326,6 +349,7 @@ public partial class MainWindow
         None,
         Open,
         ForwardPath,
-        ModalPush
+        ModalPush,
+        ModalDismiss
     }
 }

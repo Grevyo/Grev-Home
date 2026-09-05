@@ -4,14 +4,18 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Storage;
+using GrevHome.Store;
 using GrevHome.Views;
 
 namespace GrevHome;
@@ -29,6 +33,7 @@ public partial class MainWindow : Window
     private readonly InstalledAppService _installedApps;
     private readonly RuntimeSessionManager _runtimeSessions;
     private readonly GrevOverlayWindow _overlayWindow;
+    private readonly ShellFeedbackPlayer _shellFeedback = new();
     private readonly bool[] _controllers = new bool[4];
     private readonly LoginView _loginView = new();
     private readonly CreateProfileView _createProfileView = new();
@@ -37,6 +42,9 @@ public partial class MainWindow : Window
     private readonly RunningAppsView _runningAppsView = new();
     private readonly AppKillerView _appKillerView = new();
     private readonly SettingsView _settingsView = new();
+    private readonly ShellMotionSettingsService _shellMotionSettingsService;
+    private ShellMotionSettings _shellMotionSettings;
+    private bool _startupIntroPlaying;
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
     private Guid? _foregroundLaunchSessionId;
     private ShortcutRecordRequest? _pendingShortcutRecord;
@@ -44,6 +52,9 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _shellMotionSettingsService = new ShellMotionSettingsService(_paths);
+        _shellMotionSettings = _shellMotionSettingsService.Load();
+        _settingsView.SetMotionSettings(_shellMotionSettings);
         _controllerShortcuts = new ControllerShortcutService(_paths);
         _controllerInput = new ControllerInputService(_controllerShortcuts);
         _profileService = new ProfileService(_paths);
@@ -56,25 +67,29 @@ public partial class MainWindow : Window
             new PlaytimeService(_paths),
             new AppLaunchResolver());
         _overlayWindow = new GrevOverlayWindow();
+        _overlayWindow.ConfigurePresentation(_shellMotionSettings);
+        InitializePresentationEffects();
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
 
         _loginView.LocalProfileSignInRequested += SignInLocal;
-        _loginView.GuestSignInRequested += controllerIndex => _session.SignInGuest(controllerIndex);
-        _loginView.PrimaryUserRequested += sessionUserId => _session.SetPrimary(sessionUserId);
+        _loginView.GuestSignInRequested += SignInTemporaryGuest;
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
-        _loginView.EnterHomeRequested += (_, _) => EnterHome();
-        _loginView.ClearSessionRequested += (_, _) => _session.SignOutAll();
 
         _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
+        _createProfileView.OnboardingFinished += (_,_)=>ReturnToLogin();
+        _createProfileView.OnboardingSkipped += profile=>_ = SkipGrevDadOnboardingAsync(profile);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
+        _dashboardView.YourGamesRequested += (_, _) => _ = OpenInstalledLibraryAsync("Games");
         _dashboardView.RunningAppsRequested += (_, _) => OpenRunningApps();
         _dashboardView.AppKillerRequested += (_, _) => OpenAppKiller();
         _dashboardView.SettingsRequested += (_, _) => OpenSettings();
+        _dashboardView.SettingsPageRequested += OpenSettings;
         _dashboardView.LogoutRequested += (_, _) => Logout();
+        _dashboardView.BackgroundPreviewRequested += ShowDashboardBackground;
 
         _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
         _installedLibraryView.LaunchRequested += entry => _ = LaunchInstalledAppAsync(entry);
@@ -95,6 +110,8 @@ public partial class MainWindow : Window
         _settingsView.AdjustShortcutHoldRequested += AdjustShortcutHold;
         _settingsView.ResetShortcutsRequested += (_, _) => ResetShortcuts();
         _settingsView.CancelShortcutCaptureRequested += (_, _) => CancelShortcutRecording();
+        _settingsView.MotionSettingsChanged += settings => _ = SaveMotionSettingsAsync(settings);
+        _settingsView.StartupIntroPreviewRequested += (_, _) => BeginStartupIntro(force: true);
 
         _overlayWindow.ResumeRequested += SwitchToSession;
         _overlayWindow.SwitchRequested += SwitchToSession;
@@ -107,11 +124,6 @@ public partial class MainWindow : Window
         _overlayWindow.RunningAppsRequested += (_, _) =>
         {
             OpenRunningApps();
-            RestoreWindowWithoutChangingRoute();
-        };
-        _overlayWindow.AppKillerRequested += (_, _) =>
-        {
-            OpenAppKiller();
             RestoreWindowWithoutChangingRoute();
         };
 
@@ -130,14 +142,15 @@ public partial class MainWindow : Window
             Dispatcher.BeginInvoke(new Action(() => CompleteShortcutRecording(capture)));
         _controllerInput.ShortcutCaptureTimedOut += () =>
             Dispatcher.BeginInvoke(new Action(ShortcutRecordingTimedOut));
-        _controllerInput.Start();
 
+        Loaded += (_, _) => BeginStartupIntro();
         Loaded += async (_, _) => await InitializeAsync();
         Closed += (_, _) =>
         {
             _overlayWindow.Dismiss();
             _overlayWindow.Close();
             _controllerInput.Dispose();
+            _shellFeedback.Dispose();
             _runtimeSessions.Dispose();
         };
     }
@@ -145,15 +158,48 @@ public partial class MainWindow : Window
     private async Task InitializeAsync()
     {
         _paths.EnsureMachineLayout();
+        await _profileService.EnsureBuiltInGuestAsync();
         _profiles = await _profileService.GetProfilesAsync();
         RefreshSessionSurfaces();
         UpdateRuntimeSurfaces();
         _navigation.Reset(Route.Login);
-        FocusFirstButton();
+
+        // XInput polling starts only after every Loaded-time integration is wired, profile/session
+        // state is ready, and an initial route exists. Controller input can never race shell startup.
+        _controllerInput.Start();
     }
 
-    private void SignInLocal(ProfileSignInRequest request) =>
+    private void SignInLocal(ProfileSignInRequest request)
+    {
+        var addingPlayer = _session.HasSignedInUsers;
+        if (addingPlayer && _session.SignedInUsers.Count >= SessionContext.MaximumPlayers)
+        {
+            _loginView.ShowStatus($"{SessionContext.MaximumPlayers} players are already signed in. Return to Who's Playing or Manage Players to change the current session.");
+            return;
+        }
+
+        if (addingPlayer && request.ControllerIndex is int controllerIndex)
+        {
+            var currentOwner = _session.GetUserForController(controllerIndex);
+            if (currentOwner is not null)
+            {
+                _loginView.ShowStatus(
+                    $"Controller {controllerIndex + 1} is already assigned to {currentOwner.DisplayName}. Use an unassigned controller to join, or reassign it deliberately from Who's Playing.");
+                return;
+            }
+        }
+
+        _loginView.ClearStatus();
         _session.SignInLocal(request.Profile, request.ControllerIndex);
+
+        if (!addingPlayer)
+        {
+            EnterHome();
+            return;
+        }
+
+        CloseSessionLobby();
+    }
 
     private void EnterHome()
     {
@@ -166,7 +212,7 @@ public partial class MainWindow : Window
         _navigation.Reset(Route.Dashboard);
     }
 
-    private async Task OpenInstalledLibraryAsync()
+    private async Task OpenInstalledLibraryAsync(string filter = "All")
     {
         if (!_session.HasSignedInUsers)
         {
@@ -177,6 +223,7 @@ public partial class MainWindow : Window
         var primary = _session.PrimaryUser;
         var entries = await _installedApps.GetInstalledForUserAsync(primary?.GrevId);
         _installedLibraryView.SetLibrary(entries, primary);
+        _installedLibraryView.SelectFilter(filter);
         _navigation.Navigate(Route.InstalledLibrary);
     }
 
@@ -207,7 +254,15 @@ public partial class MainWindow : Window
     private void OpenSettings()
     {
         RefreshSettingsState();
+        _settingsView.ShowSettingsHub();
         _navigation.Navigate(Route.Settings);
+    }
+
+    private void OpenSettings(SettingsPage page)
+    {
+        RefreshSettingsState();
+        _navigation.Navigate(Route.Settings);
+        _settingsView.OpenSettingsPage(page);
     }
 
     private void CloseSettings()
@@ -394,6 +449,11 @@ public partial class MainWindow : Window
 
     private void HandleSystemShortcut(ControllerShortcutEventArgs shortcut)
     {
+        if (IsStoreModalOpen || IsPowerMenuOpen)
+        {
+            return;
+        }
+
         switch (shortcut.Action)
         {
             case ControllerShortcutAction.ReturnHome:
@@ -407,6 +467,11 @@ public partial class MainWindow : Window
 
     private void OpenOverlay()
     {
+        if (IsStoreModalOpen || IsPowerMenuOpen)
+        {
+            return;
+        }
+
         var active = _runtimeSessions.GetActiveSessions();
         var foreground = _runtimeSessions.GetForegroundSession();
         if (foreground is null && _foregroundLaunchSessionId.HasValue)
@@ -421,7 +486,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            var launched = await _runtimeSessions.LaunchAsync(entry, _session);
+            var package = _grevStoreCatalog.Find(entry.Manifest.Definition.AppId);
+            var keepShellHidden = package?.EffectiveRuntimePolicy.ReturnBehavior ==
+                                  AppWindowReturnBehavior.KeepShellHidden;
+            var launched = await _runtimeSessions.LaunchAsync(entry, _session, keepShellHidden);
             _foregroundLaunchSessionId = launched.LaunchSessionId;
             _installedLibraryView.ShowLaunchStarted(launched);
             UpdateRuntimeSurfaces();
@@ -474,8 +542,18 @@ public partial class MainWindow : Window
 
     private void OpenSessionLobby()
     {
+        _loginView.ClearStatus();
         RefreshSessionSurfaces();
         _navigation.Navigate(Route.Login);
+    }
+
+    private void CloseSessionLobby()
+    {
+        _loginView.ClearStatus();
+        if (!_navigation.GoBack())
+        {
+            _navigation.Reset(Route.Dashboard);
+        }
     }
 
     private void OpenCreateProfile()
@@ -488,10 +566,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            await _profileService.CreateAsync(request.Username, request.Role);
+            var created = await _profileService.CreateAsync(request.Username, request.Role);
             _profiles = await _profileService.GetProfilesAsync();
             RefreshSessionSurfaces();
-            ReturnToLogin();
+            _createProfileView.ShowGrevDadStep(created);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
@@ -512,6 +590,7 @@ public partial class MainWindow : Window
     private void Logout()
     {
         CancelShortcutRecording(showMessage: false);
+        _loginView.ClearStatus();
         _session.SignOutAll();
         _navigation.Reset(Route.Login);
     }
@@ -534,23 +613,70 @@ public partial class MainWindow : Window
 
     private void ShowRoute(Route route)
     {
-        RouteHost.Content = route switch
+        if (route != Route.Dashboard) ShowDashboardBackground(null);
+        switch (route)
         {
-            Route.Login => _loginView,
-            Route.CreateProfile => _createProfileView,
-            Route.Dashboard => _dashboardView,
-            Route.InstalledLibrary => _installedLibraryView,
-            Route.RunningApps => _runningAppsView,
-            Route.AppKiller => _appKillerView,
-            Route.Settings => _settingsView,
-            _ => _loginView
-        };
+            case Route.Login:
+                RouteHost.Content = _loginView;
+                break;
+            case Route.CreateProfile:
+                RouteHost.Content = _createProfileView;
+                break;
+            case Route.Dashboard:
+                RouteHost.Content = _dashboardView;
+                break;
+            case Route.InstalledLibrary:
+                RouteHost.Content = _installedLibraryView;
+                break;
+            case Route.RunningApps:
+                RouteHost.Content = _runningAppsView;
+                break;
+            case Route.AppKiller:
+                RouteHost.Content = _appKillerView;
+                break;
+            case Route.Settings:
+                RouteHost.Content = _settingsView;
+                break;
+            default:
+                // Newer route integrations own their own UserControl rendering. Do not briefly
+                // replace them with Login; the shell-level navigation pass handles final focus.
+                return;
+        }
+    }
 
-        Dispatcher.BeginInvoke(DispatcherPriority.ContextIdle, new Action(FocusFirstButton));
+    private void ShowDashboardBackground(string? path)
+    {
+        DashboardArtworkBackground.BeginAnimation(OpacityProperty, null);
+        if (!_shellMotionSettings.DashboardBackgroundsEnabled || _navigation.Current != Route.Dashboard || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            var hide = new System.Windows.Media.Animation.DoubleAnimation(DashboardArtworkBackground.Opacity, 0, TimeSpan.FromMilliseconds(140));
+            hide.Completed += (_, _) => { DashboardArtworkBackground.Source = null; DashboardArtworkBackground.Visibility = Visibility.Collapsed; };
+            DashboardArtworkBackground.BeginAnimation(OpacityProperty, hide);
+            return;
+        }
+        try
+        {
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(Path.GetFullPath(path), UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+            DashboardArtworkBackground.Source = image;
+            DashboardArtworkBackground.Visibility = Visibility.Visible;
+            DashboardArtworkBackground.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, .20, TimeSpan.FromMilliseconds(240)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException) { DashboardArtworkBackground.Visibility = Visibility.Collapsed; }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (_startupIntroPlaying)
+        {
+            e.Handled = true;
+            return;
+        }
+
         if (Keyboard.FocusedElement is TextBox && e.Key != Key.Escape)
         {
             return;
@@ -560,10 +686,10 @@ public partial class MainWindow : Window
         {
             Key.Up => InputAction.Up,
             Key.Down => InputAction.Down,
-            Key.Left => InputAction.Left,
-            Key.Right => InputAction.Right,
-            Key.Enter or Key.Space => InputAction.Accept,
-            Key.Escape => InputAction.Back,
+            Key.Left or Key.MediaPreviousTrack => InputAction.Left,
+            Key.Right or Key.MediaNextTrack or Key.BrowserForward => InputAction.Right,
+            Key.Enter or Key.Space or Key.Select or Key.MediaPlayPause => InputAction.Accept,
+            Key.Escape or Key.BrowserBack or Key.MediaStop => InputAction.Back,
             _ => (InputAction?)null
         };
 
@@ -572,17 +698,65 @@ public partial class MainWindow : Window
             return;
         }
 
+        if(_navigation.Current==Route.Login && Keyboard.FocusedElement is Button profileButton && _loginView.MoveProfileFocus(action.Value,profileButton))
+        { e.Handled=true;return; }
         HandleInput(action.Value, controllerIndex: null);
         e.Handled = true;
     }
 
     private void HandleInput(InputAction action, int? controllerIndex)
     {
+        if (_startupIntroPlaying)
+        {
+            return;
+        }
+
+        if (_storeInstallBusy)
+        {
+            return;
+        }
+
+        HandlePresentationInputFeedback(action, controllerIndex);
+
+        if (GetOpenControllerKeyboard() is { } controllerKeyboard)
+        {
+            controllerKeyboard.HandleControllerInput(action);
+            return;
+        }
+
+        if (IsPowerMenuOpen)
+        {
+            switch (action)
+            {
+                case InputAction.Up:
+                    MoveFocus(FocusNavigationDirection.Up);
+                    break;
+                case InputAction.Down:
+                    MoveFocus(FocusNavigationDirection.Down);
+                    break;
+                case InputAction.Left:
+                    MoveFocus(FocusNavigationDirection.Left);
+                    break;
+                case InputAction.Right:
+                    MoveFocus(FocusNavigationDirection.Right);
+                    break;
+                case InputAction.Accept:
+                    ActivateFocusedControl(controllerIndex);
+                    break;
+                case InputAction.Back:
+                    ClosePowerMenu();
+                    break;
+            }
+            return;
+        }
+
         if (_overlayWindow.IsOpen)
         {
             _overlayWindow.HandleControllerInput(action);
             return;
         }
+
+        if(_navigation.Current==Route.GrevDadWeb && _grevDadWebView.HandleInput(action)) return;
 
         switch (action)
         {
@@ -617,12 +791,12 @@ public partial class MainWindow : Window
                 ReturnToLogin();
                 break;
             case Route.Settings:
-                CloseSettings();
+                if(!_settingsView.TryReturnToSettingsHub())CloseSettings();
                 break;
             case Route.Login:
                 if (_session.HasSignedInUsers)
                 {
-                    _navigation.Reset(Route.Dashboard);
+                    CloseSessionLobby();
                 }
                 break;
             default:
@@ -659,11 +833,21 @@ public partial class MainWindow : Window
 
     private void FocusFirstButton()
     {
+        if (GetOpenControllerKeyboard() is { } controllerKeyboard)
+        {
+            controllerKeyboard.FocusInitial();
+            return;
+        }
+
         var firstButton = FindVisualChildren<Button>(RouteHost)
             .FirstOrDefault(button => button.IsVisible && button.IsEnabled && button.Focusable);
 
         firstButton?.Focus();
     }
+
+    private ControllerQwertyKeyboard? GetOpenControllerKeyboard() =>
+        FindVisualChildren<ControllerQwertyKeyboard>(RouteHost)
+            .FirstOrDefault(keyboard => keyboard.IsOpen);
 
     private void UpdateControllerStatus(ControllerConnectionEventArgs change)
     {
@@ -676,44 +860,198 @@ public partial class MainWindow : Window
         ProfileBubbleButton.Visibility = _session.HasSignedInUsers
             ? Visibility.Visible
             : Visibility.Collapsed;
+        HeaderPlayersPanel.Children.Clear();
 
         if (!_session.HasSignedInUsers)
         {
-            ControllerStatusText.Text = "No signed-in players";
             return;
         }
 
-        var players = _session.SignedInUsers.Select(user =>
+        foreach (var user in _session.SignedInUsers)
         {
-            var controllers = _session.GetControllersForUser(user.SessionId);
-            var controllerText = controllers.Count == 0
-                ? "No controller"
-                : string.Join("+", controllers.Select(index => $"C{index + 1}"));
-            return $"{user.DisplayName} • {controllerText}{(user.IsPrimary ? " • Primary" : string.Empty)}";
-        });
-
-        ControllerStatusText.Text = string.Join("     ", players);
-    }
-
-    private void ShellBack_Click(object sender, RoutedEventArgs e) => HandleBack();
-
-    private void ShellProfile_Click(object sender, RoutedEventArgs e)
-    {
-        if (_session.HasSignedInUsers)
-        {
-            OpenSessionLobby();
+            HeaderPlayersPanel.Children.Add(CreateHeaderPlayerBadge(user));
         }
     }
+
+    private UIElement CreateHeaderPlayerBadge(SessionUser user)
+    {
+        var profile = string.IsNullOrWhiteSpace(user.GrevId)
+            ? null
+            : _profiles.FirstOrDefault(candidate =>
+                string.Equals(candidate.GrevId, user.GrevId, StringComparison.OrdinalIgnoreCase));
+        var assignedControllers = _session.GetControllersForUser(user.SessionId);
+        var hasAssignedController = assignedControllers.Count > 0;
+        var hasConnectedAssignedController = assignedControllers.Any(index =>
+            index >= 0 && index < _controllers.Length && _controllers[index]);
+        var roleBrush = GetProfileRoleBrush(user.Role);
+
+        var controllerHost = new Grid
+        {
+            Width = 26,
+            Height = 32,
+            Margin = new Thickness(0, 0, 7, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        controllerHost.Children.Add(new TextBlock
+        {
+            Text = "🎮",
+            FontFamily = new FontFamily("Segoe UI Symbol"),
+            FontSize = 18,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = hasConnectedAssignedController
+                ? (Brush)FindResource("AccentBrush")
+                : new SolidColorBrush(Color.FromRgb(91, 98, 112)),
+            Opacity = hasConnectedAssignedController ? 1d : 0.55d
+        });
+
+        if (!hasAssignedController)
+        {
+            controllerHost.Children.Add(new TextBlock
+            {
+                Text = "╳",
+                FontFamily = new FontFamily("Segoe UI Symbol"),
+                FontSize = 20,
+                FontWeight = FontWeights.Bold,
+                Foreground = new SolidColorBrush(Color.FromRgb(224, 82, 94)),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        var content = new Grid
+        {
+            Height = 34,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        content.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        content.Children.Add(controllerHost);
+
+        var avatar = CreateHeaderAvatar(profile, user, 32, roleBrush);
+        Grid.SetColumn(avatar, 1);
+        content.Children.Add(avatar);
+
+        var displayName = new TextBlock
+        {
+            Text = user.DisplayName,
+            MaxWidth = 128,
+            Margin = new Thickness(8, 0, 0, 0),
+            FontSize = 13,
+            FontWeight = FontWeights.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            TextWrapping = TextWrapping.NoWrap
+        };
+        Grid.SetColumn(displayName, 2);
+        content.Children.Add(displayName);
+
+        return new Border
+        {
+            MinWidth = 142,
+            MaxWidth = 202,
+            Height = 42,
+            Padding = new Thickness(7, 3, 9, 3),
+            Margin = new Thickness(0, 0, 6, 0),
+            CornerRadius = new CornerRadius(17),
+            Background = user.IsPrimary
+                ? new SolidColorBrush(Color.FromRgb(31, 40, 58))
+                : new SolidColorBrush(Color.FromRgb(18, 23, 33)),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(1.5),
+            Effect = CreateHeaderRoleEffect(user.Role, roleBrush.Color),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = content
+        };
+    }
+
+    private Border CreateHeaderAvatar(LocalProfile? profile, SessionUser user, double size, SolidColorBrush roleBrush)
+    {
+        var imageSource = profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(profile);
+        var host = new Grid();
+
+        if (imageSource is not null)
+        {
+            host.Children.Add(new Image
+            {
+                Source = imageSource,
+                Stretch = Stretch.UniformToFill,
+                Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+            });
+        }
+        else
+        {
+            host.Children.Add(new TextBlock
+            {
+                Text = profile is null
+                    ? ProfileAvatarCatalog.GetDisplayGlyph(ProfileAvatarCatalog.DefaultKey, user.DisplayName)
+                    : ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName),
+                FontSize = 12,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            });
+        }
+
+        return new Border
+        {
+            Width = size,
+            Height = size,
+            CornerRadius = new CornerRadius(size / 2),
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(1.25),
+            ClipToBounds = true,
+            Child = host
+        };
+    }
+
+    private SolidColorBrush GetProfileRoleBrush(AccountRole role) =>
+        (SolidColorBrush)FindResource(role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
+    private static DropShadowEffect? CreateHeaderRoleEffect(AccountRole role, Color color) => role switch
+    {
+        AccountRole.Admin => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 14,
+            ShadowDepth = 0,
+            Opacity = 0.58
+        },
+        AccountRole.Standard => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 7,
+            ShadowDepth = 0,
+            Opacity = 0.18
+        },
+        _ => null
+    };
+
+    private void ShellBack_Click(object sender, RoutedEventArgs e) => HandleBack();
 
     private void ShellSettings_Click(object sender, RoutedEventArgs e) => OpenSettings();
 
     private void BringGrevHomeToFront()
     {
+        if (IsStoreModalOpen || IsPowerMenuOpen)
+        {
+            return;
+        }
+
         CancelShortcutRecording(showMessage: false);
         _overlayWindow.Dismiss();
         _foregroundLaunchSessionId = null;
         _navigation.Reset(_session.HasSignedInUsers ? Route.Dashboard : Route.Login);
         RestoreWindowWithoutChangingRoute();
+        AnimateReturnHome();
     }
 
     private void RestoreWindowWithoutChangingRoute()

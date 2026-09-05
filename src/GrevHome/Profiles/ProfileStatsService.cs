@@ -173,7 +173,7 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
             completedSeconds + activeSeconds,
             stored.Apps.Values.Sum(app => app.SessionCount),
             active.Length,
-            combined.Count,
+            Math.Max(combined.Keys.Count(id=>id!="cloud-legacy-history"),stored.UniqueAppsFloor),
             lastActivity,
             topApps,
             recentActivity);
@@ -216,10 +216,12 @@ public sealed class GrevHomeProfileStatsSource : IProfileStatsSource
 public sealed class ProfileStatsService
 {
     private readonly IReadOnlyList<IProfileStatsSource> _sources;
+    private readonly GrevHome.Storage.AppPaths _paths;
 
-    public ProfileStatsService(IEnumerable<IProfileStatsSource> sources)
+    public ProfileStatsService(IEnumerable<IProfileStatsSource> sources, GrevHome.Storage.AppPaths? paths = null)
     {
         _sources = sources.ToArray();
+        _paths = paths ?? new GrevHome.Storage.AppPaths();
     }
 
     public async Task<ProfileStatsSnapshot> GetAsync(
@@ -262,12 +264,26 @@ public sealed class ProfileStatsService
         var activeSessions = grevHome?.ActiveSessions ?? 0;
         var uniqueApps = grevHome?.UniqueApps ?? 0;
 
-        // Grev Level deliberately uses Grev Home's own tracked activity only. External providers
-        // can enrich/showcase a profile later without double-counting imported hours as progression.
-        var xp = Math.Max(0L, totalSeconds / 60) +
-                 (long)completedSessions * 20L +
-                 (long)uniqueApps * 100L;
+        // Standalone profiles use Home progression; linked profiles use the shared balance.
+        // Downloaded XP never enters the locally earned activity upload.
+        var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds, completedSessions, uniqueApps);
         var progression = CalculateLevel(xp);
+        var cloud = await GrevHome.Online.GrevDadAccountDataStore.ReadAsync(_paths,grevId,cancellationToken);
+        if (cloud?.SharedProgression is { TotalXp: >= 0, HomeTotalXp: >= 0, XpPerLevel: 500 } shared)
+        {
+            // The shared balance already includes uploaded Home XP. Only locally
+            // pending Home earnings are added to its offline display estimate.
+            var total = checked(shared.TotalXp + Math.Max(0,xp-shared.HomeTotalXp));
+            progression = new ProfileLevelProgress((int)Math.Min(int.MaxValue,total/500+1),total,total%500,500,(total%500)/5d);
+        }
+        var milestones=CalculateMilestones(totalSeconds,completedSessions,uniqueApps,progression.Level).ToList();
+        foreach(var achievement in cloud?.Achievements ?? [])
+        {
+            var localId=achievement.Id.StartsWith("grev-home:",StringComparison.Ordinal) ? achievement.Id[10..] : null;
+            var index=milestones.FindIndex(m=>m.MilestoneId==localId);
+            if(index>=0) milestones[index]=milestones[index] with {IsEarned=true,ProgressValue=milestones[index].TargetValue,ProgressLabel="Unlocked • shared account"};
+            else milestones.Add(new ProfileMilestoneStat(achievement.Id,achievement.Name,achievement.Description,true,1,1,$"Unlocked • {achievement.Source}"));
+        }
 
         return new ProfileStatsSnapshot(
             progression,
@@ -278,35 +294,12 @@ public sealed class ProfileStatsService
             grevHome?.LastActivityAtUtc,
             grevHome?.TopApps ?? Array.Empty<ProfileTopAppStat>(),
             grevHome?.RecentActivity ?? Array.Empty<ProfileRecentActivityStat>(),
-            CalculateMilestones(totalSeconds, completedSessions, uniqueApps, progression.Level),
+            milestones,
             sources);
     }
 
-    public static ProfileLevelProgress CalculateLevel(long totalXp)
-    {
-        totalXp = Math.Max(0, totalXp);
-        var level = 1;
-        var remaining = totalXp;
-        var requirement = XpRequiredForLevel(level);
-
-        while (remaining >= requirement && level < 999)
-        {
-            remaining -= requirement;
-            level++;
-            requirement = XpRequiredForLevel(level);
-        }
-
-        var percent = requirement <= 0
-            ? 100d
-            : Math.Clamp(remaining * 100d / requirement, 0d, 100d);
-
-        return new ProfileLevelProgress(
-            level,
-            totalXp,
-            remaining,
-            requirement,
-            percent);
-    }
+    public static ProfileLevelProgress CalculateLevel(long totalXp) =>
+        GrevHomeProgressionPolicy.CalculateLevel(totalXp);
 
     private static IReadOnlyList<ProfileMilestoneStat> CalculateMilestones(
         long totalSeconds,
@@ -337,7 +330,4 @@ public sealed class ProfileStatsService
         long target,
         string progressLabel) =>
         new(id, title, description, progress >= target, Math.Min(progress, target), target, progressLabel);
-
-    private static long XpRequiredForLevel(int currentLevel) =>
-        250L + (Math.Max(1, currentLevel) - 1L) * 150L;
 }

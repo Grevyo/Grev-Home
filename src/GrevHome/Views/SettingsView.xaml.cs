@@ -1,8 +1,12 @@
 using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using GrevHome.Input;
 using GrevHome.Machine;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 
 namespace GrevHome.Views;
@@ -12,6 +16,19 @@ public sealed record ShortcutHoldAdjustment(string BindingId, int DeltaMilliseco
 
 public partial class SettingsView : UserControl
 {
+    private static readonly IReadOnlyDictionary<string, string[]> SettingsPreviewCatalog =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["settings-account"] = ["Display name", "Username and GrevID", "Profile identity"],
+            ["settings-controller"] = ["Controllers and living-room remotes", "Return Home shortcuts", "Grev Overlay shortcuts", "Hold duration", "Reset shortcuts"],
+            ["settings-audio"] = ["Master volume", "Mute", "Output device"],
+            ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
+            ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],
+            ["settings-system"] = ["Machine and Windows", ".NET runtime", "Storage", "Connected controllers"],
+            ["settings-theme"] = ["Screen and Return Home transitions", "Overlay and modal motion", "Tile and button feedback", "Ambient background", "UI and startup sounds", "Sound volume", "Controller vibration", "Animation speed", "Preview intro"],
+            ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation"]
+        };
+
     private readonly SystemStatusService _systemStatusService = new();
     private readonly ControllerHardwareService _controllerHardwareService = new();
     private readonly SystemPowerService _systemPowerService = new();
@@ -19,6 +36,9 @@ public partial class SettingsView : UserControl
     private ControllerShortcutConfiguration _shortcuts = ControllerShortcutService.CreateDefaults();
     private SystemPowerAction? _pendingPowerAction;
     private DateTimeOffset _pendingPowerExpiresAt;
+    private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations =
+        new Dictionary<string, ResolvedDashboardTile>(StringComparer.OrdinalIgnoreCase);
+    private ShellMotionSettings _motionSettings = new();
 
     public event EventHandler? BackRequested;
     public event Action<string>? SaveDisplayNameRequested;
@@ -27,11 +47,134 @@ public partial class SettingsView : UserControl
     public event Action<ShortcutHoldAdjustment>? AdjustShortcutHoldRequested;
     public event EventHandler? ResetShortcutsRequested;
     public event EventHandler? CancelShortcutCaptureRequested;
+    public event Action<ShellMotionSettings>? MotionSettingsChanged;
+    public event EventHandler? StartupIntroPreviewRequested;
 
     public SettingsView()
     {
         InitializeComponent();
         BuildDisplayNameKeyboard();
+        RenderSettingsHubTiles();
+        AddHandler(Keyboard.GotKeyboardFocusEvent,new KeyboardFocusChangedEventHandler(Settings_GotKeyboardFocus),true);
+        ShowSettingsHub();
+    }
+
+    public void SetTilePresentations(IReadOnlyDictionary<string, ResolvedDashboardTile> presentations)
+    {
+        _tilePresentations = presentations;
+        RenderSettingsHubTiles();
+    }
+
+    private void RenderSettingsHubTiles()
+    {
+        foreach (var button in new[]
+                 {
+                     AccountSectionButton, ControllerShortcutsSectionButton, AudioSectionButton,
+                     DisplaySectionButton, ConnectionsSectionButton, SystemStatusSectionButton,
+                     ThemeMotionSectionButton, PowerSectionButton
+                 })
+        {
+            if (button.Tag is not string id) continue;
+            var definition = DashboardTileCatalog.Get(id);
+            var tile = _tilePresentations.TryGetValue(id, out var resolved)
+                ? resolved
+                : new ResolvedDashboardTile(id, definition.Name, definition.Detail, definition.Color, null, definition.IconAsset, false);
+            button.Padding = new Thickness(0);
+            button.Content = !string.IsNullOrWhiteSpace(tile.TileMediaPath)
+                ? AppArtworkFactory.CreateFullTile(tile.TileMediaPath, tile.TileColor, 285, 145)
+                : AppArtworkFactory.CreateTile(tile.DisplayName, tile.IconAsset, tile.TileColor);
+            button.ToolTip = $"{tile.DisplayName} • {tile.Detail}";
+        }
+    }
+
+    public void SetMotionSettings(ShellMotionSettings settings)
+    {
+        _motionSettings = settings;
+        ScreenTransitionsButton.Content = $"Screen transitions: {(settings.ScreenTransitionsEnabled ? "On" : "Off")}";
+        StartupIntroButton.Content = $"Startup intro: {(settings.StartupIntroEnabled ? "On" : "Off")}";
+        OverlayTransitionsButton.Content = $"Overlay transitions: {(settings.OverlayTransitionsEnabled ? "On" : "Off")}";
+        ReturnHomeTransitionButton.Content = $"Return Home transition: {(settings.ReturnHomeTransitionEnabled ? "On" : "Off")}";
+        TileFocusAnimationButton.Content = $"Tile focus animation: {(settings.TileFocusAnimationEnabled ? "On" : "Off")}";
+        ModalTransitionsButton.Content = $"Modal transitions: {(settings.ModalTransitionsEnabled ? "On" : "Off")}";
+        AmbientBackgroundButton.Content = $"Ambient background: {(settings.AmbientBackgroundEnabled ? "On" : "Off")}";
+        DashboardBackgroundsButton.Content = $"Selected app backgrounds: {(settings.DashboardBackgroundsEnabled ? "On" : "Off")}";
+        ButtonPressFeedbackButton.Content = $"Button press feedback: {(settings.ButtonPressFeedbackEnabled ? "On" : "Off")}";
+        UiSoundsButton.Content = $"UI sounds: {(settings.UiSoundsEnabled ? "On" : "Off")}";
+        StartupSoundButton.Content = $"Startup sound: {(settings.StartupSoundEnabled ? "On" : "Off")}";
+        UiSoundVolumeButton.Content = $"UI sound volume: {settings.UiSoundVolumePercent}%";
+        ControllerVibrationButton.Content = $"Controller vibration: {(settings.ControllerVibrationEnabled ? "On" : "Off")}";
+        AnimationSpeedButton.Content = $"Animation speed: {settings.AnimationSpeed}";
+        VibrationStrengthButton.Content = $"Vibration strength: {settings.VibrationStrength}";
+    }
+
+    public void ShowMotionStatus(string message) => MotionSettingsStatusText.Text = message;
+
+    private void ScreenTransitions_Click(object sender, RoutedEventArgs e)
+    {
+        var next = _motionSettings with { ScreenTransitionsEnabled = !_motionSettings.ScreenTransitionsEnabled };
+        SetMotionSettings(next);
+        MotionSettingsChanged?.Invoke(next);
+    }
+
+    private void StartupIntro_Click(object sender, RoutedEventArgs e)
+    {
+        var next = _motionSettings with { StartupIntroEnabled = !_motionSettings.StartupIntroEnabled };
+        SetMotionSettings(next);
+        MotionSettingsChanged?.Invoke(next);
+    }
+
+    private void OverlayTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { OverlayTransitionsEnabled = !_motionSettings.OverlayTransitionsEnabled });
+    private void ReturnHomeTransition_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ReturnHomeTransitionEnabled = !_motionSettings.ReturnHomeTransitionEnabled });
+    private void TileFocusAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileFocusAnimationEnabled = !_motionSettings.TileFocusAnimationEnabled });
+    private void ModalTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ModalTransitionsEnabled = !_motionSettings.ModalTransitionsEnabled });
+    private void AmbientBackground_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { AmbientBackgroundEnabled = !_motionSettings.AmbientBackgroundEnabled });
+    private void DashboardBackgrounds_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { DashboardBackgroundsEnabled = !_motionSettings.DashboardBackgroundsEnabled });
+    private void ButtonPressFeedback_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ButtonPressFeedbackEnabled = !_motionSettings.ButtonPressFeedbackEnabled });
+    private void UiSounds_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { UiSoundsEnabled = !_motionSettings.UiSoundsEnabled });
+    private void StartupSound_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { StartupSoundEnabled = !_motionSettings.StartupSoundEnabled });
+    private void UiSoundVolume_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { UiSoundVolumePercent = _motionSettings.UiSoundVolumePercent >= 100 ? 25 : _motionSettings.UiSoundVolumePercent + 25 });
+    private void ControllerVibration_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ControllerVibrationEnabled = !_motionSettings.ControllerVibrationEnabled });
+    private void AnimationSpeed_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { AnimationSpeed = _motionSettings.AnimationSpeed switch { ShellAnimationSpeed.Relaxed => ShellAnimationSpeed.Normal, ShellAnimationSpeed.Normal => ShellAnimationSpeed.Fast, _ => ShellAnimationSpeed.Relaxed } });
+    private void VibrationStrength_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { VibrationStrength = _motionSettings.VibrationStrength switch { ShellVibrationStrength.Low => ShellVibrationStrength.Medium, ShellVibrationStrength.Medium => ShellVibrationStrength.High, _ => ShellVibrationStrength.Low } });
+
+    private void ChangeMotion(ShellMotionSettings next)
+    {
+        SetMotionSettings(next);
+        MotionSettingsChanged?.Invoke(next);
+    }
+
+    private void PreviewStartupIntro_Click(object sender, RoutedEventArgs e) =>
+        StartupIntroPreviewRequested?.Invoke(this, EventArgs.Empty);
+
+    private void AnimateSettingsSurface(UIElement surface)
+    {
+        surface.BeginAnimation(OpacityProperty, null);
+        if (!_motionSettings.ScreenTransitionsEnabled)
+        {
+            surface.Opacity = 1;
+            return;
+        }
+
+        surface.BeginAnimation(
+            OpacityProperty,
+            new DoubleAnimation(0.12, 1, TimeSpan.FromMilliseconds(240))
+            {
+                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
+            });
+    }
+
+    private void ShowSettingsPreview(Button button)
+    {
+        if (button.Tag is not string id || !SettingsPreviewCatalog.TryGetValue(id, out var items)) return;
+        var definition = DashboardTileCatalog.Get(id);
+        var displayName = _tilePresentations.TryGetValue(id, out var tile) ? tile.DisplayName : definition.Name;
+        SettingsPreviewTitle.Text = $"{displayName} includes";
+        SettingsPreviewItems.ItemsSource = items;
+    }
+
+    private void SettingsHubTile_MouseMove(object sender, MouseEventArgs e)
+    {
+        if (sender is Button button) ShowSettingsPreview(button);
     }
 
     public void SetState(LocalProfile? profile, ControllerShortcutConfiguration shortcuts)
@@ -445,8 +588,39 @@ public partial class SettingsView : UserControl
     private void CancelPowerAction_Click(object sender, RoutedEventArgs e) =>
         ResetPowerConfirmation();
 
-    private void Back_Click(object sender, RoutedEventArgs e) =>
-        BackRequested?.Invoke(this, EventArgs.Empty);
+    private void Back_Click(object sender, RoutedEventArgs e)
+    {
+        if(!TryReturnToSettingsHub())BackRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Settings_GotKeyboardFocus(object sender,KeyboardFocusChangedEventArgs e)
+    {
+        if(e.NewFocus is Button button && SettingsHub.IsVisible)
+        {
+            ShowSettingsPreview(button);
+            button.BringIntoView(new Rect(-18,0,button.ActualWidth+36,button.ActualHeight));
+            UpdateSettingsHubFade();
+        }
+    }
+
+    private void SettingsHubCarousel_PreviewMouseWheel(object sender,MouseWheelEventArgs e)
+    {
+        SettingsHubCarousel.ScrollToHorizontalOffset(SettingsHubCarousel.HorizontalOffset-e.Delta);
+        e.Handled=SettingsHubCarousel.ScrollableWidth>0;
+    }
+
+    private void SettingsHubCarousel_ScrollChanged(object sender,ScrollChangedEventArgs e)=>UpdateSettingsHubFade();
+
+    private void UpdateSettingsHubFade()
+    {
+        var left=SettingsHubCarousel.HorizontalOffset>1;
+        var right=SettingsHubCarousel.HorizontalOffset<SettingsHubCarousel.ScrollableWidth-1;
+        SettingsHubCarousel.OpacityMask=new LinearGradientBrush(new GradientStopCollection
+        {
+            new(left?Colors.Transparent:Colors.Black,0),new(Colors.Black,left?0.035:0),
+            new(Colors.Black,right?0.965:1),new(right?Colors.Transparent:Colors.Black,1)
+        },new Point(0,0),new Point(1,0));
+    }
 
     private static string FormatAction(ControllerShortcutAction action) =>
         action == ControllerShortcutAction.ReturnHome ? "Return Home" : "Grev Overlay";

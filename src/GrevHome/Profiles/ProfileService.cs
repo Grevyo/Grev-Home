@@ -9,6 +9,8 @@ namespace GrevHome.Profiles;
 
 public sealed class ProfileService
 {
+    public const string BuiltInGuestGrevId = "GREVHOME-GUEST";
+    public const string BuiltInGuestUsername = "guest";
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
     public const int MaxBioLength = 160;
@@ -32,6 +34,39 @@ public sealed class ProfileService
         _paths = paths;
     }
 
+    public async Task<LocalProfile> EnsureBuiltInGuestAsync(CancellationToken cancellationToken = default)
+    {
+        var existing = await GetProfilesAsync(cancellationToken);
+        var guest = existing.FirstOrDefault(profile => profile.IsBuiltInGuest ||
+            string.Equals(profile.GrevId, BuiltInGuestGrevId, StringComparison.OrdinalIgnoreCase));
+        if (guest is not null)
+        {
+            var repaired = guest with
+            {
+                GrevId = BuiltInGuestGrevId,
+                Username = BuiltInGuestUsername,
+                DisplayName = "Guest",
+                Role = AccountRole.Guest,
+                Bio = string.Empty,
+                StatusMessage = string.Empty,
+                IsBuiltInGuest = true
+            };
+            if (repaired != guest) await WriteMetadataAsync(repaired, cancellationToken);
+            return repaired;
+        }
+
+        var profile = new LocalProfile(
+            BuiltInGuestGrevId,
+            BuiltInGuestUsername,
+            "Guest",
+            DateTimeOffset.UtcNow,
+            AccountRole.Guest,
+            IsBuiltInGuest: true);
+        _paths.EnsureProfileLayout(profile.GrevId);
+        await WriteMetadataAsync(profile, cancellationToken);
+        return profile;
+    }
+
     public async Task<IReadOnlyList<LocalProfile>> GetProfilesAsync(CancellationToken cancellationToken = default)
     {
         _paths.EnsureMachineLayout();
@@ -51,13 +86,46 @@ public sealed class ProfileService
             {
                 await using var stream = File.OpenRead(metadataPath);
                 var profile = await JsonSerializer.DeserializeAsync<LocalProfile>(stream, _jsonOptions, cancellationToken);
-                if (profile is null || !string.Equals(folderName, profile.GrevId, StringComparison.OrdinalIgnoreCase)) continue;
+                if (profile is null || !string.Equals(folderName, profile.GrevId, StringComparison.OrdinalIgnoreCase))
+                {
+                    PreserveDamagedProfileMetadata(
+                        metadataPath,
+                        "Profile metadata is empty or its GrevID does not match the owning profile folder.");
+                    continue;
+                }
 
                 var needsUpgrade = false;
+                if (string.IsNullOrWhiteSpace(profile.Username) && string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    PreserveDamagedProfileMetadata(
+                        metadataPath,
+                        "Profile metadata contains neither a Username nor a DisplayName.");
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(profile.Username))
                 {
                     profile = profile with { Username = profile.DisplayName };
                     needsUpgrade = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    profile = profile with { DisplayName = profile.Username };
+                    needsUpgrade = true;
+                }
+
+                try
+                {
+                    _ = ValidateUsername(profile.Username);
+                    _ = ValidateDisplayName(profile.DisplayName);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    PreserveDamagedProfileMetadata(
+                        metadataPath,
+                        $"Profile identity failed validation: {ex.Message}");
+                    continue;
                 }
 
                 if (profile.Bio is null)
@@ -93,18 +161,29 @@ public sealed class ProfileService
                 profiles.Add(profile);
                 _paths.EnsureProfileLayout(profile.GrevId);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                // A damaged profile must not prevent the rest of Grev Home from reaching Login.
+                PreserveDamagedProfileMetadata(
+                    metadataPath,
+                    $"Profile JSON could not be parsed: {ex.Message}");
             }
             catch (ArgumentException)
             {
                 // Invalid or legacy profile-folder identities are ignored rather than trusted as paths.
             }
+            catch (IOException)
+            {
+                // One unreadable/locked profile must not take down every other local account at Login.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Treat an inaccessible profile as unavailable rather than crashing the Grev Home shell.
+            }
         }
 
         return profiles
-            .OrderBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(profile => profile.IsBuiltInGuest)
+            .ThenBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(profile => profile.Username, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
@@ -113,12 +192,14 @@ public sealed class ProfileService
     {
         username = ValidateUsername(username);
         var existing = await GetProfilesAsync(cancellationToken);
+        EnsureProfileIdentitySetHealthy(existing);
+
         if (existing.Any(profile => string.Equals(profile.Username, username, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException($"A local account with username '{username}' already exists.");
         }
 
-        if (existing.Count == 0) role = AccountRole.Admin;
+        if (existing.All(profile => profile.IsBuiltInGuest)) role = AccountRole.Admin;
 
         var grevId = CreateUniqueGrevId(username, existing);
         var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow, role, ProfileAvatarCatalog.DefaultKey);
@@ -141,6 +222,7 @@ public sealed class ProfileService
     {
         displayName = ValidateDisplayName(displayName);
         var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest name is fixed. Only its profile picture can be changed.");
         var updated = profile with { DisplayName = displayName };
         await WriteMetadataAsync(updated, cancellationToken);
         return updated;
@@ -167,8 +249,10 @@ public sealed class ProfileService
     public async Task<LocalProfile> UpdateRoleAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default)
     {
         var profiles = await GetProfilesAsync(cancellationToken);
+        EnsureProfileIdentitySetHealthy(profiles);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest role is fixed.");
         EnsureRoleChangeIsSafe(profile, role, profiles);
         var updated = profile with { Role = role };
         await WriteMetadataAsync(updated, cancellationToken);
@@ -190,9 +274,21 @@ public sealed class ProfileService
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
 
+        if (profile.IsBuiltInGuest)
+        {
+            displayName = profile.DisplayName;
+            newRole = AccountRole.Guest;
+            bio = profile.Bio;
+            statusMessage = profile.StatusMessage;
+        }
+
         var normalizedBio = bio is null ? profile.Bio : ValidateBio(bio);
         var normalizedStatusMessage = statusMessage is null ? profile.StatusMessage : ValidateStatusMessage(statusMessage);
         var role = newRole ?? profile.Role;
+        if (role != profile.Role)
+        {
+            EnsureProfileIdentitySetHealthy(profiles);
+        }
         EnsureRoleChangeIsSafe(profile, role, profiles);
 
         var normalizedAvatar = ProfileAvatarCatalog.Normalize(avatarKey);
@@ -308,6 +404,26 @@ public sealed class ProfileService
         }
     }
 
+    private void EnsureProfileIdentitySetHealthy(IReadOnlyCollection<LocalProfile> readableProfiles)
+    {
+        var persistentDirectories = Directory.EnumerateDirectories(_paths.Profiles)
+            .Where(directory => !Path.GetFileName(directory).StartsWith('_'))
+            .ToArray();
+
+        if (persistentDirectories.Length != readableProfiles.Count)
+        {
+            throw new InvalidOperationException(
+                "One or more persistent profile folders have missing or unreadable identity metadata. Recover or repair those profiles before creating accounts or changing machine roles.");
+        }
+
+        if (readableProfiles.GroupBy(profile => profile.GrevId, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1) ||
+            readableProfiles.GroupBy(profile => profile.Username, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "Duplicate local GrevID or Username identity data was detected. Resolve the profile integrity problem before creating accounts or changing machine roles.");
+        }
+    }
+
     private async Task<LocalProfile> GetRequiredProfileAsync(string grevId, CancellationToken cancellationToken)
     {
         var profiles = await GetProfilesAsync(cancellationToken);
@@ -369,9 +485,17 @@ public sealed class ProfileService
         var temporaryPath = metadataPath + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporaryPath))
+            await using (var stream = new FileStream(
+                             temporaryPath,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             16 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, profile, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporaryPath, metadataPath, overwrite: true);
         }
@@ -379,6 +503,16 @@ public sealed class ProfileService
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
+    }
+
+    private void PreserveDamagedProfileMetadata(string metadataPath, string reason)
+    {
+        CorruptDataQuarantine.TryPreserve(
+            _paths,
+            metadataPath,
+            "ProfileMetadata",
+            reason,
+            out _);
     }
 
     private static string ValidateUsername(string username)

@@ -2,10 +2,11 @@
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              Focusable="False">
-    <Grid Margin="72,34">
+    <Grid Margin="42,24">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
@@ -13,34 +14,64 @@
             <TextBlock x:Name="HeadingText"
                        Text="Who's playing?"
                        HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
                        FontSize="46"
                        FontWeight="SemiBold" />
             <TextBlock x:Name="SubheadingText"
                        Text="Choose your profile to enter Grev Home."
                        HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       TextWrapping="Wrap"
                        Margin="0,8,0,22"
                        FontSize="16"
                        Foreground="{StaticResource MutedBrush}" />
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-            <StackPanel Width="1120" HorizontalAlignment="Center">
-                <TextBlock Text="PROFILES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                <WrapPanel x:Name="ProfilesPanel" Margin="0,8,0,12" />
+        <Grid x:Name="CarouselHost" Grid.Row="1" MaxWidth="1600" SizeChanged="Carousel_SizeChanged">
+            <ScrollViewer x:Name="ProfilesScroll" VerticalScrollBarVisibility="Disabled"
+                          HorizontalScrollBarVisibility="Hidden" CanContentScroll="False"
+                          PanningMode="HorizontalOnly" Focusable="False" ScrollChanged="Profiles_ScrollChanged"
+                          PreviewMouseWheel="Profiles_MouseWheel" VerticalAlignment="Center">
+                <StackPanel x:Name="ProfilesPanel" Orientation="Horizontal" Margin="28,14" HorizontalAlignment="Center" />
+            </ScrollViewer>
                 <TextBlock x:Name="NoProfilesText"
                            Text="No accounts yet. Create the first Grev Home account below."
+                           VerticalAlignment="Center"
                            Margin="0,4,0,10"
-                           Foreground="{StaticResource MutedBrush}" />
-            </StackPanel>
-        </ScrollViewer>
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center" />
+        </Grid>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,18,0,0">
+        <TextBlock x:Name="StatusText"
+                   Grid.Row="2"
+                   Visibility="Collapsed"
+                   MaxWidth="900"
+                   Margin="0,10,0,2"
+                   HorizontalAlignment="Center"
+                   TextAlignment="Center"
+                   TextWrapping="Wrap"
+                   FontSize="13"
+                   Foreground="{StaticResource AccentBrush}" />
+
+        <StackPanel Grid.Row="3" HorizontalAlignment="Center" Margin="0,14,0,0">
+            <TextBlock x:Name="CarouselHintText" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="13" />
             <Button x:Name="CreateAccountButton"
-                    Content="＋ Create Account"
+                    Content="＋ Create New User"
                     Width="240"
                     Height="60"
+                    HorizontalAlignment="Center"
                     Margin="6"
                     Click="CreateProfile_Click" />
+            <TextBlock x:Name="BackHintText"
+                       Visibility="Collapsed"
+                       Margin="0,5,0,0"
+                       Text="B / Esc — cancel adding a player"
+                       HorizontalAlignment="Center"
+                       TextAlignment="Center"
+                       FontSize="12"
+                       Foreground="{StaticResource MutedBrush}" />
         </StackPanel>
     </Grid>
 </UserControl>

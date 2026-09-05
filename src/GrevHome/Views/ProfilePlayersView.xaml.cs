@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Effects;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
 
@@ -31,9 +33,10 @@ public partial class ProfilePlayersView : UserControl
         _primarySessionUserId = primary?.SessionId;
         var primaryProfile = FindProfile(primary, profiles);
         ApplyPrimaryAvatar(primaryProfile);
+        ApplyPrimaryRole(primary?.Role ?? AccountRole.Guest);
 
         PrimaryNameText.Text = primary?.DisplayName ?? "No primary profile";
-        PrimaryIdentityText.Text = primary is null ? "No user is signed in." : $"@{primary.Username}  •  {primary.Role}  •  Primary User";
+        PrimaryIdentityText.Text = primary is null ? "No user is signed in." : $"{BuildIdentityText(primary)}  •  Primary User";
         SummaryText.Text = session.SignedInUsers.Count == 1
             ? "1 player signed in. Add Player 2 or manage the current profile and controller assignment."
             : $"{session.SignedInUsers.Count} players signed in. Manage profiles, Primary User and controller assignments here.";
@@ -53,36 +56,45 @@ public partial class ProfilePlayersView : UserControl
         }
 
         StatusText.Text = connectedControllers.Any(isConnected => isConnected)
-            ? "Select an assigned C button to unassign that controller without signing the player out. Controllers can then be assigned again at any time."
-            : "No XInput controllers are currently connected. Players stay signed in even with no controller assigned.";
+            ? "Assigned controllers remain owned by their player if they disconnect. Temporary Guests have no GrevID and cannot become Primary."
+            : "No XInput controllers are currently connected. Existing assignments remain visible; temporary Guests remain session-only participants.";
     }
 
     private UIElement CreatePlayerCard(int playerNumber, SessionUser user, SessionContext session, IReadOnlyList<bool> connectedControllers, IReadOnlyList<LocalProfile> profiles, SessionUser? actor)
     {
         var profile = FindProfile(user, profiles);
+        var roleBrush = GetRoleBrush(user.Role);
         var card = new Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(17, 21, 30)),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(43, 51, 68)),
-            BorderThickness = new Thickness(1),
+            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            BorderBrush = roleBrush,
+            BorderThickness = new Thickness(2),
             CornerRadius = new CornerRadius(14),
             Padding = new Thickness(20),
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 0, 0, 12),
+            Effect = CreateRoleEffect(user.Role, roleBrush.Color)
         };
 
         var root = new Grid();
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        root.Children.Add(CreateAvatar(profile, 66));
+        root.Children.Add(CreateAvatar(profile, 66, user.Role));
 
         var details = new StackPanel();
         Grid.SetColumn(details, 1);
-        details.Children.Add(new TextBlock { Text = $"PLAYER {playerNumber}", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = (System.Windows.Media.Brush)FindResource("AccentBrush") });
+        details.Children.Add(new TextBlock { Text = $"PLAYER {playerNumber}", FontSize = 11, FontWeight = FontWeights.Bold, Foreground = (Brush)FindResource("AccentBrush") });
         details.Children.Add(new TextBlock { Text = user.DisplayName, Margin = new Thickness(0, 5, 0, 0), FontSize = 23, FontWeight = FontWeights.SemiBold });
-        details.Children.Add(new TextBlock { Text = $"@{user.Username}  •  {user.Role}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush") });
+        details.Children.Add(new TextBlock { Text = $"{BuildIdentityText(user)}{(user.IsPrimary ? "  •  PRIMARY" : string.Empty)}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush") });
         var assigned = session.GetControllersForUser(user.SessionId);
-        details.Children.Add(new TextBlock { Text = assigned.Count == 0 ? "No controller assigned" : $"Assigned: {string.Join(", ", assigned.Select(i => $"Controller {i + 1}"))}", Margin = new Thickness(0, 5, 0, 0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush") });
+        details.Children.Add(new TextBlock
+        {
+            Text = assigned.Count == 0
+                ? "No controller assigned"
+                : $"Assigned: {string.Join(", ", assigned.Select(i => i >= 0 && i < connectedControllers.Count && connectedControllers[i] ? $"Controller {i + 1}" : $"Controller {i + 1} disconnected"))}",
+            Margin = new Thickness(0, 5, 0, 0),
+            Foreground = (Brush)FindResource("MutedBrush")
+        });
         root.Children.Add(details);
 
         var actions = new StackPanel { HorizontalAlignment = HorizontalAlignment.Right, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(18, 0, 0, 0) };
@@ -105,7 +117,7 @@ public partial class ProfilePlayersView : UserControl
         profileActions.Children.Add(signOutButton);
         actions.Children.Add(profileActions);
 
-        if (!user.IsPrimary)
+        if (!user.IsPrimary && user.AccountKind != AccountKind.Guest)
         {
             var primaryButton = new Button
             {
@@ -120,17 +132,23 @@ public partial class ProfilePlayersView : UserControl
         }
 
         var controllerButtons = new WrapPanel { HorizontalAlignment = HorizontalAlignment.Right };
-        for (var controllerIndex = 0; controllerIndex < connectedControllers.Count; controllerIndex++)
+        for (var controllerIndex = 0; controllerIndex < 4; controllerIndex++)
         {
-            if (!connectedControllers[controllerIndex]) continue;
-
+            var connected = controllerIndex < connectedControllers.Count && connectedControllers[controllerIndex];
             var assignedUser = session.GetUserForController(controllerIndex);
             var assignedToThisUser = assignedUser?.SessionId == user.SessionId;
+            if (!connected && !assignedToThisUser) continue;
+
             var canAssign = actor is not null && AccountAuthorizationService.Allows(actor.Role, AccountPermission.AssignControllers) && (canManagePlayers || actor.SessionId == user.SessionId);
             var request = new PlayerControllerAssignmentRequest(user.SessionId, controllerIndex);
+            var label = assignedToThisUser
+                ? connected ? $"C{controllerIndex + 1} ✓ Unassign" : $"C{controllerIndex + 1} offline • Unassign"
+                : assignedUser is null
+                    ? $"C{controllerIndex + 1}"
+                    : $"C{controllerIndex + 1} • {assignedUser.DisplayName}";
             var button = new Button
             {
-                Content = assignedToThisUser ? $"C{controllerIndex + 1} ✓ Unassign" : assignedUser is null ? $"C{controllerIndex + 1}" : $"C{controllerIndex + 1} • {assignedUser.DisplayName}",
+                Content = label,
                 MinWidth = assignedToThisUser ? 132 : 72,
                 Height = 42,
                 Margin = new Thickness(4),
@@ -143,7 +161,7 @@ public partial class ProfilePlayersView : UserControl
 
         if (controllerButtons.Children.Count == 0)
         {
-            controllerButtons.Children.Add(new TextBlock { Text = "No controllers connected", Margin = new Thickness(4, 8, 4, 4), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush") });
+            controllerButtons.Children.Add(new TextBlock { Text = "No connected controller available", Margin = new Thickness(4, 8, 4, 4), Foreground = (Brush)FindResource("MutedBrush") });
         }
 
         actions.Children.Add(controllerButtons);
@@ -160,13 +178,26 @@ public partial class ProfilePlayersView : UserControl
         PrimaryAvatarText.Text = profile is null ? "?" : ProfileAvatarCatalog.GetDisplayGlyph(profile.AvatarKey, profile.DisplayName);
     }
 
-    private static Border CreateAvatar(LocalProfile? profile, double size)
+    private void ApplyPrimaryRole(AccountRole role)
+    {
+        var roleBrush = GetRoleBrush(role);
+        PrimaryProfileCard.BorderBrush = roleBrush;
+        PrimaryAvatarBorder.BorderBrush = roleBrush;
+        PrimaryProfileCard.Effect = CreateRoleEffect(role, roleBrush.Color);
+    }
+
+    private Border CreateAvatar(LocalProfile? profile, double size, AccountRole role)
     {
         var imageSource = profile is null ? null : ProfileAvatarCatalog.TryLoadCustomImage(profile);
         var grid = new Grid();
         if (imageSource is not null)
         {
-            grid.Children.Add(new Image { Source = imageSource, Stretch = System.Windows.Media.Stretch.UniformToFill });
+            grid.Children.Add(new Image
+            {
+                Source = imageSource,
+                Stretch = Stretch.UniformToFill,
+                Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+            });
         }
         else
         {
@@ -187,11 +218,47 @@ public partial class ProfilePlayersView : UserControl
             CornerRadius = new CornerRadius(size / 2),
             Margin = new Thickness(0, 0, 16, 0),
             VerticalAlignment = VerticalAlignment.Center,
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(31, 40, 58)),
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            BorderBrush = GetRoleBrush(role),
+            BorderThickness = new Thickness(1.5),
             ClipToBounds = true,
             Child = grid
         };
     }
+
+    private SolidColorBrush GetRoleBrush(AccountRole role) =>
+        (SolidColorBrush)FindResource(role switch
+        {
+            AccountRole.Admin => "AdminRoleBrush",
+            AccountRole.Standard => "StandardRoleBrush",
+            _ => "GuestRoleBrush"
+        });
+
+    private static DropShadowEffect? CreateRoleEffect(AccountRole role, Color color) => role switch
+    {
+        AccountRole.Admin => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 16,
+            ShadowDepth = 0,
+            Opacity = 0.48
+        },
+        AccountRole.Standard => new DropShadowEffect
+        {
+            Color = color,
+            BlurRadius = 7,
+            ShadowDepth = 0,
+            Opacity = 0.16
+        },
+        _ => null
+    };
+
+    private static string BuildIdentityText(SessionUser user) =>
+        user.AccountKind == AccountKind.Guest
+            ? "Temporary Guest  •  Guest role  •  No GrevID"
+            : string.IsNullOrWhiteSpace(user.Username)
+                ? user.Role.ToString()
+                : $"@{user.Username}  •  {user.Role}";
 
     private static LocalProfile? FindProfile(SessionUser? user, IReadOnlyList<LocalProfile> profiles)
     {

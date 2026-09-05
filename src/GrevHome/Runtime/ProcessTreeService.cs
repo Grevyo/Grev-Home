@@ -38,6 +38,56 @@ public sealed class ProcessTreeService
         return known;
     }
 
+    public IReadOnlyList<RuntimeProcessIdentity> GetProcessIdentitiesByName(string? processName)
+    {
+        if (string.IsNullOrWhiteSpace(processName))
+        {
+            return Array.Empty<RuntimeProcessIdentity>();
+        }
+
+        var normalized = processName.Trim();
+        if (normalized.EndsWith(".exe", StringComparison.OrdinalIgnoreCase))
+        {
+            normalized = normalized[..^4];
+        }
+
+        if (normalized.Length == 0 || normalized.Any(character => !char.IsAsciiLetterOrDigit(character) && character is not '_' and not '-'))
+        {
+            return Array.Empty<RuntimeProcessIdentity>();
+        }
+
+        var identities = new List<RuntimeProcessIdentity>();
+        foreach (var process in Process.GetProcessesByName(normalized))
+        {
+            using (process)
+            {
+                try
+                {
+                    if (!process.HasExited)
+                    {
+                        identities.Add(new RuntimeProcessIdentity(
+                            process.Id,
+                            process.StartTime.ToUniversalTime()));
+                    }
+                }
+                catch (InvalidOperationException)
+                {
+                    // The process exited while Windows was enumerating it.
+                }
+                catch (System.ComponentModel.Win32Exception)
+                {
+                    // An inaccessible process with the same name is not trusted into the session.
+                }
+            }
+        }
+
+        return identities
+            .GroupBy(identity => identity.ProcessId)
+            .Select(group => group.First())
+            .OrderBy(identity => identity.ProcessId)
+            .ToArray();
+    }
+
     public RuntimeProcessIdentity? TryGetProcessIdentity(int processId)
     {
         if (processId <= 0)
