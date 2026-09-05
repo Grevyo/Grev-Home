@@ -83,7 +83,7 @@ internal static class Program
         Check(previewTitle.Text.Contains("Power") && previewItems.Items.Count==4,"Controller focus must preview every setting inside the highlighted tile");
         powerTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("PowerSection")).IsVisible,"A settings tile must open its dedicated settings page");
-        Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");
+        Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");Pump();
 
         var themeTile=(Button)settings.FindName("ThemeMotionSectionButton");
         themeTile.Focus();Pump();
