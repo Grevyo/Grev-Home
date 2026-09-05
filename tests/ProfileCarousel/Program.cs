@@ -69,7 +69,7 @@ internal static class Program
         window.UpdateLayout();Pump();
         var settingsCarousel=(ScrollViewer)settings.FindName("SettingsHubCarousel");
         var powerTile=(Button)settings.FindName("PowerSectionButton");
-        Check(settingsCarousel.ActualWidth>1600,"The settings hub must use the same full-width dashboard geometry");
+        Check(settingsCarousel.ActualWidth>=window.ActualWidth-150,"The settings hub must use the same full-width dashboard geometry");
         Check(settingsCarousel.ScrollableWidth>0,"Every settings area must remain a tile in one horizontal hub row");
         powerTile.Focus();Pump();
         Check(settingsCarousel.HorizontalOffset>0,"Settings tile focus must scroll the hub carousel");
