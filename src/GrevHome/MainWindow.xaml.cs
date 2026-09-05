@@ -9,6 +9,7 @@ using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
