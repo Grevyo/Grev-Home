@@ -9,7 +9,7 @@ namespace GrevHome.Profiles;
 
 public sealed class ProfileService
 {
-    public const string BuiltInGuestGrevId = "GREVHOME-GUEST";
+    public const string BuiltInGuestGrevId = "GREVHOME_GUEST";
     public const string BuiltInGuestUsername = "guest";
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
