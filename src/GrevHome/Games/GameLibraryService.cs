@@ -50,6 +50,7 @@ public sealed record GameLibraryEntry(
     DateTimeOffset AddedAtUtc,
     string? IconPath = null,
     string? TileMediaPath = null,
+    string? BackgroundMediaPath = null,
     string? TileColor = null,
     GameConsoleLogoPosition ConsoleLogoPosition = GameConsoleLogoPosition.TopLeft,
     bool ConsoleLogoHasBackground = false,
@@ -59,7 +60,8 @@ public sealed record GameLibraryEntry(
 public enum GameVisualAssetSlot
 {
     Icon,
-    TileMedia
+    TileMedia,
+    BackgroundMedia
 }
 
 [JsonConverter(typeof(JsonStringEnumConverter))]
@@ -241,7 +243,13 @@ public sealed class GameLibraryService
             ? GetReusableIconRoot(grevId)
             : Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
         Directory.CreateDirectory(root);
-        var stem = slot == GameVisualAssetSlot.Icon ? "icon" : "tile";
+        var stem = slot switch
+        {
+            GameVisualAssetSlot.Icon => "icon",
+            GameVisualAssetSlot.TileMedia => "tile",
+            GameVisualAssetSlot.BackgroundMedia => "background",
+            _ => throw new ArgumentOutOfRangeException(nameof(slot))
+        };
         var extension = Path.GetExtension(source).ToLowerInvariant();
         var target = slot == GameVisualAssetSlot.Icon
             ? Path.Combine(root, $"icon-{Guid.NewGuid():N}{extension}")
@@ -257,7 +265,7 @@ public sealed class GameLibraryService
             if (File.Exists(temporary)) File.Delete(temporary);
         }
 
-        foreach (var old in slot == GameVisualAssetSlot.TileMedia
+        foreach (var old in slot is GameVisualAssetSlot.TileMedia or GameVisualAssetSlot.BackgroundMedia
                      ? Directory.EnumerateFiles(root, stem + ".*")
                      : Array.Empty<string>())
         {
@@ -267,9 +275,13 @@ public sealed class GameLibraryService
         return await UpdateAsync(
             grevId,
             gameId,
-            game => slot == GameVisualAssetSlot.Icon
-                ? game with { IconPath = target }
-                : game with { TileMediaPath = target },
+            game => slot switch
+            {
+                GameVisualAssetSlot.Icon => game with { IconPath = target },
+                GameVisualAssetSlot.TileMedia => game with { TileMediaPath = target },
+                GameVisualAssetSlot.BackgroundMedia => game with { BackgroundMediaPath = target },
+                _ => game
+            },
             cancellationToken);
     }
 
@@ -311,6 +323,7 @@ public sealed class GameLibraryService
                 DisplayName = NormalizeDisplayName(null, game.SourcePath),
                 IconPath = null,
                 TileMediaPath = null,
+                BackgroundMediaPath = null,
                 TileColor = null,
                 ConsoleLogoPosition = GameConsoleLogoPosition.TopLeft,
                 ConsoleLogoHasBackground = false,

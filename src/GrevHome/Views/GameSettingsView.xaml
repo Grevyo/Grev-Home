@@ -70,6 +70,11 @@
                     <TextBlock x:Name="TileColorText" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock Text="The full tile fills the game tile. The console logo is independent and replaces the platform text at the top-left." Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                     <Button Content="Save Tile and Console Logo Layout" Margin="0,16,0,0" MinWidth="310" HorizontalAlignment="Left" Click="SaveLayout_Click" />
+
+                    <TextBlock Text="DASHBOARD BACKGROUND" Margin="0,26,0,6" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="BackgroundStatusText" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <Button Content="Choose Dashboard Background Picture or GIF" Margin="0,10,0,0" MinWidth="360" HorizontalAlignment="Left" Click="ChooseBackground_Click" />
+                    <TextBlock Text="This appears faintly across the Home dashboard while this game is selected. If none is chosen, Grev Home uses the full-tile artwork." Margin="0,10,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
 

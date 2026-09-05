@@ -28,6 +28,7 @@ public partial class AppSettingsView : UserControl
     public event EventHandler? ResetRequested;
     public event EventHandler? ResetOnboardingRequested;
     public event EventHandler? ResetPresentationRequested;
+    public event EventHandler? ChooseDashboardBackgroundRequested;
     public event EventHandler? BackRequested;
 
     public AppSettingsView()
@@ -104,6 +105,7 @@ public partial class AppSettingsView : UserControl
         ResetPresentationButton.IsEnabled = canSave &&
                                             _hasPresentationOverride &&
                                             package?.Supports(AppPackageCapability.PresentationOverrides) == true;
+        ChooseDashboardBackgroundButton.IsEnabled = canSave && package?.Supports(AppPackageCapability.PresentationOverrides) == true;
 
         ControllerSourceText.Text = profile.HasUserOverride
             ? $"Using {primaryUser?.DisplayName ?? "this user's"} custom {_controllerProfileDisplayName.ToLowerInvariant()} setting."
@@ -124,6 +126,9 @@ public partial class AppSettingsView : UserControl
     }
 
     public void ShowStatus(string message) => StatusText.Text = message;
+
+    private void ChooseDashboardBackground_Click(object sender, RoutedEventArgs e) =>
+        ChooseDashboardBackgroundRequested?.Invoke(this, EventArgs.Empty);
 
     private void RenderMappings()
     {

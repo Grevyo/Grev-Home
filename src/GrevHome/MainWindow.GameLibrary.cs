@@ -53,6 +53,7 @@ public partial class MainWindow
         _gameSettingsView.SaveNameRequested += name => _ = SaveGameNameAsync(name);
         _gameSettingsView.ChooseIconRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.Icon);
         _gameSettingsView.ChooseTileRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.TileMedia);
+        _gameSettingsView.ChooseBackgroundRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.BackgroundMedia);
         _gameSettingsView.ReusableIconRequested += path => _ = UseReusableGameIconAsync(path);
         _gameSettingsView.ResetRequested += (_, _) => _ = ResetGamePresentationAsync();
         _gameSettingsView.SaveLayoutRequested += layout => _ = SaveGamePresentationLayoutAsync(layout);
@@ -159,8 +160,8 @@ public partial class MainWindow
         _pendingGameArtworkSlot = slot;
         _gameArtworkCurrentPath = null;
         _gameArtworkPickerView.SetPurpose(
-            slot == GameVisualAssetSlot.Icon ? "Choose Console Logo" : "Choose Full Game Tile",
-            slot == GameVisualAssetSlot.Icon ? "console logo" : "full game tile");
+            slot switch { GameVisualAssetSlot.Icon => "Choose Console Logo", GameVisualAssetSlot.TileMedia => "Choose Full Game Tile", _ => "Choose Dashboard Background" },
+            slot switch { GameVisualAssetSlot.Icon => "console logo", GameVisualAssetSlot.TileMedia => "full game tile", _ => "dashboard background" });
         ShowGameArtworkHome();
         _navigation.Navigate(Route.GameArtworkPicker);
     }
@@ -220,9 +221,12 @@ public partial class MainWindow
             _gameSettingsEntry = await service.SaveCustomAssetAsync(primary.GrevId, _gameSettingsEntry.GameId, slot, path);
             if (_navigation.Current == Route.GameArtworkPicker) _navigation.GoBack();
             await RefreshProfileGamesAsync();
-            _gameSettingsView.ShowStatus(slot == GameVisualAssetSlot.Icon
-                ? "Custom console logo saved for this GrevID."
-                : "Custom full game tile saved for this GrevID and applied to Installed Apps and Home.");
+            _gameSettingsView.ShowStatus(slot switch
+            {
+                GameVisualAssetSlot.Icon => "Custom console logo saved for this GrevID.",
+                GameVisualAssetSlot.TileMedia => "Custom full game tile saved for this GrevID and applied to Installed Apps and Home.",
+                _ => "Custom dashboard background saved for this GrevID."
+            });
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
         {

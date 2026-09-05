@@ -12,6 +12,7 @@ public sealed record ShellMotionSettings(
     bool TileFocusAnimationEnabled = true,
     bool ModalTransitionsEnabled = true,
     bool AmbientBackgroundEnabled = true,
+    bool DashboardBackgroundsEnabled = true,
     bool ButtonPressFeedbackEnabled = true,
     bool UiSoundsEnabled = true,
     bool StartupSoundEnabled = true,

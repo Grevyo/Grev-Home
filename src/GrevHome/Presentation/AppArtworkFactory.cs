@@ -59,7 +59,7 @@ public static class AppArtworkFactory
         var tile = new Border
         {
             Background = new SolidColorBrush(ParseColor(backgroundColor)),
-            CornerRadius = new CornerRadius(9),
+            CornerRadius = new CornerRadius(0),
             Padding = new Thickness(14, 10, 14, 8),
             ClipToBounds = true,
             HorizontalAlignment = HorizontalAlignment.Stretch,
@@ -104,7 +104,7 @@ public static class AppArtworkFactory
             Width = width,
             Height = height,
             Background = new SolidColorBrush(ParseColor(backgroundColor)),
-            CornerRadius = new CornerRadius(9),
+            CornerRadius = new CornerRadius(0),
             ClipToBounds = true
         };
         var image = TryCreateImage(assetPath);
@@ -115,7 +115,7 @@ public static class AppArtworkFactory
         }
         else
         {
-            host.Child = Create(assetPath, backgroundColor, width, height, 9);
+            host.Child = Create(assetPath, backgroundColor, width, height, 0);
         }
         return host;
     }

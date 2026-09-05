@@ -89,6 +89,7 @@ public partial class InstalledLibraryView
 
             var button = new Button
             {
+                Style = (Style)FindResource("SharpTileButtonStyle"),
                 Width = DefaultThemeMetrics.AppTileWidth,
                 Height = DefaultThemeMetrics.AppTileHeight,
                 Margin = new Thickness(8),

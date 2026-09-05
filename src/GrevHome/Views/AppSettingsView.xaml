@@ -133,6 +133,14 @@
                                    FontSize="12"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
+                        <Button x:Name="ChooseDashboardBackgroundButton"
+                                Content="Choose Dashboard Background Picture or GIF"
+                                MinWidth="340"
+                                MaxWidth="480"
+                                Margin="0,14,0,0"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource WrappedSettingsButtonStyle}"
+                                Click="ChooseDashboardBackground_Click" />
                         <Button x:Name="ResetPresentationButton"
                                 Content="Reset Appearance to App Default"
                                 MinWidth="250"

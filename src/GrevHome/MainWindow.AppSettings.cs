@@ -12,12 +12,14 @@ namespace GrevHome;
 public partial class MainWindow
 {
     private readonly AppSettingsView _appSettingsView = new();
+    private readonly ProfilePhotoPickerView _appArtworkPickerView = new();
     private AppControllerProfileService? _appControllerProfileService;
     private AppPresentationService? _appPresentationService;
     private InstalledAppEntry? _appSettingsEntry;
     private bool _appSettingsIntegrationReady;
     private bool _installedLibraryActionMenuBackEntryArmed;
     private bool _openingInstalledLibraryActionMenuBackEntry;
+    private string? _appArtworkCurrentPath;
 
     private void InitializeAppSettingsIntegration()
     {
@@ -78,7 +80,13 @@ public partial class MainWindow
         _appSettingsView.ResetRequested += (_, _) => _ = ResetAppControllerProfileAsync();
         _appSettingsView.ResetOnboardingRequested += (_, _) => ResetAppOnboarding();
         _appSettingsView.ResetPresentationRequested += (_, _) => _ = ResetAppPresentationAsync();
+        _appSettingsView.ChooseDashboardBackgroundRequested += (_, _) => OpenAppDashboardBackgroundPicker();
         _appSettingsView.BackRequested += (_, _) => _navigation.GoBack();
+        _appArtworkPickerView.HomeRequested += (_, _) => ShowAppArtworkHome();
+        _appArtworkPickerView.UpRequested += (_, _) => NavigateAppArtworkUp();
+        _appArtworkPickerView.CancelRequested += (_, _) => _navigation.GoBack();
+        _appArtworkPickerView.NavigateRequested += NavigateAppArtworkPath;
+        _appArtworkPickerView.PhotoSelected += path => _ = SaveAppDashboardBackgroundAsync(path);
         _navigation.RouteChanged += HandleAppSettingsRouteChanged;
 
         _controllerInput.ActionPressed += HandleInstalledLibraryControllerPress;
@@ -101,6 +109,54 @@ public partial class MainWindow
                 Dispatcher.BeginInvoke(new Action(() => _ = RefreshAppSettingsAsync()));
             }
         };
+    }
+
+    private void OpenAppDashboardBackgroundPicker()
+    {
+        if (_session.PrimaryUser?.GrevId is null || _appSettingsEntry is null) return;
+        _appArtworkCurrentPath = null;
+        _appArtworkPickerView.SetPurpose("Choose Dashboard Background", "dashboard background");
+        ShowAppArtworkHome();
+        _navigation.Navigate(Route.AppArtworkPicker);
+    }
+
+    private void ShowAppArtworkHome()
+    {
+        _appArtworkCurrentPath = null;
+        _appArtworkPickerView.ShowHome(_fileSystem.GetHomeLocations(_paths.Root).Where(location => location.Name is not "Test Area" and not "Grev Home Data").ToArray());
+    }
+
+    private void NavigateAppArtworkPath(string path)
+    {
+        try
+        {
+            _appArtworkCurrentPath = Path.GetFullPath(path);
+            _appArtworkPickerView.ShowDirectory(_appArtworkCurrentPath, _fileSystem.GetEntries(_appArtworkCurrentPath), Directory.GetParent(_appArtworkCurrentPath) is not null);
+            FocusRouteSoon();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or DirectoryNotFoundException) { _appArtworkPickerView.ShowError(ex.Message); }
+    }
+
+    private void NavigateAppArtworkUp()
+    {
+        if (_appArtworkCurrentPath is null) { ShowAppArtworkHome(); return; }
+        var parent = Directory.GetParent(_appArtworkCurrentPath);
+        if (parent is null) ShowAppArtworkHome(); else NavigateAppArtworkPath(parent.FullName);
+    }
+
+    private async Task SaveAppDashboardBackgroundAsync(string path)
+    {
+        var entry = _appSettingsEntry; var service = _appPresentationService; var grevId = _session.PrimaryUser?.GrevId;
+        if (entry is null || service is null || grevId is null) return;
+        try
+        {
+            await service.SaveCustomAssetAsync(grevId, entry.Manifest.Definition.AppId, AppVisualAssetSlot.HeroMedia, path);
+            if (_navigation.Current == Route.AppArtworkPicker) _navigation.GoBack();
+            await RefreshAppSettingsAsync();
+            await RefreshDashboardDataAsync();
+            _appSettingsView.ShowStatus("Custom dashboard background saved for this GrevID.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException) { _appArtworkPickerView.ShowError(ex.Message); }
     }
 
     private void HandleInstalledLibraryControllerPress(ControllerInputEventArgs input)
@@ -237,6 +293,12 @@ public partial class MainWindow
             _installedLibraryView.CloseActionMenu(returnFocus: false);
         }
 
+        if (route == Route.AppArtworkPicker)
+        {
+            RouteHost.Content = _appArtworkPickerView;
+            FocusRouteSoon();
+            return;
+        }
         if (route != Route.AppSettings) return;
         RouteHost.Content = _appSettingsView;
         _ = RefreshAppSettingsAsync();
@@ -403,6 +465,7 @@ public partial class MainWindow
         {
             await service.ResetAsync(grevId, entry.Manifest.Definition.AppId);
             await RefreshAppSettingsAsync();
+            await RefreshDashboardDataAsync();
             _appSettingsView.ShowStatus("App appearance reset. Grev Home is showing the package-supplied presentation defaults again.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)

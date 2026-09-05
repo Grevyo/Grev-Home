@@ -97,6 +97,7 @@ public partial class SettingsView : UserControl
         TileFocusAnimationButton.Content = $"Tile focus animation: {(settings.TileFocusAnimationEnabled ? "On" : "Off")}";
         ModalTransitionsButton.Content = $"Modal transitions: {(settings.ModalTransitionsEnabled ? "On" : "Off")}";
         AmbientBackgroundButton.Content = $"Ambient background: {(settings.AmbientBackgroundEnabled ? "On" : "Off")}";
+        DashboardBackgroundsButton.Content = $"Selected app backgrounds: {(settings.DashboardBackgroundsEnabled ? "On" : "Off")}";
         ButtonPressFeedbackButton.Content = $"Button press feedback: {(settings.ButtonPressFeedbackEnabled ? "On" : "Off")}";
         UiSoundsButton.Content = $"UI sounds: {(settings.UiSoundsEnabled ? "On" : "Off")}";
         StartupSoundButton.Content = $"Startup sound: {(settings.StartupSoundEnabled ? "On" : "Off")}";
@@ -127,6 +128,7 @@ public partial class SettingsView : UserControl
     private void TileFocusAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileFocusAnimationEnabled = !_motionSettings.TileFocusAnimationEnabled });
     private void ModalTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ModalTransitionsEnabled = !_motionSettings.ModalTransitionsEnabled });
     private void AmbientBackground_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { AmbientBackgroundEnabled = !_motionSettings.AmbientBackgroundEnabled });
+    private void DashboardBackgrounds_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { DashboardBackgroundsEnabled = !_motionSettings.DashboardBackgroundsEnabled });
     private void ButtonPressFeedback_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ButtonPressFeedbackEnabled = !_motionSettings.ButtonPressFeedbackEnabled });
     private void UiSounds_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { UiSoundsEnabled = !_motionSettings.UiSoundsEnabled });
     private void StartupSound_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { StartupSoundEnabled = !_motionSettings.StartupSoundEnabled });

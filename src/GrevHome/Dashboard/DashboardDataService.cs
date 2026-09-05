@@ -109,7 +109,7 @@ public sealed class DashboardDataService
                         GameArtworkFactory.GetTileColor(game),
                         game.IconPath,
                         game.TileMediaPath,
-                        null,
+                        game.BackgroundMediaPath ?? game.TileMediaPath,
                         !string.IsNullOrWhiteSpace(game.IconPath) || !string.IsNullOrWhiteSpace(game.TileMediaPath));
                     return new DashboardAppActivity(
                         stat.AppId,

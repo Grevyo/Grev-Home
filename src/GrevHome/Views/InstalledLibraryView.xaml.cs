@@ -235,6 +235,7 @@ public partial class InstalledLibraryView : UserControl
 
             var launchButton = new Button
             {
+                Style = (Style)FindResource("SharpTileButtonStyle"),
                 Width = DefaultThemeMetrics.AppTileWidth,
                 Height = DefaultThemeMetrics.AppTileHeight,
                 Margin = new Thickness(8),

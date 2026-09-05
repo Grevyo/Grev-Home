@@ -42,7 +42,7 @@
                 </Setter.Value>
             </Setter>
         </Style>
-        <Style x:Key="SettingsHubTileStyle" TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+        <Style x:Key="SettingsHubTileStyle" TargetType="Button" BasedOn="{StaticResource SharpTileButtonStyle}">
             <Setter Property="Width" Value="285" />
             <Setter Property="Height" Value="145" />
             <Setter Property="Margin" Value="8" />
@@ -429,6 +429,7 @@
                             <Button x:Name="TileFocusAnimationButton" Content="Tile focus animation: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="TileFocusAnimation_Click" />
                             <Button x:Name="ModalTransitionsButton" Content="Modal transitions: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ModalTransitions_Click" />
                             <Button x:Name="AmbientBackgroundButton" Content="Ambient background: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="AmbientBackground_Click" />
+                            <Button x:Name="DashboardBackgroundsButton" Content="Selected app backgrounds: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DashboardBackgrounds_Click" />
                             <Button x:Name="ButtonPressFeedbackButton" Content="Button press feedback: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="ButtonPressFeedback_Click" />
                             <Button x:Name="UiSoundsButton" Content="UI sounds: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="UiSounds_Click" />
                             <Button x:Name="StartupSoundButton" Content="Startup sound: On" MinWidth="260" MinHeight="64" Margin="0,0,10,10" Style="{StaticResource WrappedSettingsButtonStyle}" Click="StartupSound_Click" />

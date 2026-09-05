@@ -21,6 +21,7 @@ public enum Route
     GrevStoreApp,
     InstalledLibrary,
     AppSettings,
+    AppArtworkPicker,
     RunningApps,
     AppKiller,
     Settings,

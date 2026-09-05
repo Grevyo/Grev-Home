@@ -50,6 +50,7 @@ public partial class MainWindow
             _overlayWindow.ConfigurePresentation(settings);
             if (!settings.ScreenTransitionsEnabled) ResetRouteAnimation();
             ApplyAmbientBackgroundSetting();
+            if (!settings.DashboardBackgroundsEnabled) ShowDashboardBackground(null);
             _settingsView.ShowMotionStatus("Theme and motion settings saved for this Grev Home machine.");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

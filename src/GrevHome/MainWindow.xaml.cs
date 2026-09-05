@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
+using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
@@ -88,6 +89,7 @@ public partial class MainWindow : Window
         _dashboardView.SettingsRequested += (_, _) => OpenSettings();
         _dashboardView.SettingsPageRequested += OpenSettings;
         _dashboardView.LogoutRequested += (_, _) => Logout();
+        _dashboardView.BackgroundPreviewRequested += ShowDashboardBackground;
 
         _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
         _installedLibraryView.LaunchRequested += entry => _ = LaunchInstalledAppAsync(entry);
@@ -610,6 +612,7 @@ public partial class MainWindow : Window
 
     private void ShowRoute(Route route)
     {
+        if (route != Route.Dashboard) ShowDashboardBackground(null);
         switch (route)
         {
             case Route.Login:
@@ -638,6 +641,31 @@ public partial class MainWindow : Window
                 // replace them with Login; the shell-level navigation pass handles final focus.
                 return;
         }
+    }
+
+    private void ShowDashboardBackground(string? path)
+    {
+        DashboardArtworkBackground.BeginAnimation(OpacityProperty, null);
+        if (!_shellMotionSettings.DashboardBackgroundsEnabled || _navigation.Current != Route.Dashboard || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            var hide = new System.Windows.Media.Animation.DoubleAnimation(DashboardArtworkBackground.Opacity, 0, TimeSpan.FromMilliseconds(140));
+            hide.Completed += (_, _) => { DashboardArtworkBackground.Source = null; DashboardArtworkBackground.Visibility = Visibility.Collapsed; };
+            DashboardArtworkBackground.BeginAnimation(OpacityProperty, hide);
+            return;
+        }
+        try
+        {
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.UriSource = new Uri(Path.GetFullPath(path), UriKind.Absolute);
+            image.EndInit();
+            image.Freeze();
+            DashboardArtworkBackground.Source = image;
+            DashboardArtworkBackground.Visibility = Visibility.Visible;
+            DashboardArtworkBackground.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, .20, TimeSpan.FromMilliseconds(240)));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException) { DashboardArtworkBackground.Visibility = Visibility.Collapsed; }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

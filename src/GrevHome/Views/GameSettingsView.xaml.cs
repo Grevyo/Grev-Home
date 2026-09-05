@@ -17,6 +17,7 @@ public partial class GameSettingsView : UserControl
     public event Action<string>? SaveNameRequested;
     public event EventHandler? ChooseIconRequested;
     public event EventHandler? ChooseTileRequested;
+    public event EventHandler? ChooseBackgroundRequested;
     public event Action<string>? ReusableIconRequested;
     public event EventHandler? ResetRequested;
     public event Action<GamePresentationLayout>? SaveLayoutRequested;
@@ -35,6 +36,7 @@ public partial class GameSettingsView : UserControl
         DisplayNameBox.Text = game.DisplayName;
         IconStatusText.Text = string.IsNullOrWhiteSpace(game.IconPath) ? "Showing the console name as text." : "Custom console logo configured for this GrevID.";
         TileStatusText.Text = string.IsNullOrWhiteSpace(game.TileMediaPath) ? "No custom full tile configured." : "Custom full tile configured for this GrevID.";
+        BackgroundStatusText.Text = string.IsNullOrWhiteSpace(game.BackgroundMediaPath) ? "Using the full-tile artwork when available." : "Custom dashboard background configured for this GrevID.";
         _tileColor = string.IsNullOrWhiteSpace(game.TileColor) ? GameArtworkFactory.DefaultTileColor : game.TileColor;
         _logoPosition = game.ConsoleLogoPosition;
         _logoHasBackground = game.ConsoleLogoHasBackground;
@@ -67,6 +69,7 @@ public partial class GameSettingsView : UserControl
         KeyboardOverlay.Open("Enter Game Name", DisplayNameBox.Text, 100);
     private void ChooseIcon_Click(object sender, RoutedEventArgs e) => ChooseIconRequested?.Invoke(this, EventArgs.Empty);
     private void ChooseTile_Click(object sender, RoutedEventArgs e) => ChooseTileRequested?.Invoke(this, EventArgs.Empty);
+    private void ChooseBackground_Click(object sender, RoutedEventArgs e) => ChooseBackgroundRequested?.Invoke(this, EventArgs.Empty);
     private void ReusableIcon_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string iconPath }) ReusableIconRequested?.Invoke(iconPath);

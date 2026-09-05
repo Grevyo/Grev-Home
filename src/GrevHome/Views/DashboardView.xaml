@@ -5,13 +5,16 @@
     <UserControl.Resources>
         <Style x:Key="DashboardTileStyle"
                TargetType="Button"
-               BasedOn="{StaticResource {x:Type Button}}">
+               BasedOn="{StaticResource SharpTileButtonStyle}">
             <Setter Property="Width" Value="285" />
             <Setter Property="Height" Value="145" />
             <Setter Property="Margin" Value="8" />
             <Setter Property="Padding" Value="22,18" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
             <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <EventSetter Event="MouseEnter" Handler="DashboardTile_MouseEnter" />
         </Style>
         <Style x:Key="DashboardTileTitleStyle" TargetType="TextBlock">
             <Setter Property="FontSize" Value="20" />
@@ -192,10 +195,7 @@
                     <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedBrush}" />
                 </Grid>
                 <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel x:Name="FriendsPanel" Orientation="Horizontal" />
-                        <Button Content="Open Friends" Width="285" Height="86" Margin="8" Click="Friends_Click" />
-                    </StackPanel>
+                    <StackPanel x:Name="FriendsPanel" Orientation="Horizontal" />
                 </ScrollViewer>
             </StackPanel>
 

@@ -20,6 +20,12 @@
             </RadialGradientBrush>
         </Grid.Background>
 
+        <Image x:Name="DashboardArtworkBackground"
+               IsHitTestVisible="False"
+               Visibility="Collapsed"
+               Opacity="0"
+               Stretch="UniformToFill" />
+
         <Grid x:Name="AmbientBackgroundLayer" IsHitTestVisible="False" Opacity="0.42" ClipToBounds="True">
             <Ellipse x:Name="AmbientGlowOne" Width="760" Height="760" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-250,-330,0,0">
                 <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#667EA6FF" Offset="0" /><GradientStop Color="#007EA6FF" Offset="1" /></RadialGradientBrush></Ellipse.Fill>
