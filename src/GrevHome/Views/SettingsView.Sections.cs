@@ -3,6 +3,17 @@ using System.Windows.Controls;
 
 namespace GrevHome.Views;
 
+public enum SettingsPage
+{
+    Account,
+    ControllerShortcuts,
+    Audio,
+    Display,
+    Connections,
+    SystemInformation,
+    Power
+}
+
 public partial class SettingsView
 {
     private void AccountSectionButton_Click(object sender, RoutedEventArgs e) =>
@@ -48,6 +59,35 @@ public partial class SettingsView
     {
         OpenSettingsSection(ConnectionsSection, ConnectionsSectionContent, "Connections");
         await RefreshConnectionsAsync();
+    }
+
+    public void OpenSettingsPage(SettingsPage page)
+    {
+        switch (page)
+        {
+            case SettingsPage.Account:
+                OpenSettingsSection(AccountSection, AccountSectionContent, "Account");
+                break;
+            case SettingsPage.ControllerShortcuts:
+                OpenSettingsSection(ControllerShortcutsSection, ControllerShortcutsSectionContent, "Controller System Shortcuts");
+                break;
+            case SettingsPage.Audio:
+                OpenAudioSection();
+                break;
+            case SettingsPage.Display:
+                OpenSettingsSection(DisplaySection, DisplaySectionContent, "Display");
+                RefreshDisplay();
+                break;
+            case SettingsPage.Connections:
+                OpenConnectionsSection();
+                break;
+            case SettingsPage.SystemInformation:
+                OpenSettingsSection(SystemStatusSection, SystemStatusSectionContent, "System Information");
+                break;
+            case SettingsPage.Power:
+                OpenSettingsSection(PowerSection, PowerSectionContent, "Power");
+                break;
+        }
     }
 
     public void ShowSettingsHub()

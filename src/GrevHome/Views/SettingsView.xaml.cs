@@ -5,6 +5,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using GrevHome.Input;
 using GrevHome.Machine;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 
 namespace GrevHome.Views;
@@ -21,6 +22,8 @@ public partial class SettingsView : UserControl
     private ControllerShortcutConfiguration _shortcuts = ControllerShortcutService.CreateDefaults();
     private SystemPowerAction? _pendingPowerAction;
     private DateTimeOffset _pendingPowerExpiresAt;
+    private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations =
+        new Dictionary<string, ResolvedDashboardTile>(StringComparer.OrdinalIgnoreCase);
 
     public event EventHandler? BackRequested;
     public event Action<string>? SaveDisplayNameRequested;
@@ -34,8 +37,37 @@ public partial class SettingsView : UserControl
     {
         InitializeComponent();
         BuildDisplayNameKeyboard();
+        RenderSettingsHubTiles();
         AddHandler(Keyboard.GotKeyboardFocusEvent,new KeyboardFocusChangedEventHandler(Settings_GotKeyboardFocus),true);
         ShowSettingsHub();
+    }
+
+    public void SetTilePresentations(IReadOnlyDictionary<string, ResolvedDashboardTile> presentations)
+    {
+        _tilePresentations = presentations;
+        RenderSettingsHubTiles();
+    }
+
+    private void RenderSettingsHubTiles()
+    {
+        foreach (var button in new[]
+                 {
+                     AccountSectionButton, ControllerShortcutsSectionButton, AudioSectionButton,
+                     DisplaySectionButton, ConnectionsSectionButton, SystemStatusSectionButton,
+                     PowerSectionButton
+                 })
+        {
+            if (button.Tag is not string id) continue;
+            var definition = DashboardTileCatalog.Get(id);
+            var tile = _tilePresentations.TryGetValue(id, out var resolved)
+                ? resolved
+                : new ResolvedDashboardTile(id, definition.Name, definition.Detail, definition.Color, null, definition.IconAsset, false);
+            button.Padding = new Thickness(0);
+            button.Content = !string.IsNullOrWhiteSpace(tile.TileMediaPath)
+                ? AppArtworkFactory.CreateFullTile(tile.TileMediaPath, tile.TileColor, 285, 145)
+                : AppArtworkFactory.CreateTile(tile.DisplayName, tile.IconAsset, tile.TileColor);
+            button.ToolTip = $"{tile.DisplayName} • {tile.Detail}";
+        }
     }
 
     public void SetState(LocalProfile? profile, ControllerShortcutConfiguration shortcuts)

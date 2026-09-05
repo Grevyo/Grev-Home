@@ -76,6 +76,7 @@ public partial class MainWindow : Window
         _dashboardView.RunningAppsRequested += (_, _) => OpenRunningApps();
         _dashboardView.AppKillerRequested += (_, _) => OpenAppKiller();
         _dashboardView.SettingsRequested += (_, _) => OpenSettings();
+        _dashboardView.SettingsPageRequested += OpenSettings;
         _dashboardView.LogoutRequested += (_, _) => Logout();
 
         _installedLibraryView.BackRequested += (_, _) => _navigation.GoBack();
@@ -238,6 +239,13 @@ public partial class MainWindow : Window
         RefreshSettingsState();
         _settingsView.ShowSettingsHub();
         _navigation.Navigate(Route.Settings);
+    }
+
+    private void OpenSettings(SettingsPage page)
+    {
+        RefreshSettingsState();
+        _navigation.Navigate(Route.Settings);
+        _settingsView.OpenSettingsPage(page);
     }
 
     private void CloseSettings()

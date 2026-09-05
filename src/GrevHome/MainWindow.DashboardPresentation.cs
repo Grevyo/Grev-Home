@@ -79,8 +79,19 @@ public partial class MainWindow
     private async Task RefreshDashboardTilesAsync()
     {
         var service = _dashboardTilePresentation; var grevId = _session.PrimaryUser?.GrevId;
-        if (service is null || grevId is null) { _dashboardView.SetTilePresentations(new Dictionary<string, ResolvedDashboardTile>()); return; }
-        try { _dashboardView.SetTilePresentations(await service.ResolveAllAsync(grevId)); }
+        if (service is null || grevId is null)
+        {
+            var defaults = new Dictionary<string, ResolvedDashboardTile>();
+            _dashboardView.SetTilePresentations(defaults);
+            _settingsView.SetTilePresentations(defaults);
+            return;
+        }
+        try
+        {
+            var presentations = await service.ResolveAllAsync(grevId);
+            _dashboardView.SetTilePresentations(presentations);
+            _settingsView.SetTilePresentations(presentations);
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException) { _dashboardView.ShowStatus($"Home button appearance could not be loaded: {ex.Message}"); }
     }
 

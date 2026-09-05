@@ -53,12 +53,23 @@ internal static class Program
         browserButton.Focus();Pump();
         Check(appsCarousel.HorizontalOffset>0,"Controller focus must carry the dashboard carousel indicator to an offscreen tile");
         Check(appsCarousel.OpacityMask is System.Windows.Media.LinearGradientBrush,"Scrollable dashboard rows must fade at their offscreen edges");
+        var systemCarousel=(ScrollViewer)dashboard.FindName("SystemCarousel");
+        var dashboardPowerTile=(Button)dashboard.FindName("SettingsPowerButton");
+        Check(systemCarousel.ScrollableWidth>0,"All settings shortcuts must appear in the dashboard System row");
+        dashboardPowerTile.Focus();Pump();
+        Check(systemCarousel.HorizontalOffset>0,"Controller focus must carry the System row to offscreen settings shortcuts");
+        SettingsPage? requestedPage=null;
+        dashboard.SettingsPageRequested+=page=>requestedPage=page;
+        dashboardPowerTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Check(requestedPage==SettingsPage.Power,"A dashboard settings shortcut must open its matching dedicated page");
 
         var settings=new SettingsView();
+        window.Width=1920;
         window.Content=settings;
         window.UpdateLayout();Pump();
         var settingsCarousel=(ScrollViewer)settings.FindName("SettingsHubCarousel");
         var powerTile=(Button)settings.FindName("PowerSectionButton");
+        Check(settingsCarousel.ActualWidth>1600,"The settings hub must use the same full-width dashboard geometry");
         Check(settingsCarousel.ScrollableWidth>0,"Every settings area must remain a tile in one horizontal hub row");
         powerTile.Focus();Pump();
         Check(settingsCarousel.HorizontalOffset>0,"Settings tile focus must scroll the hub carousel");

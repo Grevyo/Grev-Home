@@ -21,6 +21,7 @@ public partial class DashboardView : UserControl
     public event EventHandler? RunningAppsRequested;
     public event EventHandler? AppKillerRequested;
     public event EventHandler? SettingsRequested;
+    public event Action<SettingsPage>? SettingsPageRequested;
     public event EventHandler? AdminConsoleRequested;
     public event EventHandler? FilesRequested;
     public event EventHandler? GrevDadRequested;
@@ -250,6 +251,13 @@ public partial class DashboardView : UserControl
         RenderDashboardTile(ActivityCenterButton, "activity-center", ActivityCenterDetailText.Text);
         RenderDashboardTile(AppKillerButton, "app-killer", DashboardTileCatalog.Get("app-killer").Detail);
         RenderDashboardTile(SettingsButton, "settings", DashboardTileCatalog.Get("settings").Detail);
+        RenderDashboardTile(SettingsAccountButton, "settings-account", DashboardTileCatalog.Get("settings-account").Detail);
+        RenderDashboardTile(SettingsControllerButton, "settings-controller", DashboardTileCatalog.Get("settings-controller").Detail);
+        RenderDashboardTile(SettingsAudioButton, "settings-audio", DashboardTileCatalog.Get("settings-audio").Detail);
+        RenderDashboardTile(SettingsDisplayButton, "settings-display", DashboardTileCatalog.Get("settings-display").Detail);
+        RenderDashboardTile(SettingsConnectionsButton, "settings-connections", DashboardTileCatalog.Get("settings-connections").Detail);
+        RenderDashboardTile(SettingsSystemButton, "settings-system", DashboardTileCatalog.Get("settings-system").Detail);
+        RenderDashboardTile(SettingsPowerButton, "settings-power", DashboardTileCatalog.Get("settings-power").Detail);
         RenderDashboardTile(AdminConsoleButton, "admin-console", DashboardTileCatalog.Get("admin-console").Detail);
     }
 
@@ -415,6 +423,23 @@ public partial class DashboardView : UserControl
 
     private void Settings_Click(object sender, RoutedEventArgs e) =>
         InvokeUnlessPending(sender, SettingsRequested);
+
+    private void SettingsPage_Click(object sender, RoutedEventArgs e)
+    {
+        if (SuppressPendingTileClick(sender) || sender is not Button { Tag: string id }) return;
+        var page = id switch
+        {
+            "settings-account" => SettingsPage.Account,
+            "settings-controller" => SettingsPage.ControllerShortcuts,
+            "settings-audio" => SettingsPage.Audio,
+            "settings-display" => SettingsPage.Display,
+            "settings-connections" => SettingsPage.Connections,
+            "settings-system" => SettingsPage.SystemInformation,
+            "settings-power" => SettingsPage.Power,
+            _ => (SettingsPage?)null
+        };
+        if (page.HasValue) SettingsPageRequested?.Invoke(page.Value);
+    }
 
     private void AdminConsole_Click(object sender, RoutedEventArgs e) =>
         InvokeUnlessPending(sender, AdminConsoleRequested);

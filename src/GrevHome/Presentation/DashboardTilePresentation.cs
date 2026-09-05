@@ -23,6 +23,13 @@ public static class DashboardTileCatalog
         new("activity-center", "Activity Center", "Notifications and downloads", "#151923", "builtin://dashboard/activity"),
         new("app-killer", "App Killer", "Manage or force-close a stuck app", "#151923", "builtin://dashboard/killer"),
         new("settings", "Settings", "Grev Home and controller settings", "#151923", "builtin://dashboard/settings"),
+        new("settings-account", "Account", "Profile name and identity", "#20334A", "builtin://dashboard/account"),
+        new("settings-controller", "Controller Shortcuts", "Return Home and Overlay", "#2F3153", "builtin://dashboard/controller"),
+        new("settings-audio", "Audio", "Volume and output device", "#3D294B", "builtin://dashboard/audio"),
+        new("settings-display", "Display", "Resolution and refresh rate", "#193E48", "builtin://dashboard/display"),
+        new("settings-connections", "Connections", "Wi-Fi and Bluetooth", "#24412F", "builtin://dashboard/connections"),
+        new("settings-system", "System Information", "Machine, storage and controllers", "#3B3525", "builtin://dashboard/system"),
+        new("settings-power", "Power", "Sleep, restart and shut down", "#482629", "builtin://dashboard/power"),
         new("admin-console", "Admin Console", "Machine, apps and account administration", "#151923", "builtin://dashboard/admin")
     ];
 
