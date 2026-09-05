@@ -68,7 +68,7 @@ internal static class Program
         var previewActivity=new DashboardAppActivity("test","Test",10,1,DateTimeOffset.UtcNow,true,true,null,previewPresentation,null);
         dashboard.SetDashboardData(new DashboardDataSnapshot(10,1,1,previewActivity,[previewActivity]));
         var continueTile=(Button)dashboard.FindName("ContinueButton");
-        continueTile.Focus();Pump();
+        continueTile.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice,Environment.TickCount){RoutedEvent=Mouse.MouseEnterEvent});Pump();
         Check(previewBackground=="hero.png","Dashboard focus must prefer app hero artwork over tile artwork");
         var friend=new GrevDadFriend("1","friend","Friend",true,DateTimeOffset.UtcNow,new GrevDadPresence("online","Online","game","Playing",null,DateTimeOffset.UtcNow));
         dashboard.SetFriends(true,[friend],false);
