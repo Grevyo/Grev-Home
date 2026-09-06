@@ -48,6 +48,7 @@ public partial class ProfilePlayersView : UserControl
         var canEditPrimary = primary?.GrevId is not null && AccountAuthorizationService.CanEditProfile(primary.Role, primary.GrevId, primary.GrevId);
         ViewPrimaryButton.IsEnabled = primaryProfile is not null;
         EditPrimaryButton.IsEnabled = primaryProfile is not null && canEditPrimary;
+        CustomisePrimaryButton.IsEnabled = EditPrimaryButton.IsEnabled;
 
         PlayersPanel.Children.Clear();
         for (var index = 0; index < session.SignedInUsers.Count; index++)
@@ -272,6 +273,11 @@ public partial class ProfilePlayersView : UserControl
     }
 
     private void EditProfile_Click(object sender, RoutedEventArgs e)
+    {
+        if (_primarySessionUserId.HasValue) EditProfileRequested?.Invoke(_primarySessionUserId.Value);
+    }
+
+    private void CustomiseProfile_Click(object sender, RoutedEventArgs e)
     {
         if (_primarySessionUserId.HasValue) EditProfileRequested?.Invoke(_primarySessionUserId.Value);
     }
