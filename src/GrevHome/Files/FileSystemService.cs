@@ -35,6 +35,35 @@ public sealed record FileTransferRequest(
 
 public sealed class FileSystemService
 {
+    private static string FavoritesFile(string grevHomeRoot) => Path.Combine(Path.GetFullPath(grevHomeRoot), "FileFavorites.json");
+
+    public IReadOnlyList<FileHomeLocation> GetFavoriteLocations(string grevHomeRoot)
+    {
+        try
+        {
+            if (!File.Exists(FavoritesFile(grevHomeRoot))) return Array.Empty<FileHomeLocation>();
+            var paths = System.Text.Json.JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesFile(grevHomeRoot))) ?? [];
+            return paths.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(path => new FileHomeLocation(Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } name ? name : path, path, "Favourite folder", FileEntryKind.Folder)).ToArray();
+        }
+        catch (IOException) { return Array.Empty<FileHomeLocation>(); }
+        catch (System.Text.Json.JsonException) { return Array.Empty<FileHomeLocation>(); }
+    }
+
+    public void ToggleFavorite(string grevHomeRoot, string directoryPath)
+    {
+        var directory = NormalizeDirectory(directoryPath);
+        if (!Directory.Exists(directory)) throw new DirectoryNotFoundException(directory);
+        var favorites = GetFavoriteLocations(grevHomeRoot).Select(item => item.Path).ToList();
+        var existing = favorites.FindIndex(path => string.Equals(path, directory, StringComparison.OrdinalIgnoreCase));
+        if (existing >= 0) favorites.RemoveAt(existing); else favorites.Add(directory);
+        Directory.CreateDirectory(Path.GetDirectoryName(FavoritesFile(grevHomeRoot))!);
+        File.WriteAllText(FavoritesFile(grevHomeRoot), System.Text.Json.JsonSerializer.Serialize(favorites));
+    }
+
+    public bool IsFavorite(string grevHomeRoot, string directoryPath) =>
+        GetFavoriteLocations(grevHomeRoot).Any(item => string.Equals(item.Path, NormalizeDirectory(directoryPath), StringComparison.OrdinalIgnoreCase));
+
     public IReadOnlyList<FileHomeLocation> GetHomeLocations(string grevHomeRoot)
     {
         var locations = new List<FileHomeLocation>();
@@ -46,6 +75,7 @@ public sealed class FileSystemService
         AddKnownFolder(locations, "Documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Windows Documents");
         AddKnownFolder(locations, "Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Windows Pictures");
         AddKnownFolder(locations, "Grev Home Data", grevHomeRoot, "Read-only view of profiles, app data and Grev Home machine data");
+        locations.AddRange(GetFavoriteLocations(grevHomeRoot));
 
         foreach (var drive in DriveInfo.GetDrives().Where(drive => drive.IsReady))
         {

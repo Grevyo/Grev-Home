@@ -41,6 +41,7 @@ public partial class MainWindow
         _fileExplorerView.MoveRequested += path => BeginFileTransfer(path, FileTransferMode.Move);
         _fileExplorerView.PasteRequested += (_, _) => _ = PasteFileTransferAsync();
         _fileExplorerView.CancelTransferRequested += (_, _) => CancelFileTransfer();
+        _fileExplorerView.FavoriteRequested += path => ToggleFileFavorite(path);
     }
 
     private void OpenFiles()
@@ -222,6 +223,17 @@ public partial class MainWindow
                 _fileExplorerView.SetHome(_fileSystem.GetHomeLocations(_paths.Root), _fileTransfer);
             }
         }
+    }
+
+    private void ToggleFileFavorite(string path)
+    {
+        try
+        {
+            _fileSystem.ToggleFavorite(_paths.Root, path);
+            _fileExplorerView.ShowStatus(_fileSystem.IsFavorite(_paths.Root, path) ? "Folder added to Files Home favourites." : "Folder removed from favourites.");
+        }
+        catch (Exception ex) when (IsFileOperationException(ex)) { _fileExplorerView.ShowStatus($"Favourite update failed: {ex.Message}"); }
+        RenderFiles();
     }
 
     private async Task HandleFileNameRequestAsync(FileNameRequest request)

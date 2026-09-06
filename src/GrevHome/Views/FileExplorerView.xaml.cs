@@ -33,6 +33,7 @@ public partial class FileExplorerView : UserControl
     public event Action<string>? MoveRequested;
     public event EventHandler? PasteRequested;
     public event EventHandler? CancelTransferRequested;
+    public event Action<string>? FavoriteRequested;
 
     public bool IsModalOpen => KeyboardOverlay.IsOpen || DeleteOverlay.Visibility == Visibility.Visible;
 
@@ -66,6 +67,7 @@ public partial class FileExplorerView : UserControl
         EmptyText.Text = locations.Count == 0 ? "No locations are available." : string.Empty;
         UpButton.IsEnabled = false;
         NewFolderButton.IsEnabled = false;
+        FavoriteButton.IsEnabled = false;
         SetTransfer(transfer, canPaste: false);
         StatusText.Text = "Select a location or drive. B returns to Dashboard from Files Home.";
     }
@@ -89,6 +91,7 @@ public partial class FileExplorerView : UserControl
         EmptyText.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         UpButton.IsEnabled = hasParent;
         NewFolderButton.IsEnabled = true;
+        FavoriteButton.IsEnabled = true;
         SetTransfer(transfer, canPaste: true);
         StatusText.Text = "Select an item, then choose an action. B goes to the parent folder.";
     }
@@ -230,6 +233,7 @@ public partial class FileExplorerView : UserControl
         MoveButton.IsEnabled = false;
         RenameButton.IsEnabled = false;
         DeleteButton.IsEnabled = false;
+        FavoriteButton.IsEnabled = false;
     }
 
     private void SelectEntry(FileBrowserEntry entry)
@@ -243,6 +247,7 @@ public partial class FileExplorerView : UserControl
         MoveButton.IsEnabled = true;
         RenameButton.IsEnabled = true;
         DeleteButton.IsEnabled = true;
+        FavoriteButton.IsEnabled = entry.Kind == FileEntryKind.Folder;
     }
 
     private void ClearSelection()
@@ -256,6 +261,7 @@ public partial class FileExplorerView : UserControl
         MoveButton.IsEnabled = false;
         RenameButton.IsEnabled = false;
         DeleteButton.IsEnabled = false;
+        FavoriteButton.IsEnabled = false;
     }
 
     private void SetTransfer(FileTransferRequest? transfer, bool canPaste)
@@ -350,6 +356,12 @@ public partial class FileExplorerView : UserControl
 
     private void NewFolder_Click(object sender, RoutedEventArgs e) =>
         BeginEditor(FileNameEditorMode.CreateFolder, string.Empty, null);
+
+    private void Favorite_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _selectedEntry?.Kind == FileEntryKind.Folder ? _selectedEntry.Path : null;
+        if (path is not null) FavoriteRequested?.Invoke(path);
+    }
 
     private void Paste_Click(object sender, RoutedEventArgs e) => PasteRequested?.Invoke(this, EventArgs.Empty);
 

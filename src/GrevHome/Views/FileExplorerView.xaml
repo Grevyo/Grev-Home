@@ -34,6 +34,7 @@
             <Button x:Name="UpButton" Content="Up" Width="95" Height="48" Margin="0,0,8,8" Click="Up_Click" />
             <Button Content="Refresh" Width="110" Height="48" Margin="0,0,8,8" Click="Refresh_Click" />
             <Button x:Name="NewFolderButton" Content="New Folder" Width="135" Height="48" Margin="0,0,8,8" Click="NewFolder_Click" />
+            <Button x:Name="FavoriteButton" Content="Add Favourite" Width="145" Height="48" Margin="0,0,8,8" Click="Favorite_Click" IsEnabled="False" />
             <Button x:Name="PasteButton" Content="Paste Here" Width="135" Height="48" Margin="0,0,8,8" Click="Paste_Click" />
             <Button x:Name="CancelTransferButton" Content="Cancel Copy/Move" Width="170" Height="48" Margin="0,0,8,8" Click="CancelTransfer_Click" />
         </WrapPanel>
