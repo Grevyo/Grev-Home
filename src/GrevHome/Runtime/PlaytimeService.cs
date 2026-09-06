@@ -145,6 +145,34 @@ public sealed class PlaytimeService
         return await ReadAsync(_paths.GetProfilePlaytimeFile(grevId), cancellationToken);
     }
 
+    /// <summary>
+    /// Removes legacy launcher aggregates that were recorded before foreground-only tracking was
+    /// introduced. Individual Steam games have their own app IDs and are deliberately untouched.
+    /// This is idempotent so every linked profile can safely run it before publishing revision 2.
+    /// </summary>
+    public async Task<bool> RemoveLegacyLauncherAggregatesAsync(
+        string grevId,
+        CancellationToken cancellationToken = default)
+    {
+        _paths.EnsureProfileLayout(grevId);
+        var path = _paths.GetProfilePlaytimeFile(grevId);
+        await _writeGate.WaitAsync(cancellationToken);
+        try
+        {
+            var snapshot = await ReadAsync(path, cancellationToken);
+            var apps = new Dictionary<string, AppPlaytimeStat>(snapshot.Apps, StringComparer.OrdinalIgnoreCase);
+            var changed = apps.Remove("steam") | apps.Remove("discord");
+            if (!changed) return false;
+
+            await WriteAsync(path, snapshot with { SchemaVersion = SchemaVersion, Apps = apps }, cancellationToken);
+            return true;
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
     private string? ResolveStatsPath(LaunchParticipant participant)
     {
         if (!string.IsNullOrWhiteSpace(participant.GrevId))

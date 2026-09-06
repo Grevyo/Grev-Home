@@ -214,13 +214,10 @@ public partial class DashboardView : UserControl
         FriendsSummaryText.Text = offline ? $"Offline • {friends.Count} cached" : $"{online} online • {friends.Count} total";
         var allFriendsButton = new Button
         {
-            Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12),
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Content = new StackPanel { Children =
-            {
-                new TextBlock { Text = "All Friends", FontSize = 18, FontWeight = FontWeights.SemiBold },
-                new TextBlock { Text = $"Open friends, requests and friend code  •  {friends.Count} total", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis }
-            } }
+            Style = (Style)FindResource("DashboardTileStyle"),
+            Padding = new Thickness(0),
+            Content = AppArtworkFactory.CreateTile("All Friends", null, "#335EA8"),
+            ToolTip = $"Open friends, requests and friend code • {friends.Count} total"
         };
         allFriendsButton.Click += Friends_Click;
         FriendsPanel.Children.Add(allFriendsButton);
@@ -232,7 +229,7 @@ public partial class DashboardView : UserControl
         {
             var friendButton = new Button
             {
-                Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12),
+                Width = 285, Height = 145, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
                 Content = new StackPanel { Children = { new TextBlock { Text = friend.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold }, new TextBlock { Text = $"Level {friend.Level}  •  {friend.Presence.Availability}  •  {friend.Presence.ActivityText}", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis } } }
             };

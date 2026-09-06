@@ -58,6 +58,7 @@ internal sealed record GrevDadSyncApiResponse(
 public sealed class GrevDadProfileSyncService : IDisposable
 {
     private const int SchemaVersion = 1;
+    private const int StatisticsRevision = 2;
     private const string AccessCredentialSlot = "access";
     private const int BatchSize = 100;
     private const int MaximumBatchesPerRun = 10;
@@ -128,6 +129,10 @@ public sealed class GrevDadProfileSyncService : IDisposable
             }
 
             var cursor = await ReadCursorAsync(grevId, cancellationToken);
+            // Revision 2 deliberately removes the historical Steam/Discord launcher totals that
+            // were accumulated while those always-running launchers were idle. Their foreground-
+            // only tracking remains enabled for new sessions.
+            await _playtime.RemoveLegacyLauncherAggregatesAsync(grevId, cancellationToken);
             var local = await _playtime.GetLocalForGrevIdAsync(grevId,cancellationToken);
             var totalSeconds = local.Apps.Values.Sum(a=>a.TotalSeconds);
             var completedSessions = local.Apps.Values.Sum(a=>a.SessionCount);
@@ -277,6 +282,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
             : "private";
         var body = new
         {
+            statisticsRevision = StatisticsRevision,
             progression,
             profileCreatedAt = profileCreatedAt.ToUnixTimeSeconds(),
             apps = local.Apps.Values.Select(a=>new {a.AppId,a.AppName,a.TotalSeconds,a.SessionCount,

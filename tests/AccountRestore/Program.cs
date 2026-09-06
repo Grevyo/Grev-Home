@@ -24,6 +24,19 @@ try
     ]);
     await GrevDadAccountDataStore.SaveAsync(paths,grevId,cloud,default);
     var playtime=new PlaytimeService(paths);
+    var polluted = new PlaytimeSnapshot(2,new Dictionary<string,AppPlaytimeStat> {
+        ["steam"]=new("steam","Steam",360000,9,DateTimeOffset.FromUnixTimeSeconds(990)),
+        ["discord"]=new("discord","Discord",180000,4,DateTimeOffset.FromUnixTimeSeconds(991)),
+        ["steam.game.123"]=new("steam.game.123","Real Steam Game",600,1,DateTimeOffset.FromUnixTimeSeconds(992)),
+        ["pcsx2"]=local.Apps["pcsx2"]
+    });
+    await File.WriteAllTextAsync(paths.GetProfilePlaytimeFile(grevId),JsonSerializer.Serialize(polluted));
+    Check(await playtime.RemoveLegacyLauncherAggregatesAsync(grevId),"Legacy launcher cleanup must report a repair");
+    var repairedLocal=await playtime.GetLocalForGrevIdAsync(grevId);
+    Check(!repairedLocal.Apps.ContainsKey("steam") && !repairedLocal.Apps.ContainsKey("discord"),"Steam and Discord launcher aggregates must be removed");
+    Check(repairedLocal.Apps.ContainsKey("steam.game.123") && repairedLocal.Apps.ContainsKey("pcsx2"),"Games and emulators must remain untouched");
+    Check(!await playtime.RemoveLegacyLauncherAggregatesAsync(grevId),"Launcher repair must be idempotent");
+    await File.WriteAllTextAsync(paths.GetProfilePlaytimeFile(grevId),JsonSerializer.Serialize(local));
     for(var i=0;i<3;i++)
     {
         var display=await playtime.GetForGrevIdAsync(grevId);
