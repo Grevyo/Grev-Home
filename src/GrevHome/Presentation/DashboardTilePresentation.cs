@@ -13,16 +13,16 @@ public static class DashboardTileCatalog
 {
     public static IReadOnlyList<DashboardTileDefinition> All { get; } =
     [
-        new("your-games", "Your Games", "Open your complete game library", "#243451", "builtin://dashboard/games"),
-        new("installed-apps", "Installed Apps", "Apps, emulators and individual games", "#243451", "builtin://dashboard/apps"),
-        new("grev-store", "Grev Store", "Browse supported apps", "#243451", "builtin://dashboard/store"),
-        new("files", "Files", "Browse local files and folders", "#243451", "builtin://dashboard/files"),
-        new("grev-dad", "Grev.dad", "Your account, friends and community", "#213E47", "builtin://dashboard/web"),
-        new("web-browser", "Grev's Web Browser", "Search Google and browse the web", "#274431", "builtin://dashboard/web"),
-        new("running-apps", "Running Apps", "0 active", "#151923", "builtin://dashboard/running"),
-        new("activity-center", "Activity Center", "Notifications and downloads", "#151923", "builtin://dashboard/activity"),
-        new("app-killer", "App Killer", "Manage or force-close a stuck app", "#151923", "builtin://dashboard/killer"),
-        new("settings", "Settings", "Grev Home and controller settings", "#151923", "builtin://dashboard/settings"),
+        new("your-games", "Your Games", "Open your complete game library", "#254537", "builtin://dashboard/games"),
+        new("installed-apps", "Installed Apps", "Apps, emulators and individual games", "#253E59", "builtin://dashboard/apps"),
+        new("grev-store", "Grev Store", "Browse supported apps", "#49315A", "builtin://dashboard/store"),
+        new("files", "Files", "Browse local files and folders", "#51432A", "builtin://dashboard/files"),
+        new("grev-dad", "Grev.dad", "Your account, friends and community", "#21464B", "builtin://dashboard/web"),
+        new("web-browser", "Grev's Web Browser", "Search Google and browse the web", "#284D43", "builtin://dashboard/web"),
+        new("running-apps", "Running Apps", "0 active", "#244B52", "builtin://dashboard/running"),
+        new("activity-center", "Activity Center", "Notifications and downloads", "#4A3C59", "builtin://dashboard/activity"),
+        new("app-killer", "App Killer", "Manage or force-close a stuck app", "#542F35", "builtin://dashboard/killer"),
+        new("settings", "Settings", "Grev Home and controller settings", "#35445A", "builtin://dashboard/settings"),
         new("settings-account", "Account", "Profile name and identity", "#20334A", "builtin://dashboard/account"),
         new("settings-controller", "Controller Shortcuts", "Return Home and Overlay", "#2F3153", "builtin://dashboard/controller"),
         new("settings-audio", "Audio", "Volume and output device", "#3D294B", "builtin://dashboard/audio"),
@@ -31,7 +31,7 @@ public static class DashboardTileCatalog
         new("settings-system", "System Information", "Machine, storage and controllers", "#3B3525", "builtin://dashboard/system"),
         new("settings-theme", "Theme & Motion", "Transitions and startup presentation", "#342A52", "builtin://dashboard/theme"),
         new("settings-power", "Power", "Sleep, restart and shut down", "#482629", "builtin://dashboard/power"),
-        new("admin-console", "Admin Console", "Machine, apps and account administration", "#151923", "builtin://dashboard/admin")
+        new("admin-console", "Admin Console", "Machine, apps and account administration", "#503D32", "builtin://dashboard/admin")
     ];
 
     public static DashboardTileDefinition Get(string id) =>
