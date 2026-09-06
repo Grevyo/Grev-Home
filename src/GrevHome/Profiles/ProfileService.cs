@@ -70,12 +70,17 @@ public sealed class ProfileService
     {
         var existing = await GetProfilesCoreAsync(cancellationToken);
         var guest = existing.FirstOrDefault(profile => string.Equals(profile.GrevId, BuiltInGuestGrevId, StringComparison.OrdinalIgnoreCase));
+        var reservedUsername = BuiltInGuestUsername;
+        var suffix = 0;
+        while (existing.Any(profile => profile.GrevId != BuiltInGuestGrevId &&
+                   string.Equals(profile.Username, reservedUsername, StringComparison.OrdinalIgnoreCase)))
+            reservedUsername = BuiltInGuestUsername + (++suffix).ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (guest is not null)
         {
             var repaired = guest with
             {
                 GrevId = BuiltInGuestGrevId,
-                Username = BuiltInGuestUsername,
+                Username = reservedUsername,
                 DisplayName = "Guest",
                 Role = AccountRole.Guest,
                 Bio = string.Empty,
@@ -88,7 +93,7 @@ public sealed class ProfileService
 
         var profile = new LocalProfile(
             BuiltInGuestGrevId,
-            BuiltInGuestUsername,
+            reservedUsername,
             "Guest",
             DateTimeOffset.UtcNow,
             AccountRole.Guest,
@@ -222,7 +227,7 @@ public sealed class ProfileService
     private async Task<LocalProfile> CreateCoreAsync(string username, AccountRole role, CancellationToken cancellationToken = default)
     {
         username = ValidateUsername(username);
-        if (string.Equals(username, BuiltInGuestUsername, StringComparison.OrdinalIgnoreCase))
+        if (username.StartsWith(BuiltInGuestUsername, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("That username is reserved for the built-in Guest.");
         var existing = await GetProfilesCoreAsync(cancellationToken);
         EnsureProfileIdentitySetHealthy(existing);

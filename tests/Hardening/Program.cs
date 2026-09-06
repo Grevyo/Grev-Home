@@ -5,6 +5,9 @@ using GrevHome.Input;
 using GrevHome.Profiles;
 using GrevHome.Storage;
 using GrevHome.Store.Installers;
+using GrevHome.Runtime;
+using GrevHome.Sessions;
+using GrevHome.Presentation;
 
 var root = Path.Combine(Path.GetTempPath(), "GrevHomeHardening-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -54,6 +57,20 @@ try
     Check(KeyboardRemoteInputMapper.Map(Key.BrowserBack) == InputAction.Back, "Remote back mapping");
     Check(KeyboardRemoteInputMapper.Map(Key.VolumeUp) is null, "Volume must remain owned by Windows/media application");
     Check(KeyboardRemoteInputMapper.Map(Key.A) is null, "Typing keys must not become shell navigation");
+    var playtime = new PlaytimeService(paths);
+    var sessionId = Guid.NewGuid();
+    var participants = new[] { new LaunchParticipant(Guid.NewGuid(), player.GrevId, "Player", AccountKind.Local) };
+    await playtime.RecordSessionAsync(sessionId, "testgame", "Test Game", participants, TimeSpan.FromSeconds(45), DateTimeOffset.UtcNow);
+    await new PlaytimeService(paths).RecordSessionAsync(sessionId, "testgame", "Test Game", participants, TimeSpan.FromSeconds(45), DateTimeOffset.UtcNow);
+    var time = (await playtime.GetLocalForGrevIdAsync(player.GrevId)).Apps["testgame"];
+    Check(time.TotalSeconds == 45 && time.SessionCount == 1, "Completion replay after restart must not double count playtime");
+    var tracked = new LaunchSessionSnapshot(sessionId, "testgame", "Test Game", player.GrevId,
+        participants, DateTimeOffset.UtcNow.AddHours(-1), DateTimeOffset.UtcNow, LaunchSessionState.Exited,
+        0, [], null, TrackedDurationSeconds: 45);
+    Check(tracked.Elapsed.TotalSeconds == 45, "Foreground usage must take precedence over wall-clock runtime");
+    var loader = new DashboardArtworkLoader();
+    await ExpectAsync<OperationCanceledException>(() => loader.LoadAsync("missing.png", cancelled.Token));
+    await ExpectAsync<FileNotFoundException>(() => loader.LoadAsync(Path.Combine(root, "missing.png"), CancellationToken.None));
     var unsigned = Path.Combine(root, "unsigned.exe");
     await File.WriteAllTextAsync(unsigned, "Not a signed executable");
     await ExpectAsync<InvalidDataException>(() => InstallerSignatureVerifier.VerifyAsync(unsigned, "Valve Corp.", CancellationToken.None));
