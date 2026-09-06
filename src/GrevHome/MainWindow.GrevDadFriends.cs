@@ -61,8 +61,8 @@ public partial class MainWindow
             var available = snapshot.State is GrevDadConnectionState.Linked or GrevDadConnectionState.Offline;
             if (!available) { SetFriendsUnavailable(); return; }
             var friends = await service.GetFriendsAsync(primary.GrevId, allowCachedWhenOffline: true);
-            var requests = offline ? GrevDadFriendRequestsSnapshot.Empty : await service.GetFriendRequestsAsync(primary.GrevId);
             var offline = snapshot.State == GrevDadConnectionState.Offline;
+            var requests = offline ? GrevDadFriendRequestsSnapshot.Empty : await service.GetFriendRequestsAsync(primary.GrevId);
             ShellFriendsButton.Visibility = Visibility.Visible;
             _dashboardView.SetFriends(true, friends, offline);
             _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline);
