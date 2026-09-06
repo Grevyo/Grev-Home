@@ -10,6 +10,7 @@ public static class InstallerSignatureVerifier
     {
         var script = """
             $ErrorActionPreference = 'Stop'
+            Import-Module (Join-Path $PSHOME 'Modules\Microsoft.PowerShell.Security\Microsoft.PowerShell.Security.psd1') -ErrorAction Stop
             $signature = Get-AuthenticodeSignature -LiteralPath $env:GREV_INSTALLER_VERIFY_PATH
             if ($signature.Status -ne 'Valid' -or $null -eq $signature.SignerCertificate) {
                 throw 'Installer does not have a valid trusted Authenticode signature.'
@@ -30,10 +31,14 @@ public static class InstallerSignatureVerifier
         };
         start.ArgumentList.Add("-NoProfile");
         start.ArgumentList.Add("-NonInteractive");
+        start.ArgumentList.Add("-OutputFormat");
+        start.ArgumentList.Add("Text");
         start.ArgumentList.Add("-EncodedCommand");
         start.ArgumentList.Add(Convert.ToBase64String(Encoding.Unicode.GetBytes(script)));
         start.Environment["GREV_INSTALLER_VERIFY_PATH"] = Path.GetFullPath(path);
         start.Environment["GREV_INSTALLER_VERIFY_PUBLISHER"] = publisher;
+        // A PowerShell 7 parent can otherwise make Windows PowerShell load incompatible modules.
+        start.Environment["PSModulePath"] = Path.Combine(Path.GetDirectoryName(start.FileName)!, "Modules");
         cancellationToken.ThrowIfCancellationRequested();
         using var process = Process.Start(start) ?? throw new IOException("Could not start installer signature verification.");
         var error = process.StandardError.ReadToEndAsync();
