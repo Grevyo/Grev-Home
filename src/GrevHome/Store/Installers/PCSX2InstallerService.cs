@@ -350,6 +350,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
         Directory.CreateDirectory(dataRoot);
         Directory.CreateDirectory(Path.Combine(dataRoot, "bios"));
+        Directory.CreateDirectory(Path.Combine(dataRoot, "games"));
     }
 
     private void ConfigurePortableProfile(string binaryRoot, string grevId)

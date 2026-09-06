@@ -340,6 +340,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
 
         var saveRoot = Path.Combine(profileRoot, "Saves", "retroarch");
+        var gamesRoot = Path.Combine(profileRoot, "Games", "RetroArch");
         var saveRamRoot = Path.Combine(saveRoot, "SaveRAM");
         var stateRoot = Path.Combine(saveRoot, "States");
         var screenshotRoot = Path.Combine(profileRoot, "Screenshots", "RetroArch");
@@ -348,6 +349,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
 
         Directory.CreateDirectory(appDataRoot);
         Directory.CreateDirectory(saveRamRoot);
+        Directory.CreateDirectory(gamesRoot);
         Directory.CreateDirectory(stateRoot);
         Directory.CreateDirectory(screenshotRoot);
         Directory.CreateDirectory(remapRoot);
@@ -367,6 +369,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             .AppendLine($"screenshot_directory = \"{EscapeConfigPath(screenshotRoot)}\"")
             .AppendLine($"input_remapping_directory = \"{EscapeConfigPath(remapRoot)}\"")
             .AppendLine($"playlist_directory = \"{EscapeConfigPath(playlistRoot)}\"")
+            .AppendLine($"content_directory = \"{EscapeConfigPath(gamesRoot)}\"")
             .AppendLine("config_save_on_exit = \"true\"")
             .AppendLine("video_fullscreen = \"true\"")
             .ToString();
