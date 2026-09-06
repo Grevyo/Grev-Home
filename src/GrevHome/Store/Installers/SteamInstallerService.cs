@@ -164,6 +164,8 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
                 "Downloading Valve's current SteamSetup.exe from the official Steam CDN…",
                 0));
             await DownloadInstallerAsync(installerPath, progress, cancellationToken);
+            progress?.Report(new PackageInstallProgress("Verify", "Checking Valve's trusted publisher signature…", 70));
+            await InstallerSignatureVerifier.VerifyAsync(installerPath, "Valve Corp.", cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report(new PackageInstallProgress(

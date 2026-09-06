@@ -789,16 +789,7 @@ public partial class GrevOverlayWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        var action = e.Key switch
-        {
-            Key.Up => InputAction.Up,
-            Key.Down => InputAction.Down,
-            Key.Left or Key.MediaPreviousTrack => InputAction.Left,
-            Key.Right or Key.MediaNextTrack or Key.BrowserForward => InputAction.Right,
-            Key.Enter or Key.Space or Key.Select or Key.MediaPlayPause => InputAction.Accept,
-            Key.Escape or Key.BrowserBack or Key.MediaStop => InputAction.Back,
-            _ => (InputAction?)null
-        };
+        var action = KeyboardRemoteInputMapper.Map(e.Key);
 
         if (action is null)
         {

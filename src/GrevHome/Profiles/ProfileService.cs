@@ -10,7 +10,7 @@ namespace GrevHome.Profiles;
 public sealed class ProfileService
 {
     public const string BuiltInGuestGrevId = "GREVHOME_GUEST";
-    public const string BuiltInGuestUsername = "guest";
+    public const string BuiltInGuestUsername = "__grevhome_builtin_guest__";
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
     public const int MaxBioLength = 160;
@@ -34,11 +34,42 @@ public sealed class ProfileService
         _paths = paths;
     }
 
-    public async Task<LocalProfile> EnsureBuiltInGuestAsync(CancellationToken cancellationToken = default)
+
+    // One gate per data root also protects username uniqueness and last-admin checks.
+    // Internal methods never reacquire it; reads may perform legacy metadata upgrades.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Gates =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task<T> SerializedAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
     {
-        var existing = await GetProfilesAsync(cancellationToken);
-        var guest = existing.FirstOrDefault(profile => profile.IsBuiltInGuest ||
-            string.Equals(profile.GrevId, BuiltInGuestGrevId, StringComparison.OrdinalIgnoreCase));
+        var gate = Gates.GetOrAdd(Path.GetFullPath(_paths.Root), _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try { return await operation(); }
+        finally { gate.Release(); }
+    }
+
+    public Task<LocalProfile> EnsureBuiltInGuestAsync(CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => EnsureBuiltInGuestCoreAsync(cancellationToken), cancellationToken);
+    public Task<IReadOnlyList<LocalProfile>> GetProfilesAsync(CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => GetProfilesCoreAsync(cancellationToken), cancellationToken);
+    public Task<LocalProfile> CreateAsync(string username, AccountRole role, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => CreateCoreAsync(username, role, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateDisplayNameAsync(string grevId, string displayName, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateDisplayNameCoreAsync(grevId, displayName, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateAvatarAsync(string grevId, string avatarKey, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateAvatarCoreAsync(grevId, avatarKey, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateRoleAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateRoleCoreAsync(grevId, role, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateProfileAsync(string grevId, string displayName, string avatarKey,
+        AccountRole? newRole, string? customAvatarSourcePath = null, string? bio = null,
+        string? statusMessage = null, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateProfileCoreAsync(grevId, displayName, avatarKey, newRole,
+            customAvatarSourcePath, bio, statusMessage, cancellationToken), cancellationToken);
+
+    private async Task<LocalProfile> EnsureBuiltInGuestCoreAsync(CancellationToken cancellationToken = default)
+    {
+        var existing = await GetProfilesCoreAsync(cancellationToken);
+        var guest = existing.FirstOrDefault(profile => string.Equals(profile.GrevId, BuiltInGuestGrevId, StringComparison.OrdinalIgnoreCase));
         if (guest is not null)
         {
             var repaired = guest with
@@ -67,7 +98,7 @@ public sealed class ProfileService
         return profile;
     }
 
-    public async Task<IReadOnlyList<LocalProfile>> GetProfilesAsync(CancellationToken cancellationToken = default)
+    private async Task<IReadOnlyList<LocalProfile>> GetProfilesCoreAsync(CancellationToken cancellationToken = default)
     {
         _paths.EnsureMachineLayout();
         var profiles = new List<LocalProfile>();
@@ -188,10 +219,12 @@ public sealed class ProfileService
             .ToArray();
     }
 
-    public async Task<LocalProfile> CreateAsync(string username, AccountRole role, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> CreateCoreAsync(string username, AccountRole role, CancellationToken cancellationToken = default)
     {
         username = ValidateUsername(username);
-        var existing = await GetProfilesAsync(cancellationToken);
+        if (string.Equals(username, BuiltInGuestUsername, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("That username is reserved for the built-in Guest.");
+        var existing = await GetProfilesCoreAsync(cancellationToken);
         EnsureProfileIdentitySetHealthy(existing);
 
         if (existing.Any(profile => string.Equals(profile.Username, username, StringComparison.OrdinalIgnoreCase)))
@@ -218,7 +251,7 @@ public sealed class ProfileService
         }
     }
 
-    public async Task<LocalProfile> UpdateDisplayNameAsync(string grevId, string displayName, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> UpdateDisplayNameCoreAsync(string grevId, string displayName, CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
         var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
@@ -228,7 +261,7 @@ public sealed class ProfileService
         return updated;
     }
 
-    public async Task<LocalProfile> UpdateAvatarAsync(string grevId, string avatarKey, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> UpdateAvatarCoreAsync(string grevId, string avatarKey, CancellationToken cancellationToken = default)
     {
         var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
         var normalized = ProfileAvatarCatalog.Normalize(avatarKey);
@@ -246,9 +279,9 @@ public sealed class ProfileService
         return updated;
     }
 
-    public async Task<LocalProfile> UpdateRoleAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> UpdateRoleCoreAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default)
     {
-        var profiles = await GetProfilesAsync(cancellationToken);
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
         EnsureProfileIdentitySetHealthy(profiles);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
@@ -259,7 +292,7 @@ public sealed class ProfileService
         return updated;
     }
 
-    public async Task<LocalProfile> UpdateProfileAsync(
+    private async Task<LocalProfile> UpdateProfileCoreAsync(
         string grevId,
         string displayName,
         string avatarKey,
@@ -270,7 +303,7 @@ public sealed class ProfileService
         CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
-        var profiles = await GetProfilesAsync(cancellationToken);
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
 
@@ -426,7 +459,7 @@ public sealed class ProfileService
 
     private async Task<LocalProfile> GetRequiredProfileAsync(string grevId, CancellationToken cancellationToken)
     {
-        var profiles = await GetProfilesAsync(cancellationToken);
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
         return profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
                ?? throw new InvalidOperationException("That local account does not exist.");
     }

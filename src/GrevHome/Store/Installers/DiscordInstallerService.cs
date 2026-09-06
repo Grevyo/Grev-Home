@@ -135,6 +135,8 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
         {
             progress?.Report(new PackageInstallProgress("Download", "Downloading the current Discord Stable x64 installer from discord.com…", 0));
             await DownloadInstallerAsync(installerPath, progress, cancellationToken);
+            progress?.Report(new PackageInstallProgress("Verify", "Checking Discord's trusted publisher signature…", 70));
+            await InstallerSignatureVerifier.VerifyAsync(installerPath, "Discord Inc.", cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report(new PackageInstallProgress("Install", "Starting Discord's official Windows installer…", 72));

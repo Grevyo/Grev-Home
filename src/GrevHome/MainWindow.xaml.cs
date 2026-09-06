@@ -26,7 +26,7 @@ public partial class MainWindow : Window
     private readonly SessionContext _session = new();
     private readonly AppPaths _paths = new();
     private readonly ControllerShortcutService _controllerShortcuts;
-    private readonly ControllerInputService _controllerInput;
+    private readonly IControllerInputSource _controllerInput;
     private readonly ProfileService _profileService;
     private readonly AppCatalogService _appCatalogue;
     private readonly AppPathResolver _appPathResolver;
@@ -644,29 +644,42 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ShowDashboardBackground(string? path)
+    private readonly DashboardArtworkLoader _dashboardArtworkLoader = new();
+    private CancellationTokenSource? _dashboardArtworkCancellation;
+
+    private async void ShowDashboardBackground(string? path)
     {
+        _dashboardArtworkCancellation?.Cancel();
+        _dashboardArtworkCancellation?.Dispose();
+        var request = new CancellationTokenSource();
+        _dashboardArtworkCancellation = request;
+        var token = request.Token;
         DashboardArtworkBackground.BeginAnimation(OpacityProperty, null);
-        if (!_shellMotionSettings.DashboardBackgroundsEnabled || _navigation.Current != Route.Dashboard || string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        if (!_shellMotionSettings.DashboardBackgroundsEnabled || _navigation.Current != Route.Dashboard || string.IsNullOrWhiteSpace(path))
         {
             var hide = new System.Windows.Media.Animation.DoubleAnimation(DashboardArtworkBackground.Opacity, 0, TimeSpan.FromMilliseconds(140));
-            hide.Completed += (_, _) => { DashboardArtworkBackground.Source = null; DashboardArtworkBackground.Visibility = Visibility.Collapsed; };
+            hide.Completed += (_, _) =>
+            {
+                if (token.IsCancellationRequested) return;
+                DashboardArtworkBackground.Source = null;
+                DashboardArtworkBackground.Visibility = Visibility.Collapsed;
+            };
             DashboardArtworkBackground.BeginAnimation(OpacityProperty, hide);
             return;
         }
         try
         {
-            var image = new BitmapImage();
-            image.BeginInit();
-            image.CacheOption = BitmapCacheOption.OnLoad;
-            image.UriSource = new Uri(Path.GetFullPath(path), UriKind.Absolute);
-            image.EndInit();
-            image.Freeze();
+            var image = await _dashboardArtworkLoader.LoadAsync(path, token);
+            if (token.IsCancellationRequested || _navigation.Current != Route.Dashboard || !_shellMotionSettings.DashboardBackgroundsEnabled) return;
             DashboardArtworkBackground.Source = image;
             DashboardArtworkBackground.Visibility = Visibility.Visible;
             DashboardArtworkBackground.BeginAnimation(OpacityProperty, new System.Windows.Media.Animation.DoubleAnimation(0, .20, TimeSpan.FromMilliseconds(240)));
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException) { DashboardArtworkBackground.Visibility = Visibility.Collapsed; }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException or ArgumentException)
+        {
+            if (!token.IsCancellationRequested) DashboardArtworkBackground.Visibility = Visibility.Collapsed;
+        }
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
@@ -682,16 +695,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var action = e.Key switch
-        {
-            Key.Up => InputAction.Up,
-            Key.Down => InputAction.Down,
-            Key.Left or Key.MediaPreviousTrack => InputAction.Left,
-            Key.Right or Key.MediaNextTrack or Key.BrowserForward => InputAction.Right,
-            Key.Enter or Key.Space or Key.Select or Key.MediaPlayPause => InputAction.Accept,
-            Key.Escape or Key.BrowserBack or Key.MediaStop => InputAction.Back,
-            _ => (InputAction?)null
-        };
+        var action = KeyboardRemoteInputMapper.Map(e.Key);
 
         if (action is null)
         {

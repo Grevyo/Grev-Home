@@ -63,7 +63,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
             {
                 if(generation!=_generation) return;
                 if(!e.IsSuccess) {HintText.Text="The page could not load. Check your connection, then choose Reload or Back.";return;}
-                try { await core.ExecuteScriptAsync(ControllerScript); HintText.Text="Browse page: D-pad selects links/fields • A opens or types • B returns to browser controls"; }
+                try { await core.ExecuteScriptAsync(ControllerScript); HintText.Text="Basic page navigation: D-pad selects • A opens/types • B returns. Embedded/custom controls may need a keyboard or mouse."; }
                 catch (Exception ex) when(ex is InvalidOperationException or System.Runtime.InteropServices.COMException) {HintText.Text="Choose Reload to reconnect the browser.";}
             };
             core.Navigate(target.AbsoluteUri);
@@ -110,7 +110,11 @@ public partial class GrevDadWebView : UserControl, IDisposable
             if(generation!=_generation || !IsVisible || response is null or "null") return;
             using var json=JsonDocument.Parse(response);
             if(!json.RootElement.TryGetProperty("kind",out var kind)) return;
-            if(kind.GetString()=="text")
+            if(kind.GetString()=="unsupported")
+            {
+                HintText.Text="This website control needs a keyboard or mouse. Press B to return to browser controls.";
+            }
+            else if(kind.GetString()=="text")
             {
                 if(_browser is not null) _browser.Visibility=Visibility.Hidden;
                 KeyboardOverlay.Open(json.RootElement.GetProperty("title").GetString()??"Website text",
@@ -174,7 +178,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
             editing=selected;return {kind:'text',password:selected.type==='password',
               title:selected.getAttribute('aria-label')||selected.placeholder||(selected.type==='password'?'Password':'Website text'),
               initial:selected.type==='password'?'':selected.value};}
-          if(selected.matches('input[type=file],input[type=color],input[type=range]'))return null;
+          if(selected.matches('input[type=file],input[type=color],input[type=range]'))return {kind:'unsupported'};
           selected.click();return null;},
         setValue(value){if(!editing||!editing.isConnected)return;editing.value=value;
           editing.dispatchEvent(new Event('input',{bubbles:true}));editing.dispatchEvent(new Event('change',{bubbles:true}));editing=null;}

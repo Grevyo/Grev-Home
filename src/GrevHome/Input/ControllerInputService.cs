@@ -23,7 +23,7 @@ public sealed record ControllerAnalogEventArgs(
     short RightX,
     short RightY);
 
-public sealed class ControllerInputService : IDisposable
+public sealed class ControllerInputService : IControllerInputSource
 {
     private const ushort DPadUp = 0x0001;
     private const ushort DPadDown = 0x0002;
