@@ -74,7 +74,9 @@ internal static class Program
         var friend=new GrevDadFriend("1","friend","Friend",true,DateTimeOffset.UtcNow,new GrevDadPresence("online","Online","game","Playing",null,DateTimeOffset.UtcNow));
         dashboard.SetFriends(true,[friend],false);
         var friendsPanel=(StackPanel)dashboard.FindName("FriendsPanel");
-        Check(friendsPanel.Children.Count==1 && friendsPanel.Children[0] is Button,"Dashboard friends must render as selectable friend cards without a separate Open Friends tile");
+        Check(friendsPanel.Children.Count==2 && friendsPanel.Children[0] is Button allFriends &&
+              ((allFriends.Content as StackPanel)?.Children[0] as TextBlock)?.Text=="All Friends",
+            "Dashboard friends must begin with All Friends followed by selectable friend cards");
         var systemCarousel=(ScrollViewer)dashboard.FindName("SystemCarousel");
         var dashboardPowerTile=(Button)dashboard.FindName("SettingsPowerButton");
         Check(systemCarousel.ScrollableWidth>0,"All settings shortcuts must appear in the dashboard System row");
