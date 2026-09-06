@@ -101,9 +101,10 @@ public partial class MainWindow
                 else
                 {
                     // Refresh other devices' account statistics without requiring a restart.
-                    _grevDadSyncRetries[grevId] = new GrevDadSyncRetryState(0,DateTimeOffset.UtcNow+TimeSpan.FromMinutes(2));
+                    _grevDadSyncRetries[grevId] = new GrevDadSyncRetryState(0,DateTimeOffset.UtcNow+TimeSpan.FromSeconds(30));
                     EnsureGrevDadSyncRetryTimerRunning();
                 }
+                await RefreshLoginProfileDetailsAsync();
                 if (string.Equals(GetProfileTarget()?.GrevId,grevId,StringComparison.OrdinalIgnoreCase))
                     await LoadProfileStatsAsync(grevId);
                 return;

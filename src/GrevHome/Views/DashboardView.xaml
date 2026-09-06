@@ -128,6 +128,16 @@
                 </StackPanel>
             </ScrollViewer>
 
+            <StackPanel x:Name="FriendsSection" Visibility="Collapsed" Margin="0,0,0,22">
+                <Grid Margin="10,0,10,8">
+                    <TextBlock Text="FRIENDS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                </Grid>
+                <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
+                    <StackPanel x:Name="FriendsPanel" Orientation="Horizontal" />
+                </ScrollViewer>
+            </StackPanel>
+
             <TextBlock Text="SYSTEM"
                        Margin="10,0,0,8"
                        FontSize="13"
@@ -188,16 +198,6 @@
                 </Button>
                 </StackPanel>
             </ScrollViewer>
-
-            <StackPanel x:Name="FriendsSection" Visibility="Collapsed" Margin="0,24,0,0">
-                <Grid Margin="10,0,10,8">
-                    <TextBlock Text="FRIENDS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                    <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedBrush}" />
-                </Grid>
-                <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
-                    <StackPanel x:Name="FriendsPanel" Orientation="Horizontal" />
-                </ScrollViewer>
-            </StackPanel>
 
             <TextBlock x:Name="DashboardStatusText"
                        Visibility="Collapsed"

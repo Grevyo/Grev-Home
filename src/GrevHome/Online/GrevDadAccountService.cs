@@ -558,6 +558,30 @@ public sealed class GrevDadAccountService : IDisposable
         await SendMutationAsync(grevId, HttpMethod.Post, "api/grev-home/friend-requests", new { userId }, cancellationToken);
     }
 
+    public async Task<GrevDadFriendCodeResult> FindByFriendCodeAsync(
+        string grevId,
+        string friendCode,
+        CancellationToken cancellationToken = default)
+    {
+        var normalized = friendCode.Trim().ToUpperInvariant();
+        using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get,
+            $"api/grev-home/friends/lookup?code={Uri.EscapeDataString(normalized)}", null, cancellationToken);
+        var payload = await ReadJsonAsync<FriendCodeLookupApiResponse>(response, cancellationToken);
+        EnsureSuccessful(response, payload.Ok, payload.Message);
+        return payload.User ?? throw new InvalidDataException("Grev.dad returned no member for that friend code.");
+    }
+
+    public async Task<GrevDadPublicCard> SavePublicCardAsync(
+        string grevId,
+        GrevDadPublicCard card,
+        CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAuthorizedAsync(grevId, HttpMethod.Put, "api/grev-home/public-card", new { card }, cancellationToken);
+        var payload = await ReadJsonAsync<PublicCardApiResponse>(response, cancellationToken);
+        EnsureSuccessful(response, payload.Ok, payload.Message);
+        return payload.Card ?? card;
+    }
+
     public async Task AcceptFriendRequestAsync(string grevId, string requestId, CancellationToken cancellationToken = default) =>
         await SendMutationAsync(grevId, HttpMethod.Post, $"api/grev-home/friend-requests/{Uri.EscapeDataString(requestId)}/accept", null, cancellationToken);
 
@@ -970,7 +994,10 @@ public sealed class GrevDadAccountService : IDisposable
         item.DisplayName,
         item.IsVerified,
         FromUnixSeconds(item.FriendsSince),
-        ToPresence(item.Presence));
+        ToPresence(item.Presence),
+        item.PublicCard,
+        item.TotalXp,
+        item.Level);
 
     private static GrevDadFriendRequest ToFriendRequest(FriendRequestApiPayload item) => new(
         item.Id,

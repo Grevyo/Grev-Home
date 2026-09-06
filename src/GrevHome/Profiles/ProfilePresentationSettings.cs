@@ -14,11 +14,22 @@ public enum ProfileShowcaseMode
     Milestones
 }
 
+public enum ProfileCardFrame { Role, Clean, Glow, Double }
+public enum ProfileAvatarShape { Circle, Rounded, Square }
+
 public sealed record ProfilePresentationSettings(
     int SchemaVersion = 1,
     string BannerKey = ProfileBannerCatalog.DefaultKey,
     string? BannerImageFile = null,
-    ProfileShowcaseMode ShowcaseMode = ProfileShowcaseMode.TopPlayed)
+    ProfileShowcaseMode ShowcaseMode = ProfileShowcaseMode.TopPlayed,
+    ProfileCardFrame CardFrame = ProfileCardFrame.Role,
+    ProfileAvatarShape AvatarShape = ProfileAvatarShape.Circle,
+    bool ShowUsername = true,
+    bool ShowLevel = true,
+    bool ShowXp = true,
+    bool ShowPlaytime = true,
+    bool ShowSessions = true,
+    bool ShowStatus = true)
 {
     public static ProfilePresentationSettings Default { get; } = new();
 }
@@ -100,7 +111,7 @@ public static class ProfileBannerCatalog
 
 public sealed class ProfilePresentationSettingsService
 {
-    private const int CurrentSchemaVersion = 1;
+    private const int CurrentSchemaVersion = 2;
     private const long MaxBannerFileBytes = 15 * 1024 * 1024;
     private static readonly HashSet<string> SupportedImageExtensions =
         new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp" };
@@ -135,12 +146,13 @@ public sealed class ProfilePresentationSettingsService
                 throw new InvalidDataException(
                     $"Profile presentation schema {settings.SchemaVersion} is newer than this Grev Home build supports ({CurrentSchemaVersion}).");
             }
-            if (settings.SchemaVersion != CurrentSchemaVersion || !Enum.IsDefined(settings.ShowcaseMode))
+            if (settings.SchemaVersion < 1 || !Enum.IsDefined(settings.ShowcaseMode) ||
+                !Enum.IsDefined(settings.CardFrame) || !Enum.IsDefined(settings.AvatarShape))
             {
                 return RecoverDefaults(path, "Profile presentation settings used an unsupported schema or showcase mode.");
             }
 
-            return settings with { BannerKey = ProfileBannerCatalog.Normalize(settings.BannerKey) };
+            return settings with { SchemaVersion = CurrentSchemaVersion, BannerKey = ProfileBannerCatalog.Normalize(settings.BannerKey) };
         }
         catch (JsonException ex)
         {
@@ -153,6 +165,14 @@ public sealed class ProfilePresentationSettingsService
         string bannerKey,
         ProfileShowcaseMode showcaseMode,
         string? customBannerSourcePath = null,
+        ProfileCardFrame cardFrame = ProfileCardFrame.Role,
+        ProfileAvatarShape avatarShape = ProfileAvatarShape.Circle,
+        bool showUsername = true,
+        bool showLevel = true,
+        bool showXp = true,
+        bool showPlaytime = true,
+        bool showSessions = true,
+        bool showStatus = true,
         CancellationToken cancellationToken = default)
     {
         if (!Enum.IsDefined(showcaseMode))
@@ -186,7 +206,15 @@ public sealed class ProfilePresentationSettingsService
             CurrentSchemaVersion,
             normalizedBanner,
             bannerImageFile,
-            showcaseMode);
+            showcaseMode,
+            cardFrame,
+            avatarShape,
+            showUsername,
+            showLevel,
+            showXp,
+            showPlaytime,
+            showSessions,
+            showStatus);
         await WriteSettingsAsync(grevId, updated, cancellationToken);
 
         if (!string.IsNullOrWhiteSpace(previousBannerFile) &&

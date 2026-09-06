@@ -193,6 +193,32 @@
                                     <Button x:Name="MilestonesShowcaseButton" Content="Milestones" Tag="Milestones" Width="170" Height="48" Margin="3" Click="Showcase_Click" />
                                 </WrapPanel>
 
+                                <TextBlock Text="PUBLIC CARD FRAME" Style="{StaticResource EditEyebrow}" />
+                                <TextBlock Text="This same card style is used on Who's Playing and is shared with Grev Home friends when linked." Margin="0,5,0,8" Style="{StaticResource EditHint}" />
+                                <WrapPanel Margin="-3,0,-3,12">
+                                    <Button x:Name="RoleFrameButton" Content="Role Frame" Tag="Role" Width="155" Height="48" Margin="3" Click="CardFrame_Click" />
+                                    <Button x:Name="CleanFrameButton" Content="Clean" Tag="Clean" Width="135" Height="48" Margin="3" Click="CardFrame_Click" />
+                                    <Button x:Name="GlowFrameButton" Content="Glow" Tag="Glow" Width="135" Height="48" Margin="3" Click="CardFrame_Click" />
+                                    <Button x:Name="DoubleFrameButton" Content="Double" Tag="Double" Width="135" Height="48" Margin="3" Click="CardFrame_Click" />
+                                </WrapPanel>
+
+                                <TextBlock Text="PROFILE PICTURE SHAPE" Style="{StaticResource EditEyebrow}" />
+                                <WrapPanel Margin="-3,8,-3,12">
+                                    <Button x:Name="CircleAvatarButton" Content="Circle" Tag="Circle" Width="145" Height="48" Margin="3" Click="AvatarShape_Click" />
+                                    <Button x:Name="RoundedAvatarButton" Content="Rounded" Tag="Rounded" Width="145" Height="48" Margin="3" Click="AvatarShape_Click" />
+                                    <Button x:Name="SquareAvatarButton" Content="Square" Tag="Square" Width="145" Height="48" Margin="3" Click="AvatarShape_Click" />
+                                </WrapPanel>
+
+                                <TextBlock Text="VISIBLE DETAILS" Style="{StaticResource EditEyebrow}" />
+                                <WrapPanel Margin="0,8,0,16">
+                                    <CheckBox x:Name="ShowUsernameCheck" Content="Username" IsChecked="True" Margin="6" />
+                                    <CheckBox x:Name="ShowLevelCheck" Content="Level" IsChecked="True" Margin="6" />
+                                    <CheckBox x:Name="ShowXpCheck" Content="XP" IsChecked="True" Margin="6" />
+                                    <CheckBox x:Name="ShowPlaytimeCheck" Content="Play time" IsChecked="True" Margin="6" />
+                                    <CheckBox x:Name="ShowSessionsCheck" Content="Sessions" IsChecked="True" Margin="6" />
+                                    <CheckBox x:Name="ShowStatusCheck" Content="Status" IsChecked="True" Margin="6" />
+                                </WrapPanel>
+
                                 <StackPanel x:Name="RolePanel">
                                     <TextBlock Text="ACCOUNT ROLE" Style="{StaticResource EditEyebrow}" />
                                     <TextBlock x:Name="RoleDescriptionText" Margin="0,6,0,10" Style="{StaticResource EditHint}" />

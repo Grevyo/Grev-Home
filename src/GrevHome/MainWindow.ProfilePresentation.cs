@@ -117,7 +117,30 @@ public partial class MainWindow
                 profile.GrevId,
                 request.BannerKey,
                 request.ShowcaseMode,
-                request.CustomBannerSourcePath);
+                request.CustomBannerSourcePath,
+                request.CardFrame,
+                request.AvatarShape,
+                request.ShowUsername,
+                request.ShowLevel,
+                request.ShowXp,
+                request.ShowPlaytime,
+                request.ShowSessions,
+                request.ShowStatus);
+
+            var link = _grevDadAccounts?.GetLastSnapshot(profile.GrevId);
+            if (link?.State == Online.GrevDadConnectionState.Linked)
+            {
+                await _grevDadAccounts!.SavePublicCardAsync(profile.GrevId, new Online.GrevDadPublicCard(
+                    saved.BannerKey,
+                    saved.CardFrame.ToString().ToLowerInvariant(),
+                    saved.AvatarShape.ToString().ToLowerInvariant(),
+                    saved.ShowUsername,
+                    saved.ShowLevel,
+                    saved.ShowXp,
+                    saved.ShowPlaytime,
+                    saved.ShowSessions,
+                    saved.ShowStatus));
+            }
 
             if (_navigation.Current == Route.ProfileEdit &&
                 string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
@@ -130,7 +153,7 @@ public partial class MainWindow
                 _profileView.SetPresentation(saved);
             }
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException or HttpRequestException or TaskCanceledException)
         {
             if (_navigation.Current == Route.ProfileEdit &&
                 string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))

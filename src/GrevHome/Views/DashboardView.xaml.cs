@@ -212,13 +212,29 @@ public partial class DashboardView : UserControl
         if (!available) return;
         var online = friends.Count(friend => !string.Equals(friend.Presence.Availability, "offline", StringComparison.OrdinalIgnoreCase));
         FriendsSummaryText.Text = offline ? $"Offline • {friends.Count} cached" : $"{online} online • {friends.Count} total";
-        foreach (var friend in friends.OrderByDescending(item => !string.Equals(item.Presence.Availability, "offline", StringComparison.OrdinalIgnoreCase)).ThenBy(item => item.DisplayName))
+        var allFriendsButton = new Button
+        {
+            Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            Content = new StackPanel { Children =
+            {
+                new TextBlock { Text = "All Friends", FontSize = 18, FontWeight = FontWeights.SemiBold },
+                new TextBlock { Text = $"Open friends, requests and friend code  •  {friends.Count} total", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis }
+            } }
+        };
+        allFriendsButton.Click += Friends_Click;
+        FriendsPanel.Children.Add(allFriendsButton);
+
+        foreach (var friend in friends
+                     .OrderByDescending(item => !string.Equals(item.Presence.Availability, "offline", StringComparison.OrdinalIgnoreCase))
+                     .ThenByDescending(item => item.Presence.UpdatedAtUtc ?? DateTimeOffset.MinValue)
+                     .ThenBy(item => item.DisplayName))
         {
             var friendButton = new Button
             {
                 Width = 285, Height = 86, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12),
                 HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Content = new StackPanel { Children = { new TextBlock { Text = friend.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold }, new TextBlock { Text = $"{friend.Presence.Availability}  •  {friend.Presence.ActivityText}", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis } } }
+                Content = new StackPanel { Children = { new TextBlock { Text = friend.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold }, new TextBlock { Text = $"Level {friend.Level}  •  {friend.Presence.Availability}  •  {friend.Presence.ActivityText}", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis } } }
             };
             friendButton.Click += Friends_Click;
             FriendsPanel.Children.Add(friendButton);

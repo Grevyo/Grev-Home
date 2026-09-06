@@ -18,6 +18,10 @@ public partial class MainWindow
         _dashboardView.FriendsRequested += (_, _) => OpenFriends();
         _friendsView.BackRequested += (_, _) => _navigation.GoBack();
         _friendsView.RefreshRequested += (_, _) => _ = RefreshFriendsSurfacesAsync(forceLoad: true);
+        _friendsView.AddFriendCodeRequested += code => _ = AddFriendByCodeAsync(code);
+        _friendsView.AcceptRequestRequested += id => _ = ResolveFriendRequestAsync(id, "accept");
+        _friendsView.DeclineRequestRequested += id => _ = ResolveFriendRequestAsync(id, "decline");
+        _friendsView.CancelRequestRequested += id => _ = ResolveFriendRequestAsync(id, "cancel");
         _navigation.RouteChanged += route =>
         {
             if (route == Route.Friends)
@@ -57,10 +61,11 @@ public partial class MainWindow
             var available = snapshot.State is GrevDadConnectionState.Linked or GrevDadConnectionState.Offline;
             if (!available) { SetFriendsUnavailable(); return; }
             var friends = await service.GetFriendsAsync(primary.GrevId, allowCachedWhenOffline: true);
+            var requests = offline ? GrevDadFriendRequestsSnapshot.Empty : await service.GetFriendRequestsAsync(primary.GrevId);
             var offline = snapshot.State == GrevDadConnectionState.Offline;
             ShellFriendsButton.Visibility = Visibility.Visible;
             _dashboardView.SetFriends(true, friends, offline);
-            _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, friends, offline);
+            _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -70,6 +75,37 @@ public partial class MainWindow
             _dashboardView.SetFriends(available, Array.Empty<GrevDadFriend>(), offline: true);
             if (_navigation.Current == Route.Friends) _friendsView.ShowStatus($"Friends could not be refreshed: {ex.Message}");
         }
+    }
+
+    private async Task AddFriendByCodeAsync(string code)
+    {
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (grevId is null || _grevDadAccounts is null) return;
+        try
+        {
+            _friendsView.ShowStatus("Looking up friend code…");
+            var member = await _grevDadAccounts.FindByFriendCodeAsync(grevId, code);
+            await _grevDadAccounts.SendFriendRequestAsync(grevId, member.UserId);
+            _friendsView.ShowStatus($"Friend request sent to {member.DisplayName} (@{member.Username}).");
+            await RefreshFriendsSurfacesAsync(forceLoad: true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidDataException or InvalidOperationException)
+        { _friendsView.ShowStatus(ex.Message); }
+    }
+
+    private async Task ResolveFriendRequestAsync(string requestId, string action)
+    {
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (grevId is null || _grevDadAccounts is null) return;
+        try
+        {
+            if (action == "accept") await _grevDadAccounts.AcceptFriendRequestAsync(grevId, requestId);
+            else if (action == "decline") await _grevDadAccounts.DeclineFriendRequestAsync(grevId, requestId);
+            else await _grevDadAccounts.CancelFriendRequestAsync(grevId, requestId);
+            await RefreshFriendsSurfacesAsync(forceLoad: true);
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException)
+        { _friendsView.ShowStatus(ex.Message); }
     }
 
     private void SetFriendsUnavailable()

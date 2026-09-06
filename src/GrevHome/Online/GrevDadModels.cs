@@ -21,7 +21,20 @@ public sealed record GrevDadRemoteAccount(
     string GrevId,
     string LocalUsername,
     string LocalDisplayName,
-    string LinkId);
+    string LinkId,
+    string? FriendCode = null,
+    GrevDadPublicCard? PublicCard = null);
+
+public sealed record GrevDadPublicCard(
+    string Theme = "grev",
+    string Frame = "role",
+    string AvatarShape = "circle",
+    bool ShowUsername = true,
+    bool ShowLevel = true,
+    bool ShowXp = true,
+    bool ShowPlaytime = true,
+    bool ShowSessions = true,
+    bool ShowStatus = true);
 
 public sealed record GrevDadAccountSnapshot(
     GrevDadConnectionState State,
@@ -69,7 +82,17 @@ public sealed record GrevDadFriend(
     string DisplayName,
     bool IsVerified,
     DateTimeOffset FriendsSinceUtc,
-    GrevDadPresence Presence);
+    GrevDadPresence Presence,
+    GrevDadPublicCard? PublicCard = null,
+    long TotalXp = 0,
+    int Level = 1);
+
+public sealed record GrevDadFriendCodeResult(
+    string UserId,
+    string Username,
+    string DisplayName,
+    bool IsVerified,
+    GrevDadPublicCard? PublicCard);
 
 public sealed record GrevDadMemberSearchResult(
     string UserId,
@@ -181,7 +204,20 @@ internal sealed record FriendApiPayload(
     string DisplayName,
     bool IsVerified,
     long FriendsSince,
-    PresenceApiPayload Presence);
+    PresenceApiPayload Presence,
+    GrevDadPublicCard? PublicCard,
+    long TotalXp,
+    int Level);
+
+internal sealed record FriendCodeLookupApiResponse(
+    bool Ok,
+    string? Message,
+    GrevDadFriendCodeResult? User);
+
+internal sealed record PublicCardApiResponse(
+    bool Ok,
+    string? Message,
+    GrevDadPublicCard? Card);
 
 internal sealed record FriendsApiResponse(
     bool Ok,

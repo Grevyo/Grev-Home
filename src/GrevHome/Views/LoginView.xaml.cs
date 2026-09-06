@@ -84,16 +84,18 @@ public partial class LoginView : UserControl
                 Margin = new Thickness(10, 0, 10, 0),
                 Padding = new Thickness(18),
                 Background = CreateCardBackground(profile, presentation),
+                BorderThickness = presentation?.CardFrame == ProfileCardFrame.Clean ? new Thickness(0) :
+                    presentation?.CardFrame == ProfileCardFrame.Double ? new Thickness(5) : new Thickness(2),
                 Tag = profile,
                 IsEnabled = !slotsFull && (!addingPlayer || canAddPlayers && signedIn is null),
                 Content = new StackPanel
                 {
                     Children =
                     {
-                        CreateAvatar(profile),
+                        CreateAvatar(profile, presentation),
                         new TextBlock { Text = profile.DisplayName, FontSize = 27, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 245, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = BuildProfileSummary(profile, stats), Margin = new Thickness(0,12,0,6), MaxWidth = 245, FontSize = 14, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap },
+                        new TextBlock { Text = presentation?.ShowUsername == false ? profile.Role.ToString() : $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
+                        new TextBlock { Text = BuildProfileSummary(profile, stats, presentation), Margin = new Thickness(0,12,0,6), MaxWidth = 245, FontSize = 14, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap },
                         new TextBlock { Text = signedIn is null ? profile.HasControllerPassword ? "PASSWORD PROTECTED" : string.Empty : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("AccentBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
                     }
                 }
@@ -169,7 +171,7 @@ public partial class LoginView : UserControl
         };
     }
 
-    private Border CreateAvatar(LocalProfile profile)
+    private Border CreateAvatar(LocalProfile profile, ProfilePresentationSettings? presentation)
     {
         const double size = 110;
         var grid = new Grid();
@@ -180,7 +182,11 @@ public partial class LoginView : UserControl
             {
                 Source = imageSource,
                 Stretch = Stretch.UniformToFill,
-                Clip = new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+                Clip = presentation?.AvatarShape == ProfileAvatarShape.Circle
+                    ? new EllipseGeometry(new Point(size / 2, size / 2), size / 2, size / 2)
+                    : new RectangleGeometry(new Rect(0, 0, size, size),
+                        presentation?.AvatarShape == ProfileAvatarShape.Rounded ? 18 : 0,
+                        presentation?.AvatarShape == ProfileAvatarShape.Rounded ? 18 : 0)
             });
         }
         else
@@ -206,7 +212,12 @@ public partial class LoginView : UserControl
         {
             Width = size,
             Height = size,
-            CornerRadius = new CornerRadius(size / 2),
+            CornerRadius = presentation?.AvatarShape switch
+            {
+                ProfileAvatarShape.Square => new CornerRadius(0),
+                ProfileAvatarShape.Rounded => new CornerRadius(18),
+                _ => new CornerRadius(size / 2)
+            },
             Margin = new Thickness(0, 0, 0, 18),
             HorizontalAlignment = HorizontalAlignment.Center,
             Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
@@ -246,13 +257,23 @@ public partial class LoginView : UserControl
         LocalProfileSignInRequested?.Invoke(request);
     }
 
-    private static string BuildProfileSummary(LocalProfile profile, ProfileStatsSnapshot? stats)
+    private static string BuildProfileSummary(LocalProfile profile, ProfileStatsSnapshot? stats, ProfilePresentationSettings? presentation)
     {
         if (profile.IsBuiltInGuest) return "Guest pass • no membership required\nSnacks and questionable choices welcome";
-        if (stats is null) return string.IsNullOrWhiteSpace(profile.StatusMessage) ? $"Member since {profile.CreatedAtUtc.ToLocalTime():yyyy}" : profile.StatusMessage;
+        presentation ??= ProfilePresentationSettings.Default;
+        if (stats is null) return presentation.ShowStatus && !string.IsNullOrWhiteSpace(profile.StatusMessage) ? profile.StatusMessage : $"Member since {profile.CreatedAtUtc.ToLocalTime():yyyy}";
         var hours = TimeSpan.FromSeconds(stats.TotalTrackedSeconds).TotalHours;
-        var activity = $"Level {stats.Progression.Level}  •  {stats.Progression.TotalXp:N0} XP\n{hours:0.#} hours  •  {stats.CompletedSessions:N0} sessions";
-        return string.IsNullOrWhiteSpace(profile.StatusMessage) ? activity : profile.StatusMessage + "\n" + activity;
+        var first = new List<string>();
+        var second = new List<string>();
+        if (presentation.ShowLevel) first.Add($"Level {stats.Progression.Level}");
+        if (presentation.ShowXp) first.Add($"{stats.Progression.TotalXp:N0} XP");
+        if (presentation.ShowPlaytime) second.Add($"{hours:0.#} hours");
+        if (presentation.ShowSessions) second.Add($"{stats.CompletedSessions:N0} sessions");
+        var lines = new List<string>();
+        if (presentation.ShowStatus && !string.IsNullOrWhiteSpace(profile.StatusMessage)) lines.Add(profile.StatusMessage);
+        if (first.Count > 0) lines.Add(string.Join("  •  ", first));
+        if (second.Count > 0) lines.Add(string.Join("  •  ", second));
+        return string.Join("\n", lines);
     }
 
     private static Brush CreateCardBackground(LocalProfile profile, ProfilePresentationSettings? presentation)

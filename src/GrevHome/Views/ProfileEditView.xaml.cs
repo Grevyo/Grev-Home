@@ -18,7 +18,15 @@ public sealed record ProfileEditRequest(
     string? CustomAvatarSourcePath,
     string BannerKey,
     ProfileShowcaseMode ShowcaseMode,
-    string? CustomBannerSourcePath);
+    string? CustomBannerSourcePath,
+    ProfileCardFrame CardFrame,
+    ProfileAvatarShape AvatarShape,
+    bool ShowUsername,
+    bool ShowLevel,
+    bool ShowXp,
+    bool ShowPlaytime,
+    bool ShowSessions,
+    bool ShowStatus);
 
 public partial class ProfileEditView : UserControl
 {
@@ -35,6 +43,8 @@ public partial class ProfileEditView : UserControl
     private string _selectedAvatarKey = ProfileAvatarCatalog.DefaultKey;
     private string _selectedBannerKey = ProfileBannerCatalog.DefaultKey;
     private ProfileShowcaseMode _selectedShowcaseMode = ProfileShowcaseMode.TopPlayed;
+    private ProfileCardFrame _selectedCardFrame = ProfileCardFrame.Role;
+    private ProfileAvatarShape _selectedAvatarShape = ProfileAvatarShape.Circle;
     private AccountRole _selectedRole = AccountRole.Standard;
     private bool _canChangeRole;
     private string? _customAvatarSourcePath;
@@ -93,6 +103,10 @@ public partial class ProfileEditView : UserControl
         _selectedAvatarKey = ProfileAvatarCatalog.Normalize(profile.AvatarKey);
         _selectedBannerKey = ProfileBannerCatalog.Normalize(_presentation.BannerKey);
         _selectedShowcaseMode = _presentation.ShowcaseMode;
+        _selectedCardFrame = _presentation.CardFrame;
+        _selectedAvatarShape = _presentation.AvatarShape;
+        ApplyCardVisibility(_presentation.ShowUsername, _presentation.ShowLevel, _presentation.ShowXp,
+            _presentation.ShowPlaytime, _presentation.ShowSessions, _presentation.ShowStatus);
         _selectedRole = profile.Role;
         _customAvatarSourcePath = null;
         _customBannerSourcePath = null;
@@ -126,6 +140,7 @@ public partial class ProfileEditView : UserControl
         UpdateAvatarPresentation();
         UpdateBannerPresentation();
         UpdateShowcasePresentation();
+        UpdateCardOptionsPresentation();
         UpdateRolePresentation();
     }
 
@@ -141,7 +156,15 @@ public partial class ProfileEditView : UserControl
             _customAvatarSourcePath,
             _selectedBannerKey,
             _selectedShowcaseMode,
-            _customBannerSourcePath);
+            _customBannerSourcePath,
+            _selectedCardFrame,
+            _selectedAvatarShape,
+            ShowUsernameCheck.IsChecked != false,
+            ShowLevelCheck.IsChecked != false,
+            ShowXpCheck.IsChecked != false,
+            ShowPlaytimeCheck.IsChecked != false,
+            ShowSessionsCheck.IsChecked != false,
+            ShowStatusCheck.IsChecked != false);
 
     public void RestoreDraft(ProfileEditRequest draft)
     {
@@ -155,6 +178,9 @@ public partial class ProfileEditView : UserControl
         _selectedBannerKey = ProfileBannerCatalog.Normalize(draft.BannerKey);
         _selectedShowcaseMode = draft.ShowcaseMode;
         _customBannerSourcePath = draft.CustomBannerSourcePath;
+        _selectedCardFrame = draft.CardFrame;
+        _selectedAvatarShape = draft.AvatarShape;
+        ApplyCardVisibility(draft.ShowUsername, draft.ShowLevel, draft.ShowXp, draft.ShowPlaytime, draft.ShowSessions, draft.ShowStatus);
         UpdateAvatarPresentation();
         UpdateBannerPresentation();
         UpdateShowcasePresentation();
@@ -268,6 +294,35 @@ public partial class ProfileEditView : UserControl
             _selectedShowcaseMode = mode;
             UpdateShowcasePresentation();
         }
+    }
+
+    private void CardFrame_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string value } && Enum.TryParse<ProfileCardFrame>(value, true, out var frame))
+        { _selectedCardFrame = frame; UpdateCardOptionsPresentation(); }
+    }
+
+    private void AvatarShape_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: string value } && Enum.TryParse<ProfileAvatarShape>(value, true, out var shape))
+        { _selectedAvatarShape = shape; UpdateCardOptionsPresentation(); }
+    }
+
+    private void ApplyCardVisibility(bool username, bool level, bool xp, bool playtime, bool sessions, bool status)
+    {
+        ShowUsernameCheck.IsChecked=username; ShowLevelCheck.IsChecked=level; ShowXpCheck.IsChecked=xp;
+        ShowPlaytimeCheck.IsChecked=playtime; ShowSessionsCheck.IsChecked=sessions; ShowStatusCheck.IsChecked=status;
+    }
+
+    private void UpdateCardOptionsPresentation()
+    {
+        RoleFrameButton.Content = _selectedCardFrame == ProfileCardFrame.Role ? "✓ Role Frame" : "Role Frame";
+        CleanFrameButton.Content = _selectedCardFrame == ProfileCardFrame.Clean ? "✓ Clean" : "Clean";
+        GlowFrameButton.Content = _selectedCardFrame == ProfileCardFrame.Glow ? "✓ Glow" : "Glow";
+        DoubleFrameButton.Content = _selectedCardFrame == ProfileCardFrame.Double ? "✓ Double" : "Double";
+        CircleAvatarButton.Content = _selectedAvatarShape == ProfileAvatarShape.Circle ? "✓ Circle" : "Circle";
+        RoundedAvatarButton.Content = _selectedAvatarShape == ProfileAvatarShape.Rounded ? "✓ Rounded" : "Rounded";
+        SquareAvatarButton.Content = _selectedAvatarShape == ProfileAvatarShape.Square ? "✓ Square" : "Square";
     }
 
     private void Role_Click(object sender, RoutedEventArgs e)
