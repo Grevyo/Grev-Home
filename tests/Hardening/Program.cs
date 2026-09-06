@@ -54,6 +54,12 @@ try
     Check((await first.GetProfilesAsync()).Single(p => p.GrevId == player.GrevId).DisplayName != "Cancelled", "Cancelled mutation must not write");
 
     Check(KeyboardRemoteInputMapper.Map(Key.MediaPlayPause) == InputAction.Accept, "Remote accept mapping");
+    var protectedProfile = await first.SetControllerPasswordAsync(player.GrevId, "ABXY1234");
+    Check(protectedProfile.HasControllerPassword && first.VerifyControllerPassword(protectedProfile, "ABXY1234"), "Controller password must verify");
+    Check(!first.VerifyControllerPassword(protectedProfile, "wrong"), "Incorrect controller password must fail");
+    Check(!File.ReadAllText(paths.GetProfileMetadata(player.GrevId)).Contains("ABXY1234", StringComparison.Ordinal), "Plaintext password must never be stored");
+    await first.ClearControllerPasswordAsync(player.GrevId);
+    Check(!(await first.GetProfilesAsync()).Single(p => p.GrevId == player.GrevId).HasControllerPassword, "Controller password must be removable");
     Check(KeyboardRemoteInputMapper.Map(Key.BrowserBack) == InputAction.Back, "Remote back mapping");
     Check(KeyboardRemoteInputMapper.Map(Key.VolumeUp) is null, "Volume must remain owned by Windows/media application");
     Check(KeyboardRemoteInputMapper.Map(Key.A) is null, "Typing keys must not become shell navigation");

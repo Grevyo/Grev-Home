@@ -59,6 +59,8 @@ public partial class MainWindow
         _profileEditView.ChooseCustomPhotoRequested += (_, _) => OpenProfilePhotoPicker();
         _profileEditView.KeyboardOpened += (_, _) => ProfileKeyboardOpened(Route.ProfileEdit);
         _profileEditView.KeyboardClosed += (_, _) => ProfileKeyboardClosed(Route.ProfileEdit);
+        _profileEditView.SetPasswordRequested += (grevId, password) => _ = SetProfilePasswordAsync(grevId, password);
+        _profileEditView.RemovePasswordRequested += grevId => _ = RemoveProfilePasswordAsync(grevId);
         _createProfileView.KeyboardOpened += (_, _) => ProfileKeyboardOpened(Route.CreateProfile);
         _createProfileView.KeyboardClosed += (_, _) => ProfileKeyboardClosed(Route.CreateProfile);
 
@@ -67,6 +69,36 @@ public partial class MainWindow
         _profilePhotoPickerView.CancelRequested += (_, _) => _navigation.GoBack();
         _profilePhotoPickerView.NavigateRequested += NavigateProfilePhotoPath;
         _profilePhotoPickerView.PhotoSelected += SelectProfilePhoto;
+    }
+
+    private async Task SetProfilePasswordAsync(string grevId, string password)
+    {
+        try
+        {
+            var actor = _session.PrimaryUser;
+            if (actor is null || !AccountAuthorizationService.CanEditProfile(actor.Role, actor.GrevId, grevId))
+                throw new InvalidOperationException("You are not allowed to change this profile password.");
+            await _profileService.SetControllerPasswordAsync(grevId, password);
+            _profiles = await _profileService.GetProfilesAsync();
+            _profileEditView.SetProfile(_profiles.Single(profile => profile.GrevId == grevId), canChangeRole: _session.PrimaryUser?.Role == AccountRole.Admin);
+            _profileEditView.ShowStatus("Controller password saved securely. It will be required at Who's Playing.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException) { _profileEditView.ShowStatus(ex.Message); }
+    }
+
+    private async Task RemoveProfilePasswordAsync(string grevId)
+    {
+        try
+        {
+            var actor = _session.PrimaryUser;
+            if (actor is null || !AccountAuthorizationService.CanEditProfile(actor.Role, actor.GrevId, grevId))
+                throw new InvalidOperationException("You are not allowed to remove this profile password.");
+            await _profileService.ClearControllerPasswordAsync(grevId);
+            _profiles = await _profileService.GetProfilesAsync();
+            _profileEditView.SetProfile(_profiles.Single(profile => profile.GrevId == grevId), canChangeRole: _session.PrimaryUser?.Role == AccountRole.Admin);
+            _profileEditView.ShowStatus("Controller password removed.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException) { _profileEditView.ShowStatus(ex.Message); }
     }
 
     private void HandleProfileRouteChanged(Route route)

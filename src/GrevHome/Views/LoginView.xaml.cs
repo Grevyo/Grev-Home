@@ -13,10 +13,14 @@ public partial class LoginView : UserControl
 {
     private SessionContext? _session;
     private Button? _lastProfileFocus;
+    private ProfileSignInRequest? _pendingPasswordProfile;
+    private IReadOnlyDictionary<string, ProfileStatsSnapshot> _stats = new Dictionary<string, ProfileStatsSnapshot>();
+    private IReadOnlyDictionary<string, ProfilePresentationSettings> _presentations = new Dictionary<string, ProfilePresentationSettings>();
 
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
     public event Action<int?>? GuestSignInRequested;
     public event EventHandler? CreateProfileRequested;
+    public event Action<ProfileSignInRequest, string>? PasswordSignInRequested;
 
     public int? ActivationControllerIndex { get; set; }
     public Button CreateAccountFocusTarget => CreateAccountButton;
@@ -25,10 +29,24 @@ public partial class LoginView : UserControl
     public LoginView()
     {
         InitializeComponent();
+        PasswordKeyboard.Completed += password =>
+        {
+            if (_pendingPasswordProfile is { } request) PasswordSignInRequested?.Invoke(request, password);
+            _pendingPasswordProfile = null;
+        };
+        PasswordKeyboard.Cancelled += (_, _) => _pendingPasswordProfile = null;
     }
+
+    public void SetProfileDetails(IReadOnlyDictionary<string, ProfileStatsSnapshot> stats,
+        IReadOnlyDictionary<string, ProfilePresentationSettings> presentations)
+    { _stats = stats; _presentations = presentations; if (_session is not null) Refresh(_lastProfiles, _session, _lastControllers); }
+
+    private IReadOnlyList<LocalProfile> _lastProfiles = Array.Empty<LocalProfile>();
+    private IReadOnlyList<bool> _lastControllers = Array.Empty<bool>();
 
     public void Refresh(IReadOnlyList<LocalProfile> profiles, SessionContext session, IReadOnlyList<bool> connectedControllers)
     {
+        _lastProfiles = profiles; _lastControllers = connectedControllers;
         _session = session;
         var addingPlayer = session.HasSignedInUsers;
         var slotsFull = session.SignedInUsers.Count >= SessionContext.MaximumPlayers;
@@ -45,7 +63,7 @@ public partial class LoginView : UserControl
                 : canAddPlayers
                     ? "Choose another local profile or Temporary Guest. Use an unassigned controller to join, or use keyboard/mouse to join without a controller."
                     : "The current Primary User is not allowed to add another player. Press B / Esc to return."
-            : "Choose your profile to enter Grev Home.";
+            : "Choose a profile.";
         BackHintText.Visibility = addingPlayer ? Visibility.Visible : Visibility.Collapsed;
 
         var canCreateAccount = !addingPlayer ||
@@ -56,6 +74,8 @@ public partial class LoginView : UserControl
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
         {
+            _stats.TryGetValue(profile.GrevId, out var stats);
+            _presentations.TryGetValue(profile.GrevId, out var presentation);
             var signedIn = session.SignedInUsers.FirstOrDefault(user => string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
             var button = new Button
             {
@@ -63,7 +83,7 @@ public partial class LoginView : UserControl
                 Height = 380,
                 Margin = new Thickness(10, 0, 10, 0),
                 Padding = new Thickness(18),
-                Background = ProfileBannerCatalog.CreateBrush(ProfileBannerCatalog.Presets[1 + profile.GrevId.Sum(c=>(int)c) % (ProfileBannerCatalog.Presets.Count-1)].Key),
+                Background = CreateCardBackground(profile, presentation),
                 Tag = profile,
                 IsEnabled = !slotsFull && (!addingPlayer || canAddPlayers && signedIn is null),
                 Content = new StackPanel
@@ -73,8 +93,8 @@ public partial class LoginView : UserControl
                         CreateAvatar(profile),
                         new TextBlock { Text = profile.DisplayName, FontSize = 27, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center, MaxWidth = 245, TextTrimming = TextTrimming.CharacterEllipsis },
                         new TextBlock { Text = $"@{profile.Username}  •  {profile.Role}", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis },
-                        new TextBlock { Text = string.IsNullOrWhiteSpace(profile.StatusMessage) ? "Ready for your next adventure" : profile.StatusMessage, Margin = new Thickness(0,14,0,10), MaxWidth = 245, FontSize = 14, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap, MaxHeight = 42 },
-                        new TextBlock { Text = signedIn is null ? slotsFull ? "SESSION FULL" : addingPlayer ? canAddPlayers ? "A / Enter to join" : "PLAYER MANAGEMENT RESTRICTED" : "A / Enter to play" : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("AccentBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
+                        new TextBlock { Text = BuildProfileSummary(profile, stats), Margin = new Thickness(0,12,0,6), MaxWidth = 245, FontSize = 14, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap },
+                        new TextBlock { Text = signedIn is null ? profile.HasControllerPassword ? "PASSWORD PROTECTED" : string.Empty : BuildSignedInLabel(session, signedIn), Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("AccentBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, TextAlignment = TextAlignment.Center, TextWrapping = TextWrapping.Wrap }
                     }
                 }
             };
@@ -116,7 +136,7 @@ public partial class LoginView : UserControl
                     CreateTemporaryGuestAvatar(),
                     new TextBlock { Text = "Temporary Guest", FontSize = 21, FontWeight = FontWeights.SemiBold, HorizontalAlignment = HorizontalAlignment.Center },
                     new TextBlock { Text = "No GrevID • shared guest data", Margin = new Thickness(0, 4, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12 },
-                    new TextBlock { Text = "A / Enter to join", Margin = new Thickness(0, 6, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 11 }
+                    new TextBlock { Text = "Borrowing the sofa. Returning nothing.", Margin = new Thickness(0, 8, 0, 0), Foreground = (Brush)FindResource("MutedBrush"), HorizontalAlignment = HorizontalAlignment.Center, FontSize = 12, TextWrapping = TextWrapping.Wrap, TextAlignment = TextAlignment.Center }
                 }
             }
         };
@@ -216,7 +236,30 @@ public partial class LoginView : UserControl
             return;
         }
 
-        LocalProfileSignInRequested?.Invoke(new ProfileSignInRequest(profile, ActivationControllerIndex));
+        var request = new ProfileSignInRequest(profile, ActivationControllerIndex);
+        if (profile.HasControllerPassword)
+        {
+            _pendingPasswordProfile = request;
+            PasswordKeyboard.Open($"Password for {profile.DisplayName}", string.Empty, 64, password: true);
+            return;
+        }
+        LocalProfileSignInRequested?.Invoke(request);
+    }
+
+    private static string BuildProfileSummary(LocalProfile profile, ProfileStatsSnapshot? stats)
+    {
+        if (profile.IsBuiltInGuest) return "Guest pass • no membership required\nSnacks and questionable choices welcome";
+        if (stats is null) return string.IsNullOrWhiteSpace(profile.StatusMessage) ? $"Member since {profile.CreatedAtUtc.ToLocalTime():yyyy}" : profile.StatusMessage;
+        var hours = TimeSpan.FromSeconds(stats.TotalTrackedSeconds).TotalHours;
+        var activity = $"Level {stats.Progression.Level}  •  {stats.Progression.TotalXp:N0} XP\n{hours:0.#} hours  •  {stats.CompletedSessions:N0} sessions";
+        return string.IsNullOrWhiteSpace(profile.StatusMessage) ? activity : profile.StatusMessage + "\n" + activity;
+    }
+
+    private static Brush CreateCardBackground(LocalProfile profile, ProfilePresentationSettings? presentation)
+    {
+        presentation ??= ProfilePresentationSettings.Default;
+        var image = ProfileBannerCatalog.TryLoadCustomImage(profile.GrevId, presentation);
+        return image is null ? ProfileBannerCatalog.CreateBrush(presentation.BannerKey) : new ImageBrush(image) { Stretch = Stretch.UniformToFill };
     }
 
     private void TemporaryGuest_Click(object sender, RoutedEventArgs e)
@@ -280,7 +323,7 @@ public partial class LoginView : UserControl
             if(left<offset+24) ProfilesScroll.ScrollToHorizontalOffset(Math.Max(0,left-24));
             else if(left+button.ActualWidth>offset+ProfilesScroll.ViewportWidth-64)
                 ProfilesScroll.ScrollToHorizontalOffset(left+button.ActualWidth-ProfilesScroll.ViewportWidth+64);
-            CarouselHintText.Text = $"{ProfilesPanel.Children.IndexOf(button)+1} / {ProfilesPanel.Children.Count}  •  ◀ ▶ Choose profile   •   A Play";
+            CarouselHintText.Text = $"Profile {ProfilesPanel.Children.IndexOf(button)+1} of {ProfilesPanel.Children.Count}";
         }));
     }
 
@@ -295,7 +338,7 @@ public partial class LoginView : UserControl
             if(button.Content is StackPanel content)
                 foreach(var text in content.Children.OfType<TextBlock>()) text.MaxWidth=Math.Max(110,width-40);
         }
-        CarouselHintText.Text = ProfilesPanel.Children.Count>4 ? "◀ ▶ Scroll profiles   •   A Play" : "◀ ▶ Choose profile   •   A Play";
+        CarouselHintText.Text = ProfilesPanel.Children.Count>4 ? "More profiles are available" : string.Empty;
     }
     private void Carousel_SizeChanged(object sender, SizeChangedEventArgs e) => ResizeCards();
     private void Profiles_MouseWheel(object sender, MouseWheelEventArgs e)

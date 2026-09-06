@@ -19,7 +19,7 @@
                        FontSize="46"
                        FontWeight="SemiBold" />
             <TextBlock x:Name="SubheadingText"
-                       Text="Choose your profile to enter Grev Home."
+                       Text="Choose a profile."
                        HorizontalAlignment="Center"
                        TextAlignment="Center"
                        TextWrapping="Wrap"
@@ -73,5 +73,6 @@
                        FontSize="12"
                        Foreground="{StaticResource MutedBrush}" />
         </StackPanel>
+        <local:ControllerQwertyKeyboard xmlns:local="clr-namespace:GrevHome.Views" x:Name="PasswordKeyboard" Grid.RowSpan="4" Panel.ZIndex="200" />
     </Grid>
 </UserControl>

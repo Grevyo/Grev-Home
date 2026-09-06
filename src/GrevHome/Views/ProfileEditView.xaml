@@ -109,6 +109,17 @@
                             </StackPanel>
                         </Border>
 
+                        <Border x:Name="ProfileSecuritySection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
+                            <StackPanel>
+                                <TextBlock Text="CONTROLLER PASSWORD" FontSize="18" FontWeight="SemiBold" />
+                                <TextBlock x:Name="PasswordStateText" Text="Optional. Require a password before this profile can sign in." Margin="0,4,0,12" Style="{StaticResource EditHint}" />
+                                <WrapPanel>
+                                    <Button Content="Set / Change Password" Width="210" Height="48" Margin="3" Click="SetPassword_Click" />
+                                    <Button x:Name="RemovePasswordButton" Content="Remove Password" Width="180" Height="48" Margin="3" Click="RemovePassword_Click" />
+                                </WrapPanel>
+                            </StackPanel>
+                        </Border>
+
                         <Border x:Name="ProfileDetailsSection" Style="{StaticResource EditSectionCard}" Margin="0,14,0,0">
                             <StackPanel>
                                 <TextBlock Text="PROFILE DETAILS" FontSize="18" FontWeight="SemiBold" />

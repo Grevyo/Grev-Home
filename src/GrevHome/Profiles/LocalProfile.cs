@@ -17,4 +17,11 @@ public sealed record LocalProfile(
     string? AvatarImageFile = null,
     string Bio = "",
     string StatusMessage = "",
-    bool IsBuiltInGuest = false);
+    bool IsBuiltInGuest = false,
+    string? PasswordSalt = null,
+    string? PasswordHash = null,
+    int PasswordIterations = 0)
+{
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool HasControllerPassword => !string.IsNullOrWhiteSpace(PasswordSalt) && !string.IsNullOrWhiteSpace(PasswordHash) && PasswordIterations >= 100_000;
+}

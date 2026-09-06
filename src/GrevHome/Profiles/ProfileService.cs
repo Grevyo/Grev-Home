@@ -66,6 +66,47 @@ public sealed class ProfileService
         SerializedAsync(() => UpdateProfileCoreAsync(grevId, displayName, avatarKey, newRole,
             customAvatarSourcePath, bio, statusMessage, cancellationToken), cancellationToken);
 
+    public Task<LocalProfile> SetControllerPasswordAsync(string grevId, string password, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => SetControllerPasswordCoreAsync(grevId, password, cancellationToken), cancellationToken);
+    public Task<LocalProfile> ClearControllerPasswordAsync(string grevId, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => ClearControllerPasswordCoreAsync(grevId, cancellationToken), cancellationToken);
+
+    public bool VerifyControllerPassword(LocalProfile profile, string password)
+    {
+        if (!profile.HasControllerPassword) return true;
+        try
+        {
+            var salt = Convert.FromBase64String(profile.PasswordSalt!);
+            var expected = Convert.FromBase64String(profile.PasswordHash!);
+            var actual = System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(password, salt,
+                profile.PasswordIterations, System.Security.Cryptography.HashAlgorithmName.SHA256, expected.Length);
+            return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(actual, expected);
+        }
+        catch (FormatException) { return false; }
+    }
+
+    private async Task<LocalProfile> SetControllerPasswordCoreAsync(string grevId, string password, CancellationToken cancellationToken)
+    {
+        if (password.Length is < 4 or > 64) throw new InvalidOperationException("Controller passwords must be 4 to 64 characters.");
+        var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest does not use a password.");
+        var salt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+        const int iterations = 210_000;
+        var hash = System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations,
+            System.Security.Cryptography.HashAlgorithmName.SHA256, 32);
+        var updated = profile with { PasswordSalt = Convert.ToBase64String(salt), PasswordHash = Convert.ToBase64String(hash), PasswordIterations = iterations };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
+    private async Task<LocalProfile> ClearControllerPasswordCoreAsync(string grevId, CancellationToken cancellationToken)
+    {
+        var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        var updated = profile with { PasswordSalt = null, PasswordHash = null, PasswordIterations = 0 };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
     private async Task<LocalProfile> EnsureBuiltInGuestCoreAsync(CancellationToken cancellationToken = default)
     {
         var existing = await GetProfilesCoreAsync(cancellationToken);
@@ -85,7 +126,10 @@ public sealed class ProfileService
                 Role = AccountRole.Guest,
                 Bio = string.Empty,
                 StatusMessage = string.Empty,
-                IsBuiltInGuest = true
+                IsBuiltInGuest = true,
+                PasswordSalt = null,
+                PasswordHash = null,
+                PasswordIterations = 0
             };
             if (repaired != guest) await WriteMetadataAsync(repaired, cancellationToken);
             return repaired;

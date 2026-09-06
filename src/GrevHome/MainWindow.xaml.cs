@@ -47,6 +47,7 @@ public partial class MainWindow : Window
     private bool _startupIntroPlaying;
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
     private Guid? _foregroundLaunchSessionId;
+    private readonly Dictionary<string, (int Failures, DateTimeOffset LockedUntil)> _profilePasswordAttempts = new(StringComparer.OrdinalIgnoreCase);
     private ShortcutRecordRequest? _pendingShortcutRecord;
 
     public MainWindow()
@@ -74,6 +75,7 @@ public partial class MainWindow : Window
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
 
         _loginView.LocalProfileSignInRequested += SignInLocal;
+        _loginView.PasswordSignInRequested += VerifyPasswordAndSignIn;
         _loginView.GuestSignInRequested += SignInTemporaryGuest;
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
 
@@ -163,6 +165,7 @@ public partial class MainWindow : Window
         RefreshSessionSurfaces();
         UpdateRuntimeSurfaces();
         _navigation.Reset(Route.Login);
+        await RefreshLoginProfileDetailsAsync();
 
         // XInput polling starts only after every Loaded-time integration is wired, profile/session
         // state is ready, and an initial route exists. Controller input can never race shell startup.
@@ -199,6 +202,44 @@ public partial class MainWindow : Window
         }
 
         CloseSessionLobby();
+    }
+
+    private void VerifyPasswordAndSignIn(ProfileSignInRequest request, string password)
+    {
+        if (_profilePasswordAttempts.TryGetValue(request.Profile.GrevId, out var attempt) && attempt.LockedUntil > DateTimeOffset.UtcNow)
+        {
+            _loginView.ShowStatus($"Too many incorrect attempts. Try again in {Math.Ceiling((attempt.LockedUntil-DateTimeOffset.UtcNow).TotalSeconds)} seconds.");
+            return;
+        }
+        var current = _profiles.FirstOrDefault(profile => string.Equals(profile.GrevId, request.Profile.GrevId, StringComparison.OrdinalIgnoreCase));
+        if (current is null || !_profileService.VerifyControllerPassword(current, password))
+        {
+            var failures = attempt.Failures + 1;
+            _profilePasswordAttempts[request.Profile.GrevId] = failures >= 5 ? (0, DateTimeOffset.UtcNow.AddSeconds(30)) : (failures, DateTimeOffset.MinValue);
+            _loginView.ShowStatus("That profile password is incorrect.");
+            return;
+        }
+        _profilePasswordAttempts.Remove(request.Profile.GrevId);
+        SignInLocal(request with { Profile = current });
+    }
+
+    private async Task RefreshLoginProfileDetailsAsync()
+    {
+        var statsService = _profileStatsService;
+        var presentationService = _profilePresentationService;
+        if (statsService is null || presentationService is null) return;
+        var stats = new Dictionary<string, ProfileStatsSnapshot>(StringComparer.OrdinalIgnoreCase);
+        var presentations = new Dictionary<string, ProfilePresentationSettings>(StringComparer.OrdinalIgnoreCase);
+        foreach (var profile in _profiles)
+        {
+            try
+            {
+                stats[profile.GrevId] = await statsService.GetAsync(profile.GrevId, _runtimeSessions.GetActiveSessions());
+                presentations[profile.GrevId] = await presentationService.GetAsync(profile.GrevId);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException) { }
+        }
+        _loginView.SetProfileDetails(stats, presentations);
     }
 
     private void EnterHome()

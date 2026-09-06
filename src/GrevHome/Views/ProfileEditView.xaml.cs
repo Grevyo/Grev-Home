@@ -26,7 +26,8 @@ public partial class ProfileEditView : UserControl
     {
         DisplayName,
         StatusMessage,
-        Bio
+        Bio,
+        Password
     }
 
     private LocalProfile? _profile;
@@ -45,6 +46,8 @@ public partial class ProfileEditView : UserControl
     public event EventHandler? ChooseCustomBannerRequested;
     public event EventHandler? KeyboardOpened;
     public event EventHandler? KeyboardClosed;
+    public event Action<string, string>? SetPasswordRequested;
+    public event Action<string>? RemovePasswordRequested;
 
     public bool IsKeyboardOpen => KeyboardOverlay.IsOpen;
 
@@ -70,6 +73,9 @@ public partial class ProfileEditView : UserControl
                     BioTextBox.Text = value;
                     BioTextBox.CaretIndex = BioTextBox.Text.Length;
                     break;
+                case KeyboardTarget.Password:
+                    if (_profile is not null) SetPasswordRequested?.Invoke(_profile.GrevId, value);
+                    break;
             }
         };
         KeyboardOverlay.Opened += (_, _) => KeyboardOpened?.Invoke(this, EventArgs.Empty);
@@ -94,6 +100,9 @@ public partial class ProfileEditView : UserControl
         BannerSettingsSection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
         ProfileDetailsSection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
         ProfileAppearanceRoleSection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
+        ProfileSecuritySection.Visibility = pictureOnly ? Visibility.Collapsed : Visibility.Visible;
+        PasswordStateText.Text = profile.HasControllerPassword ? "Password protection is enabled for this profile." : "Optional. Require a controller-entered password before this profile can sign in.";
+        RemovePasswordButton.IsEnabled = profile.HasControllerPassword;
         IdentityText.Text = $"@{profile.Username}  •  {profile.GrevId}  •  Username and GrevID are permanent";
         DisplayNameTextBox.Text = profile.DisplayName;
         DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
@@ -170,6 +179,17 @@ public partial class ProfileEditView : UserControl
 
     public void ShowStatus(string message) => StatusText.Text = message;
     public void CancelKeyboard() => KeyboardOverlay.Cancel();
+
+    private void SetPassword_Click(object sender, RoutedEventArgs e)
+    {
+        _keyboardTarget = KeyboardTarget.Password;
+        KeyboardOverlay.Open("Set Controller Password", string.Empty, 64, password: true);
+    }
+
+    private void RemovePassword_Click(object sender, RoutedEventArgs e)
+    {
+        if (_profile is not null) RemovePasswordRequested?.Invoke(_profile.GrevId);
+    }
 
     private void BuildAvatarButtons()
     {
