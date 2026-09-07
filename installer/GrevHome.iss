@@ -8,6 +8,7 @@
 ;   ISCC.exe installer\GrevHome.iss
 
 #define MyAppName "Grev Home"
+#define MyAppDirName "GrevHome"
 #define MyAppVersion "0.13"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
@@ -18,7 +19,9 @@ AppId={{EA4D6CAE-5909-4557-9BC2-0C9B89151999}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-DefaultDirName={autopf}\{#MyAppName}
+; C:\GrevCo is a shared home for every piece of Grev software, with each app
+; in its own subfolder - GrevHome here, room for others alongside it later.
+DefaultDirName=C:\GrevCo\{#MyAppDirName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 ; Grev Home already enforces one running instance itself via this named mutex
@@ -32,10 +35,10 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-; A per-machine Program Files install (the default, admin-elevated) matches
-; the rest of Grev Home's design: Games/BIOS/profile data is already shared
-; machine-wide under C:\GrevHome rather than per-user, so the app itself
-; should be too.
+; Installing outside Program Files no longer needs admin elevation - and the
+; app itself already creates C:\GrevHome (its data root) the same way, with
+; no elevation, on first run. Matching that here means no UAC prompt.
+PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
 ; Uninstall only ever removes what Setup put under {app}. Profiles, saves,
 ; and the Games/BIOS folders chosen during first-run setup all live outside
