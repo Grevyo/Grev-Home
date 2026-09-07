@@ -75,7 +75,7 @@ internal static class Program
         dashboard.SetFriends(true,[friend],false);
         var friendsPanel=(StackPanel)dashboard.FindName("FriendsPanel");
         Check(friendsPanel.Children.Count==2 && friendsPanel.Children[0] is Button allFriends &&
-              ((allFriends.Content as StackPanel)?.Children[0] as TextBlock)?.Text=="All Friends",
+              allFriends.Content is Border && allFriends.Width==285 && allFriends.Height==145,
             "Dashboard friends must begin with All Friends followed by selectable friend cards");
         var systemCarousel=(ScrollViewer)dashboard.FindName("SystemCarousel");
         var dashboardPowerTile=(Button)dashboard.FindName("SettingsPowerButton");

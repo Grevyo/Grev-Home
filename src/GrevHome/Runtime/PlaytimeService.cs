@@ -16,14 +16,15 @@ public sealed record PlaytimeSnapshot(
     int SchemaVersion,
     IReadOnlyDictionary<string, AppPlaytimeStat> Apps,
     IReadOnlyList<Guid>? AppliedSessionIds = null,
-    int UniqueAppsFloor = 0);
+    int UniqueAppsFloor = 0,
+    int StatisticsRevision = 1);
 
 public sealed class PlaytimeService
 {
     private const int SchemaVersion = 2;
 
     private readonly AppPaths _paths;
-    private readonly SemaphoreSlim _writeGate = new(1, 1);
+    private static readonly SemaphoreSlim _writeGate = new(1, 1);
     private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
 
     public PlaytimeService(AppPaths paths)
@@ -119,7 +120,8 @@ public sealed class PlaytimeService
                     new PlaytimeSnapshot(
                         SchemaVersion,
                         apps,
-                        applied.OrderBy(id => id).ToArray()),
+                        applied.OrderBy(id => id).ToArray(),
+                        StatisticsRevision: snapshot.StatisticsRevision),
                     cancellationToken);
             }
         }
@@ -160,12 +162,12 @@ public sealed class PlaytimeService
         try
         {
             var snapshot = await ReadAsync(path, cancellationToken);
+            if (snapshot.StatisticsRevision >= 2) return false;
             var apps = new Dictionary<string, AppPlaytimeStat>(snapshot.Apps, StringComparer.OrdinalIgnoreCase);
             var changed = apps.Remove("steam") | apps.Remove("discord");
-            if (!changed) return false;
-
-            await WriteAsync(path, snapshot with { SchemaVersion = SchemaVersion, Apps = apps }, cancellationToken);
-            return true;
+            if (File.Exists(path) && !File.Exists(path + ".before-launcher-repair")) File.Copy(path, path + ".before-launcher-repair", overwrite: false);
+            await WriteAsync(path, snapshot with { SchemaVersion = SchemaVersion, Apps = apps, StatisticsRevision = 2 }, cancellationToken);
+            return changed;
         }
         finally
         {
@@ -225,7 +227,8 @@ public sealed class PlaytimeService
                 (snapshot.AppliedSessionIds ?? Array.Empty<Guid>())
                     .Where(id => id != Guid.Empty)
                     .Distinct()
-                    .ToArray());
+                    .ToArray(),
+                snapshot.UniqueAppsFloor, snapshot.StatisticsRevision);
         }
         catch (JsonException ex)
         {

@@ -271,9 +271,9 @@ public sealed class ProfileStatsService
         var cloud = await GrevHome.Online.GrevDadAccountDataStore.ReadAsync(_paths,grevId,cancellationToken);
         if (cloud?.SharedProgression is { TotalXp: >= 0, HomeTotalXp: >= 0, XpPerLevel: 500 } shared)
         {
-            // The shared balance already includes uploaded Home XP. Only locally
-            // pending Home earnings are added to its offline display estimate.
-            var total = checked(shared.TotalXp + Math.Max(0,xp-shared.HomeTotalXp));
+            // Show the last confirmed account balance on every linked surface.
+            // Pending activity is uploaded separately and must not invent a different level.
+            var total = shared.TotalXp;
             progression = new ProfileLevelProgress((int)Math.Min(int.MaxValue,total/500+1),total,total%500,500,(total%500)/5d);
         }
         var milestones=CalculateMilestones(totalSeconds,completedSessions,uniqueApps,progression.Level).ToList();

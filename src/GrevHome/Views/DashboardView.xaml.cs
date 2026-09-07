@@ -216,7 +216,7 @@ public partial class DashboardView : UserControl
         {
             Style = (Style)FindResource("DashboardTileStyle"),
             Padding = new Thickness(0),
-            Content = AppArtworkFactory.CreateTile("All Friends", null, "#335EA8"),
+            Content = AppArtworkFactory.CreateTile("All Friends", "builtin://dashboard/friends", "#335EA8"),
             ToolTip = $"Open friends, requests and friend code • {friends.Count} total"
         };
         allFriendsButton.Click += Friends_Click;

@@ -36,6 +36,9 @@ try
     Check(!repairedLocal.Apps.ContainsKey("steam") && !repairedLocal.Apps.ContainsKey("discord"),"Steam and Discord launcher aggregates must be removed");
     Check(repairedLocal.Apps.ContainsKey("steam.game.123") && repairedLocal.Apps.ContainsKey("pcsx2"),"Games and emulators must remain untouched");
     Check(!await playtime.RemoveLegacyLauncherAggregatesAsync(grevId),"Launcher repair must be idempotent");
+    await playtime.RecordSessionAsync("steam","Steam",[new(Guid.NewGuid(),grevId,"Test",GrevHome.Sessions.AccountKind.Local)],TimeSpan.FromSeconds(60),DateTimeOffset.UtcNow);
+    Check(!await new PlaytimeService(paths).RemoveLegacyLauncherAggregatesAsync(grevId),"Repair marker must survive later session writes and service recreation");
+    Check((await playtime.GetLocalForGrevIdAsync(grevId)).Apps["steam"].TotalSeconds==60,"New foreground usage must survive the one-time repair");
     await File.WriteAllTextAsync(paths.GetProfilePlaytimeFile(grevId),JsonSerializer.Serialize(local));
     for(var i=0;i<3;i++)
     {
