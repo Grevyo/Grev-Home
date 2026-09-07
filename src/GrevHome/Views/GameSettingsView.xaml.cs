@@ -61,6 +61,7 @@ public partial class GameSettingsView : UserControl
                 ? "No saved internet scrape is attached to this game yet."
                 : "The built-in Libretro catalogue does not cover this console. You can still choose your own tile and background above."
             : $"Last scrape: {game.ScrapeTitle} • {game.ScrapeProvider}";
+        ScrapeSummaryText.Text = game.ScrapeSummary ?? string.Empty;
         ScrapeResultsPanel.Children.Clear();
         _tileColor = string.IsNullOrWhiteSpace(game.TileColor) ? GameArtworkFactory.DefaultTileColor : game.TileColor;
         _logoPosition = game.ConsoleLogoPosition;
@@ -92,12 +93,14 @@ public partial class GameSettingsView : UserControl
     public void ShowScrapeBusy(string message)
     {
         ScrapeResultsPanel.Children.Clear();
+        ScrapeSummaryText.Text = string.Empty;
         ScrapeStatusText.Text = message;
     }
 
     public void ShowScrapeResults(IReadOnlyList<GameArtworkSearchResult> results, string query)
     {
         ScrapeResultsPanel.Children.Clear();
+        ScrapeSummaryText.Text = string.Empty;
         ScrapeStatusText.Text = results.Count == 0
             ? $"No artwork matches were found for ‘{query}’. Choose Change Search Words and try a shorter title."
             : $"{results.Count} result(s) for ‘{query}’. Choose the exact game to apply its artwork.";
@@ -140,6 +143,7 @@ public partial class GameSettingsView : UserControl
     {
         ScrapeResultsPanel.Children.Clear();
         ScrapeStatusText.Text = $"Applied ‘{result.Title}’ from {result.Provider}. The full tile has been updated.";
+        ScrapeSummaryText.Text = result.Summary ?? string.Empty;
     }
 
     private void SaveName_Click(object sender, RoutedEventArgs e) => SaveNameRequested?.Invoke(DisplayNameBox.Text);

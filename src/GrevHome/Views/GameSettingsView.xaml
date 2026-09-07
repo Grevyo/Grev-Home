@@ -85,6 +85,7 @@
                         <Button Content="Change Search Words" MinWidth="210" Margin="0,0,10,10" Click="ChangeSearch_Click" />
                     </WrapPanel>
                     <TextBlock x:Name="ScrapeStatusText" Margin="0,2,0,8" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    <TextBlock x:Name="ScrapeSummaryText" Margin="0,0,0,10" Foreground="#CBD5E1" TextWrapping="Wrap" />
                     <WrapPanel x:Name="ScrapeResultsPanel" />
                 </StackPanel>
             </Border>

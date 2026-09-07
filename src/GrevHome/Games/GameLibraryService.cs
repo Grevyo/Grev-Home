@@ -58,6 +58,7 @@ public sealed record GameLibraryEntry(
     double ConsoleLogoScale = 1.0,
     string? ScrapeProvider = null,
     string? ScrapeTitle = null,
+    string? ScrapeSummary = null,
     string? ScrapeArtworkUrl = null,
     DateTimeOffset? ScrapedAtUtc = null);
 
@@ -329,6 +330,9 @@ public sealed class GameLibraryService
         {
             ScrapeProvider = result.Provider.Trim(),
             ScrapeTitle = result.Title.Trim(),
+            ScrapeSummary = string.IsNullOrWhiteSpace(result.Summary)
+                ? null
+                : result.Summary.Trim()[..Math.Min(2000, result.Summary.Trim().Length)],
             ScrapeArtworkUrl = artworkUri.AbsoluteUri,
             ScrapedAtUtc = DateTimeOffset.UtcNow
         }, cancellationToken);
@@ -355,6 +359,7 @@ public sealed class GameLibraryService
                 ConsoleLogoScale = 1.0,
                 ScrapeProvider = null,
                 ScrapeTitle = null,
+                ScrapeSummary = null,
                 ScrapeArtworkUrl = null,
                 ScrapedAtUtc = null
             },
