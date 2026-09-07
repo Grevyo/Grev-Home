@@ -2,6 +2,7 @@ namespace GrevHome.Navigation;
 
 public enum Route
 {
+    FirstRunSetup,
     Login,
     CreateProfile,
     Dashboard,

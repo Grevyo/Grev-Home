@@ -1,0 +1,66 @@
+<UserControl x:Class="GrevHome.Views.FirstRunSetupView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GrevHome.Views"
+             Focusable="False">
+    <Grid>
+        <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Margin="72,42" HorizontalAlignment="Center" Width="960">
+                <TextBlock Text="Welcome to Grev Home"
+                           HorizontalAlignment="Center"
+                           FontSize="42"
+                           FontWeight="SemiBold" />
+                <TextBlock Text="Choose where Grev Home should keep your games and BIOS files. These two folders are shared by every profile on this PC, and apps installed through Grev Home will use them automatically for silent installs and configuration - no re-asking, no per-app setup."
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Margin="0,10,0,34"
+                           FontSize="16"
+                           Foreground="{StaticResource MutedBrush}" />
+
+                <TextBlock Text="GAMES FOLDER" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="Where installed games are stored." Margin="0,2,0,8" Foreground="{StaticResource MutedBrush}" />
+                <TextBox x:Name="GamesPathText"
+                         Height="52"
+                         Padding="14,8"
+                         FontSize="17"
+                         IsReadOnly="True"
+                         IsTabStop="False"
+                         Margin="0,0,0,10" />
+                <WrapPanel x:Name="GamesDriveOptions" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,30">
+                    <Button Content="Use Default" Width="180" Height="50" Margin="0,0,10,0" Click="GamesUseDefault_Click" />
+                    <Button Content="Custom Location…" Width="220" Height="50" Click="GamesCustom_Click" />
+                </StackPanel>
+
+                <TextBlock Text="BIOS FOLDER" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="Where emulator BIOS / firmware files are stored." Margin="0,2,0,8" Foreground="{StaticResource MutedBrush}" />
+                <TextBox x:Name="BiosPathText"
+                         Height="52"
+                         Padding="14,8"
+                         FontSize="17"
+                         IsReadOnly="True"
+                         IsTabStop="False"
+                         Margin="0,0,0,10" />
+                <WrapPanel x:Name="BiosDriveOptions" Margin="0,0,0,4" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,30">
+                    <Button Content="Use Default" Width="180" Height="50" Margin="0,0,10,0" Click="BiosUseDefault_Click" />
+                    <Button Content="Custom Location…" Width="220" Height="50" Click="BiosCustom_Click" />
+                </StackPanel>
+
+                <TextBlock x:Name="StatusText"
+                           Margin="0,0,0,20"
+                           HorizontalAlignment="Center"
+                           TextAlignment="Center"
+                           TextWrapping="Wrap"
+                           Foreground="{StaticResource MutedBrush}" />
+
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Content="Continue" Width="220" Height="56" Margin="6" Click="Continue_Click" />
+                </StackPanel>
+            </StackPanel>
+        </ScrollViewer>
+
+        <local:ControllerQwertyKeyboard x:Name="PathKeyboard" Panel.ZIndex="100" />
+    </Grid>
+</UserControl>

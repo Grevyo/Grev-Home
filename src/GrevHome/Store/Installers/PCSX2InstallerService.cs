@@ -31,13 +31,15 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
+    private readonly MachineDefaultsService _machineDefaults;
     private readonly VisualCppRuntimePrerequisiteService _visualCppRuntime = new();
     private TrustedPackageDownloadService? _downloadService;
 
-    public PCSX2InstallerService(AppPaths paths, InstalledAppService installedApps)
+    public PCSX2InstallerService(AppPaths paths, InstalledAppService installedApps, MachineDefaultsService machineDefaults)
     {
         _paths = paths;
         _installedApps = installedApps;
+        _machineDefaults = machineDefaults;
     }
 
     public void ConfigureDownloadService(TrustedPackageDownloadService downloadService)
@@ -160,7 +162,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             TrustedInstallerSupport.MoveExtractedPackage(extractedRoot, targetRoot, "PCSX2");
 
             progress?.Report(new PackageInstallProgress("Configure", "Creating the GrevID PCSX2 data/BIOS folder and portable redirect…", 94));
-            ConfigurePortableProfile(targetRoot, grevId);
+            await ConfigurePortableProfileAsync(targetRoot, grevId, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test before registration…", 96));
             await SmokeTestAsync(targetRoot, cancellationToken);
@@ -278,7 +280,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             }
 
             Directory.Move(extractedRoot, targetRoot);
-            ConfigurePortableProfile(targetRoot, grevId);
+            await ConfigurePortableProfileAsync(targetRoot, grevId, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test…", 96));
             await SmokeTestAsync(targetRoot, cancellationToken);
@@ -367,7 +369,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         Directory.CreateDirectory(Path.Combine(dataRoot, "games"));
     }
 
-    private void ConfigurePortableProfile(string binaryRoot, string grevId)
+    private async Task ConfigurePortableProfileAsync(string binaryRoot, string grevId, CancellationToken cancellationToken)
     {
         EnsurePersistentDataRoot(grevId);
 
@@ -389,6 +391,33 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             Path.Combine(binaryRoot, "portable.txt"),
             relativeDataRoot,
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+        await SeedSharedBiosFolderAsync(dataRoot, cancellationToken);
+    }
+
+    /// <summary>
+    /// Points a fresh portable profile's BIOS folder at the machine-wide shared BIOS location
+    /// chosen during first-run setup, so a BIOS dumped once is available to every profile's PCSX2.
+    /// Only the [Folders] Bios= key is pre-seeded here, and only when PCSX2.ini does not already
+    /// exist for this GrevID - PCSX2 creates the rest of the file with its own defaults on first
+    /// launch and preserves whatever keys are already present. Grev Home deliberately does not
+    /// pre-seed the game-library search paths ([GameList] section): that format is not something
+    /// Grev Home can currently verify with confidence, so a shared Games folder still needs adding
+    /// once from inside PCSX2's own Game List settings after install.
+    /// </summary>
+    private async Task SeedSharedBiosFolderAsync(string dataRoot, CancellationToken cancellationToken)
+    {
+        var iniPath = Path.Combine(dataRoot, "PCSX2.ini");
+        if (File.Exists(iniPath))
+        {
+            return;
+        }
+
+        var biosRoot = await _machineDefaults.GetBiosRootAsync(cancellationToken);
+        Directory.CreateDirectory(biosRoot);
+
+        var ini = $"[Folders]{Environment.NewLine}Bios={biosRoot}{Environment.NewLine}";
+        await File.WriteAllTextAsync(iniPath, ini, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
     }
 
     private static bool PortableDataRedirectMatches(string binaryRoot, string dataRoot)

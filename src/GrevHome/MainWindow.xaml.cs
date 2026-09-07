@@ -36,6 +36,8 @@ public partial class MainWindow : Window
     private readonly GrevOverlayWindow _overlayWindow;
     private readonly ShellFeedbackPlayer _shellFeedback = new();
     private readonly bool[] _controllers = new bool[4];
+    private readonly MachineDefaultsService _machineDefaults;
+    private readonly FirstRunSetupView _firstRunSetupView = new();
     private readonly LoginView _loginView = new();
     private readonly CreateProfileView _createProfileView = new();
     private readonly DashboardView _dashboardView = new();
@@ -55,6 +57,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        _machineDefaults = new MachineDefaultsService(_paths);
         _shellMotionSettingsService = new ShellMotionSettingsService(_paths);
         _shellMotionSettings = _shellMotionSettingsService.Load();
         _settingsView.SetMotionSettings(_shellMotionSettings);
@@ -93,6 +96,8 @@ public partial class MainWindow : Window
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
+
+        _firstRunSetupView.ContinueRequested += result => _ = CompleteFirstRunSetupAsync(result);
 
         _loginView.LocalProfileSignInRequested += SignInLocal;
         _loginView.PasswordSignInRequested += VerifyPasswordAndSignIn;
@@ -185,12 +190,41 @@ public partial class MainWindow : Window
         _profiles = await _profileService.GetProfilesAsync();
         RefreshSessionSurfaces();
         UpdateRuntimeSurfaces();
-        _navigation.Reset(Route.Login);
-        await RefreshLoginProfileDetailsAsync();
+
+        var machineDefaults = await _machineDefaults.GetAsync();
+        if (!machineDefaults.SetupCompleted)
+        {
+            // First launch on this PC: ask where games and BIOS files should live before Login is
+            // ever shown. Every profile, and every app installed through the Grev Store, will use
+            // whatever is chosen here - see MachineDefaultsService.
+            _firstRunSetupView.Reset(_machineDefaults.DefaultGamesRoot, _machineDefaults.DefaultBiosRoot);
+            _navigation.Reset(Route.FirstRunSetup);
+        }
+        else
+        {
+            _navigation.Reset(Route.Login);
+            await RefreshLoginProfileDetailsAsync();
+        }
 
         // XInput polling starts only after every Loaded-time integration is wired, profile/session
         // state is ready, and an initial route exists. Controller input can never race shell startup.
         _controllerInput.Start();
+    }
+
+    private async Task CompleteFirstRunSetupAsync(FirstRunSetupResult result)
+    {
+        try
+        {
+            await _machineDefaults.SaveAsync(result.GamesRoot, result.BiosRoot);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            _firstRunSetupView.ShowError($"Could not use those folders: {ex.Message}");
+            return;
+        }
+
+        _navigation.Reset(Route.Login);
+        await RefreshLoginProfileDetailsAsync();
     }
 
     private void SignInLocal(ProfileSignInRequest request)
@@ -678,6 +712,9 @@ public partial class MainWindow : Window
         if (route != Route.Dashboard) ShowDashboardBackground(null);
         switch (route)
         {
+            case Route.FirstRunSetup:
+                RouteHost.Content = _firstRunSetupView;
+                break;
             case Route.Login:
                 RouteHost.Content = _loginView;
                 break;

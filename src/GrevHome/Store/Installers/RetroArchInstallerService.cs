@@ -30,12 +30,14 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
+    private readonly MachineDefaultsService _machineDefaults;
     private TrustedPackageDownloadService? _downloadService;
 
-    public RetroArchInstallerService(AppPaths paths, InstalledAppService installedApps)
+    public RetroArchInstallerService(AppPaths paths, InstalledAppService installedApps, MachineDefaultsService machineDefaults)
     {
         _paths = paths;
         _installedApps = installedApps;
+        _machineDefaults = machineDefaults;
     }
 
     public void ConfigureDownloadService(TrustedPackageDownloadService downloadService) =>
@@ -130,7 +132,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             TrustedInstallerSupport.MoveExtractedPackage(extractedRoot, targetRoot, "RetroArch");
 
             progress?.Report(new PackageInstallProgress("Configure", "Creating profile-owned RetroArch folders and defaults...", 94));
-            ConfigureProfile(grevId);
+            await ConfigureProfileAsync(grevId, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Register", "Registering RetroArch with Grev Home...", 98));
             await _installedApps.RegisterInstalledAsync(
@@ -235,7 +237,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             }
 
             Directory.Move(extractedRoot, targetRoot);
-            ConfigureProfile(grevId);
+            await ConfigureProfileAsync(grevId, cancellationToken);
 
             await _installedApps.RegisterInstalledAsync(
                 package.App,
@@ -334,7 +336,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
     }
 
-    private void ConfigureProfile(string grevId)
+    private async Task ConfigureProfileAsync(string grevId, CancellationToken cancellationToken)
     {
         var appDataRoot = _paths.GetProfileAppDataRoot(grevId, "retroarch");
         var profileRoot = Directory.GetParent(Directory.GetParent(appDataRoot)?.FullName ?? string.Empty)?.FullName;
@@ -344,16 +346,22 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
 
         var saveRoot = Path.Combine(profileRoot, "Saves", "retroarch");
-        var gamesRoot = Path.Combine(profileRoot, "Games", "RetroArch");
         var saveRamRoot = Path.Combine(saveRoot, "SaveRAM");
         var stateRoot = Path.Combine(saveRoot, "States");
         var screenshotRoot = Path.Combine(profileRoot, "Screenshots", "RetroArch");
         var remapRoot = Path.Combine(appDataRoot, "remaps");
         var playlistRoot = Path.Combine(appDataRoot, "playlists");
 
+        // Games and BIOS/system files are machine-wide, not per-profile - every profile's RetroArch
+        // is pointed at the same two folders chosen during first-run setup, so a game or BIOS file
+        // only ever needs to be placed once. See MachineDefaultsService.
+        var gamesRoot = await _machineDefaults.GetGamesRootAsync(cancellationToken);
+        var biosRoot = await _machineDefaults.GetBiosRootAsync(cancellationToken);
+
         Directory.CreateDirectory(appDataRoot);
         Directory.CreateDirectory(saveRamRoot);
         Directory.CreateDirectory(gamesRoot);
+        Directory.CreateDirectory(biosRoot);
         Directory.CreateDirectory(stateRoot);
         Directory.CreateDirectory(screenshotRoot);
         Directory.CreateDirectory(remapRoot);
@@ -374,6 +382,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             .AppendLine($"input_remapping_directory = \"{EscapeConfigPath(remapRoot)}\"")
             .AppendLine($"playlist_directory = \"{EscapeConfigPath(playlistRoot)}\"")
             .AppendLine($"content_directory = \"{EscapeConfigPath(gamesRoot)}\"")
+            .AppendLine($"system_directory = \"{EscapeConfigPath(biosRoot)}\"")
             .AppendLine("config_save_on_exit = \"true\"")
             .AppendLine("video_fullscreen = \"true\"")
             .ToString();

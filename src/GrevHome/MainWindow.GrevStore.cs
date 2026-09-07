@@ -36,8 +36,8 @@ public partial class MainWindow
         if (_grevStoreIntegrationReady) return;
         _grevStoreIntegrationReady = true;
 
-        _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps);
-        _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps);
+        _retroArchInstaller = new RetroArchInstallerService(_paths, _installedApps, _machineDefaults);
+        _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps, _machineDefaults);
         _steamInstaller = new SteamInstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
         _packageInstallers = new TrustedPackageInstallerRegistry(
