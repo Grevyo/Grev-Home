@@ -84,20 +84,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
     {
         _paths = paths;
         _accounts = accounts;
-        var configured = baseUri
-            ?? TryReadConfiguredBaseUri()
-            ?? accounts.BaseUri;
-        if (!configured.IsAbsoluteUri || configured.Scheme != Uri.UriSchemeHttps)
-        {
-            throw new ArgumentException("Grev.dad base URI must be absolute HTTPS.", nameof(baseUri));
-        }
-
-        _http = new HttpClient
-        {
-            BaseAddress = EnsureTrailingSlash(configured),
-            Timeout = TimeSpan.FromSeconds(8)
-        };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/Backbone-1");
+        _http = GrevDadNetworkSupport.CreateHttpClient(baseUri, accounts.BaseUri, TimeSpan.FromSeconds(8));
     }
 
     public GrevDadCapabilitiesSnapshot? LastCapabilities => _capabilities;
@@ -115,7 +102,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
         }
 
         using var response = await _http.GetAsync("api/grev-home/capabilities", cancellationToken);
-        var payload = await ReadJsonAsync<GrevDadCapabilitiesApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadCapabilitiesApiResponse>(response, _json, cancellationToken);
         if (!response.IsSuccessStatusCode || !payload.Ok)
         {
             throw new InvalidOperationException(
@@ -232,7 +219,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
             return;
         }
 
-        var payload = await ReadJsonAsync<ApiEnvelope>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<ApiEnvelope>(response, _json, cancellationToken);
         if (!response.IsSuccessStatusCode || !payload.Ok)
         {
             throw new InvalidOperationException(
@@ -264,7 +251,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
             return;
         }
 
-        var payload = await ReadJsonAsync<GrevDadRotateTokenApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadRotateTokenApiResponse>(response, _json, cancellationToken);
         if (!response.IsSuccessStatusCode || !payload.Ok ||
             string.IsNullOrWhiteSpace(payload.AccessToken) || payload.TokenExpiresAt is null)
         {
@@ -316,63 +303,11 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
             TokenExpiresAtUtc = tokenExpiresAtUtc,
             LastValidatedAtUtc = DateTimeOffset.UtcNow
         };
-        await WriteJsonAtomicallyAsync(path, updated, cancellationToken);
-    }
-
-    private async Task<T> ReadJsonAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
-        where T : class
-    {
-        try
-        {
-            return await response.Content.ReadFromJsonAsync<T>(_json, cancellationToken)
-                   ?? throw new InvalidDataException("Grev.dad returned an empty JSON response.");
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidDataException("Grev.dad returned an incompatible JSON response.", ex);
-        }
-    }
-
-    private async Task WriteJsonAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)
-    {
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporary = path + ".tmp";
-        try
-        {
-            await using (var stream = new FileStream(
-                             temporary,
-                             FileMode.Create,
-                             FileAccess.Write,
-                             FileShare.None,
-                             16 * 1024,
-                             FileOptions.Asynchronous | FileOptions.WriteThrough))
-            {
-                await JsonSerializer.SerializeAsync(stream, value, _json, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary)) File.Delete(temporary);
-        }
+        await GrevDadNetworkSupport.WriteJsonAtomicallyAsync(path, updated, _json, cancellationToken);
     }
 
     private string GetMetadataFile(string grevId) =>
         Path.Combine(_paths.GetProfileConnections(grevId), "GrevDad", "link.json");
-
-    private static Uri EnsureTrailingSlash(Uri uri)
-    {
-        var value = uri.AbsoluteUri.EndsWith('/') ? uri.AbsoluteUri : uri.AbsoluteUri + "/";
-        return new Uri(value, UriKind.Absolute);
-    }
-
-    private static Uri? TryReadConfiguredBaseUri()
-    {
-        var value = Environment.GetEnvironmentVariable("GREV_DAD_BASE_URI");
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
-    }
 
     private void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, this);
 

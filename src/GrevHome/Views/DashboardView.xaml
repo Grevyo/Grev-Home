@@ -42,7 +42,8 @@
     <ScrollViewer VerticalScrollBarVisibility="Hidden"
                   HorizontalScrollBarVisibility="Disabled"
                   PanningMode="VerticalOnly"
-                  CanContentScroll="False">
+                  CanContentScroll="False"
+                  PreviewMouseWheel="Dashboard_PreviewMouseWheel">
         <StackPanel Margin="64,38,64,46">
             <StackPanel Margin="8,0,8,28">
                 <TextBlock x:Name="WelcomeText"

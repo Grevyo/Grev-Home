@@ -30,20 +30,10 @@ public sealed class GrevDadAccountService : IDisposable
     public GrevDadAccountService(AppPaths paths, Uri? baseUri = null)
     {
         _paths = paths;
-        var configured = baseUri
-            ?? TryReadConfiguredBaseUri()
-            ?? new Uri("https://grev.dad/", UriKind.Absolute);
-        if (!configured.IsAbsoluteUri || configured.Scheme != Uri.UriSchemeHttps)
-        {
-            throw new ArgumentException("Grev.dad base URI must be absolute HTTPS.", nameof(baseUri));
-        }
-
-        _http = new HttpClient
-        {
-            BaseAddress = EnsureTrailingSlash(configured),
-            Timeout = TimeSpan.FromSeconds(8)
-        };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/Backbone-1");
+        _http = GrevDadNetworkSupport.CreateHttpClient(
+            baseUri,
+            new Uri("https://grev.dad/", UriKind.Absolute),
+            TimeSpan.FromSeconds(8));
     }
 
     public event Action<string, GrevDadAccountSnapshot>? SnapshotChanged;
@@ -173,7 +163,7 @@ public sealed class GrevDadAccountService : IDisposable
             Content = JsonContent.Create(requestBody, options: _json)
         };
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        var payload = await ReadJsonAsync<LinkStartApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<LinkStartApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         EnsureApiVersion(payload.ApiVersion);
 
@@ -241,7 +231,7 @@ public sealed class GrevDadAccountService : IDisposable
             $"api/grev-home/link/status?id={Uri.EscapeDataString(pending.LinkId)}",
             pending.DeviceCode);
         using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        var payload = await ReadJsonAsync<LinkStatusApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<LinkStatusApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
 
         var state = payload.Status.ToLowerInvariant() switch
@@ -388,6 +378,7 @@ public sealed class GrevDadAccountService : IDisposable
             if (response.StatusCode == HttpStatusCode.Unauthorized)
             {
                 TryDeleteSecret(grevId, AccessCredentialSlot);
+                TryDeleteMetadataFile(grevId);
                 return PublishSnapshot(grevId, new GrevDadAccountSnapshot(
                     GrevDadConnectionState.Revoked,
                     metadata.Account,
@@ -396,7 +387,7 @@ public sealed class GrevDadAccountService : IDisposable
                     metadata.TokenExpiresAtUtc));
             }
 
-            var payload = await ReadJsonAsync<AccountApiResponse>(response, cancellationToken);
+            var payload = await GrevDadNetworkSupport.ReadJsonAsync<AccountApiResponse>(response, _json, cancellationToken);
             EnsureSuccessful(response, payload.Ok, payload.Message);
             EnsureApiVersion(payload.ApiVersion);
             if (payload.Account is null)
@@ -448,7 +439,7 @@ public sealed class GrevDadAccountService : IDisposable
                 using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
                 if (response.StatusCode != HttpStatusCode.Unauthorized)
                 {
-                    var payload = await ReadJsonAsync<ApiEnvelope>(response, cancellationToken);
+                    var payload = await GrevDadNetworkSupport.ReadJsonAsync<ApiEnvelope>(response, _json, cancellationToken);
                     EnsureSuccessful(response, payload.Ok, payload.Message);
                 }
             }
@@ -499,7 +490,7 @@ public sealed class GrevDadAccountService : IDisposable
         try
         {
             using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get, "api/grev-home/friends", null, cancellationToken);
-            var payload = await ReadJsonAsync<FriendsApiResponse>(response, cancellationToken);
+            var payload = await GrevDadNetworkSupport.ReadJsonAsync<FriendsApiResponse>(response, _json, cancellationToken);
             EnsureSuccessful(response, payload.Ok, payload.Message);
             var friends = (payload.Friends ?? Array.Empty<FriendApiPayload>())
                 .Select(ToFriend)
@@ -530,7 +521,7 @@ public sealed class GrevDadAccountService : IDisposable
             $"api/grev-home/users?q={Uri.EscapeDataString(query)}",
             null,
             cancellationToken);
-        var payload = await ReadJsonAsync<MemberSearchApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<MemberSearchApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         return payload.Users ?? Array.Empty<GrevDadMemberSearchResult>();
     }
@@ -540,7 +531,7 @@ public sealed class GrevDadAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get, "api/grev-home/friend-requests", null, cancellationToken);
-        var payload = await ReadJsonAsync<FriendRequestsApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<FriendRequestsApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         return new GrevDadFriendRequestsSnapshot(
             (payload.Incoming ?? Array.Empty<FriendRequestApiPayload>()).Select(ToFriendRequest).ToArray(),
@@ -563,7 +554,7 @@ public sealed class GrevDadAccountService : IDisposable
         var normalized = friendCode.Trim().ToUpperInvariant();
         using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get,
             $"api/grev-home/friends/lookup?code={Uri.EscapeDataString(normalized)}", null, cancellationToken);
-        var payload = await ReadJsonAsync<FriendCodeLookupApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<FriendCodeLookupApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         return payload.User ?? throw new InvalidDataException("Grev.dad returned no member for that friend code.");
     }
@@ -574,7 +565,7 @@ public sealed class GrevDadAccountService : IDisposable
         CancellationToken cancellationToken = default)
     {
         using var response = await SendAuthorizedAsync(grevId, HttpMethod.Put, "api/grev-home/public-card", new { card }, cancellationToken);
-        var payload = await ReadJsonAsync<PublicCardApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<PublicCardApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         return payload.Card ?? card;
     }
@@ -609,7 +600,7 @@ public sealed class GrevDadAccountService : IDisposable
             expiresInSeconds = Math.Clamp(expiresInSeconds, 60, 600)
         };
         using var response = await SendAuthorizedAsync(grevId, HttpMethod.Put, "api/grev-home/presence", body, cancellationToken);
-        var payload = await ReadJsonAsync<PresenceApiResponse>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<PresenceApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         return ToPresence(payload.Presence);
     }
@@ -624,7 +615,7 @@ public sealed class GrevDadAccountService : IDisposable
         try
         {
             using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get, $"api/grev-home/activity?limit={limit}", null, cancellationToken);
-            var payload = await ReadJsonAsync<ActivityApiResponse>(response, cancellationToken);
+            var payload = await GrevDadNetworkSupport.ReadJsonAsync<ActivityApiResponse>(response, _json, cancellationToken);
             EnsureSuccessful(response, payload.Ok, payload.Message);
             var events = (payload.Events ?? Array.Empty<ActivityApiPayload>()).Select(ToActivity).ToArray();
             await TryMergeCacheAsync(grevId, account: null, friends: null, events, cancellationToken);
@@ -725,6 +716,13 @@ public sealed class GrevDadAccountService : IDisposable
                 // local metadata problem must not hide that revoked state from this shell session.
             }
 
+            // Clear local link metadata too, not just the credential. Otherwise a cold read after
+            // restart (LoadLocalStateAsync) sees metadata-without-credential and reports the
+            // ambiguous "repair via unlink/re-link" Error state instead of the Revoked state this
+            // session just correctly detected - a legitimately revoked link should just look
+            // Unlinked on the next launch, not broken.
+            TryDeleteMetadataFile(grevId);
+
             PublishSnapshot(grevId, new GrevDadAccountSnapshot(
                 GrevDadConnectionState.Revoked,
                 metadata?.Account,
@@ -745,7 +743,7 @@ public sealed class GrevDadAccountService : IDisposable
         CancellationToken cancellationToken)
     {
         using var response = await SendAuthorizedAsync(grevId, method, relativeUri, body, cancellationToken);
-        var payload = await ReadJsonAsync<ApiEnvelope>(response, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<ApiEnvelope>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
     }
 
@@ -762,20 +760,6 @@ public sealed class GrevDadAccountService : IDisposable
             request.Content = JsonContent.Create(body, options: _json);
         }
         return request;
-    }
-
-    private async Task<T> ReadJsonAsync<T>(HttpResponseMessage response, CancellationToken cancellationToken)
-        where T : class
-    {
-        try
-        {
-            var value = await response.Content.ReadFromJsonAsync<T>(_json, cancellationToken);
-            return value ?? throw new InvalidDataException("Grev.dad returned an empty JSON response.");
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidDataException("Grev.dad returned an incompatible JSON response.", ex);
-        }
     }
 
     private static void EnsureSuccessful(HttpResponseMessage response, bool ok, string? message)
@@ -869,8 +853,7 @@ public sealed class GrevDadAccountService : IDisposable
     private async Task WriteMetadataAsync(string grevId, GrevDadLinkMetadata metadata, CancellationToken cancellationToken)
     {
         var path = GetMetadataFile(grevId);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await WriteJsonAtomicallyAsync(path, metadata, cancellationToken);
+        await GrevDadNetworkSupport.WriteJsonAtomicallyAsync(path, metadata, _json, cancellationToken);
     }
 
     private async Task<GrevDadCachedData> ReadCacheAsync(string grevId, CancellationToken cancellationToken)
@@ -933,30 +916,7 @@ public sealed class GrevDadAccountService : IDisposable
             friends ?? existing.Friends,
             activity ?? existing.Activity);
         var path = GetCacheFile(grevId);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        await WriteJsonAtomicallyAsync(path, updated, cancellationToken);
-    }
-
-    private async Task WriteJsonAtomicallyAsync<T>(string path, T value, CancellationToken cancellationToken)
-    {
-        var temporary = path + ".tmp";
-        try
-        {
-            await using (var stream = File.Create(temporary))
-            {
-                await JsonSerializer.SerializeAsync(stream, value, _json, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary))
-            {
-                File.Delete(temporary);
-            }
-        }
+        await GrevDadNetworkSupport.WriteJsonAtomicallyAsync(path, updated, _json, cancellationToken);
     }
 
     private string GetConnectionRoot(string grevId) =>
@@ -1030,18 +990,6 @@ public sealed class GrevDadAccountService : IDisposable
     private static DateTimeOffset FromUnixSeconds(long value) =>
         DateTimeOffset.FromUnixTimeSeconds(value);
 
-    private static Uri EnsureTrailingSlash(Uri uri)
-    {
-        var value = uri.AbsoluteUri.EndsWith('/') ? uri.AbsoluteUri : uri.AbsoluteUri + "/";
-        return new Uri(value, UriKind.Absolute);
-    }
-
-    private static Uri? TryReadConfiguredBaseUri()
-    {
-        var value = Environment.GetEnvironmentVariable("GREV_DAD_BASE_URI");
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
-    }
-
     private static void ValidateGrevId(string grevId)
     {
         if (string.IsNullOrWhiteSpace(grevId) || grevId.Length > 58 || grevId[0] != 'G' ||
@@ -1061,6 +1009,23 @@ public sealed class GrevDadAccountService : IDisposable
         {
             // A stale credential is preferable to breaking local shell navigation. A later re-link
             // overwrites the slot and server-side revocation still protects the account.
+        }
+    }
+
+    private void TryDeleteMetadataFile(string grevId)
+    {
+        try
+        {
+            var path = GetMetadataFile(grevId);
+            if (File.Exists(path))
+            {
+                File.Delete(path);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Best-effort: a stale metadata file left behind here only means the next cold read
+            // falls back to the pre-existing "repair via unlink/re-link" state, which is still safe.
         }
     }
 

@@ -66,6 +66,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private readonly AppPaths _paths;
     private readonly SessionHistoryService _history;
     private readonly PlaytimeService _playtime;
+    private readonly ProfileService _profileService;
     private readonly GrevDadAccountService _accounts;
     private readonly GrevDadPrivacySettingsService _privacy;
     private readonly WindowsCredentialSecretStore _secrets = new();
@@ -78,30 +79,21 @@ public sealed class GrevDadProfileSyncService : IDisposable
     public GrevDadProfileSyncService(
         AppPaths paths,
         SessionHistoryService history,
+        ProfileService profileService,
         GrevDadAccountService accounts,
         GrevDadPrivacySettingsService privacy,
         Uri? baseUri = null)
     {
         _paths = paths;
         _history = history;
+        _profileService = profileService;
         _accounts = accounts;
         _privacy = privacy;
         _playtime = new PlaytimeService(paths);
-
-        var configured = baseUri
-            ?? TryReadConfiguredBaseUri()
-            ?? new Uri("https://grev.dad/", UriKind.Absolute);
-        if (!configured.IsAbsoluteUri || configured.Scheme != Uri.UriSchemeHttps)
-        {
-            throw new ArgumentException("Grev.dad base URI must be absolute HTTPS.", nameof(baseUri));
-        }
-
-        _http = new HttpClient
-        {
-            BaseAddress = EnsureTrailingSlash(configured),
-            Timeout = TimeSpan.FromSeconds(10)
-        };
-        _http.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/Backbone-1");
+        _http = GrevDadNetworkSupport.CreateHttpClient(
+            baseUri,
+            new Uri("https://grev.dad/", UriKind.Absolute),
+            TimeSpan.FromSeconds(10));
     }
 
     public async Task<GrevDadSyncedProgression?> SyncAsync(
@@ -136,7 +128,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
             var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds,completedSessions,local.Apps.Count);
             var progression = new GrevDadSyncApiProgression(xp,GrevHomeProgressionPolicy.CalculateLevel(xp).Level,
                 totalSeconds,completedSessions,local.Apps.Count);
-            var profile = (await new ProfileService(_paths).GetProfilesAsync(cancellationToken))
+            var profile = (await _profileService.GetProfilesAsync(cancellationToken))
                 .First(p=>string.Equals(p.GrevId,grevId,StringComparison.OrdinalIgnoreCase));
             var privacy = await _privacy.GetAsync(grevId, cancellationToken);
             GrevDadSyncApiResponse? lastResponse = null;
@@ -238,30 +230,6 @@ public sealed class GrevDadProfileSyncService : IDisposable
         {
             gate.Release();
         }
-    }
-
-    private async Task<GrevDadSyncApiProgression> ReadStableLocalProgressionAsync(
-        string grevId,
-        CancellationToken cancellationToken)
-    {
-        var playtime = await _playtime.GetLocalForGrevIdAsync(grevId, cancellationToken);
-        var totalSeconds = playtime.Apps.Values.Sum(app => app.TotalSeconds);
-        var completedSessions = playtime.Apps.Values.Sum(app => app.SessionCount);
-        var uniqueApps = playtime.Apps.Count;
-
-        // One progression authority is shared by the local profile UI and optional Grev.dad sync.
-        // Sync intentionally uses committed playtime only, not temporary in-flight runtime seconds.
-        var totalXp = GrevHomeProgressionPolicy.CalculateXp(
-            totalSeconds,
-            completedSessions,
-            uniqueApps);
-        var level = GrevHomeProgressionPolicy.CalculateLevel(totalXp).Level;
-        return new GrevDadSyncApiProgression(
-            totalXp,
-            level,
-            totalSeconds,
-            completedSessions,
-            uniqueApps);
     }
 
     private async Task<GrevDadSyncApiResponse> SendBatchAsync(
@@ -413,47 +381,11 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private async Task WriteCursorAsync(
         string grevId,
         GrevDadProfileSyncCursor cursor,
-        CancellationToken cancellationToken)
-    {
-        var path = GetCursorFile(grevId);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var temporary = path + ".tmp";
-        try
-        {
-            await using (var stream = new FileStream(
-                             temporary,
-                             FileMode.Create,
-                             FileAccess.Write,
-                             FileShare.None,
-                             4096,
-                             FileOptions.Asynchronous | FileOptions.WriteThrough))
-            {
-                await JsonSerializer.SerializeAsync(stream, cursor, _json, cancellationToken);
-                await stream.FlushAsync(cancellationToken);
-                stream.Flush(flushToDisk: true);
-            }
-            File.Move(temporary, path, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temporary)) File.Delete(temporary);
-        }
-    }
+        CancellationToken cancellationToken) =>
+        await GrevDadNetworkSupport.WriteJsonAtomicallyAsync(GetCursorFile(grevId), cursor, _json, cancellationToken);
 
     private string GetCursorFile(string grevId) =>
         Path.Combine(_paths.GetProfileConnections(grevId), "GrevDad", "sync.json");
-
-    private static Uri EnsureTrailingSlash(Uri uri)
-    {
-        var value = uri.AbsoluteUri.EndsWith('/') ? uri.AbsoluteUri : uri.AbsoluteUri + "/";
-        return new Uri(value, UriKind.Absolute);
-    }
-
-    private static Uri? TryReadConfiguredBaseUri()
-    {
-        var value = Environment.GetEnvironmentVariable("GREV_DAD_BASE_URI");
-        return Uri.TryCreate(value, UriKind.Absolute, out var uri) ? uri : null;
-    }
 
     private void ThrowIfDisposed()
     {

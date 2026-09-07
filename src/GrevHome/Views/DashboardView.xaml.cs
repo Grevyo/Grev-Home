@@ -79,6 +79,26 @@ public partial class DashboardView : UserControl
         e.Handled=true;
     }
 
+    // The outer Dashboard ScrollViewer nests horizontal app carousels (each their own ScrollViewer).
+    // WPF's built-in ScrollViewer mouse-wheel handling does not reliably bubble a wheel event up
+    // through a nested ScrollViewer to its ancestor, so vertical scrolling over anything outside a
+    // carousel silently did nothing. Handle it explicitly here, the same way carousels already
+    // handle their own horizontal scroll - but step aside when the pointer is actually over a
+    // carousel so Carousel_PreviewMouseWheel still gets to scroll that carousel horizontally.
+    private void Dashboard_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not ScrollViewer outer) return;
+        if (e.OriginalSource is DependencyObject source &&
+            FindAncestor<ScrollViewer>(source) is { } nearest && nearest != outer)
+        {
+            return;
+        }
+
+        if (outer.ScrollableHeight <= 0) return;
+        outer.ScrollToVerticalOffset(outer.VerticalOffset - e.Delta);
+        e.Handled = true;
+    }
+
     private void Carousel_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
         if (sender is ScrollViewer carousel) UpdateCarouselFade(carousel);

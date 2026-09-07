@@ -575,7 +575,7 @@ public sealed class GrevDadCoordinator
         var privacy = RequireGrevDadPrivacySettingsService();
 
         _grevDadProfileSyncReady = true;
-        _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history, accounts, privacy);
+        _grevDadProfileSync = new GrevDadProfileSyncService(_paths, history, _profileService, accounts, privacy);
         _grevDadSyncRetryTimer.Tick += (_, _) => _ = RetryDueGrevDadSyncsAsync();
 
         // Session changes are an explicit lifecycle edge. They can backfill a linked Primary GrevID
