@@ -284,7 +284,7 @@
                             <!-- Progress text can grow or wrap without forcing the whole modal off-screen. -->
                             <ScrollViewer Visibility="{Binding Visibility, ElementName=StoreProgressPanel}"
                                           MaxHeight="500"
-                                          VerticalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Hidden"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="StoreProgressPanel">
                                     <TextBlock x:Name="StoreProgressStageText"
@@ -324,7 +324,7 @@
                             <!-- Warning information scrolls independently; its action footer never moves. -->
                             <ScrollViewer Visibility="{Binding Visibility, ElementName=StoreWarningPanel}"
                                           MaxHeight="430"
-                                          VerticalScrollBarVisibility="Auto"
+                                          VerticalScrollBarVisibility="Hidden"
                                           HorizontalScrollBarVisibility="Disabled">
                                 <StackPanel x:Name="StoreWarningPanel" Visibility="Collapsed">
                                     <TextBlock Text="All data associated with this app can be lost by performing this action. Make sure anything you want to keep is backed up before continuing."

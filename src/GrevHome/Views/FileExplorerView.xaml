@@ -129,7 +129,7 @@
 
                     <ScrollViewer Grid.Row="0"
                                   MaxHeight="430"
-                                  VerticalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Hidden"
                                   HorizontalScrollBarVisibility="Disabled">
                         <StackPanel>
                             <TextBlock Text="Delete this item?"

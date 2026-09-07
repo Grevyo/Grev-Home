@@ -17,7 +17,7 @@
   <StackPanel Grid.Row="2"><TextBlock x:Name="AddressText" FontSize="12" TextTrimming="CharacterEllipsis"/>
   <TextBlock x:Name="HintText" Margin="4,8" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Text="Choose Browse page. D-pad selects links and fields; A opens or types; B returns to these controls."/></StackPanel>
   <Border x:Name="ChoicesOverlay" Grid.RowSpan="3" Background="#F010151F" Visibility="Collapsed" Padding="40" KeyboardNavigation.DirectionalNavigation="Cycle">
-   <ScrollViewer VerticalScrollBarVisibility="Auto"><StackPanel x:Name="ChoicesPanel"/></ScrollViewer>
+   <ScrollViewer VerticalScrollBarVisibility="Hidden"><StackPanel x:Name="ChoicesPanel"/></ScrollViewer>
   </Border>
   <views:ControllerQwertyKeyboard x:Name="KeyboardOverlay" Grid.RowSpan="3"/>
  </Grid>

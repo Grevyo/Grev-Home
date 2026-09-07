@@ -39,7 +39,7 @@
         </Style>
     </UserControl.Resources>
 
-    <ScrollViewer VerticalScrollBarVisibility="Auto"
+    <ScrollViewer VerticalScrollBarVisibility="Hidden"
                   HorizontalScrollBarVisibility="Disabled"
                   PanningMode="VerticalOnly"
                   CanContentScroll="False">

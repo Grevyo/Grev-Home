@@ -52,7 +52,7 @@
                               Grid.Row="2"
                               MaxHeight="520"
                               HorizontalScrollBarVisibility="Disabled"
-                              VerticalScrollBarVisibility="Auto"
+                              VerticalScrollBarVisibility="Hidden"
                               PanningMode="VerticalOnly"
                               CanContentScroll="False">
                     <StackPanel x:Name="ActionPanel" />
