@@ -2,6 +2,7 @@ using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GrevHome.Storage;
@@ -111,23 +112,39 @@ public static class ProfileBannerCatalog
 }
 
 /// <summary>
-/// Single source of truth for turning an avatar shape choice into an actual corner radius.
-/// Shared by every place an avatar is rendered - your own profile, the friend card, and the
-/// friend profile view - so "Avatar Shape" in Edit Profile has one consistent visual meaning
-/// wherever an avatar is drawn, local or a friend's synced card.
+/// Single source of truth for turning an avatar shape choice into actual rendering. Shared by
+/// every place an avatar is rendered - your own profile, the friend card, and the friend profile
+/// view - so "Avatar Shape" in Edit Profile has one consistent visual meaning wherever an avatar
+/// is drawn, local or a friend's synced card.
 /// </summary>
 public static class ProfileAvatarShapeStyle
 {
-    public static CornerRadius GetCornerRadius(ProfileAvatarShape shape, double diameter) => shape switch
+    public static double GetRadius(ProfileAvatarShape shape, double diameter) => shape switch
     {
-        ProfileAvatarShape.Circle => new CornerRadius(diameter / 2),
-        ProfileAvatarShape.Rounded => new CornerRadius(Math.Min(20, diameter / 4)),
-        _ => new CornerRadius(0)
+        ProfileAvatarShape.Circle => diameter / 2,
+        ProfileAvatarShape.Rounded => Math.Min(20, diameter / 4),
+        _ => 0
     };
 
     /// <summary>Overload for GrevDadPublicCard.AvatarShape, which travels as a lowercase string over the wire.</summary>
-    public static CornerRadius GetCornerRadius(string? shapeName, double diameter) =>
-        GetCornerRadius(Enum.TryParse<ProfileAvatarShape>(shapeName, ignoreCase: true, out var shape) ? shape : ProfileAvatarShape.Circle, diameter);
+    public static double GetRadius(string? shapeName, double diameter) =>
+        GetRadius(Enum.TryParse<ProfileAvatarShape>(shapeName, ignoreCase: true, out var shape) ? shape : ProfileAvatarShape.Circle, diameter);
+
+    /// <summary>
+    /// Applies the shape to a Border's own rounded rendering AND clips its content to match.
+    /// Border.CornerRadius only rounds the border's own background/stroke - it does not clip
+    /// child content, so without an explicit Clip geometry a "Circle" avatar still shows a
+    /// square image with only the very corners of the border itself rounded.
+    /// </summary>
+    public static void Apply(Border border, ProfileAvatarShape shape, double diameter)
+    {
+        var radius = GetRadius(shape, diameter);
+        border.CornerRadius = new CornerRadius(radius);
+        border.Clip = new RectangleGeometry(new Rect(0, 0, diameter, diameter), radius, radius);
+    }
+
+    public static void Apply(Border border, string? shapeName, double diameter) =>
+        Apply(border, Enum.TryParse<ProfileAvatarShape>(shapeName, ignoreCase: true, out var shape) ? shape : ProfileAvatarShape.Circle, diameter);
 }
 
 public sealed class ProfilePresentationSettingsService

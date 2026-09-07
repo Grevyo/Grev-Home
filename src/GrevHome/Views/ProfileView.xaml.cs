@@ -87,7 +87,7 @@ public partial class ProfileView : UserControl
     private void ApplyPresentation(ProfilePresentationSettings settings)
     {
         _presentation = settings;
-        ProfileAvatarBorder.CornerRadius = ProfileAvatarShapeStyle.GetCornerRadius(settings.AvatarShape, ProfileAvatarBorder.Width);
+        ProfileAvatarShapeStyle.Apply(ProfileAvatarBorder, settings.AvatarShape, ProfileAvatarBorder.Width);
         var normalizedBanner = ProfileBannerCatalog.Normalize(settings.BannerKey);
         ProfileBannerGrid.Background = ProfileBannerCatalog.CreateBrush(normalizedBanner);
         ProfileBannerImage.Source = null;

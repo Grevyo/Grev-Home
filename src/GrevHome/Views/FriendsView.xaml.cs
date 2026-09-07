@@ -24,7 +24,7 @@ public partial class FriendsView : UserControl
     }
 
     public void SetFriends(string accountName, string? friendCode, IReadOnlyList<GrevDadFriend> friends,
-        GrevDadFriendRequestsSnapshot requests, bool offline)
+        GrevDadFriendRequestsSnapshot requests, bool offline, GrevDadFriend? self = null)
     {
         _friendCode = friendCode;
         FriendCodeText.Text = string.IsNullOrWhiteSpace(friendCode) ? "Generating…" : friendCode;
@@ -32,7 +32,10 @@ public partial class FriendsView : UserControl
         FriendsPanel.Children.Clear();
         foreach (var friend in friends.OrderByDescending(item => item.Presence.Availability != "offline").ThenBy(item => item.DisplayName))
             FriendsPanel.Children.Add(CreateFriendCard(friend));
-        EmptyText.Visibility = friends.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        // Your own preview card always sits last, regardless of sort order, so it reads as "and
+        // here's you" rather than competing with real friends for a spot based on name/presence.
+        if (self is not null) FriendsPanel.Children.Add(CreateFriendCard(self, isSelf: true));
+        EmptyText.Visibility = friends.Count == 0 && self is null ? Visibility.Visible : Visibility.Collapsed;
         RequestsPanel.Children.Clear();
         foreach (var request in requests.Incoming) RequestsPanel.Children.Add(CreateRequestCard(request, true));
         foreach (var request in requests.Outgoing) RequestsPanel.Children.Add(CreateRequestCard(request, false));
@@ -40,7 +43,7 @@ public partial class FriendsView : UserControl
         StatusText.Text = string.Empty;
     }
 
-    private Button CreateFriendCard(GrevDadFriend friend)
+    private Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false)
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
         var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText) ? friend.Presence.Availability : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
@@ -63,7 +66,6 @@ public partial class FriendsView : UserControl
             Width = 40,
             Height = 40,
             Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
-            CornerRadius = ProfileAvatarShapeStyle.GetCornerRadius(card.AvatarShape, 40),
             Child = new TextBlock
             {
                 Text = string.IsNullOrWhiteSpace(friend.DisplayName) ? "?" : friend.DisplayName[..1].ToUpperInvariant(),
@@ -73,6 +75,8 @@ public partial class FriendsView : UserControl
                 VerticalAlignment = VerticalAlignment.Center
             }
         };
+        ProfileAvatarShapeStyle.Apply(avatar, card.AvatarShape, 40);
+
         var header = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -81,7 +85,7 @@ public partial class FriendsView : UserControl
                 avatar,
                 new TextBlock
                 {
-                    Text = friend.DisplayName,
+                    Text = isSelf ? $"{friend.DisplayName} (You)" : friend.DisplayName,
                     FontSize = 22,
                     FontWeight = FontWeights.SemiBold,
                     Margin = new Thickness(10, 0, 0, 0),

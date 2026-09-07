@@ -1346,9 +1346,10 @@ public sealed class GrevDadCoordinator
             var friends = await service.GetFriendsAsync(primary.GrevId, allowCachedWhenOffline: true);
             var offline = snapshot.State == GrevDadConnectionState.Offline;
             var requests = offline ? GrevDadFriendRequestsSnapshot.Empty : await service.GetFriendRequestsAsync(primary.GrevId);
+            var self = await BuildSelfPreviewCardAsync(primary);
             _shellFriendsButton.Visibility = Visibility.Visible;
             _dashboardView.SetFriends(true, friends, offline);
-            _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline);
+            _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline, self);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -1357,6 +1358,61 @@ public sealed class GrevDadCoordinator
             _shellFriendsButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
             _dashboardView.SetFriends(available, Array.Empty<GrevDadFriend>(), offline: true);
             if (_navigation.Current == Route.Friends) _friendsView.ShowStatus($"Friends could not be refreshed: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// Builds a GrevDadFriend-shaped preview of the signed-in profile's own card so it can be
+    /// rendered through the exact same card template real friends use - the point is to let you
+    /// see how your card actually looks before adding anyone or making more profiles. Styling
+    /// (theme/frame/avatar shape/visible fields) comes from the live local presentation settings;
+    /// Level/XP are computed the same way GrevDadProfileSyncService computes them for a real sync,
+    /// so the preview shows real numbers rather than a fabricated placeholder.
+    /// </summary>
+    private async Task<GrevDadFriend?> BuildSelfPreviewCardAsync(SessionUser primary)
+    {
+        var grevId = primary.GrevId;
+        if (grevId is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            var presentation = await new ProfilePresentationSettingsService(_paths).GetAsync(grevId);
+            var playtime = await new PlaytimeService(_paths).GetLocalForGrevIdAsync(grevId);
+            var totalSeconds = playtime.Apps.Values.Sum(app => app.TotalSeconds);
+            var completedSessions = playtime.Apps.Values.Sum(app => app.SessionCount);
+            var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds, completedSessions, playtime.Apps.Count);
+            var level = GrevHomeProgressionPolicy.CalculateLevel(xp).Level;
+
+            var card = new GrevDadPublicCard(
+                Theme: ProfileBannerCatalog.Normalize(presentation.BannerKey),
+                Frame: presentation.CardFrame.ToString().ToLowerInvariant(),
+                AvatarShape: presentation.AvatarShape.ToString().ToLowerInvariant(),
+                ShowUsername: presentation.ShowUsername,
+                ShowLevel: presentation.ShowLevel,
+                ShowXp: presentation.ShowXp,
+                ShowPlaytime: presentation.ShowPlaytime,
+                ShowSessions: presentation.ShowSessions,
+                ShowStatus: presentation.ShowStatus);
+
+            return new GrevDadFriend(
+                UserId: grevId,
+                Username: primary.Username ?? grevId,
+                DisplayName: primary.DisplayName,
+                IsVerified: false,
+                FriendsSinceUtc: DateTimeOffset.UtcNow,
+                Presence: new GrevDadPresence("online", "", "none", "Preview of your card", null, null),
+                PublicCard: card,
+                TotalXp: xp,
+                Level: level);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // The preview card is a convenience, not account data. If local settings/playtime
+            // can't be read safely, just skip the preview rather than affecting real friends.
+            return null;
         }
     }
 

@@ -26,7 +26,7 @@ public partial class FriendProfileView : UserControl
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
 
-        AvatarBorder.CornerRadius = ProfileAvatarShapeStyle.GetCornerRadius(card.AvatarShape, AvatarBorder.Width);
+        ProfileAvatarShapeStyle.Apply(AvatarBorder, card.AvatarShape, AvatarBorder.Width);
         AvatarText.Text = string.IsNullOrWhiteSpace(friend.DisplayName) ? "?" : friend.DisplayName[..1].ToUpperInvariant();
 
         DisplayNameText.Text = friend.DisplayName;
