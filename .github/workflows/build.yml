@@ -40,3 +40,23 @@ jobs:
 
       - name: Verify profile carousel and password keyboard
         run: dotnet run --project .\tests\ProfileCarousel\ProfileCarousel.csproj --configuration Release
+
+      - name: Install Inno Setup
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
+
+      - name: Build installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: .\installer\build-installer.ps1
+
+      - name: Upload installer
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: GrevHome-Installer
+          path: |
+            dist/GrevHomeSetup.exe
+            dist/GrevHomeSetup.sha256.txt
+          if-no-files-found: error
