@@ -10,6 +10,7 @@ using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Online;
 using GrevHome.Presentation;
 using GrevHome.Profiles;
 using GrevHome.Runtime;
@@ -49,6 +50,7 @@ public partial class MainWindow : Window
     private Guid? _foregroundLaunchSessionId;
     private readonly Dictionary<string, (int Failures, DateTimeOffset LockedUntil)> _profilePasswordAttempts = new(StringComparer.OrdinalIgnoreCase);
     private ShortcutRecordRequest? _pendingShortcutRecord;
+    private readonly GrevDadCoordinator _grevDad;
 
     public MainWindow()
     {
@@ -71,6 +73,24 @@ public partial class MainWindow : Window
         _overlayWindow.ConfigurePresentation(_shellMotionSettings);
         InitializePresentationEffects();
 
+        _grevDad = new GrevDadCoordinator(
+            _paths,
+            _session,
+            _navigation,
+            _runtimeSessions,
+            _profileService,
+            Dispatcher,
+            _dashboardView,
+            _profileEditView,
+            _createProfileView,
+            _profileView,
+            RouteHost,
+            ShellFriendsButton,
+            GetProfileTarget,
+            RefreshLoginProfileDetailsAsync,
+            LoadProfileStatsAsync,
+            ReturnToLogin);
+
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
 
@@ -81,7 +101,7 @@ public partial class MainWindow : Window
 
         _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
         _createProfileView.OnboardingFinished += (_,_)=>ReturnToLogin();
-        _createProfileView.OnboardingSkipped += profile=>_ = SkipGrevDadOnboardingAsync(profile);
+        _createProfileView.OnboardingSkipped += profile=>_ = _grevDad.SkipOnboardingAsync(profile);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
@@ -154,6 +174,7 @@ public partial class MainWindow : Window
             _controllerInput.Dispose();
             _shellFeedback.Dispose();
             _runtimeSessions.Dispose();
+            _grevDad.Dispose();
         };
     }
 
@@ -801,7 +822,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        if(_navigation.Current==Route.GrevDadWeb && _grevDadWebView.HandleInput(action)) return;
+        if(_navigation.Current==Route.GrevDadWeb && _grevDad.HandleWebInput(action)) return;
 
         switch (action)
         {

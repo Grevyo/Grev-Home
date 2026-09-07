@@ -79,7 +79,7 @@ public partial class MainWindow
 
     private void CorrectHeaderNavigation(InputAction action, Button originalFocus)
     {
-        if(_navigation.Current==Route.GrevDadWeb && _grevDadWebView.OwnsControllerInput) return;
+        if(_navigation.Current==Route.GrevDadWeb && _grevDad.WebOwnsControllerInput) return;
         if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
             _overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
         {

@@ -29,11 +29,8 @@ public partial class MainWindow
 
         // Online identity is a shell foundation, not a page-owned feature. Initialize it only after
         // MainWindow construction has completed so these consumers cannot observe half-built services.
-        InitializeGrevDadIntegration();
-        InitializeGrevDadMaintenanceIntegration();
-        InitializeGrevDadProfileSyncIntegration();
-        InitializeGrevDadSettingsIntegration();
-        InitializeGrevDadPrivacySettingsUiIntegration();
+        // _sessionHistory is non-null here: InitializeSessionHistoryIntegration() just set it above.
+        _grevDad.Initialize(_sessionHistory!);
 
         // The permanent shell owns activity-header machine status and overlay controller ownership.
         // Both are additive integrations and are guarded so repeated Loaded notifications are safe.
