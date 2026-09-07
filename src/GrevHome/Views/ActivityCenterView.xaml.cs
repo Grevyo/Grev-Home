@@ -10,6 +10,7 @@ public partial class ActivityCenterView : UserControl
     public event EventHandler? BackRequested;
     public event EventHandler? MarkAllNotificationsReadRequested;
     public event Action<string>? NotificationReadRequested;
+    public event EventHandler? InstallUpdateRequested;
     public event Action<string>? TransferCancelRequested;
     public event Action<string>? TransferRetryRequested;
     public event EventHandler? ClearFinishedTransfersRequested;
@@ -112,20 +113,23 @@ public partial class ActivityCenterView : UserControl
         });
         grid.Children.Add(text);
 
-        if (!isRead)
+        if (!isRead || string.Equals(notification.Source, "Grev Home Update", StringComparison.Ordinal))
         {
-            var markRead = new Button
+            var actions = new StackPanel { Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+            if (string.Equals(notification.Source, "Grev Home Update", StringComparison.Ordinal))
             {
-                Content = "Mark read",
-                Tag = notification.Id,
-                Width = 110,
-                Height = 38,
-                Margin = new Thickness(16, 0, 0, 0),
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            markRead.Click += NotificationMarkRead_Click;
-            Grid.SetColumn(markRead, 1);
-            grid.Children.Add(markRead);
+                var install = new Button { Content = "Install update", Width = 130, Height = 38 };
+                install.Click += (_, _) => InstallUpdateRequested?.Invoke(this, EventArgs.Empty);
+                actions.Children.Add(install);
+            }
+            if (!isRead)
+            {
+                var markRead = new Button { Content = "Mark read", Tag = notification.Id, Width = 130, Height = 38, Margin = new Thickness(0, 6, 0, 0) };
+                markRead.Click += NotificationMarkRead_Click;
+                actions.Children.Add(markRead);
+            }
+            Grid.SetColumn(actions, 1);
+            grid.Children.Add(actions);
         }
 
         border.Child = grid;

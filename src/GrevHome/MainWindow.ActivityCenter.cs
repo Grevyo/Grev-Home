@@ -107,6 +107,7 @@ public partial class MainWindow
         };
 
         _ = InitializeActivityCenterAsync();
+        InitializeUpdates();
     }
 
     private async Task InitializeActivityCenterAsync()

@@ -136,7 +136,9 @@ public partial class MainWindow
                 saved.ShowXp,
                 saved.ShowPlaytime,
                 saved.ShowSessions,
-                saved.ShowStatus));
+                saved.ShowStatus,
+                ProfileMediaDataUrl.TryRead(_paths, profile.GrevId, profile.AvatarImageFile),
+                ProfileMediaDataUrl.TryRead(_paths, profile.GrevId, saved.BannerImageFile)));
 
             if (_navigation.Current == Route.ProfileEdit &&
                 string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))

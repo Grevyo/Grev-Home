@@ -54,7 +54,10 @@ public partial class FriendsView : UserControl
         // still override the border to show a controller focus ring - a local value would suppress
         // those triggers outright, leaving cards with no visible focus indicator when D-pad navigated.
         var style = new Style(typeof(Button), (Style)FindResource("SharpTileButtonStyle"));
-        style.Setters.Add(new Setter(Control.BackgroundProperty, ProfileBannerCatalog.CreateBrush(card.Theme)));
+        var cover = ProfileAvatarShapeStyle.TryLoadDataUrl(card.CoverMedia);
+        style.Setters.Add(new Setter(Control.BackgroundProperty, cover is null
+            ? ProfileBannerCatalog.CreateBrush(card.Theme)
+            : new ImageBrush(cover) { Stretch = Stretch.UniformToFill, Opacity = 0.72 }));
         style.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(72, 96, 142))));
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, frameThickness));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(18)));
@@ -66,14 +69,7 @@ public partial class FriendsView : UserControl
             Width = 40,
             Height = 40,
             Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
-            Child = new TextBlock
-            {
-                Text = string.IsNullOrWhiteSpace(friend.DisplayName) ? "?" : friend.DisplayName[..1].ToUpperInvariant(),
-                FontSize = 16,
-                FontWeight = FontWeights.Bold,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center
-            }
+            Child = CreateAvatarContent(friend, card)
         };
         ProfileAvatarShapeStyle.Apply(avatar, card.AvatarShape, 40);
 
@@ -114,6 +110,22 @@ public partial class FriendsView : UserControl
         };
         button.Click += (_, _) => FriendSelected?.Invoke(friend);
         return button;
+    }
+
+    private static Grid CreateAvatarContent(GrevDadFriend friend, GrevDadPublicCard card)
+    {
+        var grid = new Grid();
+        var image = ProfileAvatarShapeStyle.TryLoadDataUrl(card.AvatarMedia);
+        if (image is not null) grid.Children.Add(new Image { Source = image, Stretch = Stretch.UniformToFill });
+        else grid.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(friend.DisplayName) ? "?" : friend.DisplayName[..1].ToUpperInvariant(),
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return grid;
     }
 
     private Border CreateRequestCard(GrevDadFriendRequest request, bool incoming)

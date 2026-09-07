@@ -119,6 +119,30 @@ public static class ProfileBannerCatalog
 /// </summary>
 public static class ProfileAvatarShapeStyle
 {
+    public static ImageSource? TryLoadDataUrl(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value) || !value.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+        var comma = value.IndexOf(',');
+        if (comma < 0 || !value[..comma].EndsWith(";base64", StringComparison.OrdinalIgnoreCase)) return null;
+        try
+        {
+            var bytes = Convert.FromBase64String(value[(comma + 1)..]);
+            if (bytes.Length > 1_400_000) return null;
+            using var stream = new MemoryStream(bytes, writable: false);
+            var image = new BitmapImage();
+            image.BeginInit();
+            image.CacheOption = BitmapCacheOption.OnLoad;
+            image.StreamSource = stream;
+            image.EndInit();
+            image.Freeze();
+            return image;
+        }
+        catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException)
+        {
+            return null;
+        }
+    }
+
     public static double GetRadius(ProfileAvatarShape shape, double diameter) => shape switch
     {
         ProfileAvatarShape.Circle => diameter / 2,
@@ -145,6 +169,28 @@ public static class ProfileAvatarShapeStyle
 
     public static void Apply(Border border, string? shapeName, double diameter) =>
         Apply(border, Enum.TryParse<ProfileAvatarShape>(shapeName, ignoreCase: true, out var shape) ? shape : ProfileAvatarShape.Circle, diameter);
+}
+
+public static class ProfileMediaDataUrl
+{
+    public static string? TryRead(AppPaths paths, string grevId, string? fileName)
+    {
+        if (string.IsNullOrWhiteSpace(fileName)) return null;
+        var mime = Path.GetExtension(fileName).ToLowerInvariant() switch
+        {
+            ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg",
+            ".gif" => "image/gif", ".webp" => "image/webp", _ => null
+        };
+        if (mime is null) return null;
+        try
+        {
+            var path = Path.Combine(paths.GetProfileRoot(grevId), Path.GetFileName(fileName));
+            var info = new FileInfo(path);
+            if (!info.Exists || info.Length > 1_400_000) return null;
+            return $"data:{mime};base64,{Convert.ToBase64String(File.ReadAllBytes(path))}";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+    }
 }
 
 public sealed class ProfilePresentationSettingsService

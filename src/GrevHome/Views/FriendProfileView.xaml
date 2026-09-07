@@ -36,12 +36,15 @@
                             BorderBrush="#354158"
                             BorderThickness="2"
                             ClipToBounds="True">
-                        <TextBlock x:Name="AvatarText"
-                                   Text="?"
-                                   FontSize="34"
-                                   FontWeight="Bold"
-                                   HorizontalAlignment="Center"
-                                   VerticalAlignment="Center" />
+                        <Grid>
+                            <Image x:Name="AvatarImage" Stretch="UniformToFill" Visibility="Collapsed" />
+                            <TextBlock x:Name="AvatarText"
+                                       Text="?"
+                                       FontSize="34"
+                                       FontWeight="Bold"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Grid>
                     </Border>
                     <StackPanel Margin="24,0,0,0" VerticalAlignment="Center">
                         <StackPanel Orientation="Horizontal">

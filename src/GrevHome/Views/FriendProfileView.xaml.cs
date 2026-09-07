@@ -29,6 +29,9 @@ public partial class FriendProfileView : UserControl
 
         ProfileAvatarShapeStyle.Apply(AvatarBorder, card.AvatarShape, AvatarBorder.Width);
         AvatarText.Text = string.IsNullOrWhiteSpace(friend.DisplayName) ? "?" : friend.DisplayName[..1].ToUpperInvariant();
+        AvatarImage.Source = ProfileAvatarShapeStyle.TryLoadDataUrl(card.AvatarMedia);
+        AvatarImage.Visibility = AvatarImage.Source is null ? Visibility.Collapsed : Visibility.Visible;
+        AvatarText.Visibility = AvatarImage.Source is null ? Visibility.Visible : Visibility.Collapsed;
 
         DisplayNameText.Text = friend.DisplayName;
         VerifiedText.Visibility = friend.IsVerified ? Visibility.Visible : Visibility.Collapsed;
@@ -52,7 +55,10 @@ public partial class FriendProfileView : UserControl
 
         FriendsSinceText.Text = friend.FriendsSinceUtc.ToLocalTime().ToString("d MMM yyyy");
 
-        HeaderCard.Background = ProfileBannerCatalog.CreateBrush(card.Theme);
+        var cover = ProfileAvatarShapeStyle.TryLoadDataUrl(card.CoverMedia);
+        HeaderCard.Background = cover is null
+            ? ProfileBannerCatalog.CreateBrush(card.Theme)
+            : new ImageBrush(cover) { Stretch = Stretch.UniformToFill, Opacity = 0.72 };
         HeaderCard.BorderThickness = card.Frame switch
         {
             "clean" => new Thickness(0),

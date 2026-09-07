@@ -1389,6 +1389,8 @@ public sealed partial class GrevDadCoordinator
                 .GetAsync(grevId, []);
             var xp = stats.Progression.TotalXp;
             var level = stats.Progression.Level;
+            var localProfile = (await _profileService.GetProfilesAsync())
+                .FirstOrDefault(item => string.Equals(item.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
 
             var card = new GrevDadPublicCard(
                 Theme: ProfileBannerCatalog.Normalize(presentation.BannerKey),
@@ -1399,7 +1401,9 @@ public sealed partial class GrevDadCoordinator
                 ShowXp: presentation.ShowXp,
                 ShowPlaytime: presentation.ShowPlaytime,
                 ShowSessions: presentation.ShowSessions,
-                ShowStatus: presentation.ShowStatus);
+                ShowStatus: presentation.ShowStatus,
+                AvatarMedia: ProfileMediaDataUrl.TryRead(_paths, grevId, localProfile?.AvatarImageFile),
+                CoverMedia: ProfileMediaDataUrl.TryRead(_paths, grevId, presentation.BannerImageFile));
 
             return new GrevDadFriend(
                 UserId: grevId,
