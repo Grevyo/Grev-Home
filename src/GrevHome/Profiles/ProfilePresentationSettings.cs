@@ -1,6 +1,7 @@
 using System.IO;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using GrevHome.Storage;
@@ -107,6 +108,26 @@ public static class ProfileBannerCatalog
             return null;
         }
     }
+}
+
+/// <summary>
+/// Single source of truth for turning an avatar shape choice into an actual corner radius.
+/// Shared by every place an avatar is rendered - your own profile, the friend card, and the
+/// friend profile view - so "Avatar Shape" in Edit Profile has one consistent visual meaning
+/// wherever an avatar is drawn, local or a friend's synced card.
+/// </summary>
+public static class ProfileAvatarShapeStyle
+{
+    public static CornerRadius GetCornerRadius(ProfileAvatarShape shape, double diameter) => shape switch
+    {
+        ProfileAvatarShape.Circle => new CornerRadius(diameter / 2),
+        ProfileAvatarShape.Rounded => new CornerRadius(Math.Min(20, diameter / 4)),
+        _ => new CornerRadius(0)
+    };
+
+    /// <summary>Overload for GrevDadPublicCard.AvatarShape, which travels as a lowercase string over the wire.</summary>
+    public static CornerRadius GetCornerRadius(string? shapeName, double diameter) =>
+        GetCornerRadius(Enum.TryParse<ProfileAvatarShape>(shapeName, ignoreCase: true, out var shape) ? shape : ProfileAvatarShape.Circle, diameter);
 }
 
 public sealed class ProfilePresentationSettingsService

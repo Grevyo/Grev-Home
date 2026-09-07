@@ -8,6 +8,7 @@ public enum Route
     DashboardTileSettings,
     DashboardTileArtworkPicker,
     Friends,
+    FriendProfile,
     GrevDadWeb,
     ProfilePlayers,
     ProfileView,

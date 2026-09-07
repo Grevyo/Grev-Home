@@ -1248,6 +1248,7 @@ public sealed class GrevDadCoordinator
     // ---------------------------------------------------------------------------------------
 
     private readonly FriendsView _friendsView = new();
+    private readonly FriendProfileView _friendProfileView = new();
     private bool _grevDadFriendsReady;
 
     private void InitializeGrevDadFriendsIntegration()
@@ -1261,6 +1262,8 @@ public sealed class GrevDadCoordinator
         _friendsView.AcceptRequestRequested += id => _ = ResolveFriendRequestAsync(id, "accept");
         _friendsView.DeclineRequestRequested += id => _ = ResolveFriendRequestAsync(id, "decline");
         _friendsView.CancelRequestRequested += id => _ = ResolveFriendRequestAsync(id, "cancel");
+        _friendsView.FriendSelected += OpenFriendProfile;
+        _friendProfileView.BackRequested += (_, _) => _navigation.GoBack();
         _navigation.RouteChanged += route =>
         {
             if (route == Route.Friends)
@@ -1268,11 +1271,51 @@ public sealed class GrevDadCoordinator
                 _routeHost.Content = _friendsView;
                 _ = RefreshFriendsSurfacesAsync(forceLoad: true);
             }
+            else if (route == Route.FriendProfile)
+            {
+                _routeHost.Content = _friendProfileView;
+            }
         };
         RequireGrevDadAccountService().SnapshotChanged += (_, _) =>
             _dispatcher.BeginInvoke(new Action(() => _ = RefreshFriendsSurfacesAsync(forceLoad: false)));
         _session.Changed += (_, _) => _dispatcher.BeginInvoke(new Action(() => _ = RefreshFriendsSurfacesAsync(forceLoad: true)));
         _ = RefreshFriendsSurfacesAsync(forceLoad: true);
+    }
+
+    /// <summary>Opens the read-only detail screen for one friend. Bound to FriendsView.FriendSelected.</summary>
+    private void OpenFriendProfile(GrevDadFriend friend)
+    {
+        _friendProfileView.SetFriend(friend);
+        _friendProfileView.SetActivity(Array.Empty<GrevDadActivityEvent>());
+        _navigation.Navigate(Route.FriendProfile);
+        _ = LoadFriendActivityAsync(friend);
+    }
+
+    private async Task LoadFriendActivityAsync(GrevDadFriend friend)
+    {
+        var grevId = _session.PrimaryUser?.GrevId;
+        if (grevId is null || _grevDadAccounts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var events = await _grevDadAccounts.GetActivityAsync(grevId, limit: 30, allowCachedWhenOffline: true);
+            var filtered = events
+                .Where(activity => string.Equals(activity.User.UserId, friend.UserId, StringComparison.OrdinalIgnoreCase))
+                .Take(10)
+                .ToArray();
+
+            if (_navigation.Current == Route.FriendProfile)
+            {
+                _friendProfileView.SetActivity(filtered);
+            }
+        }
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or InvalidOperationException or InvalidDataException or UnauthorizedAccessException)
+        {
+            // Best-effort: the friend profile screen still shows their card/level/status without it.
+        }
     }
 
     /// <summary>Navigates to the Friends route if this GrevID is currently linked/offline-cached. Bound to the header's Friends button.</summary>

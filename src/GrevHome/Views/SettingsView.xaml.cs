@@ -444,7 +444,7 @@ public partial class SettingsView : UserControl
             _pendingPowerAction = action;
             _pendingPowerExpiresAt = now.AddSeconds(8);
             UpdatePowerButtons();
-            PowerStatusText.Text = $"{FormatPowerAction(action)} armed. Select the same action again within 8 seconds to confirm.";
+            PowerStatusText.Text = string.Empty;
             return;
         }
 

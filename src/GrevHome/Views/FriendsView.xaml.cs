@@ -15,6 +15,7 @@ public partial class FriendsView : UserControl
     public event Action<string>? AcceptRequestRequested;
     public event Action<string>? DeclineRequestRequested;
     public event Action<string>? CancelRequestRequested;
+    public event Action<GrevDadFriend>? FriendSelected;
 
     public FriendsView()
     {
@@ -39,16 +40,76 @@ public partial class FriendsView : UserControl
         StatusText.Text = string.Empty;
     }
 
-    private Border CreateFriendCard(GrevDadFriend friend)
+    private Button CreateFriendCard(GrevDadFriend friend)
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
         var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText) ? friend.Presence.Availability : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
-        return new Border { Width=300,Height=154,Margin=new Thickness(8),Padding=new Thickness(18),Background=ProfileBannerCatalog.CreateBrush(card.Theme),
-            BorderBrush=new SolidColorBrush(Color.FromRgb(72,96,142)),BorderThickness=card.Frame=="clean"?new Thickness(0):card.Frame=="double"?new Thickness(5):new Thickness(2),CornerRadius=new CornerRadius(0),
-            Child=new StackPanel { Children={ new TextBlock { Text=friend.DisplayName,FontSize=22,FontWeight=FontWeights.SemiBold },
-                new TextBlock { Text=card.ShowUsername?$"@{friend.Username}":string.Empty,Margin=new Thickness(0,4,0,0),Foreground=(Brush)FindResource("MutedBrush") },
-                new TextBlock { Text=card.ShowLevel?(card.ShowXp?$"Level {friend.Level}  •  {friend.TotalXp:N0} XP":$"Level {friend.Level}"):card.ShowXp?$"{friend.TotalXp:N0} XP":string.Empty,Margin=new Thickness(0,6,0,0),FontSize=12 },
-                new TextBlock { Text=card.ShowStatus?details:friend.Presence.Availability,Margin=new Thickness(0,10,0,0),TextTrimming=TextTrimming.CharacterEllipsis } } } };
+        var frameThickness = card.Frame == "clean" ? new Thickness(0) : card.Frame == "double" ? new Thickness(5) : new Thickness(2);
+
+        // Background/BorderBrush/etc. live in a Style (based on SharpTileButtonStyle) rather than as
+        // local values on the Button, so SharpTileButtonStyle's inherited focus/hover triggers can
+        // still override the border to show a controller focus ring - a local value would suppress
+        // those triggers outright, leaving cards with no visible focus indicator when D-pad navigated.
+        var style = new Style(typeof(Button), (Style)FindResource("SharpTileButtonStyle"));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, ProfileBannerCatalog.CreateBrush(card.Theme)));
+        style.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(72, 96, 142))));
+        style.Setters.Add(new Setter(Control.BorderThicknessProperty, frameThickness));
+        style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(18)));
+        style.Setters.Add(new Setter(Control.HorizontalContentAlignmentProperty, HorizontalAlignment.Stretch));
+        style.Setters.Add(new Setter(Control.VerticalContentAlignmentProperty, VerticalAlignment.Stretch));
+
+        var avatar = new Border
+        {
+            Width = 40,
+            Height = 40,
+            Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
+            CornerRadius = ProfileAvatarShapeStyle.GetCornerRadius(card.AvatarShape, 40),
+            Child = new TextBlock
+            {
+                Text = string.IsNullOrWhiteSpace(friend.DisplayName) ? "?" : friend.DisplayName[..1].ToUpperInvariant(),
+                FontSize = 16,
+                FontWeight = FontWeights.Bold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+        var header = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children =
+            {
+                avatar,
+                new TextBlock
+                {
+                    Text = friend.DisplayName,
+                    FontSize = 22,
+                    FontWeight = FontWeights.SemiBold,
+                    Margin = new Thickness(10, 0, 0, 0),
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                }
+            }
+        };
+
+        var button = new Button
+        {
+            Width = 300,
+            Height = 154,
+            Margin = new Thickness(8),
+            Style = style,
+            Content = new StackPanel
+            {
+                Children =
+                {
+                    header,
+                    new TextBlock { Text=card.ShowUsername?$"@{friend.Username}":string.Empty,Margin=new Thickness(0,8,0,0),Foreground=(Brush)FindResource("MutedBrush") },
+                    new TextBlock { Text=card.ShowLevel?(card.ShowXp?$"Level {friend.Level}  •  {friend.TotalXp:N0} XP":$"Level {friend.Level}"):card.ShowXp?$"{friend.TotalXp:N0} XP":string.Empty,Margin=new Thickness(0,6,0,0),FontSize=12 },
+                    new TextBlock { Text=card.ShowStatus?details:friend.Presence.Availability,Margin=new Thickness(0,10,0,0),TextTrimming=TextTrimming.CharacterEllipsis }
+                }
+            }
+        };
+        button.Click += (_, _) => FriendSelected?.Invoke(friend);
+        return button;
     }
 
     private Border CreateRequestCard(GrevDadFriendRequest request, bool incoming)
