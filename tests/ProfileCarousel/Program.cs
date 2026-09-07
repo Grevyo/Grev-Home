@@ -107,7 +107,8 @@ internal static class Program
 
         var themeTile=(Button)settings.FindName("ThemeMotionSectionButton");
         themeTile.Focus();Pump();
-        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count>=9,"Theme focus must preview every presentation control group");
+        themeTile.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice,Environment.TickCount){RoutedEvent=Mouse.MouseMoveEvent});Pump();
+        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count>=9,"Theme tile must preview every presentation control group");
         themeTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("ThemeMotionSection")).IsVisible,"Theme & Motion must have a dedicated controller page");
         ShellMotionSettings? changedMotion=null;
