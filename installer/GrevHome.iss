@@ -12,7 +12,9 @@
 #define MyAppVersion "0.13"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
+#ifndef MyPublishDir
 #define MyPublishDir "..\publish"
+#endif
 
 [Setup]
 AppId={{EA4D6CAE-5909-4557-9BC2-0C9B89151999}

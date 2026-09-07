@@ -1380,11 +1380,11 @@ public sealed class GrevDadCoordinator
         try
         {
             var presentation = await new ProfilePresentationSettingsService(_paths).GetAsync(grevId);
-            var playtime = await new PlaytimeService(_paths).GetLocalForGrevIdAsync(grevId);
-            var totalSeconds = playtime.Apps.Values.Sum(app => app.TotalSeconds);
-            var completedSessions = playtime.Apps.Values.Sum(app => app.SessionCount);
-            var xp = GrevHomeProgressionPolicy.CalculateXp(totalSeconds, completedSessions, playtime.Apps.Count);
-            var level = GrevHomeProgressionPolicy.CalculateLevel(xp).Level;
+            var stats = await new ProfileStatsService(
+                [new GrevHomeProfileStatsSource(new PlaytimeService(_paths))], _paths)
+                .GetAsync(grevId, []);
+            var xp = stats.Progression.TotalXp;
+            var level = stats.Progression.Level;
 
             var card = new GrevDadPublicCard(
                 Theme: ProfileBannerCatalog.Normalize(presentation.BannerKey),
