@@ -71,6 +71,9 @@ Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
 
 [Code]
+const
+  WebViewClient = 'Software\Microsoft\EdgeUpdate\Clients\{F1E7E5A1-5B7F-4A69-BE3B-22BBE6D17F7B}';
+
 function HasWebViewVersion(RootKey: Integer; SubKey: String): Boolean;
 var
   Version: String;
@@ -79,9 +82,7 @@ begin
             (Version <> '') and (Version <> '0.0.0.0');
 end;
 
-function IsWebView2Installed: Boolean;
-const
-  WebViewClient = 'Software\Microsoft\EdgeUpdate\Clients\{F1E7E5A1-5B7F-4A69-BE3B-22BBE6D17F7B}';
+function IsWebView2Installed(): Boolean;
 begin
   Result := HasWebViewVersion(HKCU, WebViewClient) or
             HasWebViewVersion(HKLM, WebViewClient) or
