@@ -70,10 +70,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private readonly GrevDadPrivacySettingsService _privacy;
     private readonly WindowsCredentialSecretStore _secrets = new();
     private readonly HttpClient _http;
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _profileGates =
         new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;

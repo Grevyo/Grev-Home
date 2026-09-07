@@ -49,10 +49,7 @@ public sealed class RuntimeCompletionStore
     private readonly AppPaths _paths;
     private readonly RuntimeRecoveryJournal _recoveryJournal;
     private readonly ConcurrentDictionary<Guid, RuntimePendingCompletionRecord> _startupReplayObserved = new();
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
 
     public RuntimeCompletionStore(AppPaths paths)
     {

@@ -27,7 +27,7 @@ public sealed class ProfileService
     private const int MaxGrevIdAttempts = 64;
 
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public ProfileService(AppPaths paths)
     {

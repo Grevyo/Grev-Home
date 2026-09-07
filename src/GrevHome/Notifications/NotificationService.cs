@@ -45,7 +45,7 @@ public sealed class NotificationService
 
     private readonly AppPaths _paths;
     private readonly SemaphoreSlim _gate = new(1, 1);
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public NotificationService(AppPaths paths)
     {

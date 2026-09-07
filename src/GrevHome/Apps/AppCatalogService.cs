@@ -7,7 +7,7 @@ namespace GrevHome.Apps;
 public sealed class AppCatalogService
 {
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public AppCatalogService(AppPaths paths)
     {

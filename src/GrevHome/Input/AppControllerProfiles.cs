@@ -176,11 +176,7 @@ public sealed class AppControllerProfileService
     private readonly AppPaths _paths;
     private readonly ConcurrentDictionary<string, string> _persistenceBlocks =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
-    };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.IndentedWithStringEnums;
 
     public AppControllerProfileService(AppPaths paths)
     {

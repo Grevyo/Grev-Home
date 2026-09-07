@@ -19,7 +19,8 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
     private static readonly Uri StableWindowsX64Installer = new(
         "https://discord.com/api/downloads/distributions/app/installers/latest?channel=stable&platform=win&arch=x64");
 
-    private static readonly HttpClient Http = CreateHttpClient();
+    private static readonly HttpClient Http =
+        TrustedInstallerSupport.CreateHttpClient("GrevHome/0.12 DiscordInstaller", TimeSpan.FromMinutes(5));
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
@@ -134,7 +135,14 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
         try
         {
             progress?.Report(new PackageInstallProgress("Download", "Downloading the current Discord Stable x64 installer from discord.com…", 0));
-            await DownloadInstallerAsync(installerPath, progress, cancellationToken);
+            await TrustedInstallerSupport.DownloadWindowsInstallerAsync(
+                Http,
+                StableWindowsX64Installer,
+                installerPath,
+                "Discord Stable",
+                "Discord's official download did not return a plausible Windows installer.",
+                progress,
+                cancellationToken);
             progress?.Report(new PackageInstallProgress("Verify", "Checking Discord's trusted publisher signature…", 70));
             await InstallerSignatureVerifier.VerifyAsync(installerPath, "Discord Inc.", cancellationToken);
 
@@ -151,7 +159,7 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
         }
         finally
         {
-            TryDeleteDirectory(stagingRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(stagingRoot);
         }
     }
 
@@ -214,46 +222,6 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
             package.App.DataStrategy != DataStrategy.NativeAccount)
         {
             throw new InvalidOperationException("Discord must remain a Windows-user system install with native Discord account data.");
-        }
-    }
-
-    private static async Task DownloadInstallerAsync(
-        string destination,
-        IProgress<PackageInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        using var response = await Http.GetAsync(
-            StableWindowsX64Installer,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var length = response.Content.Headers.ContentLength;
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var target = File.Create(destination);
-        var buffer = new byte[128 * 1024];
-        long copied = 0;
-
-        while (true)
-        {
-            var read = await source.ReadAsync(buffer, cancellationToken);
-            if (read == 0) break;
-            await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            copied += read;
-
-            if (length is > 0)
-            {
-                var downloadPercent = Math.Clamp(copied * 68d / length.Value, 0d, 68d);
-                progress?.Report(new PackageInstallProgress(
-                    "Download",
-                    $"Downloading Discord Stable… {copied / 1024d / 1024d:0.0} MB / {length.Value / 1024d / 1024d:0.0} MB",
-                    downloadPercent));
-            }
-        }
-
-        if (new FileInfo(destination).Length < 1024 * 1024)
-        {
-            throw new InvalidDataException("Discord's official download did not return a plausible Windows installer.");
         }
     }
 
@@ -361,21 +329,4 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
 
     private static string GetDiscordRoot() =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Discord");
-
-    private static HttpClient CreateHttpClient()
-    {
-        var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.12 DiscordInstaller");
-        return client;
-    }
-
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
-    }
 }

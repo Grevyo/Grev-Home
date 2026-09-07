@@ -11,10 +11,7 @@ internal static class RuntimeTestAppRegistrationService
     public const string TestAppId = "grev-runtime-test";
     private const string ManifestName = "installed.grevapp.json";
 
-    private static readonly JsonSerializerOptions JsonOptions = new()
-    {
-        WriteIndented = true
-    };
+    private static readonly JsonSerializerOptions JsonOptions = JsonDefaults.Indented;
 
     public static bool IsEnabled =>
         string.Equals(

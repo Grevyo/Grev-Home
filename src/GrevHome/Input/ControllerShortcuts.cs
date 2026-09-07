@@ -55,11 +55,7 @@ public sealed class ControllerShortcutService
     private const int MaximumHoldMilliseconds = 5000;
 
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
-    };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.IndentedWithStringEnums;
     private string? _persistenceBlockReason;
 
     public ControllerShortcutService(AppPaths paths)

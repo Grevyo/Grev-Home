@@ -91,10 +91,7 @@ public sealed class GameLibraryService
     private const int SchemaVersion = 1;
     private readonly AppPaths _paths;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
 
     public GameLibraryService(AppPaths paths)
     {

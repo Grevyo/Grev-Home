@@ -21,10 +21,7 @@ public sealed class GrevDadAccountService : IDisposable
     private readonly AppPaths _paths;
     private readonly WindowsCredentialSecretStore _secrets = new();
     private readonly HttpClient _http;
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly SemaphoreSlim _stateGate = new(1, 1);
     private readonly Dictionary<string, GrevDadAccountSnapshot> _snapshots =
         new(StringComparer.OrdinalIgnoreCase);

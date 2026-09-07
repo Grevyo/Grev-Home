@@ -26,10 +26,7 @@ public sealed class LocalDataSchemaService
     public const int CurrentSchemaVersion = 1;
 
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
 
     public LocalDataSchemaService(AppPaths paths)
     {

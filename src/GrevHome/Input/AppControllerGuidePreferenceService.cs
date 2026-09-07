@@ -20,10 +20,7 @@ public sealed class AppControllerGuidePreferenceService
     private readonly AppPaths _paths;
     private readonly ConcurrentDictionary<string, string> _persistenceBlocks =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly JsonSerializerOptions _jsonOptions = new()
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public AppControllerGuidePreferenceService(AppPaths paths)
     {

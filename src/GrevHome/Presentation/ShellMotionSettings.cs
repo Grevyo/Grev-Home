@@ -38,7 +38,7 @@ public enum ShellVibrationStrength
 public sealed class ShellMotionSettingsService
 {
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _json = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _json = JsonDefaults.Indented;
     private readonly SemaphoreSlim _writeGate = new(1, 1);
 
     public ShellMotionSettingsService(AppPaths paths) => _paths = paths;

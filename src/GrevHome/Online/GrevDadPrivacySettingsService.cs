@@ -42,10 +42,7 @@ public sealed class GrevDadPrivacySettingsService
 {
     private const int SchemaVersion = 1;
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConcurrentDictionary<string, string> _persistenceBlocks =
         new(StringComparer.OrdinalIgnoreCase);

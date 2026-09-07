@@ -117,11 +117,7 @@ public sealed class ProfilePresentationSettingsService
         new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp" };
 
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _json = new()
-    {
-        WriteIndented = true,
-        Converters = { new JsonStringEnumConverter(namingPolicy: null, allowIntegerValues: false) }
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWithStringEnums;
 
     public ProfilePresentationSettingsService(AppPaths paths)
     {

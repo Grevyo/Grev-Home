@@ -25,7 +25,8 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
     private static readonly Uri ArchiveUri = new(
         $"https://buildbot.libretro.com/stable/{SupportedVersion}/windows/x86_64/RetroArch.7z");
 
-    private static readonly HttpClient Http = CreateHttpClient();
+    private static readonly HttpClient Http =
+        TrustedInstallerSupport.CreateHttpClient("GrevHome/0.12", TimeSpan.FromMinutes(30));
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
@@ -46,7 +47,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         PackageOperationContext context,
         CancellationToken cancellationToken = default)
     {
-        var grevId = RequireGrevId(context);
+        var grevId = TrustedInstallerSupport.RequireGrevId(context);
         ValidatePackage(context.Package, grevId);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -79,25 +80,25 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        InstallAsync(context.Package, RequireGrevId(context), progress, cancellationToken);
+        InstallAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), progress, cancellationToken);
 
     Task ITrustedPackageInstaller.UpdateAsync(
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        ReplaceBinaryPackageAsync(context.Package, RequireGrevId(context), "Update", progress, cancellationToken);
+        ReplaceBinaryPackageAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), "Update", progress, cancellationToken);
 
     Task ITrustedPackageInstaller.RepairAsync(
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        ReplaceBinaryPackageAsync(context.Package, RequireGrevId(context), "Repair", progress, cancellationToken);
+        ReplaceBinaryPackageAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), "Repair", progress, cancellationToken);
 
     Task ITrustedPackageInstaller.UninstallAsync(
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        UninstallAsync(context.Package, RequireGrevId(context), progress, cancellationToken);
+        UninstallAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), progress, cancellationToken);
 
     public async Task InstallAsync(
         GrevStorePackageDefinition package,
@@ -126,7 +127,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, grevId, progress, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Install", "Moving verified files into this profile...", 90));
-            MoveExtractedPackage(extractedRoot, targetRoot);
+            TrustedInstallerSupport.MoveExtractedPackage(extractedRoot, targetRoot, "RetroArch");
 
             progress?.Report(new PackageInstallProgress("Configure", "Creating profile-owned RetroArch folders and defaults...", 94));
             ConfigureProfile(grevId);
@@ -144,12 +145,12 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         {
             // A failed fresh install must never leave a registered half-install. Only the
             // package-owned binary root is rolled back. Persistent profile data is outside it.
-            TryDeleteDirectory(targetRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(targetRoot);
             throw;
         }
         finally
         {
-            TryDeleteDirectory(stagingRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(stagingRoot);
         }
     }
 
@@ -173,7 +174,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
 
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
-        if (!PathsEqual(installed.BinaryRoot, targetRoot))
+        if (!TrustedInstallerSupport.PathsEqual(installed.BinaryRoot, targetRoot))
         {
             throw new InvalidOperationException("The registered RetroArch binary path does not match the current GrevID app root. Nothing was removed.");
         }
@@ -242,7 +243,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
                 grevId,
                 cancellationToken);
 
-            TryDeleteDirectory(backupRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(backupRoot);
             oldRootMoved = false;
             progress?.Report(new PackageInstallProgress(
                 "Complete",
@@ -253,7 +254,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         {
             // A replacement is transactional at the package-owned binary-root level. If the new
             // verified package cannot be committed, restore the old binaries when possible.
-            TryDeleteDirectory(targetRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(targetRoot);
             if (oldRootMoved && Directory.Exists(backupRoot) && !Directory.Exists(targetRoot))
             {
                 Directory.Move(backupRoot, targetRoot);
@@ -263,10 +264,10 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
         finally
         {
-            TryDeleteDirectory(stagingRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(stagingRoot);
             if (!oldRootMoved)
             {
-                TryDeleteDirectory(backupRoot);
+                TrustedInstallerSupport.TryDeleteDirectory(backupRoot);
             }
         }
     }
@@ -279,16 +280,29 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         CancellationToken cancellationToken)
     {
         progress?.Report(new PackageInstallProgress("Download", $"Downloading RetroArch {SupportedVersion}...", 0));
-        await DownloadArchiveAsync(archivePath, grevId, progress, cancellationToken);
+        await TrustedInstallerSupport.DownloadArchiveAsync(
+            Http,
+            _downloadService,
+            InstallerId,
+            $"RetroArch {SupportedVersion}",
+            ArchiveUri,
+            "RetroArch.7z",
+            grevId,
+            archivePath,
+            progress,
+            progressStart: 0,
+            progressEnd: 70,
+            "RetroArch",
+            cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Verify", "Verifying pinned SHA-256...", 72));
-        await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
+        await TrustedInstallerSupport.VerifySha256Async(archivePath, SupportedArchiveSha256, "RetroArch", cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Extract", "Checking archive paths...", 76));
-        await ValidateArchiveEntriesAsync(archivePath, cancellationToken);
+        await TrustedInstallerSupport.ValidateArchiveEntriesAsync(archivePath, "RetroArch", cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Extract", "Extracting RetroArch without opening a setup window...", 80));
-        await ExtractArchiveAsync(archivePath, extractRoot, cancellationToken);
+        await TrustedInstallerSupport.ExtractArchiveAsync(archivePath, extractRoot, "RetroArch", cancellationToken);
 
         var extractedRoot = FindExtractedRetroArchRoot(extractRoot);
         var executable = Path.Combine(extractedRoot, "retroarch.exe");
@@ -298,16 +312,6 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
 
         return extractedRoot;
-    }
-
-    private static string RequireGrevId(PackageOperationContext context)
-    {
-        if (string.IsNullOrWhiteSpace(context.GrevId))
-        {
-            throw new InvalidOperationException("A persistent Primary GrevID is required to manage this Profile App.");
-        }
-
-        return context.GrevId;
     }
 
     private static void ValidatePackage(GrevStorePackageDefinition package, string grevId)
@@ -391,148 +395,12 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         }
     }
 
-    private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-            StringComparison.OrdinalIgnoreCase);
-
     private static string CreateStagingRoot() => Path.Combine(
         Path.GetTempPath(),
         "GrevHome",
         "Installers",
         "retroarch",
         Guid.NewGuid().ToString("N"));
-
-    private async Task DownloadArchiveAsync(
-        string destination,
-        string grevId,
-        IProgress<PackageInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        if (_downloadService is not null)
-        {
-            using var lease = await _downloadService.DownloadAsync(
-                "retroarch",
-                $"RetroArch {SupportedVersion}",
-                ArchiveUri,
-                "RetroArch.7z",
-                grevId,
-                progress,
-                progressStart: 0,
-                progressEnd: 70,
-                cancellationToken);
-            File.Copy(lease.FilePath, destination, overwrite: false);
-            if (new FileInfo(destination).Length <= 0)
-            {
-                throw new InvalidDataException("RetroArch download completed with no data.");
-            }
-            return;
-        }
-
-        using var response = await Http.GetAsync(ArchiveUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var total = response.Content.Headers.ContentLength;
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var output = new FileStream(
-            destination,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-        var buffer = new byte[1024 * 1024];
-        long received = 0;
-        while (true)
-        {
-            var read = await source.ReadAsync(buffer, cancellationToken);
-            if (read <= 0) break;
-
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            received += read;
-
-            if (total is > 0)
-            {
-                var downloadPercent = Math.Clamp(received * 100d / total.Value, 0, 100);
-                var overallPercent = downloadPercent * 0.70;
-                progress?.Report(new PackageInstallProgress(
-                    "Download",
-                    $"{FormatBytes(received)} / {FormatBytes(total.Value)}",
-                    overallPercent));
-            }
-        }
-
-        await output.FlushAsync(cancellationToken);
-        if (received <= 0)
-        {
-            throw new InvalidDataException("RetroArch download completed with no data.");
-        }
-    }
-
-    private static async Task VerifySha256Async(
-        string archivePath,
-        string expectedHash,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(
-            archivePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        var actual = Convert.ToHexString(hash);
-        if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("RetroArch download failed SHA-256 verification. Nothing was installed.");
-        }
-    }
-
-    private static async Task ValidateArchiveEntriesAsync(string archivePath, CancellationToken cancellationToken)
-    {
-        var result = await RunTarAsync(["-tf", archivePath], cancellationToken);
-        if (result.ExitCode != 0)
-        {
-            throw new InvalidDataException(
-                "Windows could not read the verified RetroArch portable archive. " +
-                TrimProcessError(result.StandardError));
-        }
-
-        var entries = result.StandardOutput
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (entries.Length == 0)
-        {
-            throw new InvalidDataException("The RetroArch archive contains no files.");
-        }
-
-        foreach (var entry in entries)
-        {
-            var normalized = entry.Replace('\\', '/');
-            if (normalized.StartsWith('/') ||
-                normalized.Contains(':') ||
-                normalized.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(part => part == ".."))
-            {
-                throw new InvalidDataException("RetroArch archive contains an unsafe path. Nothing was extracted.");
-            }
-        }
-    }
-
-    private static async Task ExtractArchiveAsync(
-        string archivePath,
-        string extractRoot,
-        CancellationToken cancellationToken)
-    {
-        var result = await RunTarAsync(["-xf", archivePath, "-C", extractRoot], cancellationToken);
-        if (result.ExitCode != 0)
-        {
-            throw new InvalidDataException(
-                "Windows could not extract the verified RetroArch portable archive. " +
-                TrimProcessError(result.StandardError));
-        }
-    }
 
     private static string FindExtractedRetroArchRoot(string extractRoot)
     {
@@ -553,97 +421,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             : throw new InvalidDataException("RetroArch package layout was not recognised safely.");
     }
 
-    private static void MoveExtractedPackage(string extractedRoot, string targetRoot)
-    {
-        if (Directory.Exists(targetRoot))
-        {
-            if (Directory.EnumerateFileSystemEntries(targetRoot).Any())
-            {
-                throw new InvalidOperationException("RetroArch target folder stopped being empty during installation.");
-            }
-
-            Directory.Delete(targetRoot);
-        }
-
-        Directory.Move(extractedRoot, targetRoot);
-    }
-
     private static string EscapeConfigPath(string path) =>
         path.Replace("\\", "\\\\", StringComparison.Ordinal)
             .Replace("\"", "\\\"", StringComparison.Ordinal);
-
-    private static async Task<TarResult> RunTarAsync(
-        IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
-    {
-        var tarPath = Path.Combine(Environment.SystemDirectory, "tar.exe");
-        if (!File.Exists(tarPath))
-        {
-            throw new FileNotFoundException(
-                "Windows tar.exe is required for the controller-only RetroArch portable installer.",
-                tarPath);
-        }
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = tarPath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            WorkingDirectory = Path.GetTempPath()
-        };
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = Process.Start(startInfo)
-                            ?? throw new Win32Exception("Windows could not start its archive extractor.");
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        return new TarResult(process.ExitCode, await outputTask, await errorTask);
-    }
-
-    private static string TrimProcessError(string value)
-    {
-        var trimmed = value.Trim();
-        return string.IsNullOrWhiteSpace(trimmed)
-            ? "No additional extractor error was returned."
-            : trimmed.Length <= 500 ? trimmed : trimmed[..500];
-    }
-
-    private static HttpClient CreateHttpClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(30)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.12");
-        return client;
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB"];
-        double value = bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return $"{value:0.#} {units[unit]}";
-    }
-
-    private static void TryDeleteDirectory(string path)
-    {
-        if (!Directory.Exists(path)) return;
-        try { Directory.Delete(path, recursive: true); } catch { }
-    }
-
-    private sealed record TarResult(int ExitCode, string StandardOutput, string StandardError);
 }

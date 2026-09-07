@@ -60,7 +60,7 @@ public sealed class TransferManager : IDisposable
     private readonly CancellationTokenSource _lifetimeCts = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _activeCancellation =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     private List<TransferItem> _items = new();
     private Task? _workerTask;

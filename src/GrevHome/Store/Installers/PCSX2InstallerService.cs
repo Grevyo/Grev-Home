@@ -26,7 +26,8 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
     private static readonly Uri ArchiveUri = new(
         $"https://github.com/PCSX2/pcsx2/releases/download/v{SupportedVersion}/pcsx2-v{SupportedVersion}-windows-x64-Qt.7z");
 
-    private static readonly HttpClient Http = CreateHttpClient();
+    private static readonly HttpClient Http =
+        TrustedInstallerSupport.CreateHttpClient("GrevHome/0.13", TimeSpan.FromMinutes(30));
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
@@ -51,7 +52,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         PackageOperationContext context,
         CancellationToken cancellationToken = default)
     {
-        var grevId = RequireGrevId(context);
+        var grevId = TrustedInstallerSupport.RequireGrevId(context);
         ValidatePackage(context.Package, grevId);
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -107,25 +108,25 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        InstallAsync(context.Package, RequireGrevId(context), progress, cancellationToken);
+        InstallAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), progress, cancellationToken);
 
     Task ITrustedPackageInstaller.UpdateAsync(
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        ReplaceBinaryPackageAsync(context.Package, RequireGrevId(context), "Update", progress, cancellationToken);
+        ReplaceBinaryPackageAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), "Update", progress, cancellationToken);
 
     Task ITrustedPackageInstaller.RepairAsync(
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        ReplaceBinaryPackageAsync(context.Package, RequireGrevId(context), "Repair", progress, cancellationToken);
+        ReplaceBinaryPackageAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), "Repair", progress, cancellationToken);
 
     Task ITrustedPackageInstaller.UninstallAsync(
         PackageOperationContext context,
         IProgress<PackageInstallProgress>? progress,
         CancellationToken cancellationToken) =>
-        UninstallAsync(context.Package, RequireGrevId(context), progress, cancellationToken);
+        UninstallAsync(context.Package, TrustedInstallerSupport.RequireGrevId(context), progress, cancellationToken);
 
     public async Task InstallAsync(
         GrevStorePackageDefinition package,
@@ -156,7 +157,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             var extractedRoot = await PrepareVerifiedPackageAsync(archivePath, extractRoot, grevId, progress, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Install", "Moving verified PCSX2 files into this GrevID profile…", 90));
-            MoveExtractedPackage(extractedRoot, targetRoot);
+            TrustedInstallerSupport.MoveExtractedPackage(extractedRoot, targetRoot, "PCSX2");
 
             progress?.Report(new PackageInstallProgress("Configure", "Creating the GrevID PCSX2 data/BIOS folder and portable redirect…", 94));
             ConfigurePortableProfile(targetRoot, grevId);
@@ -180,12 +181,12 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         {
             // A fresh install is registered only after PCSX2 itself passes its startup/config test.
             // Roll back only package binaries; persistent GrevID AppData remains untouched.
-            TryDeleteDirectory(targetRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(targetRoot);
             throw;
         }
         finally
         {
-            TryDeleteDirectory(stagingRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(stagingRoot);
         }
     }
 
@@ -209,7 +210,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         }
 
         var targetRoot = _paths.GetProfileAppRoot(grevId, package.App.AppId);
-        if (!PathsEqual(installed.BinaryRoot, targetRoot))
+        if (!TrustedInstallerSupport.PathsEqual(installed.BinaryRoot, targetRoot))
         {
             throw new InvalidOperationException("The registered PCSX2 binary path does not match the current GrevID app root. Nothing was removed.");
         }
@@ -288,7 +289,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
                 grevId,
                 cancellationToken);
 
-            TryDeleteDirectory(backupRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(backupRoot);
             oldRootMoved = false;
             progress?.Report(new PackageInstallProgress(
                 "Complete",
@@ -299,7 +300,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         {
             // Do not commit replacement binaries which cannot actually start. Restore the previous
             // package root whenever one existed; persistent GrevID AppData is never rolled back.
-            TryDeleteDirectory(targetRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(targetRoot);
             if (oldRootMoved && Directory.Exists(backupRoot) && !Directory.Exists(targetRoot))
             {
                 Directory.Move(backupRoot, targetRoot);
@@ -309,10 +310,10 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         }
         finally
         {
-            TryDeleteDirectory(stagingRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(stagingRoot);
             if (!oldRootMoved)
             {
-                TryDeleteDirectory(backupRoot);
+                TrustedInstallerSupport.TryDeleteDirectory(backupRoot);
             }
         }
     }
@@ -325,16 +326,29 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         CancellationToken cancellationToken)
     {
         progress?.Report(new PackageInstallProgress("Download", $"Downloading PCSX2 Stable {SupportedVersion}…", 6));
-        await DownloadArchiveAsync(archivePath, grevId, progress, cancellationToken);
+        await TrustedInstallerSupport.DownloadArchiveAsync(
+            Http,
+            _downloadService,
+            InstallerId,
+            $"PCSX2 {SupportedVersion}",
+            ArchiveUri,
+            $"pcsx2-v{SupportedVersion}.7z",
+            grevId,
+            archivePath,
+            progress,
+            progressStart: 6,
+            progressEnd: 70,
+            "PCSX2",
+            cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Verify", "Verifying the official release SHA-256…", 72));
-        await VerifySha256Async(archivePath, SupportedArchiveSha256, cancellationToken);
+        await TrustedInstallerSupport.VerifySha256Async(archivePath, SupportedArchiveSha256, "PCSX2", cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Extract", "Checking archive paths before extraction…", 76));
-        await ValidateArchiveEntriesAsync(archivePath, cancellationToken);
+        await TrustedInstallerSupport.ValidateArchiveEntriesAsync(archivePath, "PCSX2", cancellationToken);
 
         progress?.Report(new PackageInstallProgress("Extract", "Extracting the complete PCSX2 portable package…", 80));
-        await ExtractArchiveAsync(archivePath, extractRoot, cancellationToken);
+        await TrustedInstallerSupport.ExtractArchiveAsync(archivePath, extractRoot, "PCSX2", cancellationToken);
 
         var extractedRoot = FindExtractedPCSX2Root(extractRoot);
         if (!File.Exists(Path.Combine(extractedRoot, "pcsx2-qt.exe")))
@@ -365,7 +379,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         }
 
         var resolved = Path.GetFullPath(Path.Combine(binaryRoot, relativeDataRoot));
-        if (!PathsEqual(resolved, dataRoot))
+        if (!TrustedInstallerSupport.PathsEqual(resolved, dataRoot))
         {
             throw new InvalidOperationException("The generated PCSX2 portable data redirect does not resolve to this GrevID's AppData root.");
         }
@@ -394,7 +408,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             }
 
             var resolved = Path.GetFullPath(Path.Combine(binaryRoot, configured));
-            return PathsEqual(resolved, dataRoot);
+            return TrustedInstallerSupport.PathsEqual(resolved, dataRoot);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
         {
@@ -495,16 +509,6 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             : $"PCSX2 startup self-test failed. {explanation} {details}";
     }
 
-    private static string RequireGrevId(PackageOperationContext context)
-    {
-        if (string.IsNullOrWhiteSpace(context.GrevId))
-        {
-            throw new InvalidOperationException("A persistent Primary GrevID is required to manage this Profile App.");
-        }
-
-        return context.GrevId;
-    }
-
     private static void ValidatePackage(GrevStorePackageDefinition package, string grevId)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -525,147 +529,12 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         }
     }
 
-    private static bool PathsEqual(string left, string right) =>
-        string.Equals(
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(left)),
-            Path.TrimEndingDirectorySeparator(Path.GetFullPath(right)),
-            StringComparison.OrdinalIgnoreCase);
-
     private static string CreateStagingRoot() => Path.Combine(
         Path.GetTempPath(),
         "GrevHome",
         "Installers",
         "pcsx2",
         Guid.NewGuid().ToString("N"));
-
-    private async Task DownloadArchiveAsync(
-        string destination,
-        string grevId,
-        IProgress<PackageInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        if (_downloadService is not null)
-        {
-            using var lease = await _downloadService.DownloadAsync(
-                "pcsx2",
-                $"PCSX2 {SupportedVersion}",
-                ArchiveUri,
-                $"pcsx2-v{SupportedVersion}.7z",
-                grevId,
-                progress,
-                progressStart: 6,
-                progressEnd: 70,
-                cancellationToken);
-            File.Copy(lease.FilePath, destination, overwrite: false);
-            if (new FileInfo(destination).Length <= 0)
-            {
-                throw new InvalidDataException("PCSX2 download completed with no data.");
-            }
-            return;
-        }
-
-        using var response = await Http.GetAsync(ArchiveUri, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var total = response.Content.Headers.ContentLength;
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var output = new FileStream(
-            destination,
-            FileMode.CreateNew,
-            FileAccess.Write,
-            FileShare.None,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-
-        var buffer = new byte[1024 * 1024];
-        long received = 0;
-        while (true)
-        {
-            var read = await source.ReadAsync(buffer, cancellationToken);
-            if (read <= 0) break;
-
-            await output.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            received += read;
-
-            if (total is > 0)
-            {
-                var downloadPercent = Math.Clamp(received * 100d / total.Value, 0, 100);
-                progress?.Report(new PackageInstallProgress(
-                    "Download",
-                    $"{FormatBytes(received)} / {FormatBytes(total.Value)}",
-                    6 + (downloadPercent * 0.64)));
-            }
-        }
-
-        await output.FlushAsync(cancellationToken);
-        if (received <= 0)
-        {
-            throw new InvalidDataException("PCSX2 download completed with no data.");
-        }
-    }
-
-    private static async Task VerifySha256Async(
-        string archivePath,
-        string expectedHash,
-        CancellationToken cancellationToken)
-    {
-        await using var stream = new FileStream(
-            archivePath,
-            FileMode.Open,
-            FileAccess.Read,
-            FileShare.Read,
-            1024 * 1024,
-            FileOptions.Asynchronous | FileOptions.SequentialScan);
-        var hash = await SHA256.HashDataAsync(stream, cancellationToken);
-        var actual = Convert.ToHexString(hash);
-        if (!string.Equals(actual, expectedHash, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidDataException("PCSX2 download failed SHA-256 verification. Nothing was installed.");
-        }
-    }
-
-    private static async Task ValidateArchiveEntriesAsync(string archivePath, CancellationToken cancellationToken)
-    {
-        var result = await RunTarAsync(["-tf", archivePath], cancellationToken);
-        if (result.ExitCode != 0)
-        {
-            throw new InvalidDataException(
-                "Windows could not read the verified PCSX2 portable archive. " +
-                TrimProcessError(result.StandardError));
-        }
-
-        var entries = result.StandardOutput
-            .Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (entries.Length == 0)
-        {
-            throw new InvalidDataException("The PCSX2 archive contains no files.");
-        }
-
-        foreach (var entry in entries)
-        {
-            var normalized = entry.Replace('\\', '/');
-            if (normalized.StartsWith('/') ||
-                normalized.Contains(':') ||
-                normalized.Split('/', StringSplitOptions.RemoveEmptyEntries).Any(part => part == ".."))
-            {
-                throw new InvalidDataException("PCSX2 archive contains an unsafe path. Nothing was extracted.");
-            }
-        }
-    }
-
-    private static async Task ExtractArchiveAsync(
-        string archivePath,
-        string extractRoot,
-        CancellationToken cancellationToken)
-    {
-        var result = await RunTarAsync(["-xf", archivePath, "-C", extractRoot], cancellationToken);
-        if (result.ExitCode != 0)
-        {
-            throw new InvalidDataException(
-                "Windows could not extract the verified PCSX2 portable archive. " +
-                TrimProcessError(result.StandardError));
-        }
-    }
 
     private static string FindExtractedPCSX2Root(string extractRoot)
     {
@@ -685,94 +554,4 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             ? candidates[0]!
             : throw new InvalidDataException("PCSX2 package layout was not recognised safely.");
     }
-
-    private static void MoveExtractedPackage(string extractedRoot, string targetRoot)
-    {
-        if (Directory.Exists(targetRoot))
-        {
-            if (Directory.EnumerateFileSystemEntries(targetRoot).Any())
-            {
-                throw new InvalidOperationException("PCSX2 target folder stopped being empty during installation.");
-            }
-
-            Directory.Delete(targetRoot);
-        }
-
-        Directory.Move(extractedRoot, targetRoot);
-    }
-
-    private static async Task<TarResult> RunTarAsync(
-        IReadOnlyList<string> arguments,
-        CancellationToken cancellationToken)
-    {
-        var tarPath = Path.Combine(Environment.SystemDirectory, "tar.exe");
-        if (!File.Exists(tarPath))
-        {
-            throw new FileNotFoundException(
-                "Windows tar.exe is required for the controller-only PCSX2 portable installer.",
-                tarPath);
-        }
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = tarPath,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-            WindowStyle = ProcessWindowStyle.Hidden,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            WorkingDirectory = Path.GetTempPath()
-        };
-        foreach (var argument in arguments)
-        {
-            startInfo.ArgumentList.Add(argument);
-        }
-
-        using var process = Process.Start(startInfo)
-                            ?? throw new Win32Exception("Windows could not start its archive extractor.");
-        var outputTask = process.StandardOutput.ReadToEndAsync(cancellationToken);
-        var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
-        await process.WaitForExitAsync(cancellationToken);
-        return new TarResult(process.ExitCode, await outputTask, await errorTask);
-    }
-
-    private static string TrimProcessError(string value)
-    {
-        var trimmed = value.Trim();
-        return string.IsNullOrWhiteSpace(trimmed)
-            ? "No additional extractor error was returned."
-            : trimmed.Length <= 500 ? trimmed : trimmed[..500];
-    }
-
-    private static HttpClient CreateHttpClient()
-    {
-        var client = new HttpClient
-        {
-            Timeout = TimeSpan.FromMinutes(30)
-        };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.13");
-        return client;
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        string[] units = ["B", "KB", "MB", "GB"];
-        double value = bytes;
-        var unit = 0;
-        while (value >= 1024 && unit < units.Length - 1)
-        {
-            value /= 1024;
-            unit++;
-        }
-
-        return $"{value:0.#} {units[unit]}";
-    }
-
-    private static void TryDeleteDirectory(string path)
-    {
-        if (!Directory.Exists(path)) return;
-        try { Directory.Delete(path, recursive: true); } catch { }
-    }
-
-    private sealed record TarResult(int ExitCode, string StandardOutput, string StandardError);
 }

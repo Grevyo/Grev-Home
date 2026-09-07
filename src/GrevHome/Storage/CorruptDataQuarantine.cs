@@ -90,7 +90,7 @@ public static class CorruptDataQuarantine
         {
             File.WriteAllText(
                 preservedPath + ".json",
-                JsonSerializer.Serialize(record, new JsonSerializerOptions { WriteIndented = true }));
+                JsonSerializer.Serialize(record, JsonDefaults.Indented));
         }
         catch
         {

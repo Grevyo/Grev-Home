@@ -41,7 +41,7 @@ public sealed class AppPresentationService
         new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
 
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public AppPresentationService(AppPaths paths)
     {

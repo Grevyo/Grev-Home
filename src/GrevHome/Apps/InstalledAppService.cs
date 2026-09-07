@@ -22,7 +22,7 @@ public sealed class InstalledAppService
     private readonly AppCatalogService _catalogue;
     private readonly ConcurrentDictionary<string, string> _appLibraryPersistenceBlocks =
         new(StringComparer.OrdinalIgnoreCase);
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public InstalledAppService(AppPaths paths, AppPathResolver pathResolver, AppCatalogService catalogue)
     {

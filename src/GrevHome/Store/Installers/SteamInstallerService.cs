@@ -19,7 +19,8 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
     private static readonly Uri OfficialWindowsInstaller = new(
         "https://cdn.fastly.steamstatic.com/client/installer/SteamSetup.exe");
 
-    private static readonly HttpClient Http = CreateHttpClient();
+    private static readonly HttpClient Http =
+        TrustedInstallerSupport.CreateHttpClient("GrevHome/0.14 SteamInstaller", TimeSpan.FromMinutes(5));
 
     private readonly AppPaths _paths;
     private readonly InstalledAppService _installedApps;
@@ -56,7 +57,7 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
         {
             var registeredExecutable = Environment.ExpandEnvironmentVariables(
                 registered.Manifest.Definition.Launch.Executable);
-            if (!PathsEqual(registeredExecutable, installation.Executable))
+            if (!TrustedInstallerSupport.PathsEqual(registeredExecutable, installation.Executable))
             {
                 return new PackageHealthSnapshot(
                     PackageHealthState.RepairRecommended,
@@ -163,7 +164,14 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
                 "Download",
                 "Downloading Valve's current SteamSetup.exe from the official Steam CDN…",
                 0));
-            await DownloadInstallerAsync(installerPath, progress, cancellationToken);
+            await TrustedInstallerSupport.DownloadWindowsInstallerAsync(
+                Http,
+                OfficialWindowsInstaller,
+                installerPath,
+                "Steam",
+                "Valve's Steam download did not return a plausible Windows installer.",
+                progress,
+                cancellationToken);
             progress?.Report(new PackageInstallProgress("Verify", "Checking Valve's trusted publisher signature…", 70));
             await InstallerSignatureVerifier.VerifyAsync(installerPath, "Valve Corp.", cancellationToken);
 
@@ -192,7 +200,7 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
         }
         finally
         {
-            TryDeleteDirectory(stagingRoot);
+            TrustedInstallerSupport.TryDeleteDirectory(stagingRoot);
         }
     }
 
@@ -217,46 +225,6 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
             string.IsNullOrWhiteSpace(installation.Version) ? "current" : installation.Version,
             ownerGrevId: null,
             cancellationToken);
-    }
-
-    private static async Task DownloadInstallerAsync(
-        string destination,
-        IProgress<PackageInstallProgress>? progress,
-        CancellationToken cancellationToken)
-    {
-        using var response = await Http.GetAsync(
-            OfficialWindowsInstaller,
-            HttpCompletionOption.ResponseHeadersRead,
-            cancellationToken);
-        response.EnsureSuccessStatusCode();
-
-        var length = response.Content.Headers.ContentLength;
-        await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
-        await using var target = File.Create(destination);
-        var buffer = new byte[128 * 1024];
-        long copied = 0;
-
-        while (true)
-        {
-            var read = await source.ReadAsync(buffer, cancellationToken);
-            if (read == 0) break;
-            await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-            copied += read;
-
-            if (length is > 0)
-            {
-                var downloadPercent = Math.Clamp(copied * 68d / length.Value, 0d, 68d);
-                progress?.Report(new PackageInstallProgress(
-                    "Download",
-                    $"Downloading Steam… {copied / 1024d / 1024d:0.0} MB / {length.Value / 1024d / 1024d:0.0} MB",
-                    downloadPercent));
-            }
-        }
-
-        if (new FileInfo(destination).Length < 1024 * 1024)
-        {
-            throw new InvalidDataException("Valve's Steam download did not return a plausible Windows installer.");
-        }
     }
 
     private static async Task RunSilentInstallerAsync(
@@ -399,21 +367,6 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
         }
     }
 
-    private static bool PathsEqual(string left, string right)
-    {
-        try
-        {
-            return string.Equals(
-                Path.GetFullPath(left.Trim().Trim('"')),
-                Path.GetFullPath(right.Trim().Trim('"')),
-                StringComparison.OrdinalIgnoreCase);
-        }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
-        }
-    }
-
     private static void ValidatePackage(GrevStorePackageDefinition package)
     {
         ArgumentNullException.ThrowIfNull(package);
@@ -429,23 +382,6 @@ public sealed class SteamInstallerService : ITrustedPackageInstaller
             throw new InvalidOperationException(
                 "Steam must remain a Global Windows installation with Steam-owned account and game-library data.");
         }
-    }
-
-    private static HttpClient CreateHttpClient()
-    {
-        var client = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-        client.DefaultRequestHeaders.UserAgent.ParseAdd("GrevHome/0.14 SteamInstaller");
-        return client;
-    }
-
-    private static void TryDeleteDirectory(string path)
-    {
-        try
-        {
-            if (Directory.Exists(path)) Directory.Delete(path, recursive: true);
-        }
-        catch (IOException) { }
-        catch (UnauthorizedAccessException) { }
     }
 
     private sealed record SteamInstallation(

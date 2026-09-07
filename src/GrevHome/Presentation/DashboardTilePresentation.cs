@@ -43,7 +43,7 @@ public sealed class DashboardTilePresentationService
     private const long MaxAssetBytes = 25L * 1024L * 1024L;
     private static readonly HashSet<string> Extensions = new(StringComparer.OrdinalIgnoreCase) { ".png", ".jpg", ".jpeg", ".bmp", ".gif" };
     private readonly AppPaths _paths;
-    private readonly JsonSerializerOptions _json = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _json = JsonDefaults.Indented;
 
     public DashboardTilePresentationService(AppPaths paths) => _paths = paths;
 

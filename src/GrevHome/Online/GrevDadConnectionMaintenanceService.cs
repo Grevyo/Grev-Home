@@ -71,10 +71,7 @@ public sealed class GrevDadConnectionMaintenanceService : IDisposable
     private readonly GrevDadAccountService _accounts;
     private readonly WindowsCredentialSecretStore _secrets = new();
     private readonly HttpClient _http;
-    private readonly JsonSerializerOptions _json = new(JsonSerializerDefaults.Web)
-    {
-        WriteIndented = true
-    };
+    private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly CancellationTokenSource _shutdown = new();
     private GrevDadCapabilitiesSnapshot? _capabilities;

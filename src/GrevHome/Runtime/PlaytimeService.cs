@@ -25,7 +25,7 @@ public sealed class PlaytimeService
 
     private readonly AppPaths _paths;
     private static readonly SemaphoreSlim _writeGate = new(1, 1);
-    private readonly JsonSerializerOptions _jsonOptions = new() { WriteIndented = true };
+    private readonly JsonSerializerOptions _jsonOptions = JsonDefaults.Indented;
 
     public PlaytimeService(AppPaths paths)
     {
