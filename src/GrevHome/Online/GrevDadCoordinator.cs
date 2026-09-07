@@ -1275,7 +1275,8 @@ public sealed class GrevDadCoordinator
         _ = RefreshFriendsSurfacesAsync(forceLoad: true);
     }
 
-    private void OpenFriends()
+    /// <summary>Navigates to the Friends route if this GrevID is currently linked/offline-cached. Bound to the header's Friends button.</summary>
+    public void OpenFriends()
     {
         var grevId = _session.PrimaryUser?.GrevId;
         if (grevId is null) return;

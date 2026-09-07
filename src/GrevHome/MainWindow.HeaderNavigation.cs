@@ -219,7 +219,7 @@ public partial class MainWindow
             .ToList();
     }
 
-    private void ShellFriends_Click(object sender, RoutedEventArgs e) => OpenFriends();
+    private void ShellFriends_Click(object sender, RoutedEventArgs e) => _grevDad.OpenFriends();
 
     private void ShellPower_Click(object sender, RoutedEventArgs e)
     {
