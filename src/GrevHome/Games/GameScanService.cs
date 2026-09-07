@@ -76,6 +76,7 @@ public sealed class GameScanService
 
         var candidates = new List<GameScanCandidate>();
         var pending = new Stack<string>();
+        var visited = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         pending.Push(rootFull);
         var inspected = 0;
         var alreadyInLibrary = 0;
@@ -85,6 +86,10 @@ public sealed class GameScanService
         {
             cancellationToken.ThrowIfCancellationRequested();
             var directory = pending.Pop();
+            var canonicalDirectory = SafeFullPath(directory);
+            if (canonicalDirectory.Length == 0 || !visited.Add(canonicalDirectory)) continue;
+
+            var referencedTracks = GetReferencedDiscFiles(directory);
 
             foreach (var file in EnumerateSafely(directory, files: true))
             {
@@ -99,6 +104,10 @@ public sealed class GameScanService
                 {
                     continue;
                 }
+
+                // CUE and M3U descriptor files are what emulators should launch. Adding every BIN
+                // track or every disc listed by an M3U creates duplicate, often unlaunchable tiles.
+                if (referencedTracks.Contains(SafeFullPath(file))) continue;
 
                 if (known.Contains(SafeFullPath(file)))
                 {
@@ -115,6 +124,7 @@ public sealed class GameScanService
                 {
                     continue;
                 }
+                if (IsReparsePoint(child)) continue;
                 pending.Push(child);
             }
         }
@@ -191,6 +201,58 @@ public sealed class GameScanService
             // One unreadable folder must never abort a scan of everything else.
             return Array.Empty<string>();
         }
+    }
+
+    private static bool IsReparsePoint(string path)
+    {
+        try { return (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0; }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            return true;
+        }
+    }
+
+    private static HashSet<string> GetReferencedDiscFiles(string directory)
+    {
+        var referenced = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var descriptor in EnumerateSafely(directory, files: true)
+                     .Where(path => Path.GetExtension(path).Equals(".cue", StringComparison.OrdinalIgnoreCase) ||
+                                    Path.GetExtension(path).Equals(".m3u", StringComparison.OrdinalIgnoreCase)))
+        {
+            try
+            {
+                if (new FileInfo(descriptor).Length > 1024 * 1024) continue;
+                foreach (var rawLine in File.ReadLines(descriptor))
+                {
+                    var line = rawLine.Trim();
+                    string? relative = null;
+                    if (Path.GetExtension(descriptor).Equals(".cue", StringComparison.OrdinalIgnoreCase) &&
+                        line.StartsWith("FILE ", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var quotedStart = line.IndexOf('"');
+                        var quotedEnd = line.LastIndexOf('"');
+                        relative = quotedStart >= 0 && quotedEnd > quotedStart
+                            ? line[(quotedStart + 1)..quotedEnd]
+                            : line[5..].Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault();
+                    }
+                    else if (Path.GetExtension(descriptor).Equals(".m3u", StringComparison.OrdinalIgnoreCase) &&
+                             line.Length > 0 && !line.StartsWith('#'))
+                    {
+                        relative = line;
+                    }
+
+                    if (string.IsNullOrWhiteSpace(relative)) continue;
+                    var full = SafeFullPath(Path.Combine(directory, relative.Trim('"')));
+                    if (full.Length > 0) referenced.Add(full);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+            {
+                // A malformed descriptor is still shown as a candidate; only duplicate suppression
+                // is lost for that one file set.
+            }
+        }
+        return referenced;
     }
 
     private static readonly Regex TrailingTag = new(@"[\s._-]*[\(\[][^\)\]]*[\)\]]\s*$", RegexOptions.Compiled);

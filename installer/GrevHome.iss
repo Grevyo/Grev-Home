@@ -15,6 +15,9 @@
 #ifndef MyPublishDir
 #define MyPublishDir "..\publish"
 #endif
+#ifndef MyWebViewBootstrapper
+#define MyWebViewBootstrapper "MicrosoftEdgeWebview2Setup.exe"
+#endif
 
 [Setup]
 AppId={{EA4D6CAE-5909-4557-9BC2-0C9B89151999}
@@ -56,6 +59,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Files]
 Source: "{#MyPublishDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "{#MyWebViewBootstrapper}"; DestDir: "{tmp}"; Flags: deleteafterinstall
 
 [Icons]
 Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
@@ -63,4 +67,24 @@ Name: "{group}\Uninstall {#MyAppName}"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
 [Run]
+Filename: "{tmp}\MicrosoftEdgeWebview2Setup.exe"; Parameters: "/silent /install"; StatusMsg: "Installing the Microsoft WebView2 browser runtime…"; Flags: waituntilterminated runhidden; Check: not IsWebView2Installed
 Filename: "{app}\{#MyAppExeName}"; Description: "Launch {#MyAppName}"; Flags: nowait postinstall skipifsilent
+
+[Code]
+function HasWebViewVersion(RootKey: Integer; SubKey: String): Boolean;
+var
+  Version: String;
+begin
+  Result := RegQueryStringValue(RootKey, SubKey, 'pv', Version) and
+            (Version <> '') and (Version <> '0.0.0.0');
+end;
+
+function IsWebView2Installed: Boolean;
+const
+  WebViewClient = 'Software\Microsoft\EdgeUpdate\Clients\{F1E7E5A1-5B7F-4A69-BE3B-22BBE6D17F7B}';
+begin
+  Result := HasWebViewVersion(HKCU, WebViewClient) or
+            HasWebViewVersion(HKLM, WebViewClient) or
+            HasWebViewVersion(HKLM32, WebViewClient) or
+            HasWebViewVersion(HKLM64, WebViewClient);
+end;

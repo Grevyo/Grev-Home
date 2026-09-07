@@ -55,7 +55,11 @@ public sealed record GameLibraryEntry(
     GameConsoleLogoPosition ConsoleLogoPosition = GameConsoleLogoPosition.TopLeft,
     bool ConsoleLogoHasBackground = false,
     string? ConsoleLogoBackgroundColor = null,
-    double ConsoleLogoScale = 1.0);
+    double ConsoleLogoScale = 1.0,
+    string? ScrapeProvider = null,
+    string? ScrapeTitle = null,
+    string? ScrapeArtworkUrl = null,
+    DateTimeOffset? ScrapedAtUtc = null);
 
 public enum GameVisualAssetSlot
 {
@@ -307,6 +311,29 @@ public sealed class GameLibraryService
         return UpdateAsync(grevId, gameId, game => game with { IconPath = icon }, cancellationToken);
     }
 
+    public Task<GameLibraryEntry> SaveScrapeDetailsAsync(
+        string grevId,
+        string gameId,
+        GameArtworkSearchResult result,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(result.Provider) || result.Provider.Length > 60 ||
+            string.IsNullOrWhiteSpace(result.Title) || result.Title.Length > 180 ||
+            !Uri.TryCreate(result.ArtworkUrl, UriKind.Absolute, out var artworkUri) ||
+            artworkUri.Scheme != Uri.UriSchemeHttps)
+        {
+            throw new InvalidDataException("The selected scrape result is invalid.");
+        }
+
+        return UpdateAsync(grevId, gameId, game => game with
+        {
+            ScrapeProvider = result.Provider.Trim(),
+            ScrapeTitle = result.Title.Trim(),
+            ScrapeArtworkUrl = artworkUri.AbsoluteUri,
+            ScrapedAtUtc = DateTimeOffset.UtcNow
+        }, cancellationToken);
+    }
+
     public async Task<GameLibraryEntry> ResetPresentationAsync(
         string grevId,
         string gameId,
@@ -325,7 +352,11 @@ public sealed class GameLibraryService
                 ConsoleLogoPosition = GameConsoleLogoPosition.TopLeft,
                 ConsoleLogoHasBackground = false,
                 ConsoleLogoBackgroundColor = null,
-                ConsoleLogoScale = 1.0
+                ConsoleLogoScale = 1.0,
+                ScrapeProvider = null,
+                ScrapeTitle = null,
+                ScrapeArtworkUrl = null,
+                ScrapedAtUtc = null
             },
             cancellationToken);
         var root = Path.Combine(_paths.GetProfileRoot(grevId), "Presentation", "Games", gameId);
@@ -450,7 +481,7 @@ public sealed class GameLibraryService
     {
         GamePlatform.PlayStation2 => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
-            ".iso", ".chd", ".bin", ".img", ".cso", ".zso", ".gz", ".mdf", ".nrg", ".isz"
+            ".iso", ".chd", ".cue", ".bin", ".img", ".cso", ".zso", ".gz", ".mdf", ".nrg", ".isz"
         },
         GamePlatform.Arcade => Extensions(".zip", ".7z", ".chd"),
         GamePlatform.Atari2600 => Extensions(".a26", ".bin", ".zip", ".7z"),

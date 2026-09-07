@@ -416,7 +416,7 @@
                                    Margin="0,10,0,0"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />
-                        <TextBlock Text="Box art is downloaded where a match exists, from the same public artwork RetroArch uses. PlayStation 2 has no artwork set, so PS2 games are added without it."
+                        <TextBlock Text="The first scrape checks Libretro artwork and uses Wikipedia as a fallback, including for PlayStation 2. Your game files are never uploaded. You can later run Auto Scrape or choose an exact result with Manual Scrape from each game's settings."
                                    Margin="0,10,0,0"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />

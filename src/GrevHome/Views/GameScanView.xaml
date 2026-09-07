@@ -62,6 +62,8 @@
                 <Button Content="Choose Folder" Width="180" Height="54" Margin="0,0,10,0" Click="ChooseFolder_Click" />
                 <Button Content="Back" Width="120" Height="54" Click="Back_Click" />
             </WrapPanel>
+            <Button x:Name="CancelScanButton" Content="Cancel Scan" Width="170" Height="54"
+                    HorizontalAlignment="Left" Visibility="Collapsed" Click="CancelScan_Click" />
         </StackPanel>
     </Grid>
 </UserControl>

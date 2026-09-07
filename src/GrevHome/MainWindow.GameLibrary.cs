@@ -57,6 +57,9 @@ public partial class MainWindow
         _gameSettingsView.ReusableIconRequested += path => _ = UseReusableGameIconAsync(path);
         _gameSettingsView.ResetRequested += (_, _) => _ = ResetGamePresentationAsync();
         _gameSettingsView.SaveLayoutRequested += layout => _ = SaveGamePresentationLayoutAsync(layout);
+        _gameSettingsView.AutoScrapeRequested += (_, _) => _ = AutoScrapeCurrentGameAsync();
+        _gameSettingsView.ManualScrapeRequested += query => _ = SearchCurrentGameArtworkAsync(query);
+        _gameSettingsView.ScrapeResultRequested += result => _ = ApplyScrapeResultAsync(result);
 
         _gameArtworkPickerView.HomeRequested += (_, _) => ShowGameArtworkHome();
         _gameArtworkPickerView.UpRequested += (_, _) => NavigateGameArtworkUp();

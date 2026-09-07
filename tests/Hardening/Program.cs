@@ -8,6 +8,7 @@ using GrevHome.Store.Installers;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Presentation;
+using GrevHome.Games;
 
 var root = Path.Combine(Path.GetTempPath(), "GrevHomeHardening-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -81,6 +82,32 @@ try
     await File.WriteAllTextAsync(unsigned, "Not a signed executable");
     await ExpectAsync<InvalidDataException>(() => InstallerSignatureVerifier.VerifyAsync(unsigned, "Valve Corp.", CancellationToken.None));
     await ExpectAsync<OperationCanceledException>(() => InstallerSignatureVerifier.VerifyAsync(unsigned, "Valve Corp.", cancelled.Token));
+
+    var scanRoot = Path.Combine(root, "Games");
+    var ps2Root = Path.Combine(scanRoot, "PS2");
+    var ps1Root = Path.Combine(scanRoot, "PS1");
+    Directory.CreateDirectory(ps2Root);
+    Directory.CreateDirectory(ps1Root);
+    await File.WriteAllTextAsync(Path.Combine(ps2Root, "Road Trip.iso"), "test");
+    await File.WriteAllTextAsync(Path.Combine(ps1Root, "Example Game.cue"), "FILE \"Example Game.bin\" BINARY");
+    await File.WriteAllTextAsync(Path.Combine(ps1Root, "Example Game.bin"), "track");
+    await File.WriteAllTextAsync(Path.Combine(ps1Root, "Collection.m3u"), "Example Game.cue");
+    var scanner = new GameScanService();
+    var scan = await scanner.ScanAsync(scanRoot, Array.Empty<GameLibraryEntry>());
+    Check(scan.Candidates.Any(game => game.SuggestedName == "Road Trip" && game.Platform == GamePlatform.PlayStation2),
+        "Console folder must disambiguate a PS2 ISO");
+    Check(scan.Candidates.Count(game => game.SourcePath.EndsWith("Example Game.bin", StringComparison.OrdinalIgnoreCase)) == 0,
+        "CUE track files must not become duplicate games");
+    Check(scan.Candidates.Count(game => game.SourcePath.EndsWith("Example Game.cue", StringComparison.OrdinalIgnoreCase)) == 0,
+        "M3U member discs must not become duplicate games");
+    Check(scan.Candidates.Any(game => game.SourcePath.EndsWith("Collection.m3u", StringComparison.OrdinalIgnoreCase)),
+        "M3U playlist must remain as the launchable game entry");
+    var rescan = await scanner.ScanAsync(scanRoot, new[]
+    {
+        new GameLibraryEntry("game.ps2.test", "Road Trip", GamePlatform.PlayStation2,
+            Path.Combine(ps2Root, "Road Trip.iso"), DateTimeOffset.UtcNow)
+    });
+    Check(rescan.AlreadyInLibrary == 1, "A rescan must not duplicate an existing game path");
     Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection.");
 }
 finally { Directory.Delete(root, recursive: true); }

@@ -13,6 +13,8 @@ public partial class GameSettingsView : UserControl
     private bool _logoHasBackground;
     private string _logoBackgroundColor = "#000000";
     private double _logoScale = 1.0;
+    private string _scrapeQuery = string.Empty;
+    private bool _editingScrapeQuery;
 
     public event Action<string>? SaveNameRequested;
     public event EventHandler? ChooseIconRequested;
@@ -21,22 +23,45 @@ public partial class GameSettingsView : UserControl
     public event Action<string>? ReusableIconRequested;
     public event EventHandler? ResetRequested;
     public event Action<GamePresentationLayout>? SaveLayoutRequested;
+    public event EventHandler? AutoScrapeRequested;
+    public event Action<string>? ManualScrapeRequested;
+    public event Action<GameArtworkSearchResult>? ScrapeResultRequested;
     public event EventHandler? BackRequested;
 
     public GameSettingsView()
     {
         InitializeComponent();
-        KeyboardOverlay.Completed += value => DisplayNameBox.Text = value;
+        KeyboardOverlay.Completed += value =>
+        {
+            if (_editingScrapeQuery)
+            {
+                _editingScrapeQuery = false;
+                _scrapeQuery = value.Trim();
+                ManualScrapeRequested?.Invoke(_scrapeQuery);
+            }
+            else
+            {
+                DisplayNameBox.Text = value;
+            }
+        };
+        KeyboardOverlay.Cancelled += (_, _) => _editingScrapeQuery = false;
     }
 
     public void SetGame(GameLibraryEntry game, string ownerName, string grevId, IReadOnlyList<string> reusableIcons)
     {
         _game = game;
+        _scrapeQuery = game.DisplayName;
         IdentityText.Text = $"{game.DisplayName} • {GameLibraryService.GetPlatformDisplayName(game.Platform)} • {ownerName} • {grevId}";
         DisplayNameBox.Text = game.DisplayName;
         IconStatusText.Text = string.IsNullOrWhiteSpace(game.IconPath) ? "Showing the console name as text." : "Custom console logo configured for this GrevID.";
         TileStatusText.Text = string.IsNullOrWhiteSpace(game.TileMediaPath) ? "No custom full tile configured." : "Custom full tile configured for this GrevID.";
         BackgroundStatusText.Text = string.IsNullOrWhiteSpace(game.BackgroundMediaPath) ? "Using the full-tile artwork when available." : "Custom dashboard background configured for this GrevID.";
+        ScrapeStatusText.Text = string.IsNullOrWhiteSpace(game.ScrapeProvider)
+            ? GameBoxArtService.IsSupported(game.Platform)
+                ? "No saved internet scrape is attached to this game yet."
+                : "The built-in Libretro catalogue does not cover this console. You can still choose your own tile and background above."
+            : $"Last scrape: {game.ScrapeTitle} • {game.ScrapeProvider}";
+        ScrapeResultsPanel.Children.Clear();
         _tileColor = string.IsNullOrWhiteSpace(game.TileColor) ? GameArtworkFactory.DefaultTileColor : game.TileColor;
         _logoPosition = game.ConsoleLogoPosition;
         _logoHasBackground = game.ConsoleLogoHasBackground;
@@ -64,12 +89,76 @@ public partial class GameSettingsView : UserControl
 
     public void ShowStatus(string message) => StatusText.Text = message;
 
+    public void ShowScrapeBusy(string message)
+    {
+        ScrapeResultsPanel.Children.Clear();
+        ScrapeStatusText.Text = message;
+    }
+
+    public void ShowScrapeResults(IReadOnlyList<GameArtworkSearchResult> results, string query)
+    {
+        ScrapeResultsPanel.Children.Clear();
+        ScrapeStatusText.Text = results.Count == 0
+            ? $"No artwork matches were found for ‘{query}’. Choose Change Search Words and try a shorter title."
+            : $"{results.Count} result(s) for ‘{query}’. Choose the exact game to apply its artwork.";
+
+        foreach (var result in results)
+        {
+            var button = new Button
+            {
+                MinWidth = 260,
+                MaxWidth = 410,
+                MinHeight = 58,
+                Margin = new Thickness(0, 0, 10, 10),
+                Padding = new Thickness(14, 8, 14, 8),
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Tag = result,
+                Content = new StackPanel
+                {
+                    Children =
+                    {
+                        new TextBlock { Text = result.Title, FontSize = 16, TextWrapping = TextWrapping.Wrap },
+                        new TextBlock
+                        {
+                            Text = string.IsNullOrWhiteSpace(result.Summary)
+                                ? result.Provider
+                                : $"{result.Provider} • {TrimSummary(result.Summary)}",
+                            FontSize = 11,
+                            Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"),
+                            TextWrapping = TextWrapping.Wrap,
+                            MaxWidth = 380
+                        }
+                    }
+                }
+            };
+            button.Click += ScrapeResult_Click;
+            ScrapeResultsPanel.Children.Add(button);
+        }
+    }
+
+    public void ShowScrapeApplied(GameArtworkSearchResult result)
+    {
+        ScrapeResultsPanel.Children.Clear();
+        ScrapeStatusText.Text = $"Applied ‘{result.Title}’ from {result.Provider}. The full tile has been updated.";
+    }
+
     private void SaveName_Click(object sender, RoutedEventArgs e) => SaveNameRequested?.Invoke(DisplayNameBox.Text);
     private void OpenNameKeyboard_Click(object sender, RoutedEventArgs e) =>
         KeyboardOverlay.Open("Enter Game Name", DisplayNameBox.Text, 100);
     private void ChooseIcon_Click(object sender, RoutedEventArgs e) => ChooseIconRequested?.Invoke(this, EventArgs.Empty);
     private void ChooseTile_Click(object sender, RoutedEventArgs e) => ChooseTileRequested?.Invoke(this, EventArgs.Empty);
     private void ChooseBackground_Click(object sender, RoutedEventArgs e) => ChooseBackgroundRequested?.Invoke(this, EventArgs.Empty);
+    private void AutoScrape_Click(object sender, RoutedEventArgs e) => AutoScrapeRequested?.Invoke(this, EventArgs.Empty);
+    private void ManualScrape_Click(object sender, RoutedEventArgs e) => ManualScrapeRequested?.Invoke(_scrapeQuery);
+    private void ChangeSearch_Click(object sender, RoutedEventArgs e)
+    {
+        _editingScrapeQuery = true;
+        KeyboardOverlay.Open("Search Artwork", _scrapeQuery, 100);
+    }
+    private void ScrapeResult_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is Button { Tag: GameArtworkSearchResult result }) ScrapeResultRequested?.Invoke(result);
+    }
     private void ReusableIcon_Click(object sender, RoutedEventArgs e)
     {
         if (sender is Button { Tag: string iconPath }) ReusableIconRequested?.Invoke(iconPath);
@@ -135,5 +224,6 @@ public partial class GameSettingsView : UserControl
         GameConsoleLogoPosition.BottomRight => "Bottom Right",
         _ => "Top Left"
     };
+    private static string TrimSummary(string value) => value.Length <= 135 ? value : value[..132] + "…";
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 }

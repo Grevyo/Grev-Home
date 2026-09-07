@@ -42,6 +42,7 @@ public partial class GameScanView : UserControl
     public event EventHandler? UpRequested;
     public event Action<string>? NavigateRequested;
     public event Action<string>? ScanRequested;
+    public event EventHandler? CancelScanRequested;
     public event Action<IReadOnlyList<GameScanSelection>, bool>? AddRequested;
 
     public string? CurrentPath => _currentPath;
@@ -88,6 +89,9 @@ public partial class GameScanView : UserControl
     {
         PathText.Text = path;
         StatusText.Text = "Scanning… this can take a moment on a large collection.";
+        BrowseActions.Visibility = Visibility.Collapsed;
+        ResultActions.Visibility = Visibility.Collapsed;
+        CancelScanButton.Visibility = Visibility.Visible;
     }
 
     public void ShowResults(string scannedPath, GameScanReport report)
@@ -99,6 +103,7 @@ public partial class GameScanView : UserControl
         BrowseActions.Visibility = Visibility.Collapsed;
         ResultsArea.Visibility = Visibility.Visible;
         ResultActions.Visibility = Visibility.Visible;
+        CancelScanButton.Visibility = Visibility.Collapsed;
         PathText.Text = scannedPath;
 
         foreach (var candidate in report.Candidates)
@@ -147,6 +152,7 @@ public partial class GameScanView : UserControl
         BrowseActions.Visibility = Visibility.Visible;
         ResultsArea.Visibility = Visibility.Collapsed;
         ResultActions.Visibility = Visibility.Collapsed;
+        CancelScanButton.Visibility = Visibility.Collapsed;
     }
 
     private Button CreateFolderButton(string name, string detail, string path)
@@ -357,4 +363,5 @@ public partial class GameScanView : UserControl
     private void Home_Click(object sender, RoutedEventArgs e) => HomeRequested?.Invoke(this, EventArgs.Empty);
     private void Up_Click(object sender, RoutedEventArgs e) => UpRequested?.Invoke(this, EventArgs.Empty);
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
+    private void CancelScan_Click(object sender, RoutedEventArgs e) => CancelScanRequested?.Invoke(this, EventArgs.Empty);
 }

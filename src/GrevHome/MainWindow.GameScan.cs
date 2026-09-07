@@ -11,6 +11,7 @@ public partial class MainWindow
     private GameBoxArtService? _boxArtService;
     private string? _gameScanCurrentPath;
     private bool _gameScanInProgress;
+    private CancellationTokenSource? _gameScanCancellation;
 
     /// <summary>
     /// Set during first-run setup when the user asks for their Games folder to be scanned. The scan
@@ -29,6 +30,7 @@ public partial class MainWindow
         _gameScanView.UpRequested += (_, _) => NavigateGameScanUp();
         _gameScanView.NavigateRequested += NavigateGameScanPath;
         _gameScanView.ScanRequested += path => _ = RunGameScanAsync(path);
+        _gameScanView.CancelScanRequested += (_, _) => _gameScanCancellation?.Cancel();
         _gameScanView.AddRequested += (selections, fetchBoxArt) => _ = AddScannedGamesAsync(selections, fetchBoxArt);
 
         _navigation.RouteChanged += route =>
@@ -145,11 +147,13 @@ public partial class MainWindow
         }
 
         _gameScanInProgress = true;
+        _gameScanCancellation?.Dispose();
+        _gameScanCancellation = new CancellationTokenSource();
         try
         {
             _gameScanView.ShowScanning(path);
             var existing = await service.GetForProfileAsync(primary.GrevId);
-            var report = await _gameScanService.ScanAsync(path, existing);
+            var report = await _gameScanService.ScanAsync(path, existing, _gameScanCancellation.Token);
             _gameScanView.ShowResults(path, report);
             FocusRouteSoon();
         }
@@ -157,9 +161,16 @@ public partial class MainWindow
         {
             _gameScanView.ShowError($"That folder could not be scanned: {ex.Message}");
         }
+        catch (OperationCanceledException)
+        {
+            NavigateGameScanPath(path);
+            _gameScanView.ShowStatus("Scan cancelled. Nothing was added.");
+        }
         finally
         {
             _gameScanInProgress = false;
+            _gameScanCancellation?.Dispose();
+            _gameScanCancellation = null;
         }
     }
 
@@ -241,6 +252,7 @@ public partial class MainWindow
         _boxArtService ??= new GameBoxArtService();
         var staging = Path.Combine(Path.GetTempPath(), "GrevHome", "BoxArt");
         string? downloaded = null;
+        GameArtworkSearchResult? matchedResult = null;
         try
         {
             downloaded = await _boxArtService.TryDownloadBoxArtAsync(
@@ -250,10 +262,23 @@ public partial class MainWindow
                 staging);
             if (downloaded is null)
             {
+                var matches = await _boxArtService.SearchAsync(selection.Platform, selection.Candidate.SuggestedName, maximumResults: 3);
+                matchedResult = matches.FirstOrDefault(result => result.MatchScore >= 700);
+                if (matchedResult is not null)
+                {
+                    downloaded = await _boxArtService.TryDownloadResultAsync(matchedResult, staging);
+                }
+            }
+            if (downloaded is null)
+            {
                 return false;
             }
 
             await service.SaveCustomAssetAsync(grevId, entry.GameId, GameVisualAssetSlot.TileMedia, downloaded);
+            if (matchedResult is not null)
+            {
+                await service.SaveScrapeDetailsAsync(grevId, entry.GameId, matchedResult);
+            }
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
@@ -274,6 +299,117 @@ public partial class MainWindow
                 {
                     // A stray temp file in the OS temp folder is harmless.
                 }
+            }
+        }
+    }
+
+    private async Task AutoScrapeCurrentGameAsync()
+    {
+        var game = _gameSettingsEntry;
+        if (game is null) return;
+        if (!GameBoxArtService.IsSupported(game.Platform))
+        {
+            _gameSettingsView.ShowScrapeBusy(
+                $"The built-in artwork catalogue does not cover {GameLibraryService.GetPlatformDisplayName(game.Platform)} yet. Choose your own full tile above instead.");
+            return;
+        }
+
+        _gameSettingsView.ShowScrapeBusy($"Finding the best match for {game.DisplayName}…");
+        _boxArtService ??= new GameBoxArtService();
+        try
+        {
+            var results = await _boxArtService.SearchAsync(game.Platform, game.DisplayName, maximumResults: 5);
+            if (_gameSettingsEntry?.GameId != game.GameId) return;
+            var best = results.FirstOrDefault();
+            if (best is null || best.MatchScore < 300)
+            {
+                _gameSettingsView.ShowScrapeResults(results, game.DisplayName);
+                return;
+            }
+
+            await ApplyScrapeResultAsync(best);
+        }
+        catch (OperationCanceledException)
+        {
+            _gameSettingsView.ShowScrapeBusy("Artwork search was cancelled.");
+        }
+    }
+
+    private async Task SearchCurrentGameArtworkAsync(string query)
+    {
+        var game = _gameSettingsEntry;
+        if (game is null || string.IsNullOrWhiteSpace(query))
+        {
+            _gameSettingsView.ShowScrapeBusy("Enter a game title to search for.");
+            return;
+        }
+        if (!GameBoxArtService.IsSupported(game.Platform))
+        {
+            _gameSettingsView.ShowScrapeBusy(
+                $"The built-in artwork catalogue does not cover {GameLibraryService.GetPlatformDisplayName(game.Platform)} yet. Choose your own full tile above instead.");
+            return;
+        }
+
+        _gameSettingsView.ShowScrapeBusy($"Searching the internet catalogue for {query}…");
+        _boxArtService ??= new GameBoxArtService();
+        try
+        {
+            var results = await _boxArtService.SearchAsync(game.Platform, query);
+            if (_gameSettingsEntry?.GameId == game.GameId)
+            {
+                _gameSettingsView.ShowScrapeResults(results, query);
+                FocusRouteSoon();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            _gameSettingsView.ShowScrapeBusy("Artwork search was cancelled.");
+        }
+    }
+
+    private async Task ApplyScrapeResultAsync(GameArtworkSearchResult result)
+    {
+        var service = _gameLibraryService;
+        var primary = _session.PrimaryUser;
+        var game = _gameSettingsEntry;
+        if (service is null || primary?.GrevId is null || game is null) return;
+
+        _boxArtService ??= new GameBoxArtService();
+        _gameSettingsView.ShowScrapeBusy($"Downloading artwork for {result.Title}…");
+        var staging = Path.Combine(Path.GetTempPath(), "GrevHome", "BoxArt");
+        string? downloaded = null;
+        try
+        {
+            downloaded = await _boxArtService.TryDownloadResultAsync(result, staging);
+            if (downloaded is null)
+            {
+                _gameSettingsView.ShowScrapeBusy("That artwork could not be downloaded. Check the connection and try again.");
+                return;
+            }
+
+            var updated = await service.SaveCustomAssetAsync(
+                primary.GrevId, game.GameId, GameVisualAssetSlot.TileMedia, downloaded);
+            updated = await service.SaveScrapeDetailsAsync(primary.GrevId, game.GameId, result);
+
+            if (_gameSettingsEntry?.GameId != game.GameId ||
+                !string.Equals(_session.PrimaryUser?.GrevId, primary.GrevId, StringComparison.OrdinalIgnoreCase)) return;
+
+            _gameSettingsEntry = updated;
+            await RefreshProfileGamesAsync();
+            _gameSettingsView.ShowScrapeApplied(result);
+            FocusRouteSoon();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException
+                                       or InvalidOperationException or HttpRequestException)
+        {
+            _gameSettingsView.ShowScrapeBusy($"Artwork could not be applied: {ex.Message}");
+        }
+        finally
+        {
+            if (downloaded is not null)
+            {
+                try { if (File.Exists(downloaded)) File.Delete(downloaded); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { }
             }
         }
     }
