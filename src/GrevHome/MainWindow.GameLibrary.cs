@@ -67,6 +67,8 @@ public partial class MainWindow
         _gameAddView.BackRequested += (_, _) => _navigation.GoBack();
         _gameAddView.ChooseFileRequested += OpenGameFilePicker;
 
+        InitializeGameScanIntegration();
+
         _gameFilePickerView.HomeRequested += (_, _) => ShowGameFileHome();
         _gameFilePickerView.UpRequested += (_, _) => NavigateGameFileUp();
         _gameFilePickerView.CancelRequested += (_, _) => _navigation.GoBack();

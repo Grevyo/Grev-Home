@@ -180,6 +180,7 @@ public partial class MainWindow : Window
             _shellFeedback.Dispose();
             _runtimeSessions.Dispose();
             _grevDad.Dispose();
+            _boxArtService?.Dispose();
         };
     }
 
@@ -222,6 +223,10 @@ public partial class MainWindow : Window
             _firstRunSetupView.ShowError($"Could not use those folders: {ex.Message}");
             return;
         }
+
+        // Games belong to a GrevID, and no profile exists at first-run time, so the requested scan
+        // is held until an account is actually signed in. See OfferPendingFirstRunScan.
+        _pendingFirstRunScanRoot = result.ScanGamesFolder ? result.GamesRoot : null;
 
         _navigation.Reset(Route.Login);
         await RefreshLoginProfileDetailsAsync();
@@ -306,6 +311,13 @@ public partial class MainWindow : Window
 
         _dashboardView.SetSession(_session);
         _navigation.Reset(Route.Dashboard);
+
+        // A first-run scan request waits for a signed-in GrevID to own the games. Let the dashboard
+        // finish presenting before taking the user to the scan screen they asked for during setup.
+        if (_pendingFirstRunScanRoot is not null)
+        {
+            Dispatcher.BeginInvoke(new Action(OfferPendingFirstRunScan));
+        }
     }
 
     private async Task OpenInstalledLibraryAsync(string filter = "All")

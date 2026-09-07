@@ -11,6 +11,7 @@ public enum SettingsPage
     Display,
     Connections,
     SystemInformation,
+    GameScanning,
     ThemeAndMotion,
     Power
 }
@@ -46,6 +47,14 @@ public partial class SettingsView
 
     private void SystemStatusSectionButton_Click(object sender, RoutedEventArgs e) =>
         OpenSettingsSection(SystemStatusSection, SystemStatusSectionContent, "System Information");
+
+    private void GameScanSectionButton_Click(object sender, RoutedEventArgs e) =>
+        OpenSettingsSection(GameScanSection, GameScanSectionContent, "Game Scanning");
+
+    private void ScanDirectory_Click(object sender, RoutedEventArgs e) =>
+        ScanDirectoryRequested?.Invoke(this, EventArgs.Empty);
+
+    public void ShowGameScanStatus(string message) => GameScanStatusText.Text = message;
 
     private void ThemeMotionSectionButton_Click(object sender, RoutedEventArgs e) =>
         OpenSettingsSection(ThemeMotionSection, ThemeMotionSectionContent, "Theme & Motion");
@@ -88,6 +97,9 @@ public partial class SettingsView
             case SettingsPage.SystemInformation:
                 OpenSettingsSection(SystemStatusSection, SystemStatusSectionContent, "System Information");
                 break;
+            case SettingsPage.GameScanning:
+                OpenSettingsSection(GameScanSection, GameScanSectionContent, "Game Scanning");
+                break;
             case SettingsPage.ThemeAndMotion:
                 OpenSettingsSection(ThemeMotionSection, ThemeMotionSectionContent, "Theme & Motion");
                 break;
@@ -126,7 +138,7 @@ public partial class SettingsView
     }
 
     private IEnumerable<StackPanel> SettingsSections() =>
-        [AccountSection,ControllerShortcutsSection,AudioSection,DisplaySection,ConnectionsSection,SystemStatusSection,ThemeMotionSection,PowerSection];
+        [AccountSection,ControllerShortcutsSection,AudioSection,DisplaySection,ConnectionsSection,SystemStatusSection,GameScanSection,ThemeMotionSection,PowerSection];
 
     private static IEnumerable<Button> FindButtons(DependencyObject root)
     {

@@ -84,6 +84,7 @@
                         <Button x:Name="DisplaySectionButton" Tag="settings-display" Style="{StaticResource SettingsHubTileStyle}" Click="DisplaySectionButton_Click" />
                         <Button x:Name="ConnectionsSectionButton" Tag="settings-connections" Style="{StaticResource SettingsHubTileStyle}" Click="ConnectionsSectionButton_Click" />
                         <Button x:Name="SystemStatusSectionButton" Tag="settings-system" Style="{StaticResource SettingsHubTileStyle}" Click="SystemStatusSectionButton_Click" />
+                        <Button x:Name="GameScanSectionButton" Tag="settings-game-scan" Style="{StaticResource SettingsHubTileStyle}" Click="GameScanSectionButton_Click" />
                         <Button x:Name="ThemeMotionSectionButton" Tag="settings-theme" Style="{StaticResource SettingsHubTileStyle}" Click="ThemeMotionSectionButton_Click" />
                         <Button x:Name="PowerSectionButton" Tag="settings-power" Style="{StaticResource SettingsHubTileStyle}" Click="PowerSectionButton_Click" />
                     </StackPanel>
@@ -390,6 +391,42 @@
                         <StackPanel x:Name="ControllerHardwarePanel" />
 
                         <TextBlock x:Name="SystemStatusText"
+                                   Margin="0,14,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+            </StackPanel>
+
+            <StackPanel x:Name="GameScanSection" Margin="0,0,0,16" Visibility="Collapsed">
+                <Border x:Name="GameScanSectionContent"
+                        Visibility="Collapsed"
+                        Background="#11151E"
+                        BorderBrush="#2B3344"
+                        BorderThickness="1"
+                        Padding="22"
+                        CornerRadius="0,0,14,14">
+                    <StackPanel>
+                        <TextBlock Text="Scan a folder for games" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock Text="Grev Home looks through a folder and everything inside it, works out which console each game is for, and adds them to the signed-in player's library in one go."
+                                   Margin="0,8,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="A folder named after a console (PS2, SNES, Mega Drive and so on) is used to identify what is inside it. Files whose type is shared by several consoles are never guessed - they are listed for you to confirm before anything is added."
+                                   Margin="0,10,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBlock Text="Box art is downloaded where a match exists, from the same public artwork RetroArch uses. PlayStation 2 has no artwork set, so PS2 games are added without it."
+                                   Margin="0,10,0,0"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <Button Content="Scan a Folder for Games"
+                                MinWidth="280"
+                                Margin="0,20,0,0"
+                                HorizontalAlignment="Left"
+                                Style="{StaticResource WrappedSettingsButtonStyle}"
+                                Click="ScanDirectory_Click" />
+                        <TextBlock x:Name="GameScanStatusText"
                                    Margin="0,14,0,0"
                                    Foreground="{StaticResource MutedBrush}"
                                    TextWrapping="Wrap" />

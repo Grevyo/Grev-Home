@@ -17,6 +17,7 @@ public enum Route
     ProfilePhotoPicker,
     GameAdd,
     GameFilePicker,
+    GameScan,
     GameSettings,
     GameArtworkPicker,
     GrevStore,

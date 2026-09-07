@@ -25,13 +25,35 @@
                            TextWrapping="Wrap" />
             </Border>
 
+            <Border Margin="0,0,0,18"
+                    Padding="22"
+                    Background="#11151E"
+                    BorderBrush="#2B3344"
+                    BorderThickness="1"
+                    CornerRadius="0">
+                <StackPanel>
+                    <TextBlock Text="SCAN DIRECTORY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="Point Grev Home at a folder of games and it will find them all, work out which console each one is for, and add them in one go. Anything it is unsure about is left for you to confirm."
+                               Margin="0,5,0,12"
+                               FontSize="12"
+                               Foreground="{StaticResource MutedBrush}"
+                               TextWrapping="Wrap" />
+                    <Button Content="Scan a Folder for Games"
+                            Width="280"
+                            Height="54"
+                            HorizontalAlignment="Left"
+                            Click="ScanDirectory_Click" />
+                </StackPanel>
+            </Border>
+
             <Border Padding="22"
                     Background="#11151E"
                     BorderBrush="#2B3344"
                     BorderThickness="1"
                     CornerRadius="0">
                 <StackPanel>
-                    <TextBlock Text="CONSOLE / PLATFORM" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="ADD ONE GAME MANUALLY" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="CONSOLE / PLATFORM" Margin="0,14,0,0" FontSize="11" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
                     <TextBlock Text="The platform tells Grev Home which emulator should open the game."
                                Margin="0,5,0,10"
                                FontSize="12"

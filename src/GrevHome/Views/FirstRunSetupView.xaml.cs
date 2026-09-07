@@ -5,7 +5,7 @@ using GrevHome.Store.Installers;
 
 namespace GrevHome.Views;
 
-public sealed record FirstRunSetupResult(string GamesRoot, string BiosRoot);
+public sealed record FirstRunSetupResult(string GamesRoot, string BiosRoot, bool ScanGamesFolder);
 
 /// <summary>
 /// First-run wizard that asks where Grev Home should keep games and BIOS files. Both folders are
@@ -22,6 +22,7 @@ public partial class FirstRunSetupView : UserControl
     private string _defaultGamesRoot = string.Empty;
     private string _defaultBiosRoot = string.Empty;
     private bool _pickingGames;
+    private bool _scanGamesFolder = true;
 
     public bool IsKeyboardOpen => PathKeyboard.IsOpen;
 
@@ -44,6 +45,8 @@ public partial class FirstRunSetupView : UserControl
         GamesPathText.Text = _gamesRoot;
         BiosPathText.Text = _biosRoot;
         StatusText.Text = string.Empty;
+        _scanGamesFolder = true;
+        UpdateScanChoice();
         BuildDriveOptions(GamesDriveOptions, "Games", path =>
         {
             _gamesRoot = path;
@@ -147,6 +150,17 @@ public partial class FirstRunSetupView : UserControl
             return;
         }
 
-        ContinueRequested?.Invoke(new FirstRunSetupResult(_gamesRoot, _biosRoot));
+        ContinueRequested?.Invoke(new FirstRunSetupResult(_gamesRoot, _biosRoot, _scanGamesFolder));
     }
+
+    private void ToggleScanChoice_Click(object sender, RoutedEventArgs e)
+    {
+        _scanGamesFolder = !_scanGamesFolder;
+        UpdateScanChoice();
+    }
+
+    private void UpdateScanChoice() =>
+        ScanChoiceButton.Content = _scanGamesFolder
+            ? "✓  Scan for games after I create my account"
+            : "○  Skip scanning - I'll add games myself";
 }

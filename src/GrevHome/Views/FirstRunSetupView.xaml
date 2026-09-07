@@ -48,6 +48,19 @@
                     <Button Content="Custom Location…" Width="220" Height="50" Click="BiosCustom_Click" />
                 </StackPanel>
 
+                <TextBlock Text="EXISTING GAMES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="If your Games folder already has games in it, Grev Home can scan it and add them for you."
+                           Margin="0,2,0,8"
+                           Foreground="{StaticResource MutedBrush}"
+                           TextWrapping="Wrap" />
+                <Button x:Name="ScanChoiceButton"
+                        Content="✓  Scan for games after I create my account"
+                        MinWidth="420"
+                        Height="50"
+                        Margin="0,0,0,30"
+                        HorizontalAlignment="Left"
+                        Click="ToggleScanChoice_Click" />
+
                 <TextBlock x:Name="StatusText"
                            Margin="0,0,0,20"
                            HorizontalAlignment="Center"

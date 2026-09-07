@@ -9,6 +9,7 @@ public partial class GameAddView : UserControl
     private GamePlatform _platform = GamePlatform.PlayStation2;
 
     public event EventHandler? BackRequested;
+    public event EventHandler? ScanDirectoryRequested;
     public event Action<GamePlatform>? ChooseFileRequested;
 
     public GameAddView()
@@ -64,6 +65,7 @@ public partial class GameAddView : UserControl
     }
 
     private void ChooseFile_Click(object sender, RoutedEventArgs e) => ChooseFileRequested?.Invoke(_platform);
+    private void ScanDirectory_Click(object sender, RoutedEventArgs e) => ScanDirectoryRequested?.Invoke(this, EventArgs.Empty);
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
     private void UpdatePresentation()

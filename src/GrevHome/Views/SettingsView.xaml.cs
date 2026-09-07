@@ -25,6 +25,7 @@ public partial class SettingsView : UserControl
             ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
             ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],
             ["settings-system"] = ["Machine and Windows", ".NET runtime", "Storage", "Connected controllers"],
+            ["settings-game-scan"] = ["Scan a folder for games", "Automatic console detection", "Box art download"],
             ["settings-theme"] = ["Screen and Return Home transitions", "Overlay and modal motion", "Tile and button feedback", "Ambient background", "UI and startup sounds", "Sound volume", "Controller vibration", "Animation speed", "Preview intro"],
             ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation"]
         };
@@ -49,6 +50,7 @@ public partial class SettingsView : UserControl
     public event EventHandler? CancelShortcutCaptureRequested;
     public event Action<ShellMotionSettings>? MotionSettingsChanged;
     public event EventHandler? StartupIntroPreviewRequested;
+    public event EventHandler? ScanDirectoryRequested;
 
     public SettingsView()
     {
@@ -71,7 +73,7 @@ public partial class SettingsView : UserControl
                  {
                      AccountSectionButton, ControllerShortcutsSectionButton, AudioSectionButton,
                      DisplaySectionButton, ConnectionsSectionButton, SystemStatusSectionButton,
-                     ThemeMotionSectionButton, PowerSectionButton
+                     GameScanSectionButton, ThemeMotionSectionButton, PowerSectionButton
                  })
         {
             if (button.Tag is not string id) continue;
