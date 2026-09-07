@@ -284,7 +284,7 @@ public partial class MainWindow
             _headerCloseGrevHomeArmed = false;
             _headerPowerExpiresAt = now.AddSeconds(8);
             UpdatePowerMenuButtons();
-            ShowPowerMenuStatus($"{FormatHeaderPowerAction(action)} armed. Select it again within 8 seconds to confirm.");
+            ClearPowerMenuStatus();
             return;
         }
 
