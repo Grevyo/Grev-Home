@@ -16,6 +16,7 @@ namespace GrevHome.Views;
 public partial class FriendProfileView : UserControl
 {
     public event EventHandler? BackRequested;
+    public event EventHandler? MessageRequested;
 
     public FriendProfileView()
     {
@@ -107,4 +108,5 @@ public partial class FriendProfileView : UserControl
     }
 
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
+    private void Message_Click(object sender, RoutedEventArgs e) => MessageRequested?.Invoke(this, EventArgs.Empty);
 }

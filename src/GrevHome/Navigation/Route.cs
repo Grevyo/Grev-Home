@@ -10,6 +10,7 @@ public enum Route
     DashboardTileArtworkPicker,
     Friends,
     FriendProfile,
+    FriendMessages,
     GrevDadWeb,
     ProfilePlayers,
     ProfileView,

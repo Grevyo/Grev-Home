@@ -21,6 +21,7 @@
     <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="54,26,54,48" MaxWidth="900">
             <Button x:Name="BackButton" Content="← Back to Friends" Width="200" Height="46" HorizontalAlignment="Left" Click="Back_Click" />
+            <Button Content="Message friend" Width="200" Height="46" HorizontalAlignment="Left" Margin="0,10,0,0" Click="Message_Click" />
 
             <Border x:Name="HeaderCard"
                     Margin="0,18,0,0"

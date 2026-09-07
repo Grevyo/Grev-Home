@@ -570,6 +570,21 @@ public sealed class GrevDadAccountService : IDisposable
         return payload.Card ?? card;
     }
 
+    public async Task<GrevDadMessagePage> GetMessagesAsync(string grevId, string friendId, string? before = null, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get,
+            $"api/grev-home/messages/{Uri.EscapeDataString(friendId)}" + (before is null ? "" : $"?before={Uri.EscapeDataString(before)}"), null, cancellationToken);
+        var page = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadMessagePage>(response, _json, cancellationToken);
+        EnsureSuccessful(response, page.Ok, page.Message);
+        return page;
+    }
+
+    public Task SendMessageAsync(string grevId, string friendId, string messageId, string body, CancellationToken cancellationToken = default) =>
+        SendMutationAsync(grevId, HttpMethod.Post, $"api/grev-home/messages/{Uri.EscapeDataString(friendId)}", new { messageId, body }, cancellationToken);
+
+    public Task MarkMessagesReadAsync(string grevId, string friendId, string messageId, CancellationToken cancellationToken = default) =>
+        SendMutationAsync(grevId, HttpMethod.Post, $"api/grev-home/messages/{Uri.EscapeDataString(friendId)}/read", new { messageId }, cancellationToken);
+
     public async Task AcceptFriendRequestAsync(string grevId, string requestId, CancellationToken cancellationToken = default) =>
         await SendMutationAsync(grevId, HttpMethod.Post, $"api/grev-home/friend-requests/{Uri.EscapeDataString(requestId)}/accept", null, cancellationToken);
 
