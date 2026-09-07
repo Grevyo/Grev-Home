@@ -1,6 +1,3 @@
-Warning: truncated output (original token count: 15744)
-Total output lines: 1513
-
 using System.Collections.Concurrent;
 using System.ComponentModel;
 using System.IO;
@@ -637,7 +634,368 @@ public sealed partial class GrevDadCoordinator
                 {
                     // Refresh other devices' account statistics without requiring a restart.
                     _grevDadSyncRetries[grevId] = new GrevDadSyncRetryState(0,DateTimeOffset.UtcNow+TimeSpan.FromSeconds(30));
-                    Ens…3744 tokens truncated…       return;
+                    EnsureGrevDadSyncRetryTimerRunning();
+                }
+                await _refreshLoginProfileDetailsAsync();
+                if (string.Equals(_getProfileTarget()?.GrevId,grevId,StringComparison.OrdinalIgnoreCase))
+                    await _loadProfileStatsAsync(grevId);
+                return;
+            }
+
+            // ValidateLinkedAccountAsync deliberately converts transport failures to Offline rather
+            // than throwing. Preserve eventual delivery by retrying only that state. Unlinked,
+            // expired and revoked profiles must never be kept alive by a background retry loop.
+            var state = accounts.GetLastSnapshot(grevId).State;
+            if (state == GrevDadConnectionState.Offline)
+            {
+                ScheduleGrevDadSyncRetry(grevId);
+            }
+            else if (state is GrevDadConnectionState.Unlinked or
+                     GrevDadConnectionState.Expired or
+                     GrevDadConnectionState.Revoked or
+                     GrevDadConnectionState.Error)
+            {
+                ClearGrevDadSyncRetry(grevId);
+            }
+        }
+        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex) ||
+                                   ex is IOException or UnauthorizedAccessException or OverflowException)
+        {
+            // The local journal remains the durable queue. Failed transport never advances its
+            // cursor; a bounded backoff retries linked/offline profiles without blocking the shell.
+            ScheduleGrevDadSyncRetry(grevId);
+        }
+    }
+
+    private void ScheduleGrevDadSyncContinuation(string grevId)
+    {
+        // A successful run is intentionally capped at 1,000 history rows. If more local history
+        // remains, schedule another bounded pass without treating healthy backlog as a failure.
+        _grevDadSyncRetries[grevId] = new GrevDadSyncRetryState(
+            0,
+            DateTimeOffset.UtcNow + TimeSpan.FromSeconds(2));
+        EnsureGrevDadSyncRetryTimerRunning();
+    }
+
+    private void ScheduleGrevDadSyncRetry(string grevId)
+    {
+        _grevDadSyncRetries.AddOrUpdate(
+            grevId,
+            _ => new GrevDadSyncRetryState(1, DateTimeOffset.UtcNow + GrevDadSyncRetryBackoff[0]),
+            (_, existing) =>
+            {
+                var failures = Math.Min(existing.FailureCount + 1, GrevDadSyncRetryBackoff.Length);
+                var delay = GrevDadSyncRetryBackoff[Math.Min(failures - 1, GrevDadSyncRetryBackoff.Length - 1)];
+                return new GrevDadSyncRetryState(failures, DateTimeOffset.UtcNow + delay);
+            });
+
+        EnsureGrevDadSyncRetryTimerRunning();
+    }
+
+    private void ClearGrevDadSyncRetry(string grevId)
+    {
+        _grevDadSyncRetries.TryRemove(grevId, out _);
+        if (_grevDadSyncRetries.IsEmpty)
+        {
+            StopGrevDadSyncRetryTimer();
+        }
+    }
+
+    private async Task RetryDueGrevDadSyncsAsync()
+    {
+        if (Interlocked.Exchange(ref _grevDadSyncRetryTickActive, 1) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var due = _grevDadSyncRetries
+                .Where(pair => pair.Value.NextAttemptAtUtc <= now)
+                .Select(pair => pair.Key)
+                .ToArray();
+
+            foreach (var grevId in due)
+            {
+                await SyncGrevDadProfileSafeAsync(grevId);
+            }
+
+            if (_grevDadSyncRetries.IsEmpty)
+            {
+                StopGrevDadSyncRetryTimer();
+            }
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _grevDadSyncRetryTickActive, 0);
+        }
+    }
+
+    private void EnsureGrevDadSyncRetryTimerRunning()
+    {
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.BeginInvoke(new Action(EnsureGrevDadSyncRetryTimerRunning));
+            return;
+        }
+
+        if (!_grevDadSyncRetryTimer.IsEnabled)
+        {
+            _grevDadSyncRetryTimer.Start();
+        }
+    }
+
+    private void StopGrevDadSyncRetryTimer()
+    {
+        if (!_dispatcher.CheckAccess())
+        {
+            _dispatcher.BeginInvoke(new Action(StopGrevDadSyncRetryTimer));
+            return;
+        }
+
+        if (_grevDadSyncRetryTimer.IsEnabled)
+        {
+            _grevDadSyncRetryTimer.Stop();
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Formerly MainWindow.GrevDadSettings.cs - account linking UI (Edit Profile / onboarding).
+    // ---------------------------------------------------------------------------------------
+
+    private readonly Dictionary<string, GrevDadLinkStart> _activeGrevDadLinks =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly DispatcherTimer _grevDadLinkPollTimer = new();
+    private bool _grevDadSettingsIntegrationReady;
+    private string? _grevDadPollingGrevId;
+    private DateTimeOffset _grevDadUnlinkArmedUntilUtc;
+
+    private void InitializeGrevDadSettingsIntegration()
+    {
+        if (_grevDadSettingsIntegrationReady)
+        {
+            return;
+        }
+
+        _grevDadSettingsIntegrationReady = true;
+        _grevDadLinkPollTimer.Interval = TimeSpan.FromSeconds(3);
+        _grevDadLinkPollTimer.Tick += (_, _) => _ = PollActiveGrevDadLinkAsync();
+
+        _profileEditView.LinkGrevDadRequested += (_, _) => _ = BeginGrevDadLinkFromProfileAsync();
+        _profileEditView.CheckGrevDadLinkRequested += (_, _) => _ = PollActiveGrevDadLinkAsync(forceCurrentTarget: true);
+        _profileEditView.CancelGrevDadLinkRequested += (_, _) => _ = CancelGrevDadLinkFromProfileAsync();
+        _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
+        _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
+        _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
+        _createProfileView.OpenGrevDadRequested += _=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
+        _createProfileView.GenerateGrevDadCodeRequested += profile=>_ = BeginGrevDadLinkFromOnboardingAsync(profile);
+        _createProfileView.OpenGrevDadApprovalRequested += (_,link)=>OpenGrevDadApprovalPage(link.VerificationUri);
+        _createProfileView.CheckGrevDadApprovalRequested += profile=>_ = CheckGrevDadLinkFromOnboardingAsync(profile);
+
+        var service = RequireGrevDadAccountService();
+        service.SnapshotChanged += (grevId, snapshot) => _dispatcher.BeginInvoke(new Action(() =>
+        {
+            var profile = _getProfileTarget();
+            if (profile is null || !string.Equals(profile.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (_navigation.Current == Route.ProfileEdit)
+            {
+                _profileEditView.SetGrevDadContext(profile, CanManageGrevDadProfile(profile));
+                _activeGrevDadLinks.TryGetValue(grevId, out var link);
+                _profileEditView.SetGrevDadState(snapshot, link);
+            }
+            else if (_navigation.Current == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(snapshot);
+            }
+        }));
+
+        _navigation.RouteChanged += route =>
+        {
+            if (route is Route.ProfileEdit or Route.ProfileView)
+            {
+                _ = RefreshGrevDadProfileAsync(validateRemote: route == Route.ProfileEdit);
+            }
+            else
+            {
+                StopGrevDadLinkPolling();
+            }
+        };
+        _session.Changed += (_, _) =>
+        {
+            if (_navigation.Current is Route.ProfileEdit or Route.ProfileView)
+            {
+                _dispatcher.BeginInvoke(new Action(() => _ = RefreshGrevDadProfileAsync(validateRemote: false)));
+            }
+        };
+    }
+
+    private bool CanManageGrevDadProfile(LocalProfile profile) =>
+        !string.IsNullOrWhiteSpace(_session.PrimaryUser?.GrevId) &&
+        string.Equals(_session.PrimaryUser!.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase);
+
+    private async Task RefreshGrevDadProfileAsync(bool validateRemote)
+    {
+        var route = _navigation.Current;
+        var profile = _getProfileTarget();
+        if (route == Route.ProfileEdit)
+        {
+            _profileEditView.SetGrevDadContext(profile, profile is not null && CanManageGrevDadProfile(profile));
+        }
+
+        if (profile is null)
+        {
+            if (route == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(GrevDadAccountSnapshot.Unlinked);
+            }
+            StopGrevDadLinkPolling();
+            return;
+        }
+
+        var service = RequireGrevDadAccountService();
+        try
+        {
+            var snapshot = await service.LoadLocalStateAsync(profile.GrevId);
+            if (validateRemote && snapshot.State == GrevDadConnectionState.Linked)
+            {
+                snapshot = await service.ValidateLinkedAccountAsync(profile.GrevId);
+            }
+
+            if (_navigation.Current != route ||
+                !string.Equals(_getProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (route == Route.ProfileEdit)
+            {
+                _activeGrevDadLinks.TryGetValue(profile.GrevId, out var link);
+                _profileEditView.SetGrevDadState(snapshot, link);
+
+                if (snapshot.State == GrevDadConnectionState.Linking && CanManageGrevDadProfile(profile))
+                {
+                    StartGrevDadLinkPolling(profile.GrevId, link?.PollIntervalSeconds ?? 3);
+                }
+                else
+                {
+                    StopGrevDadLinkPolling();
+                }
+            }
+            else if (route == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(snapshot);
+                StopGrevDadLinkPolling();
+            }
+        }
+        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
+        {
+            var cached = service.GetLastSnapshot(profile.GrevId) with
+            {
+                State = service.GetLastSnapshot(profile.GrevId).Account is null
+                    ? GrevDadConnectionState.Error
+                    : GrevDadConnectionState.Offline,
+                Message = ex.Message
+            };
+
+            if (route == Route.ProfileEdit)
+            {
+                _profileEditView.SetGrevDadState(cached);
+            }
+            else if (route == Route.ProfileView)
+            {
+                _profileView.SetGrevDadState(cached);
+            }
+        }
+    }
+
+    private async Task BeginGrevDadLinkFromProfileAsync()
+    {
+        var profile = _getProfileTarget();
+        if (_navigation.Current != Route.ProfileEdit || profile is null || !CanManageGrevDadProfile(profile))
+        {
+            _profileEditView.ShowGrevDadStatus("This profile must be the current Primary User before its Grev.dad account link can be changed.");
+            return;
+        }
+
+        var service = RequireGrevDadAccountService();
+        var maintenance = _grevDadMaintenance;
+        if (maintenance is null)
+        {
+            _profileEditView.ShowGrevDadStatus("Grev.dad integration is still initializing. Try Link Grev.dad again.");
+            return;
+        }
+
+        try
+        {
+            _profileEditView.ShowGrevDadStatus("Checking the live Grev.dad integration contract…");
+            var capabilities = await maintenance.GetCapabilitiesAsync(forceRefresh: true);
+            if (!capabilities.Capabilities.Linking || !capabilities.Capabilities.DeviceTokens)
+            {
+                _profileEditView.ShowGrevDadStatus(
+                    $"Grev.dad {capabilities.Environment} API {capabilities.ApiVersion} is online but does not advertise the required linking and device-token capabilities.");
+                return;
+            }
+
+            _profileEditView.ShowGrevDadStatus(
+                $"Grev.dad {capabilities.Environment} API {capabilities.ApiVersion} is ready. Creating a secure link request…");
+            var link = await service.BeginLinkAsync(profile, Environment.MachineName);
+            _activeGrevDadLinks[profile.GrevId] = link;
+            _profileEditView.SetGrevDadState(service.GetLastSnapshot(profile.GrevId), link);
+            _profileEditView.ShowGrevDadStatus(
+                $"Approve code {link.UserCode} on Grev.dad. Grev Home will check automatically while Edit Profile remains open.");
+            StartGrevDadLinkPolling(profile.GrevId, link.PollIntervalSeconds);
+        }
+        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex) || ex is ArgumentException)
+        {
+            _profileEditView.ShowGrevDadStatus(
+                $"Grev.dad linking is not ready on {service.BaseUri.Host}: {ex.Message}");
+        }
+    }
+
+    private async Task BeginGrevDadLinkFromOnboardingAsync(LocalProfile profile)
+    {
+        if (_navigation.Current != Route.CreateProfile) return;
+        var service = RequireGrevDadAccountService();
+        if (_grevDadMaintenance is null)
+        {
+            _createProfileView.ShowGrevDadOnboardingStatus("Grev.dad integration is still initializing. Try again in a moment.");
+            return;
+        }
+        try
+        {
+            _createProfileView.ShowGrevDadOnboardingStatus("Checking the live Grev.dad connection…");
+            var capabilities = await _grevDadMaintenance.GetCapabilitiesAsync(forceRefresh:true);
+            if (!capabilities.Capabilities.Linking || !capabilities.Capabilities.DeviceTokens)
+            {
+                _createProfileView.ShowGrevDadOnboardingStatus("Grev.dad is online but linking is not currently available. You can skip and link later.");
+                return;
+            }
+            var link = await service.BeginLinkAsync(profile,Environment.MachineName);
+            _activeGrevDadLinks[profile.GrevId] = link;
+            _createProfileView.ShowGrevDadCode(link);
+        }
+        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex) || ex is ArgumentException)
+        {
+            _createProfileView.ShowGrevDadOnboardingStatus($"Could not generate a link code: {ex.Message} You can skip and link later.");
+        }
+    }
+
+    private async Task CheckGrevDadLinkFromOnboardingAsync(LocalProfile profile)
+    {
+        if (_navigation.Current != Route.CreateProfile) return;
+        try
+        {
+            var result = await RequireGrevDadAccountService().PollLinkAsync(profile.GrevId);
+            switch (result.State)
+            {
+                case GrevDadLinkPollState.Pending:
+                    _createProfileView.ShowGrevDadOnboardingStatus("Still waiting for approval on Grev.dad. Approve the request there, then check again.");
+                    return;
                 case GrevDadLinkPollState.Approved:
                     _activeGrevDadLinks.Remove(profile.GrevId);
                     _createProfileView.ShowGrevDadLinked($"@{result.Account?.Username}");
