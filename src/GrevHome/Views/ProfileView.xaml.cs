@@ -9,6 +9,7 @@ namespace GrevHome.Views;
 public partial class ProfileView : UserControl
 {
     private ProfilePresentationSettings _presentation = ProfilePresentationSettings.Default;
+    private Effect? _roleHeaderEffect;
     private ProfileStatsSnapshot? _lastStats;
     private SolidColorBrush _levelBandBrush = new(Color.FromRgb(125, 137, 156));
     private string? _currentGrevId;
@@ -88,6 +89,7 @@ public partial class ProfileView : UserControl
     {
         _presentation = settings;
         ProfileAvatarShapeStyle.Apply(ProfileAvatarBorder, settings.AvatarShape, ProfileAvatarBorder.Width);
+        ApplyCardFrame();
         var normalizedBanner = ProfileBannerCatalog.Normalize(settings.BannerKey);
         ProfileBannerGrid.Background = ProfileBannerCatalog.CreateBrush(normalizedBanner);
         ProfileBannerImage.Source = null;
@@ -128,7 +130,7 @@ public partial class ProfileView : UserControl
         ProfileHeaderCard.BorderBrush = roleBrush;
         ProfileAvatarBorder.BorderBrush = roleBrush;
         RoleText.Foreground = roleBrush;
-        ProfileHeaderCard.Effect = role switch
+        _roleHeaderEffect = role switch
         {
             AccountRole.Admin => new DropShadowEffect
             {
@@ -146,6 +148,20 @@ public partial class ProfileView : UserControl
             },
             _ => null
         };
+        ApplyCardFrame();
+    }
+
+    private void ApplyCardFrame()
+    {
+        ProfileHeaderCard.BorderThickness = _presentation.CardFrame switch
+        {
+            ProfileCardFrame.Clean => new Thickness(0),
+            ProfileCardFrame.Double => new Thickness(5),
+            _ => new Thickness(2)
+        };
+        ProfileHeaderCard.Effect = _presentation.CardFrame == ProfileCardFrame.Role
+            ? _roleHeaderEffect
+            : PublicProfileCardStyle.FrameEffect(_presentation.CardFrame.ToString().ToLowerInvariant());
     }
 
     public void SetStats(ProfileStatsSnapshot stats)

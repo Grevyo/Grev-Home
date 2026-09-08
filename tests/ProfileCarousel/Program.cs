@@ -34,6 +34,11 @@ internal static class Program
         Check(sampleCard.Effect is not null, "Glow must render a visible card effect");
         Check(PublicProfileCardStyle.FrameEffect("clean") is null, "Clean frame must not retain a glow");
         Check(ProfileBannerCatalog.Normalize("ocean") == "ocean", "New profile colours must survive settings normalization");
+        var ownProfile = new ProfileView();
+        ownProfile.SetPresentation(new ProfilePresentationSettings(CardFrame:ProfileCardFrame.Glow));
+        Check(((Border)ownProfile.FindName("ProfileHeaderCard")).Effect is not null, "Own full profile must honour glow frame");
+        ownProfile.SetPresentation(new ProfilePresentationSettings(CardFrame:ProfileCardFrame.Clean));
+        Check(((Border)ownProfile.FindName("ProfileHeaderCard")).BorderThickness == new Thickness(0), "Own full profile must honour clean frame");
         var profilePreview = new FriendProfileView();
         profilePreview.SetFriend(sample, isSelf:true);
         Check(((Button)profilePreview.FindName("MessageButton")).Visibility == Visibility.Collapsed, "Self preview cannot offer messaging");
