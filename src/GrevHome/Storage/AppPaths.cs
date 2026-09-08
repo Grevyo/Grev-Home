@@ -6,7 +6,9 @@ namespace GrevHome.Storage;
 public sealed class AppPaths
 {
     private const int MaxGrevIdLength = 58;
-    private const string DefaultRoot = @"C:\GrevHome";
+    private static readonly string DefaultRoot = GetStandardRootForDrive(@"C:\");
+
+    public static string StandardRoot => DefaultRoot;
 
     public string Root { get; }
     public string Data => Path.Combine(Root, "Data");
@@ -38,6 +40,16 @@ public sealed class AppPaths
         Root = root
             ?? Environment.GetEnvironmentVariable("GREV_HOME_ROOT")
             ?? DefaultRoot;
+    }
+
+    public static string GetStandardRootForDrive(string driveRoot)
+    {
+        if (string.IsNullOrWhiteSpace(driveRoot))
+        {
+            throw new ArgumentException("A drive root is required.", nameof(driveRoot));
+        }
+
+        return Path.Combine(driveRoot, "GrevCo", "GrevHome");
     }
 
     public string GetProfileRoot(string grevId) =>
