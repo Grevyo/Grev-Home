@@ -54,13 +54,14 @@ public partial class FriendsView : UserControl
     public static Button CreateFriendCard(GrevDadFriend friend, FrameworkElement resources, Action<GrevDadFriend> selected, bool isSelf = false)
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
-        var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText) ? (string.IsNullOrWhiteSpace(card.StatusMessage) ? friend.Presence.Availability : card.StatusMessage) : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
+        var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText)
+            ? (string.IsNullOrWhiteSpace(card.StatusMessage) ? friend.Presence.Availability : card.StatusMessage)
+            : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
         var frameThickness = card.Frame == "clean" ? new Thickness(0) : card.Frame == "double" ? new Thickness(5) : new Thickness(2);
 
         // Background/BorderBrush/etc. live in a Style (based on SharpTileButtonStyle) rather than as
         // local values on the Button, so SharpTileButtonStyle's inherited focus/hover triggers can
-        // still override the border to show a controller focus ring - a local value would suppress
-        // those triggers outright, leaving cards with no visible focus indicator when D-pad navigated.
+        // still override the border to show a controller focus ring.
         var style = new Style(typeof(Button), (Style)resources.FindResource("SharpTileButtonStyle"));
         style.Setters.Add(new Setter(Control.BackgroundProperty, PublicProfileCardStyle.Background(card)));
         style.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(72, 96, 142))));
@@ -71,53 +72,117 @@ public partial class FriendsView : UserControl
 
         var avatar = new Border
         {
-            Width = 40,
-            Height = 40,
+            Width = 42,
+            Height = 42,
             Background = new SolidColorBrush(Color.FromRgb(31, 40, 58)),
             Child = CreateAvatarContent(friend, card)
         };
-        ProfileAvatarShapeStyle.Apply(avatar, card.AvatarShape, 40);
-
+        ProfileAvatarShapeStyle.Apply(avatar, card.AvatarShape, 42);
         DockPanel.SetDock(avatar, Dock.Left);
-        var header = new DockPanel
+
+        var nameStack = new StackPanel { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
+        nameStack.Children.Add(new TextBlock
         {
-            LastChildFill = true,
-            Children =
+            Text = isSelf ? $"{friend.DisplayName}  •  YOUR PREVIEW" : friend.DisplayName,
+            FontSize = 20,
+            FontWeight = FontWeights.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+        if (friend.IsVerified)
+        {
+            nameStack.Children.Add(new TextBlock
             {
-                avatar,
-                new TextBlock
-                {
-                    Text = isSelf ? $"{friend.DisplayName} (You)" : friend.DisplayName,
-                    FontSize = 22,
-                    FontWeight = FontWeights.SemiBold,
-                    Margin = new Thickness(10, 0, 0, 0),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                }
-            }
+                Text = "✓ VERIFIED GREV.DAD MEMBER",
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                Foreground = (Brush)resources.FindResource("AccentBrush"),
+                Margin = new Thickness(0, 2, 0, 0)
+            });
+        }
+
+        var header = new DockPanel { LastChildFill = true, Children = { avatar, nameStack } };
+        var stats = new List<string>();
+        if (card.ShowLevel) stats.Add($"Level {friend.Level}");
+        if (card.ShowXp) stats.Add($"{friend.TotalXp:N0} XP");
+        // The self tile is a local style preview. Real friends receive account-wide totals from
+        // grev.dad, so do not render a misleading local/default zero here.
+        if (!isSelf && card.ShowPlaytime) stats.Add(FormatDurationCompact(card.TotalTrackedSeconds));
+        if (!isSelf && card.ShowSessions) stats.Add($"{card.CompletedSessions:N0} sessions");
+
+        var bioText = new TextBlock
+        {
+            Text = card.Bio,
+            MaxHeight = 34,
+            TextWrapping = TextWrapping.Wrap,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Margin = new Thickness(0, 7, 0, 0),
+            FontSize = 12,
+            Visibility = string.IsNullOrWhiteSpace(card.Bio) ? Visibility.Collapsed : Visibility.Visible
         };
+        var usernameText = new TextBlock
+        {
+            Text = card.ShowUsername ? $"@{friend.Username}" : string.Empty,
+            Margin = new Thickness(0, 8, 0, 0),
+            Foreground = (Brush)resources.FindResource("MutedBrush"),
+            Visibility = card.ShowUsername ? Visibility.Visible : Visibility.Collapsed
+        };
+        var statsText = new TextBlock
+        {
+            Text = string.Join("  •  ", stats),
+            Margin = new Thickness(0, 6, 0, 0),
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Visibility = stats.Count == 0 ? Visibility.Collapsed : Visibility.Visible
+        };
+        var statusText = new TextBlock
+        {
+            Text = card.ShowStatus ? details : string.Empty,
+            Margin = new Thickness(0, 9, 0, 0),
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Foreground = friend.Presence.Availability == "offline"
+                ? (Brush)resources.FindResource("MutedBrush")
+                : (Brush)resources.FindResource("AccentBrush"),
+            Visibility = card.ShowStatus ? Visibility.Visible : Visibility.Collapsed
+        };
+
+        var content = new StackPanel();
+        content.Children.Add(header);
+        content.Children.Add(bioText);
+        content.Children.Add(usernameText);
+        content.Children.Add(statsText);
+        content.Children.Add(statusText);
+        if (isSelf && (card.ShowPlaytime || card.ShowSessions))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "Live account totals are supplied by grev.dad to your friends.",
+                Margin = new Thickness(0, 6, 0, 0),
+                FontSize = 10,
+                Foreground = (Brush)resources.FindResource("MutedBrush"),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
 
         var button = new Button
         {
-            Width = 300,
-            Height = 210,
+            Width = 310,
+            Height = isSelf && (card.ShowPlaytime || card.ShowSessions) ? 242 : 226,
             Effect = PublicProfileCardStyle.FrameEffect(card.Frame),
             Margin = new Thickness(8),
             Style = style,
-            Content = new StackPanel
-            {
-                Children =
-                {
-                    header,
-                    new TextBlock { Text=card.Bio, MaxHeight=34, TextWrapping=TextWrapping.Wrap, TextTrimming=TextTrimming.CharacterEllipsis, Margin=new Thickness(0,6,0,0), FontSize=12 },
-                    new TextBlock { Text=card.ShowUsername?$"@{friend.Username}":string.Empty,Margin=new Thickness(0,8,0,0),Foreground=(Brush)resources.FindResource("MutedBrush") },
-                    new TextBlock { Text=card.ShowLevel?(card.ShowXp?$"Level {friend.Level}  •  {friend.TotalXp:N0} XP":$"Level {friend.Level}"):card.ShowXp?$"{friend.TotalXp:N0} XP":string.Empty,Margin=new Thickness(0,6,0,0),FontSize=12 },
-                    new TextBlock { Text=card.ShowStatus?details:string.Empty,Margin=new Thickness(0,10,0,0),TextTrimming=TextTrimming.CharacterEllipsis }
-                }
-            }
+            Content = content
         };
         button.Click += (_, _) => selected(friend);
         return button;
+    }
+
+    private static string FormatDurationCompact(long seconds)
+    {
+        seconds = Math.Max(0, seconds);
+        var span = TimeSpan.FromSeconds(seconds);
+        if (span.TotalHours >= 100) return $"{Math.Floor(span.TotalHours):N0}h played";
+        if (span.TotalHours >= 1) return $"{Math.Floor(span.TotalHours):N0}h {span.Minutes}m played";
+        return $"{Math.Max(0, span.Minutes):N0}m played";
     }
 
     private static Grid CreateAvatarContent(GrevDadFriend friend, GrevDadPublicCard card)
@@ -154,8 +219,8 @@ public partial class FriendsView : UserControl
         foreach (var conversation in conversations.Where(item => item.Unread > 0))
         {
             if (!_friendButtons.TryGetValue(conversation.UserId, out var button) || button.Content is not StackPanel panel) continue;
-            panel.Children.Add(new TextBlock { Text=$"{conversation.Unread} unread messages", FontWeight=FontWeights.Bold });
-            button.Height = 240;
+            panel.Children.Add(new TextBlock { Text=$"{conversation.Unread} unread messages", FontWeight=FontWeights.Bold, Foreground=(Brush)FindResource("AccentBrush"), Margin=new Thickness(0,6,0,0) });
+            button.Height = Math.Max(button.Height, 248);
         }
     }
     private void OpenFriendCodeKeyboard_Click(object sender,RoutedEventArgs e)=>FriendCodeKeyboard.Open("Enter Friend Code","GREV-",14);

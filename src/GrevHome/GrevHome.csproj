@@ -8,7 +8,7 @@
     <AssemblyName>GrevHome</AssemblyName>
     <RootNamespace>GrevHome</RootNamespace>
     <ApplicationIcon>Assets\Brand\GrevHome.ico</ApplicationIcon>
-    <Version>0.14.3</Version>
+    <Version>0.14.4</Version>
   </PropertyGroup>
 
   <ItemGroup>

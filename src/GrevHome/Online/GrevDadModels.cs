@@ -38,7 +38,9 @@ public sealed record GrevDadPublicCard(
     string? AvatarMedia = null,
     string? CoverMedia = null,
     string Bio = "",
-    string StatusMessage = "");
+    string StatusMessage = "",
+    long TotalTrackedSeconds = 0,
+    int CompletedSessions = 0);
 
 public sealed record GrevDadAccountSnapshot(
     GrevDadConnectionState State,
@@ -89,7 +91,9 @@ public sealed record GrevDadFriend(
     GrevDadPresence Presence,
     GrevDadPublicCard? PublicCard = null,
     long TotalXp = 0,
-    int Level = 1);
+    int Level = 1,
+    long TotalTrackedSeconds = 0,
+    int CompletedSessions = 0);
 
 public sealed record GrevDadFriendCodeResult(
     string UserId,
@@ -211,7 +215,9 @@ internal sealed record FriendApiPayload(
     PresenceApiPayload Presence,
     GrevDadPublicCard? PublicCard,
     long TotalXp,
-    int Level);
+    int Level,
+    long TotalTrackedSeconds = 0,
+    int CompletedSessions = 0);
 
 internal sealed record FriendCodeLookupApiResponse(
     bool Ok,
