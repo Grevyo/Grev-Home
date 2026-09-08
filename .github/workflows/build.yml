@@ -43,6 +43,9 @@ jobs:
       - name: Verify profile carousel and password keyboard
         run: dotnet run --project .\tests\ProfileCarousel\ProfileCarousel.csproj --configuration Release
 
+      - name: Verify public profile and friends customisation
+        run: dotnet run --project .\tests\ProfileSocial\ProfileSocial.csproj --configuration Release
+
       - name: Install Inno Setup
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         run: |
