@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Windows;
 using GrevHome.Navigation;
 using GrevHome.Profiles;
@@ -114,7 +115,6 @@ public partial class MainWindow
         var localAppearanceSaved = false;
         try
         {
-            var saveStartedUtc = DateTime.UtcNow.AddSeconds(-1);
             var saved = await service.SaveAsync(
                 profile.GrevId,
                 request.BannerKey,
@@ -134,7 +134,7 @@ public partial class MainWindow
             // raises one Save action for both, so wait for the authoritative profile write before
             // publishing the combined public card. This prevents an avatar/bio/status edit from
             // racing the Grev.dad upload and briefly restoring the previous public values.
-            var profileForCard = await AwaitCompletedProfileSaveAsync(request, profile, saveStartedUtc);
+            var profileForCard = await AwaitCompletedProfileSaveAsync(request, profile);
             await _grevDad.SavePublicCardIfLinkedAsync(profile.GrevId, new Online.GrevDadPublicCard(
                 saved.BannerKey,
                 saved.CardFrame.ToString().ToLowerInvariant(),
@@ -175,14 +175,17 @@ public partial class MainWindow
 
     private async Task<LocalProfile> AwaitCompletedProfileSaveAsync(
         ProfileEditRequest request,
-        LocalProfile previous,
-        DateTime saveStartedUtc)
+        LocalProfile previous)
     {
+        var expectedAvatarHash = string.IsNullOrWhiteSpace(request.CustomAvatarSourcePath)
+            ? null
+            : ComputeFileHash(request.CustomAvatarSourcePath);
+
         for (var attempt = 0; attempt < 50; attempt++)
         {
             var current = (await _profileService.GetProfilesAsync()).FirstOrDefault(candidate =>
                 string.Equals(candidate.GrevId, request.GrevId, StringComparison.OrdinalIgnoreCase));
-            if (current is not null && ProfileEditMatches(request, current, saveStartedUtc))
+            if (current is not null && ProfileEditMatches(request, current, expectedAvatarHash))
             {
                 return current;
             }
@@ -195,7 +198,7 @@ public partial class MainWindow
             $"The profile detail save for {previous.DisplayName} did not complete cleanly, so stale public profile data was not uploaded.");
     }
 
-    private bool ProfileEditMatches(ProfileEditRequest request, LocalProfile current, DateTime saveStartedUtc)
+    private bool ProfileEditMatches(ProfileEditRequest request, LocalProfile current, byte[]? expectedAvatarHash)
     {
         if (!string.Equals(current.DisplayName, request.DisplayName.Trim(), StringComparison.Ordinal) ||
             !string.Equals(current.Bio, request.Bio.Trim(), StringComparison.Ordinal) ||
@@ -205,7 +208,7 @@ public partial class MainWindow
             return false;
         }
 
-        if (string.IsNullOrWhiteSpace(request.CustomAvatarSourcePath))
+        if (expectedAvatarHash is null)
         {
             return true;
         }
@@ -218,12 +221,20 @@ public partial class MainWindow
         try
         {
             var avatarPath = Path.Combine(_paths.GetProfileRoot(current.GrevId), current.AvatarImageFile);
-            return File.Exists(avatarPath) && File.GetLastWriteTimeUtc(avatarPath) >= saveStartedUtc;
+            if (!File.Exists(avatarPath)) return false;
+            var savedHash = ComputeFileHash(avatarPath);
+            return CryptographicOperations.FixedTimeEquals(expectedAvatarHash, savedHash);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return false;
         }
+    }
+
+    private static byte[] ComputeFileHash(string path)
+    {
+        using var stream = File.OpenRead(Path.GetFullPath(path));
+        return SHA256.HashData(stream);
     }
 
     private void OpenProfileBannerPicker()
