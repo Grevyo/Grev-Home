@@ -7,14 +7,13 @@ using GrevHome.Profiles;
 namespace GrevHome.Views;
 
 /// <summary>
-/// A read-only detail screen for one friend, opened by clicking their card in FriendsView.
-/// Shows only what the Grev.dad friends API actually returns for another account (their public
-/// card styling, level/XP, presence, friends-since date, and shared activity) - it does not
-/// invent per-app playtime, milestones or sources the way the local ProfileView does, because
-/// none of that is synced for other accounts today.
+/// Read-only full profile for a Grev.dad friend. It deliberately renders only the public card,
+/// account progression, account-wide Grev Home totals and friend-visible activity returned by
+/// the Grev.dad contract. Private per-app history, milestones and source details remain local.
 /// </summary>
 public partial class FriendProfileView : UserControl
 {
+    private bool _isSelfPreview;
     public event EventHandler? BackRequested;
     public event EventHandler? MessageRequested;
 
@@ -25,7 +24,9 @@ public partial class FriendProfileView : UserControl
 
     public void SetFriend(GrevDadFriend friend, bool isSelf = false)
     {
+        _isSelfPreview = isSelf;
         MessageButton.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
+        PreviewText.Visibility = isSelf ? Visibility.Visible : Visibility.Collapsed;
         var card = friend.PublicCard ?? new GrevDadPublicCard();
 
         ProfileAvatarShapeStyle.Apply(AvatarBorder, card.AvatarShape, AvatarBorder.Width);
@@ -36,6 +37,7 @@ public partial class FriendProfileView : UserControl
 
         DisplayNameText.Text = friend.DisplayName;
         BioText.Text = card.Bio;
+        BioText.Visibility = string.IsNullOrWhiteSpace(card.Bio) ? Visibility.Collapsed : Visibility.Visible;
         VerifiedText.Visibility = friend.IsVerified ? Visibility.Visible : Visibility.Collapsed;
         UsernameText.Text = card.ShowUsername ? $"@{friend.Username}" : string.Empty;
         UsernameText.Visibility = card.ShowUsername ? Visibility.Visible : Visibility.Collapsed;
@@ -45,17 +47,31 @@ public partial class FriendProfileView : UserControl
             StatusText.Text = string.IsNullOrWhiteSpace(friend.Presence.ActivityText)
                 ? (string.IsNullOrWhiteSpace(card.StatusMessage) ? friend.Presence.Availability : card.StatusMessage)
                 : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
+            StatusText.Foreground = friend.Presence.Availability == "offline"
+                ? (Brush)FindResource("MutedBrush")
+                : (Brush)FindResource("AccentBrush");
+            StatusText.Visibility = Visibility.Visible;
         }
         else
         {
             StatusText.Text = string.Empty;
+            StatusText.Visibility = Visibility.Collapsed;
         }
 
+        LevelXpCard.Visibility = card.ShowLevel || card.ShowXp ? Visibility.Visible : Visibility.Collapsed;
         LevelText.Text = card.ShowLevel
             ? (card.ShowXp ? $"Level {friend.Level}  •  {friend.TotalXp:N0} XP" : $"Level {friend.Level}")
-            : card.ShowXp ? $"{friend.TotalXp:N0} XP" : "Hidden";
+            : $"{friend.TotalXp:N0} XP";
 
-        FriendsSinceText.Text = friend.FriendsSinceUtc.ToLocalTime().ToString("d MMM yyyy");
+        PlayTimeCard.Visibility = card.ShowPlaytime ? Visibility.Visible : Visibility.Collapsed;
+        PlayTimeText.Text = FormatDuration(card.TotalTrackedSeconds);
+        SessionsCard.Visibility = card.ShowSessions ? Visibility.Visible : Visibility.Collapsed;
+        SessionsText.Text = card.CompletedSessions.ToString("N0");
+
+        RelationshipLabel.Text = isSelf ? "VIEW MODE" : "FRIENDS SINCE";
+        FriendsSinceText.Text = isSelf
+            ? "Public preview"
+            : friend.FriendsSinceUtc.ToLocalTime().ToString("d MMM yyyy");
 
         HeaderCard.Background = PublicProfileCardStyle.Background(card);
         HeaderCard.Effect = PublicProfileCardStyle.FrameEffect(card.Frame);
@@ -65,16 +81,39 @@ public partial class FriendProfileView : UserControl
             "double" => new Thickness(5),
             _ => new Thickness(2)
         };
+
+        ActivityHeadingText.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
+        ActivityPanel.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
+        NoActivityText.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
     }
 
     public void SetActivity(IReadOnlyList<GrevDadActivityEvent> events)
     {
         ActivityPanel.Children.Clear();
+        if (_isSelfPreview)
+        {
+            ActivityHeadingText.Visibility = Visibility.Collapsed;
+            ActivityPanel.Visibility = Visibility.Collapsed;
+            NoActivityText.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        ActivityHeadingText.Visibility = Visibility.Visible;
+        ActivityPanel.Visibility = Visibility.Visible;
         NoActivityText.Visibility = events.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         foreach (var activity in events)
         {
             ActivityPanel.Children.Add(CreateActivityRow(activity));
         }
+    }
+
+    private static string FormatDuration(long seconds)
+    {
+        seconds = Math.Max(0, seconds);
+        var span = TimeSpan.FromSeconds(seconds);
+        if (span.TotalHours >= 100) return $"{Math.Floor(span.TotalHours):N0} hours";
+        if (span.TotalHours >= 1) return $"{Math.Floor(span.TotalHours):N0}h {span.Minutes}m";
+        return $"{Math.Max(0, span.Minutes):N0} minutes";
     }
 
     private Border CreateActivityRow(GrevDadActivityEvent activity)
