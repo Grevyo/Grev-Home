@@ -37,6 +37,17 @@ jobs:
       - name: Verify storage and input hardening
         run: dotnet run --project .\tests\Hardening\Hardening.csproj --configuration Release
 
+      - name: Verify GrevCo install layout
+        shell: pwsh
+        run: |
+          dotnet run --project .\tests\InstallLayout\InstallLayout.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { throw 'Install layout regression test failed.' }
+          $legacyRootReferences = Get-ChildItem .\src,.\installer -Recurse -File | Where-Object { $_.Extension -in '.cs','.xaml','.iss' } | Select-String -SimpleMatch 'C:\GrevHome'
+          if ($legacyRootReferences) {
+            $legacyRootReferences | ForEach-Object { Write-Host "Legacy root reference: $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+            throw 'Production source still contains the legacy C:\GrevHome root.'
+          }
+
       - name: Verify official installer publishers without executing installers
         run: dotnet run --project .\tests\Hardening\Hardening.csproj --configuration Release -- --official-installers
 
