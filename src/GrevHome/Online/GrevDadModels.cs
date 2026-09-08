@@ -38,7 +38,9 @@ public sealed record GrevDadPublicCard(
     string? AvatarMedia = null,
     string? CoverMedia = null,
     string Bio = "",
-    string StatusMessage = "");
+    string StatusMessage = "",
+    long TotalTrackedSeconds = 0,
+    int CompletedSessions = 0);
 
 public sealed record GrevDadAccountSnapshot(
     GrevDadConnectionState State,
