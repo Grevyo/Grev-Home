@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.14.4"
+#define MyAppVersion "0.14.5"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -24,8 +24,8 @@ AppId={{EA4D6CAE-5909-4557-9BC2-0C9B89151999}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
-; C:\GrevCo is a shared home for every piece of Grev software, with each app
-; in its own subfolder - GrevHome here, room for others alongside it later.
+; C:\GrevCo is the shared home for Grev software. Grev Home's binaries and
+; Grev-owned data now both live under this same GrevHome root by default.
 DefaultDirName=C:\GrevCo\{#MyAppDirName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
@@ -40,15 +40,13 @@ UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
-; Installing outside Program Files no longer needs admin elevation - and the
-; app itself already creates C:\GrevHome (its data root) the same way, with
-; no elevation, on first run. Matching that here means no UAC prompt.
+; Installing outside Program Files does not require elevation, and Grev Home's
+; default writable root is the same C:\GrevCo\GrevHome folder.
 PrivilegesRequired=lowest
 ArchitecturesInstallIn64BitMode=x64compatible
-; Uninstall only ever removes what Setup put under {app}. Profiles, saves,
-; and the Games/BIOS folders chosen during first-run setup all live outside
-; {app} (under C:\GrevHome, or wherever the user pointed the wizard) and are
-; never touched by install or uninstall.
+; Setup removes only files it installed. Runtime-created Profiles, Data, Games,
+; BIOS, Packages and other Grev Home content under {app} are not installer-owned
+; files and are deliberately preserved unless the user removes them separately.
 UninstallDisplayName={#MyAppName}
 
 [Languages]
