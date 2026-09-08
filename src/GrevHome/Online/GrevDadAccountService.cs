@@ -570,6 +570,14 @@ public sealed class GrevDadAccountService : IDisposable
         return payload.Card ?? card;
     }
 
+    public async Task<GrevDadInbox> GetInboxAsync(string grevId, CancellationToken cancellationToken = default)
+    {
+        using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get, "api/grev-home/messages", null, cancellationToken);
+        var payload = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadInbox>(response, _json, cancellationToken);
+        EnsureSuccessful(response, payload.Ok, payload.Message);
+        return payload;
+    }
+
     public async Task<GrevDadMessagePage> GetMessagesAsync(string grevId, string friendId, string? before = null, CancellationToken cancellationToken = default)
     {
         using var response = await SendAuthorizedAsync(grevId, HttpMethod.Get,

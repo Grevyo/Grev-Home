@@ -9,6 +9,7 @@ namespace GrevHome.Views;
 public partial class FriendsView : UserControl
 {
     private string? _friendCode;
+    private readonly Dictionary<string, Button> _friendButtons = new();
     public event EventHandler? BackRequested;
     public event EventHandler? RefreshRequested;
     public event Action<string>? AddFriendCodeRequested;
@@ -30,8 +31,13 @@ public partial class FriendsView : UserControl
         FriendCodeText.Text = string.IsNullOrWhiteSpace(friendCode) ? "Generating…" : friendCode;
         ContextText.Text = offline ? $"{accountName} • Grev.dad offline • showing cached friends" : $"{accountName} • Grev.dad connected";
         FriendsPanel.Children.Clear();
+        _friendButtons.Clear();
         foreach (var friend in friends.OrderByDescending(item => item.Presence.Availability != "offline").ThenByDescending(item => item.Presence.UpdatedAtUtc).ThenBy(item => item.DisplayName))
-            FriendsPanel.Children.Add(CreateFriendCard(friend));
+        {
+            var button = CreateFriendCard(friend);
+            _friendButtons[friend.UserId] = button;
+            FriendsPanel.Children.Add(button);
+        }
         // Your own preview card always sits last, regardless of sort order, so it reads as "and
         // here's you" rather than competing with real friends for a spot based on name/presence.
         if (self is not null) FriendsPanel.Children.Add(CreateFriendCard(self, isSelf: true));
@@ -139,6 +145,17 @@ public partial class FriendsView : UserControl
 
     private static Button ActionButton(string label, Action action){var button=new Button{Content=label,Width=105,Height=42,Margin=new Thickness(2)};button.Click+=(_,_)=>action();return button;}
     public void ShowStatus(string message)=>StatusText.Text=message;
+    public void SetUnreadMessages(IReadOnlyList<GrevDadConversation> conversations)
+    {
+        var total = conversations.Sum(item => item.Unread);
+        if (total > 0) StatusText.Text = $"{total} unread messages — open a friend's profile to read and reply.";
+        foreach (var conversation in conversations.Where(item => item.Unread > 0))
+        {
+            if (!_friendButtons.TryGetValue(conversation.UserId, out var button) || button.Content is not StackPanel panel) continue;
+            panel.Children.Add(new TextBlock { Text=$"{conversation.Unread} unread messages", FontWeight=FontWeights.Bold });
+            button.Height = 185;
+        }
+    }
     private void OpenFriendCodeKeyboard_Click(object sender,RoutedEventArgs e)=>FriendCodeKeyboard.Open("Enter Friend Code","GREV-",14);
     private void CopyCode_Click(object sender,RoutedEventArgs e){if(string.IsNullOrWhiteSpace(_friendCode)){ShowStatus("Your friend code is not available yet. Refresh after Grev.dad reconnects.");return;}try{Clipboard.SetText(_friendCode);ShowStatus("Friend code copied.");}catch(System.Runtime.InteropServices.ExternalException){ShowStatus("The clipboard is busy. Try again.");}}
     private void Refresh_Click(object sender,RoutedEventArgs e)=>RefreshRequested?.Invoke(this,EventArgs.Empty);

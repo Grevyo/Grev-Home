@@ -1359,6 +1359,16 @@ public sealed partial class GrevDadCoordinator
             _shellFriendsButton.Visibility = Visibility.Visible;
             _dashboardView.SetFriends(true, friends, offline);
             _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline, self);
+            if (!offline)
+            {
+                try
+                {
+                    var inbox = await service.GetInboxAsync(primary.GrevId);
+                    if (primary.GrevId == _session.PrimaryUser?.GrevId)
+                        _friendsView.SetUnreadMessages(inbox.Conversations ?? Array.Empty<GrevDadConversation>());
+                }
+                catch (Exception ex) when (ex is HttpRequestException or IOException or InvalidOperationException or TaskCanceledException) { }
+            }
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
