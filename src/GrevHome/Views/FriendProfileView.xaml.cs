@@ -23,8 +23,9 @@ public partial class FriendProfileView : UserControl
         InitializeComponent();
     }
 
-    public void SetFriend(GrevDadFriend friend)
+    public void SetFriend(GrevDadFriend friend, bool isSelf = false)
     {
+        MessageButton.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
         var card = friend.PublicCard ?? new GrevDadPublicCard();
 
         ProfileAvatarShapeStyle.Apply(AvatarBorder, card.AvatarShape, AvatarBorder.Width);
@@ -34,6 +35,7 @@ public partial class FriendProfileView : UserControl
         AvatarText.Visibility = AvatarImage.Source is null ? Visibility.Visible : Visibility.Collapsed;
 
         DisplayNameText.Text = friend.DisplayName;
+        BioText.Text = card.Bio;
         VerifiedText.Visibility = friend.IsVerified ? Visibility.Visible : Visibility.Collapsed;
         UsernameText.Text = card.ShowUsername ? $"@{friend.Username}" : string.Empty;
         UsernameText.Visibility = card.ShowUsername ? Visibility.Visible : Visibility.Collapsed;
@@ -41,12 +43,12 @@ public partial class FriendProfileView : UserControl
         if (card.ShowStatus)
         {
             StatusText.Text = string.IsNullOrWhiteSpace(friend.Presence.ActivityText)
-                ? friend.Presence.Availability
+                ? (string.IsNullOrWhiteSpace(card.StatusMessage) ? friend.Presence.Availability : card.StatusMessage)
                 : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
         }
         else
         {
-            StatusText.Text = friend.Presence.Availability;
+            StatusText.Text = string.Empty;
         }
 
         LevelText.Text = card.ShowLevel

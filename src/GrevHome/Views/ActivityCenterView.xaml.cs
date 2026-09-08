@@ -11,6 +11,8 @@ public partial class ActivityCenterView : UserControl
     public event EventHandler? MarkAllNotificationsReadRequested;
     public event Action<string>? NotificationReadRequested;
     public event EventHandler? InstallUpdateRequested;
+    public event EventHandler? CheckUpdatesRequested;
+    private void CheckUpdates_Click(object sender, RoutedEventArgs e) => CheckUpdatesRequested?.Invoke(this, EventArgs.Empty);
     public event Action<string>? TransferCancelRequested;
     public event Action<string>? TransferRetryRequested;
     public event EventHandler? ClearFinishedTransfersRequested;

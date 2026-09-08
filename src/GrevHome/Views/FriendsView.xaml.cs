@@ -30,7 +30,7 @@ public partial class FriendsView : UserControl
         FriendCodeText.Text = string.IsNullOrWhiteSpace(friendCode) ? "Generating…" : friendCode;
         ContextText.Text = offline ? $"{accountName} • Grev.dad offline • showing cached friends" : $"{accountName} • Grev.dad connected";
         FriendsPanel.Children.Clear();
-        foreach (var friend in friends.OrderByDescending(item => item.Presence.Availability != "offline").ThenBy(item => item.DisplayName))
+        foreach (var friend in friends.OrderByDescending(item => item.Presence.Availability != "offline").ThenByDescending(item => item.Presence.UpdatedAtUtc).ThenBy(item => item.DisplayName))
             FriendsPanel.Children.Add(CreateFriendCard(friend));
         // Your own preview card always sits last, regardless of sort order, so it reads as "and
         // here's you" rather than competing with real friends for a spot based on name/presence.
@@ -43,7 +43,7 @@ public partial class FriendsView : UserControl
         StatusText.Text = string.Empty;
     }
 
-    private Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false)
+    public Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false)
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
         var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText) ? friend.Presence.Availability : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
@@ -104,7 +104,7 @@ public partial class FriendsView : UserControl
                     header,
                     new TextBlock { Text=card.ShowUsername?$"@{friend.Username}":string.Empty,Margin=new Thickness(0,8,0,0),Foreground=(Brush)FindResource("MutedBrush") },
                     new TextBlock { Text=card.ShowLevel?(card.ShowXp?$"Level {friend.Level}  •  {friend.TotalXp:N0} XP":$"Level {friend.Level}"):card.ShowXp?$"{friend.TotalXp:N0} XP":string.Empty,Margin=new Thickness(0,6,0,0),FontSize=12 },
-                    new TextBlock { Text=card.ShowStatus?details:friend.Presence.Availability,Margin=new Thickness(0,10,0,0),TextTrimming=TextTrimming.CharacterEllipsis }
+                    new TextBlock { Text=card.ShowStatus?details:string.Empty,Margin=new Thickness(0,10,0,0),TextTrimming=TextTrimming.CharacterEllipsis }
                 }
             }
         };

@@ -17,7 +17,8 @@ public sealed partial class GrevDadCoordinator
     {
         _friendProfileView.MessageRequested += (_,_)=>
         {
-            if(_selectedMessageFriend is null) return;
+            if(_selectedMessageFriend is null || _selectedMessageFriend.UserId == _session.PrimaryUser?.GrevId) return;
+            _oldestMessage=null;
             _messageGeneration++; _messageBefore=null; _retryBody=null; _retryId=null;
             _messagesView.Reset(_selectedMessageFriend.DisplayName);
             _navigation.Navigate(Route.FriendMessages);

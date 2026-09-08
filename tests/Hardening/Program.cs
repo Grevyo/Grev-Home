@@ -33,6 +33,13 @@ try
     }
 
     var paths = new AppPaths(root);
+    Check(GrevHome.Updates.GrevHomeUpdateService.IsReleaseAsset(new Uri("https://github.com/Grevyo/Grev-Home/releases/download/v0.14.1/GrevHomeSetup.exe")), "Official release asset allowed");
+    foreach (var url in new[] {
+        "http://github.com/Grevyo/Grev-Home/releases/download/v1/setup.exe",
+        "https://example.com/Grevyo/Grev-Home/releases/download/v1/setup.exe",
+        "https://github.com/another/repo/releases/download/v1/setup.exe",
+        "https://github.com/Grevyo/Grev-Home/releases/download/v1/setup.exe?redirect=bad"
+    }) Check(!GrevHome.Updates.GrevHomeUpdateService.IsReleaseAsset(new Uri(url)), "Untrusted update URL rejected");
     var first = new ProfileService(paths);
     var second = new ProfileService(paths);
     var legacyGuest = await first.CreateAsync("guest", AccountRole.Standard);

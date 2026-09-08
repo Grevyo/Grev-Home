@@ -13,6 +13,7 @@ public sealed class FriendMessagesView : UserControl
     private readonly ControllerQwertyKeyboard _keyboard = new();
     private readonly Button _send;
     private readonly Button _older;
+    private IReadOnlyList<GrevDadMessage> _displayed = Array.Empty<GrevDadMessage>();
     public string Draft => _draft.Text;
     public event EventHandler? BackRequested;
     public event EventHandler? RefreshRequested;
@@ -55,17 +56,25 @@ public sealed class FriendMessagesView : UserControl
     {
         _title.Text=$"Messages • {name}";
         _draft.Clear(); _messages.Children.Clear(); _older.IsEnabled=false;
+        _displayed = Array.Empty<GrevDadMessage>();
+        if (_keyboard.IsOpen) _keyboard.Cancel();
         _status.Text="History is stored on Grev.dad. Loading…";
     }
     public void ShowMessages(IReadOnlyList<GrevDadMessage> messages, string ownId, bool hasMore)
     {
+        if (_displayed.SequenceEqual(messages)) { _older.IsEnabled=hasMore; return; }
+        var focusedId = (System.Windows.Input.Keyboard.FocusedElement as Button)?.Tag as string;
+        _displayed = messages.ToArray();
         _messages.Children.Clear();
         foreach(var message in messages)
         {
-            _messages.Children.Add(new TextBlock {
+            var row = new Button { Tag=message.Id, HorizontalContentAlignment=HorizontalAlignment.Stretch,
+                Padding=new Thickness(12), Margin=new Thickness(4,6,4,6), Content=new TextBlock {
                 Text=$"{(message.SenderUserId==ownId ? "You" : "Friend")} • {DateTimeOffset.FromUnixTimeSeconds(message.CreatedAt).ToLocalTime():g}\n{(message.Type=="text" ? message.Body : "[Media message — view on Grev.dad]")}",
                 FontSize=18, TextWrapping=TextWrapping.Wrap, Margin=new Thickness(8,12,8,12)
-            });
+            }};
+            _messages.Children.Add(row);
+            if (focusedId == message.Id) row.Focus();
         }
         _older.IsEnabled=hasMore;
         _status.Text=messages.Count==0 ? "No messages yet." : "History loaded from Grev.dad.";

@@ -146,6 +146,8 @@ public sealed partial class GrevDadCoordinator
         var link = accounts.GetLastSnapshot(grevId);
         if (link.State == GrevDadConnectionState.Linked)
         {
+            var profile = (await _profileService.GetProfilesAsync()).FirstOrDefault(item => item.GrevId == grevId);
+            if (profile is not null) card = card with { Bio = profile.Bio, StatusMessage = profile.StatusMessage };
             await accounts.SavePublicCardAsync(grevId, card);
         }
     }
@@ -1267,6 +1269,7 @@ public sealed partial class GrevDadCoordinator
         _friendsView.FriendSelected += OpenFriendProfile;
         _friendProfileView.BackRequested += (_, _) => _navigation.GoBack();
         InitializeMessages();
+        _dashboardView.FriendProfileRequested += OpenFriendProfile;
         _navigation.RouteChanged += route =>
         {
             if (route == Route.Friends)
@@ -1289,7 +1292,7 @@ public sealed partial class GrevDadCoordinator
     private void OpenFriendProfile(GrevDadFriend friend)
     {
         _selectedMessageFriend = friend;
-        _friendProfileView.SetFriend(friend);
+        _friendProfileView.SetFriend(friend, friend.UserId == _session.PrimaryUser?.GrevId);
         _friendProfileView.SetActivity(Array.Empty<GrevDadActivityEvent>());
         _navigation.Navigate(Route.FriendProfile);
         _ = LoadFriendActivityAsync(friend);
@@ -1311,7 +1314,8 @@ public sealed partial class GrevDadCoordinator
                 .Take(10)
                 .ToArray();
 
-            if (_navigation.Current == Route.FriendProfile)
+            if (_navigation.Current == Route.FriendProfile && grevId == _session.PrimaryUser?.GrevId
+                && _selectedMessageFriend?.UserId == friend.UserId)
             {
                 _friendProfileView.SetActivity(filtered);
             }
@@ -1351,12 +1355,14 @@ public sealed partial class GrevDadCoordinator
             var offline = snapshot.State == GrevDadConnectionState.Offline;
             var requests = offline ? GrevDadFriendRequestsSnapshot.Empty : await service.GetFriendRequestsAsync(primary.GrevId);
             var self = await BuildSelfPreviewCardAsync(primary);
+            if (primary.GrevId != _session.PrimaryUser?.GrevId) return;
             _shellFriendsButton.Visibility = Visibility.Visible;
             _dashboardView.SetFriends(true, friends, offline);
             _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline, self);
         }
         catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException or IOException or UnauthorizedAccessException or InvalidOperationException)
         {
+            if (primary.GrevId != _session.PrimaryUser?.GrevId) return;
             var snapshot = service.GetLastSnapshot(primary.GrevId);
             var available = snapshot.State is GrevDadConnectionState.Linked or GrevDadConnectionState.Offline;
             _shellFriendsButton.Visibility = available ? Visibility.Visible : Visibility.Collapsed;

@@ -26,6 +26,7 @@
                 </StackPanel>
             </DockPanel>
 
+            <Button Content="Check for Grev Home updates" Click="CheckUpdates_Click" Height="48" HorizontalAlignment="Left" Margin="0,0,0,18" />
             <Border Padding="20"
                     Margin="0,0,0,20"
                     CornerRadius="10"

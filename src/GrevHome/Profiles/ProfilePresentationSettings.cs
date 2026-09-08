@@ -179,17 +179,30 @@ public static class ProfileMediaDataUrl
         var mime = Path.GetExtension(fileName).ToLowerInvariant() switch
         {
             ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg",
-            ".gif" => "image/gif", ".webp" => "image/webp", _ => null
+            ".gif" => "image/gif", ".webp" => "image/webp", ".bmp" => "image/bmp", _ => null
         };
         if (mime is null) return null;
         try
         {
             var path = Path.Combine(paths.GetProfileRoot(grevId), Path.GetFileName(fileName));
             var info = new FileInfo(path);
-            if (!info.Exists || info.Length > 1_400_000) return null;
-            return $"data:{mime};base64,{Convert.ToBase64String(File.ReadAllBytes(path))}";
+            if (!info.Exists) throw new IOException("The profile image could not be found.");
+            if (info.Length > 15 * 1024 * 1024) throw new IOException("Profile images must be under 15 MB.");
+            for (var width = 960; width >= 120; width /= 2)
+            {
+                var image = new BitmapImage();
+                image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
+                image.DecodePixelWidth = width; image.UriSource = new Uri(path, UriKind.Absolute);
+                image.EndInit(); image.Freeze();
+                var encoder = new PngBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(image));
+                using var output = new MemoryStream(); encoder.Save(output);
+                if (output.Length <= 400_000)
+                    return $"data:image/png;base64,{Convert.ToBase64String(output.ToArray())}";
+            }
+            throw new IOException("This picture could not be prepared for sharing. Choose another image.");
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { return null; }
+        catch (NotSupportedException ex) { throw new IOException("This image format cannot be shared. Choose PNG, JPEG or BMP.", ex); }
     }
 }
 

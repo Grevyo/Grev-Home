@@ -225,8 +225,15 @@ public partial class DashboardView : UserControl
         RenderDashboardTiles();
     }
 
+    private FriendsView? _friendCardRenderer;
+    public event Action<GrevDadFriend>? FriendProfileRequested;
     public void SetFriends(bool available, IReadOnlyList<GrevDadFriend> friends, bool offline)
     {
+        if (_friendCardRenderer is null)
+        {
+            _friendCardRenderer = new FriendsView();
+            _friendCardRenderer.FriendSelected += friend => FriendProfileRequested?.Invoke(friend);
+        }
         FriendsSection.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         FriendsPanel.Children.Clear();
         if (!available) return;
@@ -247,13 +254,7 @@ public partial class DashboardView : UserControl
                      .ThenByDescending(item => item.Presence.UpdatedAtUtc ?? DateTimeOffset.MinValue)
                      .ThenBy(item => item.DisplayName))
         {
-            var friendButton = new Button
-            {
-                Width = 285, Height = 145, Margin = new Thickness(8), Padding = new Thickness(16, 12, 16, 12),
-                HorizontalContentAlignment = HorizontalAlignment.Stretch,
-                Content = new StackPanel { Children = { new TextBlock { Text = friend.DisplayName, FontSize = 18, FontWeight = FontWeights.SemiBold }, new TextBlock { Text = $"Level {friend.Level}  •  {friend.Presence.Availability}  •  {friend.Presence.ActivityText}", Margin = new Thickness(0,6,0,0), Foreground = (System.Windows.Media.Brush)FindResource("MutedBrush"), TextTrimming = TextTrimming.CharacterEllipsis } } }
-            };
-            friendButton.Click += Friends_Click;
+            var friendButton = _friendCardRenderer.CreateFriendCard(friend);
             FriendsPanel.Children.Add(friendButton);
         }
     }

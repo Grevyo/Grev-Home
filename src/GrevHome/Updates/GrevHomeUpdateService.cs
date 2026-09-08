@@ -25,11 +25,14 @@ public sealed class GrevHomeUpdateService
     public async Task<GrevHomeUpdate?> CheckAsync(CancellationToken token = default)
     {
         using var response = await _http.GetAsync(LatestRelease, token);
+        if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
         response.EnsureSuccessStatusCode();
         await using var stream = await response.Content.ReadAsStreamAsync(token);
         using var document = await JsonDocument.ParseAsync(stream, cancellationToken: token);
+        if (document.RootElement.GetProperty("draft").GetBoolean() || document.RootElement.GetProperty("prerelease").GetBoolean()) return null;
         var tag = document.RootElement.GetProperty("tag_name").GetString()?.TrimStart('v', 'V');
         if (!Version.TryParse(tag, out var available)) return null;
+        available = new Version(available.Major, available.Minor, Math.Max(0, available.Build), Math.Max(0, available.Revision));
         var current = Assembly.GetExecutingAssembly().GetName().Version ?? new Version(0, 0);
         if (available <= current) return null;
         Uri? installer = null, checksum = null;
@@ -37,7 +40,7 @@ public sealed class GrevHomeUpdateService
         {
             var name = asset.GetProperty("name").GetString();
             var url = asset.GetProperty("browser_download_url").GetString();
-            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || uri.Scheme != Uri.UriSchemeHttps) continue;
+            if (!Uri.TryCreate(url, UriKind.Absolute, out var uri) || !IsReleaseAsset(uri)) continue;
             if (string.Equals(name, "GrevHomeSetup.exe", StringComparison.OrdinalIgnoreCase)) installer = uri;
             if (string.Equals(name, "GrevHomeSetup.sha256.txt", StringComparison.OrdinalIgnoreCase)) checksum = uri;
         }
@@ -46,6 +49,8 @@ public sealed class GrevHomeUpdateService
 
     public async Task DownloadAndLaunchAsync(GrevHomeUpdate update, CancellationToken token = default)
     {
+        if (!Version.TryParse(update.Version, out _) || !IsReleaseAsset(update.Installer) || !IsReleaseAsset(update.Checksum))
+            throw new InvalidDataException("The update does not identify an official Grev Home release.");
         var updateRoot = Path.Combine(_paths.Root, "Updates", update.Version);
         Directory.CreateDirectory(updateRoot);
         var installerPath = Path.Combine(updateRoot, "GrevHomeSetup.exe");
@@ -67,6 +72,12 @@ public sealed class GrevHomeUpdateService
                 throw new InvalidDataException("The downloaded installer did not match the release checksum.");
         }
         File.Move(temporaryPath, installerPath, true);
-        Process.Start(new ProcessStartInfo(installerPath, "/SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS") { UseShellExecute = true });
+        using var process = Process.Start(new ProcessStartInfo(installerPath, "/SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS") { UseShellExecute = true });
+        if (process is null) throw new IOException("Windows could not start the installer.");
     }
+
+    public static bool IsReleaseAsset(Uri uri) => uri.Scheme == Uri.UriSchemeHttps && uri.IsDefaultPort
+        && uri.Host.Equals("github.com", StringComparison.OrdinalIgnoreCase) && string.IsNullOrEmpty(uri.UserInfo)
+        && uri.AbsolutePath.StartsWith("/Grevyo/Grev-Home/releases/download/", StringComparison.Ordinal)
+        && string.IsNullOrEmpty(uri.Query) && string.IsNullOrEmpty(uri.Fragment);
 }

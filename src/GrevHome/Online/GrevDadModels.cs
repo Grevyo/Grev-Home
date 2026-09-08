@@ -36,7 +36,9 @@ public sealed record GrevDadPublicCard(
     bool ShowSessions = true,
     bool ShowStatus = true,
     string? AvatarMedia = null,
-    string? CoverMedia = null);
+    string? CoverMedia = null,
+    string Bio = "",
+    string StatusMessage = "");
 
 public sealed record GrevDadAccountSnapshot(
     GrevDadConnectionState State,
