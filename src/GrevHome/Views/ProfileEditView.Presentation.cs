@@ -4,6 +4,8 @@ namespace GrevHome.Views;
 
 public partial class ProfileEditView
 {
+    private bool _presentationPreviewHooksAttached;
+
     public void ApplyPresentationSettings(ProfilePresentationSettings settings)
     {
         _presentation = settings;
@@ -16,5 +18,23 @@ public partial class ProfileEditView
         UpdateBannerPresentation();
         UpdateShowcasePresentation();
         UpdateCardOptionsPresentation();
+        ApplyAvatarShapePreview();
+        EnsurePresentationPreviewHooks();
     }
+
+    private void EnsurePresentationPreviewHooks()
+    {
+        if (_presentationPreviewHooksAttached) return;
+        _presentationPreviewHooksAttached = true;
+
+        // The XAML AvatarShape_Click handler updates _selectedAvatarShape first; this second
+        // handler then redraws the actual image border so Circle/Rounded/Square is visible before
+        // the user saves rather than only after leaving and reopening the profile.
+        CircleAvatarButton.Click += (_, _) => ApplyAvatarShapePreview();
+        RoundedAvatarButton.Click += (_, _) => ApplyAvatarShapePreview();
+        SquareAvatarButton.Click += (_, _) => ApplyAvatarShapePreview();
+    }
+
+    private void ApplyAvatarShapePreview() =>
+        ProfileAvatarShapeStyle.Apply(AvatarPreviewBorder, _selectedAvatarShape, AvatarPreviewBorder.Width);
 }
