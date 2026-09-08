@@ -104,8 +104,10 @@ public partial class FriendsView : UserControl
         var stats = new List<string>();
         if (card.ShowLevel) stats.Add($"Level {friend.Level}");
         if (card.ShowXp) stats.Add($"{friend.TotalXp:N0} XP");
-        if (card.ShowPlaytime) stats.Add(FormatDurationCompact(card.TotalTrackedSeconds));
-        if (card.ShowSessions) stats.Add($"{card.CompletedSessions:N0} sessions");
+        // The self tile is a local style preview. Real friends receive account-wide totals from
+        // grev.dad, so do not render a misleading local/default zero here.
+        if (!isSelf && card.ShowPlaytime) stats.Add(FormatDurationCompact(card.TotalTrackedSeconds));
+        if (!isSelf && card.ShowSessions) stats.Add($"{card.CompletedSessions:N0} sessions");
 
         var bioText = new TextBlock
         {
@@ -149,11 +151,22 @@ public partial class FriendsView : UserControl
         content.Children.Add(usernameText);
         content.Children.Add(statsText);
         content.Children.Add(statusText);
+        if (isSelf && (card.ShowPlaytime || card.ShowSessions))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = "Live account totals are supplied by grev.dad to your friends.",
+                Margin = new Thickness(0, 6, 0, 0),
+                FontSize = 10,
+                Foreground = (Brush)resources.FindResource("MutedBrush"),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
 
         var button = new Button
         {
             Width = 310,
-            Height = 226,
+            Height = isSelf && (card.ShowPlaytime || card.ShowSessions) ? 242 : 226,
             Effect = PublicProfileCardStyle.FrameEffect(card.Frame),
             Margin = new Thickness(8),
             Style = style,
