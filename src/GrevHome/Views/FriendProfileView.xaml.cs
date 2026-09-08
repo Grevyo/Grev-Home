@@ -26,6 +26,9 @@ public partial class FriendProfileView : UserControl
     {
         _isSelfPreview = isSelf;
         MessageButton.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
+        PreviewText.Text = isSelf
+            ? "YOUR PUBLIC CARD PREVIEW • LIVE ACCOUNT TOTALS ARE SUPPLIED BY GREV.DAD"
+            : "YOUR PUBLIC CARD PREVIEW";
         PreviewText.Visibility = isSelf ? Visibility.Visible : Visibility.Collapsed;
         var card = friend.PublicCard ?? new GrevDadPublicCard();
 
@@ -63,9 +66,11 @@ public partial class FriendProfileView : UserControl
             ? (card.ShowXp ? $"Level {friend.Level}  •  {friend.TotalXp:N0} XP" : $"Level {friend.Level}")
             : $"{friend.TotalXp:N0} XP";
 
-        PlayTimeCard.Visibility = card.ShowPlaytime ? Visibility.Visible : Visibility.Collapsed;
+        // Only real friend payloads contain account-wide totals. The local self-preview is about
+        // appearance/privacy and must not pretend an absent server projection means zero activity.
+        PlayTimeCard.Visibility = !isSelf && card.ShowPlaytime ? Visibility.Visible : Visibility.Collapsed;
         PlayTimeText.Text = FormatDuration(card.TotalTrackedSeconds);
-        SessionsCard.Visibility = card.ShowSessions ? Visibility.Visible : Visibility.Collapsed;
+        SessionsCard.Visibility = !isSelf && card.ShowSessions ? Visibility.Visible : Visibility.Collapsed;
         SessionsText.Text = card.CompletedSessions.ToString("N0");
 
         RelationshipLabel.Text = isSelf ? "VIEW MODE" : "FRIENDS SINCE";
