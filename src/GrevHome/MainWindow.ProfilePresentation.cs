@@ -111,8 +111,10 @@ public partial class MainWindow
             return;
         }
 
+        var localAppearanceSaved = false;
         try
         {
+            var saveStartedUtc = DateTime.UtcNow.AddSeconds(-1);
             var saved = await service.SaveAsync(
                 profile.GrevId,
                 request.BannerKey,
@@ -126,7 +128,13 @@ public partial class MainWindow
                 request.ShowPlaytime,
                 request.ShowSessions,
                 request.ShowStatus);
+            localAppearanceSaved = true;
 
+            // Profile details/avatar and presentation are stored in separate files. The edit view
+            // raises one Save action for both, so wait for the authoritative profile write before
+            // publishing the combined public card. This prevents an avatar/bio/status edit from
+            // racing the Grev.dad upload and briefly restoring the previous public values.
+            var profileForCard = await AwaitCompletedProfileSaveAsync(request, profile, saveStartedUtc);
             await _grevDad.SavePublicCardIfLinkedAsync(profile.GrevId, new Online.GrevDadPublicCard(
                 saved.BannerKey,
                 saved.CardFrame.ToString().ToLowerInvariant(),
@@ -137,8 +145,10 @@ public partial class MainWindow
                 saved.ShowPlaytime,
                 saved.ShowSessions,
                 saved.ShowStatus,
-                ProfileMediaDataUrl.TryRead(_paths, profile.GrevId, profile.AvatarImageFile),
-                ProfileMediaDataUrl.TryRead(_paths, profile.GrevId, saved.BannerImageFile)));
+                ProfileMediaDataUrl.TryRead(_paths, profile.GrevId, profileForCard.AvatarImageFile),
+                ProfileMediaDataUrl.TryRead(_paths, profile.GrevId, saved.BannerImageFile),
+                profileForCard.Bio,
+                profileForCard.StatusMessage));
 
             if (_navigation.Current == Route.ProfileEdit &&
                 string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
@@ -156,8 +166,63 @@ public partial class MainWindow
             if (_navigation.Current == Route.ProfileEdit &&
                 string.Equals(GetProfileTarget()?.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
             {
-                _profileEditView.ShowStatus($"Profile appearance could not be saved: {ex.Message}");
+                _profileEditView.ShowStatus(localAppearanceSaved
+                    ? $"Profile appearance was saved locally, but the combined public card could not be synced yet: {ex.Message}"
+                    : $"Profile appearance could not be saved: {ex.Message}");
             }
+        }
+    }
+
+    private async Task<LocalProfile> AwaitCompletedProfileSaveAsync(
+        ProfileEditRequest request,
+        LocalProfile previous,
+        DateTime saveStartedUtc)
+    {
+        for (var attempt = 0; attempt < 50; attempt++)
+        {
+            var current = (await _profileService.GetProfilesAsync()).FirstOrDefault(candidate =>
+                string.Equals(candidate.GrevId, request.GrevId, StringComparison.OrdinalIgnoreCase));
+            if (current is not null && ProfileEditMatches(request, current, saveStartedUtc))
+            {
+                return current;
+            }
+            await Task.Delay(20);
+        }
+
+        // Never publish known-stale combined data. Local presentation is already safe; the next
+        // normal Grev.dad refresh/save will retry the public card after the profile write succeeds.
+        throw new InvalidOperationException(
+            $"The profile detail save for {previous.DisplayName} did not complete cleanly, so stale public profile data was not uploaded.");
+    }
+
+    private bool ProfileEditMatches(ProfileEditRequest request, LocalProfile current, DateTime saveStartedUtc)
+    {
+        if (!string.Equals(current.DisplayName, request.DisplayName.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(current.Bio, request.Bio.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(current.StatusMessage, request.StatusMessage.Trim(), StringComparison.Ordinal) ||
+            !string.Equals(current.AvatarKey, request.AvatarKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (string.IsNullOrWhiteSpace(request.CustomAvatarSourcePath))
+        {
+            return true;
+        }
+
+        if (string.IsNullOrWhiteSpace(current.AvatarImageFile))
+        {
+            return false;
+        }
+
+        try
+        {
+            var avatarPath = Path.Combine(_paths.GetProfileRoot(current.GrevId), current.AvatarImageFile);
+            return File.Exists(avatarPath) && File.GetLastWriteTimeUtc(avatarPath) >= saveStartedUtc;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
         }
     }
 
