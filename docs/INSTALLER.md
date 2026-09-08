@@ -19,14 +19,15 @@ This does two things:
 
 ## What the installer does
 
-- Installs to `C:\GrevCo\GrevHome` by default (the user can change this during install). `C:\GrevCo` is meant to be a shared home for every piece of Grev software, each in its own subfolder alongside GrevHome - not just this one app.
-- Runs without admin elevation (`PrivilegesRequired=lowest`). Installing outside Program Files doesn't need it, and the app itself already creates `C:\GrevHome` (its data root, unrelated to the install folder - see below) without elevation on first run, so this avoids an unnecessary UAC prompt to match.
+- Installs to `C:\GrevCo\GrevHome` by default. `C:\GrevCo` is the shared home for Grev software, with each product in its own subfolder.
+- Grev Home now uses that same `C:\GrevCo\GrevHome` root for all Grev-owned runtime content: `Data`, `Profiles`, `Global`, `Packages`, `Themes`, `Downloads`, `Logs`, and the default `Games` and `Bios` folders.
+- Runs without admin elevation (`PrivilegesRequired=lowest`) because the default GrevCo folder is writable without installing into Program Files.
 - Creates a Start Menu group and, if the user opts in, a desktop shortcut.
 - Detects a running Grev Home instance (via the same named mutex the app already uses for single-instance enforcement) and asks the user to close it before installing or uninstalling over it, rather than failing partway through.
-- Only ever touches files it put under its own install folder. It never touches `C:\GrevHome` (or wherever the user later points Games/BIOS during first-run setup) on install, upgrade, or uninstall - profiles, saves, and installed games/BIOS files are never at risk from running the installer again or removing the app.
+- Setup only removes files it installed. Runtime-created Grev Home data under the Grev Home root is not tracked as an installer payload and is preserved unless the user removes it separately.
 
-Note the two different `C:\Grev...` paths are unrelated: `C:\GrevCo\GrevHome` is where the *installer* puts the app's binaries; `C:\GrevHome` is where the *running app* keeps its data (profiles, saves, etc. - see `AppPaths`). Renaming/moving one has no effect on the other.
+Third-party software that is intentionally system-installed, such as Microsoft WebView2, Visual C++ runtimes, Steam or Discord, may still use the vendor's normal Windows locations. Grev Home-owned files and portable Grev Store packages stay under the Grev Home root.
 
 ## First run
 
-The installer does not ask for Games/BIOS folder locations itself - that happens inside the app, once, the first time it's launched. See `MachineDefaultsService` and `FirstRunSetupView` in `src/GrevHome`. This keeps the installer itself simple and keeps the folder-picking UI controller-navigable like the rest of Grev Home, rather than living in a separate non-controller-friendly wizard.
+The installer does not ask for Games/BIOS folder locations itself - that happens inside the app, once, the first time it is launched. The defaults are `C:\GrevCo\GrevHome\Games` and `C:\GrevCo\GrevHome\Bios`. If another drive is selected in the controller-friendly drive picker, Grev Home keeps the same layout on that drive, for example `D:\GrevCo\GrevHome\Games`.

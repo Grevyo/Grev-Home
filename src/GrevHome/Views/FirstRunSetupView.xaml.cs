@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Store.Installers;
+using GrevHome.Storage;
 
 namespace GrevHome.Views;
 
@@ -69,7 +70,9 @@ public partial class FirstRunSetupView : UserControl
             string target;
             try
             {
-                target = Path.Combine(drive.RootDirectory.FullName, "GrevHome", subfolder);
+                target = Path.Combine(
+                    AppPaths.GetStandardRootForDrive(drive.RootDirectory.FullName),
+                    subfolder);
             }
             catch (Exception ex) when (ex is ArgumentException or PathTooLongException)
             {
