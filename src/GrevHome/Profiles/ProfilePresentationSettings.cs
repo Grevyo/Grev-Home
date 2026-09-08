@@ -56,6 +56,10 @@ public static class ProfileBannerCatalog
         new ProfileBannerPreset("aurora", "Aurora", "#153D42", "#172A38", "#090C12"),
         new ProfileBannerPreset("violet", "Violet", "#362451", "#21182F", "#090C12"),
         new ProfileBannerPreset("mono", "Mono", "#343A44", "#1D222A", "#090C12")
+        ,new ProfileBannerPreset("ocean", "Ocean", "#075985", "#164E63", "#071525")
+        ,new ProfileBannerPreset("rose", "Rose", "#831843", "#4A1937", "#170C1C")
+        ,new ProfileBannerPreset("forest", "Forest", "#166534", "#163D31", "#091A13")
+        ,new ProfileBannerPreset("gold", "Gold", "#854D0E", "#48351B", "#19130C")
     };
 
     public static string Normalize(string? key)
@@ -119,9 +123,13 @@ public static class ProfileBannerCatalog
 /// </summary>
 public static class ProfileAvatarShapeStyle
 {
+    private static readonly object ImageCacheGate = new();
+    private static readonly Dictionary<string, ImageSource> ImageCache = new();
     public static ImageSource? TryLoadDataUrl(string? value)
     {
+        if (value?.Length > 1_900_000) return null;
         if (string.IsNullOrWhiteSpace(value) || !value.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase)) return null;
+        lock (ImageCacheGate) if (ImageCache.TryGetValue(value, out var cached)) return cached;
         var comma = value.IndexOf(',');
         if (comma < 0 || !value[..comma].EndsWith(";base64", StringComparison.OrdinalIgnoreCase)) return null;
         try
@@ -135,6 +143,11 @@ public static class ProfileAvatarShapeStyle
             image.StreamSource = stream;
             image.EndInit();
             image.Freeze();
+            lock (ImageCacheGate)
+            {
+                if (ImageCache.Count >= 16) ImageCache.Remove(ImageCache.Keys.First());
+                ImageCache[value] = image;
+            }
             return image;
         }
         catch (Exception ex) when (ex is FormatException or NotSupportedException or IOException)
@@ -173,6 +186,8 @@ public static class ProfileAvatarShapeStyle
 
 public static class ProfileMediaDataUrl
 {
+    private static readonly object CacheGate = new();
+    private static readonly Dictionary<string, (long Stamp, long Length, string Data)> Cache = new();
     public static string? TryRead(AppPaths paths, string grevId, string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return null;
@@ -187,18 +202,30 @@ public static class ProfileMediaDataUrl
             var path = Path.Combine(paths.GetProfileRoot(grevId), Path.GetFileName(fileName));
             var info = new FileInfo(path);
             if (!info.Exists) throw new IOException("The profile image could not be found.");
+            lock (CacheGate)
+                if (Cache.TryGetValue(path, out var cached) && cached.Stamp == info.LastWriteTimeUtc.Ticks && cached.Length == info.Length)
+                    return cached.Data;
             if (info.Length > 15 * 1024 * 1024) throw new IOException("Profile images must be under 15 MB.");
             for (var width = 960; width >= 120; width /= 2)
             {
                 var image = new BitmapImage();
                 image.BeginInit(); image.CacheOption = BitmapCacheOption.OnLoad;
+                image.CreateOptions = BitmapCreateOptions.IgnoreImageCache;
                 image.DecodePixelWidth = width; image.UriSource = new Uri(path, UriKind.Absolute);
                 image.EndInit(); image.Freeze();
                 var encoder = new PngBitmapEncoder();
                 encoder.Frames.Add(BitmapFrame.Create(image));
                 using var output = new MemoryStream(); encoder.Save(output);
                 if (output.Length <= 400_000)
-                    return $"data:image/png;base64,{Convert.ToBase64String(output.ToArray())}";
+                {
+                    var result = $"data:image/png;base64,{Convert.ToBase64String(output.ToArray())}";
+                    lock (CacheGate)
+                    {
+                        if (Cache.Count >= 16) Cache.Remove(Cache.Keys.First());
+                        Cache[path] = (info.LastWriteTimeUtc.Ticks, info.Length, result);
+                    }
+                    return result;
+                }
             }
             throw new IOException("This picture could not be prepared for sharing. Choose another image.");
         }

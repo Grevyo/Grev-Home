@@ -1419,7 +1419,9 @@ public sealed partial class GrevDadCoordinator
                 ShowSessions: presentation.ShowSessions,
                 ShowStatus: presentation.ShowStatus,
                 AvatarMedia: ProfileMediaDataUrl.TryRead(_paths, grevId, localProfile?.AvatarImageFile),
-                CoverMedia: ProfileMediaDataUrl.TryRead(_paths, grevId, presentation.BannerImageFile));
+                CoverMedia: ProfileMediaDataUrl.TryRead(_paths, grevId, presentation.BannerImageFile),
+                Bio: localProfile?.Bio ?? "",
+                StatusMessage: localProfile?.StatusMessage ?? "");
 
             return new GrevDadFriend(
                 UserId: grevId,

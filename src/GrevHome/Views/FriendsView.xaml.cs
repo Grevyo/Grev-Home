@@ -49,21 +49,20 @@ public partial class FriendsView : UserControl
         StatusText.Text = string.Empty;
     }
 
-    public Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false)
+    public Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false) => CreateFriendCard(friend, this, selected => FriendSelected?.Invoke(selected), isSelf);
+
+    public static Button CreateFriendCard(GrevDadFriend friend, FrameworkElement resources, Action<GrevDadFriend> selected, bool isSelf = false)
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
-        var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText) ? friend.Presence.Availability : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
+        var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText) ? (string.IsNullOrWhiteSpace(card.StatusMessage) ? friend.Presence.Availability : card.StatusMessage) : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
         var frameThickness = card.Frame == "clean" ? new Thickness(0) : card.Frame == "double" ? new Thickness(5) : new Thickness(2);
 
         // Background/BorderBrush/etc. live in a Style (based on SharpTileButtonStyle) rather than as
         // local values on the Button, so SharpTileButtonStyle's inherited focus/hover triggers can
         // still override the border to show a controller focus ring - a local value would suppress
         // those triggers outright, leaving cards with no visible focus indicator when D-pad navigated.
-        var style = new Style(typeof(Button), (Style)FindResource("SharpTileButtonStyle"));
-        var cover = ProfileAvatarShapeStyle.TryLoadDataUrl(card.CoverMedia);
-        style.Setters.Add(new Setter(Control.BackgroundProperty, cover is null
-            ? ProfileBannerCatalog.CreateBrush(card.Theme)
-            : new ImageBrush(cover) { Stretch = Stretch.UniformToFill, Opacity = 0.72 }));
+        var style = new Style(typeof(Button), (Style)resources.FindResource("SharpTileButtonStyle"));
+        style.Setters.Add(new Setter(Control.BackgroundProperty, PublicProfileCardStyle.Background(card)));
         style.Setters.Add(new Setter(Control.BorderBrushProperty, new SolidColorBrush(Color.FromRgb(72, 96, 142))));
         style.Setters.Add(new Setter(Control.BorderThicknessProperty, frameThickness));
         style.Setters.Add(new Setter(Control.PaddingProperty, new Thickness(18)));
@@ -79,9 +78,10 @@ public partial class FriendsView : UserControl
         };
         ProfileAvatarShapeStyle.Apply(avatar, card.AvatarShape, 40);
 
-        var header = new StackPanel
+        DockPanel.SetDock(avatar, Dock.Left);
+        var header = new DockPanel
         {
-            Orientation = Orientation.Horizontal,
+            LastChildFill = true,
             Children =
             {
                 avatar,
@@ -100,7 +100,8 @@ public partial class FriendsView : UserControl
         var button = new Button
         {
             Width = 300,
-            Height = 154,
+            Height = 210,
+            Effect = PublicProfileCardStyle.FrameEffect(card.Frame),
             Margin = new Thickness(8),
             Style = style,
             Content = new StackPanel
@@ -108,13 +109,14 @@ public partial class FriendsView : UserControl
                 Children =
                 {
                     header,
-                    new TextBlock { Text=card.ShowUsername?$"@{friend.Username}":string.Empty,Margin=new Thickness(0,8,0,0),Foreground=(Brush)FindResource("MutedBrush") },
+                    new TextBlock { Text=card.Bio, MaxHeight=34, TextWrapping=TextWrapping.Wrap, TextTrimming=TextTrimming.CharacterEllipsis, Margin=new Thickness(0,6,0,0), FontSize=12 },
+                    new TextBlock { Text=card.ShowUsername?$"@{friend.Username}":string.Empty,Margin=new Thickness(0,8,0,0),Foreground=(Brush)resources.FindResource("MutedBrush") },
                     new TextBlock { Text=card.ShowLevel?(card.ShowXp?$"Level {friend.Level}  •  {friend.TotalXp:N0} XP":$"Level {friend.Level}"):card.ShowXp?$"{friend.TotalXp:N0} XP":string.Empty,Margin=new Thickness(0,6,0,0),FontSize=12 },
                     new TextBlock { Text=card.ShowStatus?details:string.Empty,Margin=new Thickness(0,10,0,0),TextTrimming=TextTrimming.CharacterEllipsis }
                 }
             }
         };
-        button.Click += (_, _) => FriendSelected?.Invoke(friend);
+        button.Click += (_, _) => selected(friend);
         return button;
     }
 
@@ -153,7 +155,7 @@ public partial class FriendsView : UserControl
         {
             if (!_friendButtons.TryGetValue(conversation.UserId, out var button) || button.Content is not StackPanel panel) continue;
             panel.Children.Add(new TextBlock { Text=$"{conversation.Unread} unread messages", FontWeight=FontWeights.Bold });
-            button.Height = 185;
+            button.Height = 240;
         }
     }
     private void OpenFriendCodeKeyboard_Click(object sender,RoutedEventArgs e)=>FriendCodeKeyboard.Open("Enter Friend Code","GREV-",14);

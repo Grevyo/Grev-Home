@@ -27,6 +27,19 @@ internal static class Program
             new XAttribute(XNamespace.Xmlns+"x","http://schemas.microsoft.com/winfx/2006/xaml"),
             source.Root!.Element(presentation+"Application.Resources")!.Nodes());
         app.Resources=(ResourceDictionary)XamlReader.Parse(resources.ToString());
+        var sample = new GrevDadFriend("sample", "sample", new string('W', 80), false, DateTimeOffset.UtcNow,
+            new GrevDadPresence("online", "", "none", "", null, null),
+            new GrevDadPublicCard(Theme:"ocean", Frame:"glow", Bio:"A public biography", StatusMessage:"Ready to play"));
+        var sampleCard = FriendsView.CreateFriendCard(sample, new FriendsView(), _ => { });
+        Check(sampleCard.Effect is not null, "Glow must render a visible card effect");
+        Check(PublicProfileCardStyle.FrameEffect("clean") is null, "Clean frame must not retain a glow");
+        Check(ProfileBannerCatalog.Normalize("ocean") == "ocean", "New profile colours must survive settings normalization");
+        var profilePreview = new FriendProfileView();
+        profilePreview.SetFriend(sample, isSelf:true);
+        Check(((Button)profilePreview.FindName("MessageButton")).Visibility == Visibility.Collapsed, "Self preview cannot offer messaging");
+        Check(((TextBlock)profilePreview.FindName("BioText")).Text == "A public biography", "Public profile must show the shared biography");
+        profilePreview.SetFriend(sample with { PublicCard = sample.PublicCard! with { ShowStatus=false } });
+        Check(((TextBlock)profilePreview.FindName("StatusText")).Text.Length == 0, "Hidden status must remain hidden in full profile");
         var login=new LoginView();
         var window=new Window {Content=login,Width=1280,Height=720,WindowStyle=WindowStyle.None};
         window.Show();

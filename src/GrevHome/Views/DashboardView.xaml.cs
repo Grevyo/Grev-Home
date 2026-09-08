@@ -225,15 +225,9 @@ public partial class DashboardView : UserControl
         RenderDashboardTiles();
     }
 
-    private FriendsView? _friendCardRenderer;
     public event Action<GrevDadFriend>? FriendProfileRequested;
     public void SetFriends(bool available, IReadOnlyList<GrevDadFriend> friends, bool offline)
     {
-        if (_friendCardRenderer is null)
-        {
-            _friendCardRenderer = new FriendsView();
-            _friendCardRenderer.FriendSelected += friend => FriendProfileRequested?.Invoke(friend);
-        }
         FriendsSection.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
         FriendsPanel.Children.Clear();
         if (!available) return;
@@ -254,7 +248,7 @@ public partial class DashboardView : UserControl
                      .ThenByDescending(item => item.Presence.UpdatedAtUtc ?? DateTimeOffset.MinValue)
                      .ThenBy(item => item.DisplayName))
         {
-            var friendButton = _friendCardRenderer.CreateFriendCard(friend);
+            var friendButton = FriendsView.CreateFriendCard(friend, this, selected => FriendProfileRequested?.Invoke(selected));
             FriendsPanel.Children.Add(friendButton);
         }
     }

@@ -84,6 +84,7 @@ public partial class LoginView : UserControl
                 Margin = new Thickness(10, 0, 10, 0),
                 Padding = new Thickness(18),
                 Background = CreateCardBackground(profile, presentation),
+                Effect = PublicProfileCardStyle.FrameEffect(presentation?.CardFrame.ToString().ToLowerInvariant() ?? "role"),
                 BorderThickness = presentation?.CardFrame == ProfileCardFrame.Clean ? new Thickness(0) :
                     presentation?.CardFrame == ProfileCardFrame.Double ? new Thickness(5) : new Thickness(2),
                 Tag = profile,

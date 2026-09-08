@@ -57,10 +57,8 @@ public partial class FriendProfileView : UserControl
 
         FriendsSinceText.Text = friend.FriendsSinceUtc.ToLocalTime().ToString("d MMM yyyy");
 
-        var cover = ProfileAvatarShapeStyle.TryLoadDataUrl(card.CoverMedia);
-        HeaderCard.Background = cover is null
-            ? ProfileBannerCatalog.CreateBrush(card.Theme)
-            : new ImageBrush(cover) { Stretch = Stretch.UniformToFill, Opacity = 0.72 };
+        HeaderCard.Background = PublicProfileCardStyle.Background(card);
+        HeaderCard.Effect = PublicProfileCardStyle.FrameEffect(card.Frame);
         HeaderCard.BorderThickness = card.Frame switch
         {
             "clean" => new Thickness(0),
