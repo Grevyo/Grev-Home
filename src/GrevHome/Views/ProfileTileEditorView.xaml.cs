@@ -8,29 +8,28 @@ using GrevHome.Profiles;
 namespace GrevHome.Views;
 
 /// <summary>
-/// Controller-first profile tile editor. Renders GrevHome.Profiles.ProfileTileGridEditor's cursor
-/// state onto a scrollable grid; every actual placement/collision/resize decision lives in that
-/// UI-agnostic class (see docs/PROFILE_TILES.md) - this view only draws it and turns input into
-/// InputAction calls, the same separation DashboardView already has from
-/// DashboardTilePresentationService.
-///
-/// NOT VERIFIED: authored without a Windows/.NET toolchain (see the repository-wide caveat in
-/// docs/PROFILE_TILES.md). XAML/WPF mistakes - a bad binding, a missing using, a XAML syntax slip -
-/// are exactly the kind of error this environment cannot catch; a Windows build is required before
-/// trusting this file.
+/// Controller-first profile tile editor. Renders ProfileTileGridEditor's cursor state onto a
+/// scrollable grid. The shell forwards its existing InputAction stream here; this view does not
+/// create a second controller poller, so one physical input can never move both the grid and page
+/// focus at the same time.
 /// </summary>
 public partial class ProfileTileEditorView : UserControl
 {
     private const int CellSize = 56;
     private const int CellGap = 4;
+    private static readonly ProfileTileKind[] AddKinds =
+        [ProfileTileKind.Text, ProfileTileKind.Link, ProfileTileKind.Media, ProfileTileKind.Stat];
 
     private ProfileTileGridEditor? _editor;
+    private bool _choosingAddKind;
+    private int _addKindIndex;
 
     public event EventHandler? BackRequested;
     public event Action<IReadOnlyList<ProfileTile>>? SaveRequested;
+    public event EventHandler? ChooseMediaRequested;
 
-    /// <summary>Set by the host each time it forwards an event, so the footer prompt reads "A" /
-    /// "B" for a controller and "Enter" / "Esc" for a keyboard rather than always guessing one.</summary>
+    /// <summary>Set by the host whenever controller/keyboard input arrives so prompt wording tracks
+    /// the user's most recent input device.</summary>
     public bool IsControllerActive { get; set; } = true;
 
     public ProfileTileEditorView()
@@ -42,19 +41,86 @@ public partial class ProfileTileEditorView : UserControl
 
     public void Load(IReadOnlyList<ProfileTile> tiles)
     {
+        _choosingAddKind = false;
+        _addKindIndex = 0;
         _editor = new ProfileTileGridEditor(tiles);
         Render();
     }
 
-    /// <summary>Feed one InputAction from the controller in. Returns true when the editor consumed
-    /// it (so the host does not also move page focus with the same D-Pad press).</summary>
+    /// <summary>Feeds one shell navigation action into the tile editor. Accept on an empty grid
+    /// cell opens an entirely controller-driven tile-type chooser: D-Pad changes type, A confirms,
+    /// B cancels.</summary>
     public bool HandleInput(InputAction action)
     {
         if (_editor is null) return false;
+
+        if (_choosingAddKind)
+        {
+            switch (action)
+            {
+                case InputAction.Left or InputAction.Up:
+                    _addKindIndex = (_addKindIndex + AddKinds.Length - 1) % AddKinds.Length;
+                    Render();
+                    return true;
+                case InputAction.Right or InputAction.Down:
+                    _addKindIndex = (_addKindIndex + 1) % AddKinds.Length;
+                    Render();
+                    return true;
+                case InputAction.Accept:
+                    AddTile(AddKinds[_addKindIndex]);
+                    _choosingAddKind = false;
+                    Render();
+                    return true;
+                case InputAction.Back:
+                    _choosingAddKind = false;
+                    Render();
+                    return true;
+            }
+        }
+
         var consumed = _editor.HandleInput(action);
-        if (consumed) Render();
-        return consumed;
+        if (consumed)
+        {
+            Render();
+            return true;
+        }
+
+        if (action == InputAction.Accept && _editor.Mode == ProfileTileEditorMode.Browsing &&
+            _editor.TileAt(_editor.CursorX, _editor.CursorY) is null)
+        {
+            _choosingAddKind = true;
+            _addKindIndex = 0;
+            Render();
+            return true;
+        }
+
+        return false;
     }
+
+    /// <summary>Extended buttons are supplied by ControllerInputService while this route has app
+    /// input mode: X=resizing, Y=edit content/media, View=remove selected tile.</summary>
+    public bool HandleExtendedControl(AppControllerControl control)
+    {
+        if (_editor is null) return false;
+        switch (control)
+        {
+            case AppControllerControl.X:
+                if (!_editor.BeginResize()) return false;
+                Render();
+                return true;
+            case AppControllerControl.Y:
+                BeginEditActiveTile();
+                return true;
+            case AppControllerControl.View:
+                if (!_editor.RemoveActiveTile()) return false;
+                Render();
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    public void ShowStatus(string message) => PromptText.Text = message;
 
     private void PreviewKeyDown_Handler(object sender, KeyEventArgs e)
     {
@@ -75,8 +141,15 @@ public partial class ProfileTileEditorView : UserControl
 
     private void AddTile_Click(object sender, RoutedEventArgs e)
     {
-        if (_editor is null || sender is not Button { Tag: string tagKind }) return;
-        if (!Enum.TryParse<ProfileTileKind>(tagKind, out var kind)) return;
+        if (sender is not Button { Tag: string tagKind } ||
+            !Enum.TryParse<ProfileTileKind>(tagKind, out var kind)) return;
+        AddTile(kind);
+        Render();
+    }
+
+    private void AddTile(ProfileTileKind kind)
+    {
+        if (_editor is null) return;
         var (width, height) = kind switch
         {
             ProfileTileKind.Text => (3, 2),
@@ -87,10 +160,10 @@ public partial class ProfileTileEditorView : UserControl
         };
         if (_editor.AddTile(kind, width, height) is null)
         {
-            PromptText.Text = "There is no free space left for a new tile.";
-            return;
+            PromptText.Text = _editor.Tiles.Count >= ProfileTileGrid.MaxTiles
+                ? $"A profile can have up to {ProfileTileGrid.MaxTiles} tiles."
+                : "There is no free space left for a new tile.";
         }
-        Render();
     }
 
     private void EditTile_Click(object sender, RoutedEventArgs e) => BeginEditActiveTile();
@@ -99,22 +172,22 @@ public partial class ProfileTileEditorView : UserControl
     {
         if (_editor?.ActiveTile is not { } tile)
         {
-            PromptText.Text = "Pick up a tile first (Accept on it), then Edit Tile.";
+            PromptText.Text = "Pick up a tile first, then edit it.";
             return;
         }
         switch (tile.Kind)
         {
             case ProfileTileKind.Text:
-                KeyboardOverlay.Open("Tile title", tile.Title, 80);
+                KeyboardOverlay.Open("Tile title", tile.Title, ProfileTileGrid.MaxTitleLength);
                 break;
             case ProfileTileKind.Link:
-                KeyboardOverlay.Open("Link URL (http:// or https://)", tile.LinkUrl, 500);
+                KeyboardOverlay.Open("Link URL (http:// or https://)", tile.LinkUrl, ProfileTileGrid.MaxLinkUrlLength);
                 break;
             case ProfileTileKind.Stat:
-                KeyboardOverlay.Open("Stat value", tile.StatValue, 80);
+                KeyboardOverlay.Open("Stat value", tile.StatValue, ProfileTileGrid.MaxStatValueLength);
                 break;
             case ProfileTileKind.Media:
-                PromptText.Text = "Picture tiles are edited from the media picker (not yet wired into this view).";
+                ChooseMediaRequested?.Invoke(this, EventArgs.Empty);
                 break;
         }
     }
@@ -129,29 +202,38 @@ public partial class ProfileTileEditorView : UserControl
             ProfileTileKind.Stat => tile with { StatValue = value },
             _ => tile
         };
-        // ProfileTileGridEditor has no direct "replace the active tile's content" call (only
-        // position/size, which is all a grid-cursor needs to move); Remove + AddTile keeps this
-        // view from needing a new editor method just for text fields, at the cost of the tile
-        // getting a new random TileId - acceptable here since Save always replaces the whole
-        // layout, tile IDs are otherwise only meaningful within one edit session.
-        _editor.RemoveActiveTile();
-        var tiles = new List<ProfileTile>(_editor.Tiles) { updated with { TileId = Guid.NewGuid().ToString() } };
-        _editor = new ProfileTileGridEditor(tiles);
+        if (!_editor.UpdateActiveTile(updated))
+        {
+            PromptText.Text = "That tile could not be updated.";
+            return;
+        }
         Render();
+    }
+
+    public bool SetActiveMedia(string mediaFileName)
+    {
+        if (_editor?.ActiveTile is not { } tile) return false;
+        var updated = tile with
+        {
+            BackgroundMediaFile = mediaFileName,
+            BackgroundType = ProfileTileBackgroundType.Media
+        };
+        if (!_editor.UpdateActiveTile(updated)) return false;
+        Render();
+        return true;
     }
 
     private void RemoveTile_Click(object sender, RoutedEventArgs e)
     {
         if (_editor?.RemoveActiveTile() != true)
         {
-            PromptText.Text = "Pick up a tile first (Accept on it), then Remove Tile.";
+            PromptText.Text = "Pick up a tile first, then remove it.";
             return;
         }
         Render();
     }
 
     private void Save_Click(object sender, RoutedEventArgs e) => SaveRequested?.Invoke(_editor?.Tiles ?? []);
-
     private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
 
     private void Render()
@@ -161,21 +243,29 @@ public partial class ProfileTileEditorView : UserControl
 
         GridCanvas.Width = ProfileTileGrid.Columns * CellSize;
         GridCanvas.Height = ProfileTileGrid.MaxRows * CellSize;
-
         foreach (var tile in _editor.Tiles)
         {
             GridCanvas.Children.Add(CreateTileElement(tile, isActive: tile.TileId == _editor.ActiveTile?.TileId));
         }
         GridCanvas.Children.Add(CreateCursorElement());
 
-        HintText.Text = _editor.Mode switch
+        if (_choosingAddKind)
         {
-            ProfileTileEditorMode.Holding =>
-                "Move the tile, then Accept to drop it, Back to cancel, or Edit Tile / Remove Tile below.",
-            ProfileTileEditorMode.Resizing => "Resize the tile. Accept confirms, Back reverts.",
-            _ => "Move the cursor onto a tile and press Accept to pick it up, or add a new tile below."
-        };
-        PromptText.Text = BuildPrompt();
+            var selected = AddKinds[_addKindIndex] == ProfileTileKind.Media ? "Picture / GIF" : AddKinds[_addKindIndex].ToString();
+            HintText.Text = $"Choose tile type: {selected}. Use D-Pad/arrow keys to change type.";
+            PromptText.Text = IsControllerActive ? "A Add    B Cancel" : "Enter Add    Esc Cancel";
+        }
+        else
+        {
+            HintText.Text = _editor.Mode switch
+            {
+                ProfileTileEditorMode.Holding =>
+                    "Move the tile. X resizes, Y edits it, View removes it, A drops it and B cancels.",
+                ProfileTileEditorMode.Resizing => "Resize with the D-Pad. A confirms and B reverts.",
+                _ => "Move the cursor. A picks up a tile; A on an empty cell adds a new one."
+            };
+            PromptText.Text = BuildPrompt();
+        }
 
         var targetTop = (_editor.Mode == ProfileTileEditorMode.Browsing ? _editor.CursorY : (_editor.ActiveTile?.Y ?? 0)) * CellSize;
         GridScroller.ScrollToVerticalOffset(Math.Max(0, targetTop - 200));
@@ -183,14 +273,14 @@ public partial class ProfileTileEditorView : UserControl
 
     private string BuildPrompt()
     {
-        string accept, back;
-        if (IsControllerActive) { accept = "A"; back = "B"; }
-        else { accept = "Enter"; back = "Esc"; }
+        var accept = IsControllerActive ? "A" : "Enter";
+        var back = IsControllerActive ? "B" : "Esc";
         return _editor?.Mode switch
         {
+            ProfileTileEditorMode.Holding when IsControllerActive => $"{accept} Drop    {back} Cancel    X Resize    Y Edit    View Remove",
             ProfileTileEditorMode.Holding => $"{accept} Drop    {back} Cancel",
             ProfileTileEditorMode.Resizing => $"{accept} Confirm    {back} Revert",
-            _ => $"{accept} Pick up"
+            _ => $"{accept} Pick up / add"
         };
     }
 
@@ -212,7 +302,7 @@ public partial class ProfileTileEditorView : UserControl
                 ProfileTileKind.Text => tile.Title ?? "Text tile",
                 ProfileTileKind.Link => tile.LinkUrl ?? "Link tile",
                 ProfileTileKind.Stat => tile.StatValue ?? "Stat tile",
-                ProfileTileKind.Media => "Picture tile",
+                ProfileTileKind.Media => string.IsNullOrWhiteSpace(tile.BackgroundMediaFile) ? "Picture tile • choose media" : "Picture tile",
                 _ => tile.Kind.ToString()
             },
             Foreground = new SolidColorBrush((Color)ColorConverter.ConvertFromString(tile.TextColour)),
