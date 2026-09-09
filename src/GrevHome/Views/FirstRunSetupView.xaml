@@ -60,12 +60,12 @@
                     </WrapPanel>
 
                     <TextBlock Text="EXISTING GAMES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                    <TextBlock Text="If any configured Games location already contains games, Grev Home can take you into Scan Directory after your first account signs in."
+                    <TextBlock Text="Grev Home can open Scan Directory at your primary Games folder after the first account signs in. Your other configured Games locations are also shown as quick locations inside Scan Directory."
                                Margin="0,2,0,8"
                                Foreground="{StaticResource MutedBrush}"
                                TextWrapping="Wrap" />
                     <Button x:Name="ScanChoiceButton"
-                            Content="✓  Scan my configured Games locations after I create my account"
+                            Content="✓  Scan my primary Games folder after I create my account"
                             MinWidth="520"
                             Height="50"
                             Margin="0,0,0,30"
