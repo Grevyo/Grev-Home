@@ -128,8 +128,8 @@ public sealed class AppPaths
     {
         Directory.CreateDirectory(Root);
 
-        // Older Grev Home builds used C:\GrevHome directly. Before creating any fresh canonical
-        // machine/profile state, import only recognisable legacy Grev Home data into C:\GrevCo\GrevHome.
+        // Before creating fresh canonical machine/profile state, give the dedicated migration
+        // service one chance to import recognisable data from the pre-GrevCo storage layout.
         // The importer is a no-op for custom/test roots and leaves the legacy tree untouched.
         new LegacyDataMigrationService(this).ImportIfNeededAsync().GetAwaiter().GetResult();
 
