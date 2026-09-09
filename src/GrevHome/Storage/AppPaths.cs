@@ -127,6 +127,12 @@ public sealed class AppPaths
     public void EnsureMachineLayout()
     {
         Directory.CreateDirectory(Root);
+
+        // Older Grev Home builds used C:\GrevHome directly. Before creating any fresh canonical
+        // machine/profile state, import only recognisable legacy Grev Home data into C:\GrevCo\GrevHome.
+        // The importer is a no-op for custom/test roots and leaves the legacy tree untouched.
+        new LegacyDataMigrationService(this).ImportIfNeededAsync().GetAwaiter().GetResult();
+
         Directory.CreateDirectory(Data);
         Directory.CreateDirectory(AppCatalogueData);
         Directory.CreateDirectory(RuntimeData);
