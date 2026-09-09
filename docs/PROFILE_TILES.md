@@ -32,9 +32,31 @@ mismatch has been corrected.
 One deliberate divergence: grev.dad stores a tile's background picture as an inline base64 data
 URL (like all its other profile media). `ProfileTile.BackgroundMediaFile` instead holds a local
 filename, matching how Grev Home stores every other piece of profile/dashboard media
-(`DashboardTileOverride.TileMediaFile`, `ProfilePresentationSettings.BannerImageFile`). A future
-sync layer converts between the two representations; this type does not carry a multi-megabyte
-string through memory and every JSON round-trip to avoid that conversion.
+(`DashboardTileOverride.TileMediaFile`, `ProfilePresentationSettings.BannerImageFile`) - this type
+does not carry a multi-megabyte string through memory and every JSON round-trip. Also adds
+`ProfileTileLayout.UpdatedAtUtc`, which the sync layer below uses to decide which side is newer.
+
+## Cloud sync
+
+`GrevDadProfileSyncService.SyncProfileTilesAsync` (grev.dad side: `docs/profile-tile-sync.md` and
+`GET`/`PUT /api/grev-home/profile-tiles` in `grev-home-sync.ts`) is the bidirectional sync path.
+Last-write-wins by timestamp: whichever side's tiles were saved more recently is downloaded or
+uploaded wholesale (no per-tile merge). A fresh install's local layout has no `UpdatedAtUtc`,
+which always loses to a real cloud timestamp - so linking a fresh Grev Home install and calling
+this once *is* the profile restore path, not a separate one.
+
+`ProfileTileMediaConverter` (`ProfileTiles.cs`) does the media-representation conversion this
+enables: `SaveFromDataUrlAsync` decodes a pulled tile's data URL into a local file (enforcing the
+same 1.4 MB limit `ProfileTileService.SaveAsync` already checks), and `ReadAsDataUrl` re-encodes a
+local file for push, reusing `ProfileMediaDataUrl.TryReadFile` - the same helper (now split out of
+`TryRead`) already used to share a Grev Home avatar/banner as a data URL elsewhere.
+
+`SyncProfileTilesAsync` is a method Grev Home can call, not a job that runs itself - nothing wires
+a call site to it yet (e.g. after the tile editor closes, or alongside `SyncAsync`'s own
+progression sync). It also has no automated test: exercising it needs a mocked `HttpClient` and
+the Windows credential store `WindowsCredentialSecretStore` reads from, which `tests/ProfileTiles`
+does not attempt - only `ProfileTileGrid`/`ProfileTileGridEditor`/`ProfileTileService` are covered
+there.
 
 ## Controller-first editing
 
@@ -68,9 +90,8 @@ action set as this file, alongside its existing mouse drag.
   `ProfileTileService` or `ProfileTileGridEditor` yet - this branch adds the model and the
   controller-input logic, not a usable feature. This needs a Windows/WPF build to iterate on
   visually, which this change was not made on.
-- **A sync layer between `ProfileTileService` (Grev Home) and grev.dad's `/api/profile/tiles`**
-  endpoint. None exists. Until it does, a layout edited in Grev Home and one edited on grev.dad are
-  two independent copies, not one profile.
+- **Wiring `SyncProfileTilesAsync` to an actual call site** and to an automated test (see the
+  Cloud sync section above) - the method exists and is documented but nothing calls it yet.
 - An "add tile" flow from an empty cell (today `HandleInput` deliberately returns `false` for
   Accept on an empty cell so a future catalogue/picker UI can own that instead of the grid editor
   guessing what should appear) - the same boundary grev.dad's own controller draws.

@@ -83,7 +83,12 @@ public sealed record ProfileTile(
     string BorderColour = "#394657",
     ProfileTileFontFamily FontFamily = ProfileTileFontFamily.System);
 
-public sealed record ProfileTileLayout(int SchemaVersion, IReadOnlyList<ProfileTile> Tiles)
+// UpdatedAtUtc drives GrevDadProfileSyncService.SyncProfileTilesAsync's last-write-wins policy:
+// it is compared against the cloud layout's own updatedAt (MAX(user_profile_tiles.updated_at) in
+// src/profile.ts) to decide whether to push or pull. A fresh install's Empty layout has this unset
+// (default), which always loses to a real cloud timestamp - that is what makes "sync" and "restore
+// after reinstall" the same code path rather than two to keep in sync with each other.
+public sealed record ProfileTileLayout(int SchemaVersion, IReadOnlyList<ProfileTile> Tiles, DateTimeOffset? UpdatedAtUtc = null)
 {
     public static ProfileTileLayout Empty { get; } = new(CurrentSchemaVersion, []);
     public const int CurrentSchemaVersion = 1;
@@ -290,7 +295,8 @@ public sealed class ProfileTileService
     }
 
     public async Task<ProfileTileLayout> SaveAsync(
-        string grevId, IReadOnlyList<ProfileTile> tiles, CancellationToken cancellationToken = default)
+        string grevId, IReadOnlyList<ProfileTile> tiles, DateTimeOffset? updatedAtUtc = null,
+        CancellationToken cancellationToken = default)
     {
         var error = ProfileTileGrid.Validate(tiles);
         if (error is not null) throw new InvalidOperationException(error);
@@ -310,7 +316,7 @@ public sealed class ProfileTileService
                 throw new InvalidOperationException("A tile's picture must be no more than 1.4 MB.");
         }
 
-        var layout = new ProfileTileLayout(ProfileTileLayout.CurrentSchemaVersion, tiles);
+        var layout = new ProfileTileLayout(ProfileTileLayout.CurrentSchemaVersion, tiles, updatedAtUtc ?? DateTimeOffset.UtcNow);
         var path = GetLayoutFile(grevId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + ".tmp";
@@ -346,6 +352,84 @@ public sealed class ProfileTileService
     private string GetLayoutFile(string grevId) =>
         Path.Combine(_paths.GetProfilePresentation(grevId), "ProfileTiles", "tiles.json");
 
-    private string GetMediaRoot(string grevId) =>
+    /// <summary>Where a tile's BackgroundMediaFile is resolved from/written to. Public so
+    /// GrevDadProfileSyncService can save a pulled tile's picture into the same place SaveAsync
+    /// itself checks it against (ProfileTileGrid.MaxBackgroundMediaBytes).</summary>
+    public string GetMediaRoot(string grevId) =>
         Path.Combine(_paths.GetProfilePresentation(grevId), "ProfileTiles", "Media");
+}
+
+/// <summary>
+/// Converts a tile's background picture between grev.dad's inline base64 data URL and Grev Home's
+/// local-file convention (see ProfileTile.BackgroundMediaFile's doc comment). Used only by
+/// GrevDadProfileSyncService - everything else on this side already works in local files.
+/// </summary>
+public static class ProfileTileMediaConverter
+{
+    private static readonly Dictionary<string, string> ExtensionByMime = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["image/png"] = ".png", ["image/jpeg"] = ".jpg", ["image/gif"] = ".gif", ["image/webp"] = ".webp"
+    };
+
+    /// <summary>Cloud -> local. Decodes a "data:&lt;mime&gt;;base64,&lt;...&gt;" string, enforces
+    /// the same size limit the server enforces on the data URL itself and SaveAsync enforces on
+    /// the resulting file, and writes it under ProfileTileService.GetMediaRoot. Returns the file
+    /// name to store in ProfileTile.BackgroundMediaFile.</summary>
+    public static async Task<string> SaveFromDataUrlAsync(
+        string mediaRoot, string dataUrl, CancellationToken cancellationToken = default)
+    {
+        var comma = dataUrl.IndexOf(',');
+        if (comma < 0 || !dataUrl.StartsWith("data:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidDataException("A synced tile picture was not a valid data URL.");
+        }
+        var header = dataUrl[5..comma]; // "image/png;base64"
+        var mime = header.Split(';')[0];
+        if (!ExtensionByMime.TryGetValue(mime, out var extension))
+        {
+            throw new InvalidDataException($"A synced tile picture used an unsupported image type ({mime}).");
+        }
+
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(dataUrl[(comma + 1)..]);
+        }
+        catch (FormatException ex)
+        {
+            throw new InvalidDataException("A synced tile picture was not valid base64.", ex);
+        }
+        if (bytes.Length == 0 || bytes.Length > ProfileTileGrid.MaxBackgroundMediaBytes)
+        {
+            throw new InvalidDataException("A synced tile picture exceeded the 1.4 MB limit.");
+        }
+
+        Directory.CreateDirectory(mediaRoot);
+        var fileName = $"tile-{Guid.NewGuid():N}{extension}";
+        var target = Path.Combine(mediaRoot, fileName);
+        var temporary = target + ".tmp";
+        try
+        {
+            await File.WriteAllBytesAsync(temporary, bytes, cancellationToken);
+            File.Move(temporary, target, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary)) File.Delete(temporary);
+        }
+        return fileName;
+    }
+
+    /// <summary>Local -> cloud. Reuses ProfileMediaDataUrl - the same helper already used to share
+    /// a Grev Home avatar/banner as a data URL elsewhere - rather than a second image encoder.
+    /// Returns null when the tile has no local media file (nothing to convert).</summary>
+    public static string? ReadAsDataUrl(string mediaRoot, string? mediaFileName)
+    {
+        if (string.IsNullOrWhiteSpace(mediaFileName)) return null;
+        // ProfileTileService.GetMediaRoot is not GetProfileRoot, so this uses
+        // ProfileMediaDataUrl.TryReadFile (a full path) rather than TryRead (GrevID + file name,
+        // resolved against GetProfileRoot) - same conversion, different base directory.
+        var sourcePath = Path.Combine(mediaRoot, Path.GetFileName(mediaFileName));
+        return File.Exists(sourcePath) ? ProfileMediaDataUrl.TryReadFile(sourcePath) : null;
+    }
 }

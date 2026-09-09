@@ -49,6 +49,20 @@ internal sealed record GrevDadSyncApiResponse(
     GrevDadSyncApiHomeResult? GrevHome,
     GrevDadSyncApiSiteResult? GrevDad);
 
+// TileType/BackgroundType/MediaFit/MediaOverlay/FontFamily travel as the same lowercase strings
+// grev.dad's own JSON uses ('text','link','media','stat', ...), not the C# enum names - _json is
+// JsonDefaults.IndentedWeb, which has no string-enum converter, so ProfileTileKind etc. are mapped
+// to/from these strings by hand in ToWireTile/FromWireTile rather than serialized directly.
+internal sealed record GrevDadProfileTileWire(
+    string TileId, string TileType, int X, int Y, int Width, int Height,
+    string? Title, string? Body, string? LinkLabel, string? LinkUrl, string? StatValue,
+    string BackgroundType, string BackgroundPrimary, string BackgroundSecondary, int BackgroundAngle,
+    string? BackgroundMedia, string MediaFit, string MediaOverlay,
+    string TextColour, string BorderColour, string FontFamily);
+
+internal sealed record GrevDadProfileTilesResponse(
+    bool Ok, string? Message, int ApiVersion, IReadOnlyList<GrevDadProfileTileWire>? Tiles, long? UpdatedAt);
+
 /// <summary>
 /// Optional background bridge from local GrevID-owned data to Grev.dad. The source of truth stays
 /// local: completed history is replayable and Grev Home progression is uploaded only as a snapshot.
@@ -67,6 +81,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private readonly SessionHistoryService _history;
     private readonly PlaytimeService _playtime;
     private readonly ProfileService _profileService;
+    private readonly ProfileTileService _tiles;
     private readonly GrevDadAccountService _accounts;
     private readonly GrevDadPrivacySettingsService _privacy;
     private readonly WindowsCredentialSecretStore _secrets = new();
@@ -90,6 +105,7 @@ public sealed class GrevDadProfileSyncService : IDisposable
         _accounts = accounts;
         _privacy = privacy;
         _playtime = new PlaytimeService(paths);
+        _tiles = new ProfileTileService(paths);
         _http = GrevDadNetworkSupport.CreateHttpClient(
             baseUri,
             new Uri("https://grev.dad/", UriKind.Absolute),
@@ -231,6 +247,125 @@ public sealed class GrevDadProfileSyncService : IDisposable
             gate.Release();
         }
     }
+
+    /// <summary>
+    /// Bidirectional profile tile sync (docs/profile-tile-sync.md on the grev.dad side has the full
+    /// design). Last-write-wins by timestamp: whichever side's tiles were saved more recently is
+    /// downloaded/uploaded wholesale, no per-tile merge. A fresh install's local layout has no
+    /// UpdatedAtUtc, which always loses to a real cloud timestamp - the same call restores a
+    /// profile's tile layout after reinstalling and re-linking as keeps it in sync day to day.
+    ///
+    /// Not wired to any automatic trigger - callers (e.g. after the tile editor closes, or
+    /// alongside SyncAsync's own progression sync) decide when this runs.
+    /// </summary>
+    public async Task SyncProfileTilesAsync(string grevId, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var account = await _accounts.ValidateLinkedAccountAsync(grevId, cancellationToken);
+        if (account.State != GrevDadConnectionState.Linked) return;
+        var token = _secrets.Read(grevId, AccessCredentialSlot);
+        if (string.IsNullOrWhiteSpace(token)) return;
+
+        var local = await _tiles.GetAsync(grevId, cancellationToken);
+        var remote = await FetchProfileTilesAsync(token, cancellationToken);
+        var remoteTiles = remote.Tiles ?? [];
+        var remoteStamp = remote.UpdatedAt ?? 0;
+
+        var localStamp = local.UpdatedAtUtc?.ToUnixTimeSeconds() ?? 0;
+        if (remoteStamp > localStamp)
+        {
+            var mediaRoot = _tiles.GetMediaRoot(grevId);
+            var pulled = new List<ProfileTile>(remoteTiles.Count);
+            foreach (var wire in remoteTiles)
+            {
+                string? mediaFile = null;
+                if (!string.IsNullOrWhiteSpace(wire.BackgroundMedia))
+                {
+                    mediaFile = await ProfileTileMediaConverter.SaveFromDataUrlAsync(mediaRoot, wire.BackgroundMedia, cancellationToken);
+                }
+                pulled.Add(FromWireTile(wire, mediaFile));
+            }
+            await _tiles.SaveAsync(grevId, pulled, DateTimeOffset.FromUnixTimeSeconds(remoteStamp), cancellationToken);
+        }
+        else if (localStamp > remoteStamp)
+        {
+            var mediaRoot = _tiles.GetMediaRoot(grevId);
+            var wireTiles = local.Tiles
+                .Select(tile => ToWireTile(tile, ProfileTileMediaConverter.ReadAsDataUrl(mediaRoot, tile.BackgroundMediaFile)))
+                .ToArray();
+            await PushProfileTilesAsync(token, wireTiles, cancellationToken);
+        }
+        // Equal (including both empty) - nothing to do.
+    }
+
+    private async Task<GrevDadProfileTilesResponse> FetchProfileTilesAsync(string token, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "api/grev-home/profile-tiles");
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        using var response = await _http.SendAsync(request, cancellationToken);
+        var payload = await ReadProfileTilesResponseAsync(response, cancellationToken);
+        return payload;
+    }
+
+    private async Task PushProfileTilesAsync(
+        string token, IReadOnlyList<GrevDadProfileTileWire> tiles, CancellationToken cancellationToken)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Put, "api/grev-home/profile-tiles")
+        {
+            Content = JsonContent.Create(new { tiles }, options: _json)
+        };
+        request.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", token);
+        using var response = await _http.SendAsync(request, cancellationToken);
+        await ReadProfileTilesResponseAsync(response, cancellationToken);
+    }
+
+    private async Task<GrevDadProfileTilesResponse> ReadProfileTilesResponseAsync(
+        HttpResponseMessage response, CancellationToken cancellationToken)
+    {
+        GrevDadProfileTilesResponse payload;
+        try
+        {
+            payload = await response.Content.ReadFromJsonAsync<GrevDadProfileTilesResponse>(_json, cancellationToken)
+                      ?? throw new InvalidDataException("Grev.dad returned an empty profile tile sync response.");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("Grev.dad returned an incompatible profile tile sync response.", ex);
+        }
+        if (!response.IsSuccessStatusCode || !payload.Ok)
+        {
+            throw new InvalidOperationException(
+                string.IsNullOrWhiteSpace(payload.Message)
+                    ? $"Grev.dad profile tile sync failed with HTTP {(int)response.StatusCode}."
+                    : payload.Message);
+        }
+        if (payload.ApiVersion != GrevDadAccountService.SupportedApiVersion)
+        {
+            throw new InvalidDataException(
+                $"Grev.dad profile tile sync API {payload.ApiVersion} is not compatible with Grev Home API {GrevDadAccountService.SupportedApiVersion}.");
+        }
+        return payload;
+    }
+
+    private static GrevDadProfileTileWire ToWireTile(ProfileTile tile, string? backgroundMediaDataUrl) => new(
+        tile.TileId, tile.Kind.ToString().ToLowerInvariant(), tile.X, tile.Y, tile.Width, tile.Height,
+        tile.Title, tile.Body, tile.LinkLabel, tile.LinkUrl, tile.StatValue,
+        tile.BackgroundType.ToString().ToLowerInvariant(), tile.BackgroundPrimary, tile.BackgroundSecondary, tile.BackgroundAngle,
+        backgroundMediaDataUrl, tile.MediaFit.ToString().ToLowerInvariant(), tile.MediaOverlay.ToString().ToLowerInvariant(),
+        tile.TextColour, tile.BorderColour, tile.FontFamily.ToString().ToLowerInvariant());
+
+    private static ProfileTile FromWireTile(GrevDadProfileTileWire wire, string? backgroundMediaFile) => new(
+        wire.TileId,
+        Enum.Parse<ProfileTileKind>(wire.TileType, ignoreCase: true),
+        wire.X, wire.Y, wire.Width, wire.Height,
+        wire.Title, wire.Body, wire.LinkLabel, wire.LinkUrl, wire.StatValue,
+        Enum.Parse<ProfileTileBackgroundType>(wire.BackgroundType, ignoreCase: true),
+        wire.BackgroundPrimary, wire.BackgroundSecondary, wire.BackgroundAngle,
+        backgroundMediaFile,
+        Enum.Parse<ProfileTileMediaFit>(wire.MediaFit, ignoreCase: true),
+        Enum.Parse<ProfileTileMediaOverlay>(wire.MediaOverlay, ignoreCase: true),
+        wire.TextColour, wire.BorderColour,
+        Enum.Parse<ProfileTileFontFamily>(wire.FontFamily, ignoreCase: true));
 
     private async Task<GrevDadSyncApiResponse> SendBatchAsync(
         string grevId,

@@ -191,7 +191,15 @@ public static class ProfileMediaDataUrl
     public static string? TryRead(AppPaths paths, string grevId, string? fileName)
     {
         if (string.IsNullOrWhiteSpace(fileName)) return null;
-        var mime = Path.GetExtension(fileName).ToLowerInvariant() switch
+        return TryReadFile(Path.Combine(paths.GetProfileRoot(grevId), Path.GetFileName(fileName)));
+    }
+
+    /// <summary>Same conversion as <see cref="TryRead"/>, for a caller that already has the full
+    /// path rather than a GrevID + file name resolved against GetProfileRoot - e.g. a tile's
+    /// picture, which lives under ProfileTileService.GetMediaRoot instead.</summary>
+    public static string? TryReadFile(string path)
+    {
+        var mime = Path.GetExtension(path).ToLowerInvariant() switch
         {
             ".png" => "image/png", ".jpg" or ".jpeg" => "image/jpeg",
             ".gif" => "image/gif", ".webp" => "image/webp", ".bmp" => "image/bmp", _ => null
@@ -199,7 +207,6 @@ public static class ProfileMediaDataUrl
         if (mime is null) return null;
         try
         {
-            var path = Path.Combine(paths.GetProfileRoot(grevId), Path.GetFileName(fileName));
             var info = new FileInfo(path);
             if (!info.Exists) throw new IOException("The profile image could not be found.");
             lock (CacheGate)
