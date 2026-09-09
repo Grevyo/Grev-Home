@@ -80,14 +80,20 @@ public sealed class ProfileTileGridEditor
     /// (so "add tile" while browsing an empty spot puts it right there, matching where the cursor
     /// visually is) or at the first free cell elsewhere on the grid otherwise, then immediately
     /// enters Holding on it so it can be repositioned without a second Accept. Returns null - and
-    /// changes nothing - when the grid genuinely has no room left for a tile of that size.</summary>
+    /// changes nothing - when the profile already has 40 tiles or the grid has no room left.</summary>
     public ProfileTile? AddTile(ProfileTileKind kind, int width, int height)
     {
-        var atCursor = new ProfileTile(Guid.NewGuid().ToString(), kind, CursorX, CursorY, width, height);
+        if (_tiles.Count >= ProfileTileGrid.MaxTiles) return null;
+
+        // Use the canonical dashed UUID format accepted by both ProfileTileGrid.Validate and
+        // grev.dad's UUID_RE. Passing it into FindFreePlacement avoids that helper's legacy
+        // Guid "N" fallback ever leaking an invalid tile ID into a real editor flow.
+        var tileId = Guid.NewGuid().ToString();
+        var atCursor = new ProfileTile(tileId, kind, CursorX, CursorY, width, height);
         var placement =
             ProfileTileGrid.InBounds(atCursor) && !_tiles.Any(other => ProfileTileGrid.Overlaps(atCursor, other))
                 ? atCursor
-                : ProfileTileGrid.FindFreePlacement(_tiles, kind, width, height);
+                : ProfileTileGrid.FindFreePlacement(_tiles, kind, width, height, tileId);
         if (placement is null) return null;
 
         _tiles.Add(placement);
@@ -158,6 +164,19 @@ public sealed class ProfileTileGridEditor
         return true;
     }
 
+    /// <summary>Replaces the selected tile's content/style without changing its identity or grid
+    /// selection state. The caller can edit text/media/style while the grid editor remains the
+    /// single owner of position, size and selection.</summary>
+    public bool UpdateActiveTile(ProfileTile updated)
+    {
+        if (ActiveTile is null || Mode == ProfileTileEditorMode.Browsing) return false;
+        if (!string.Equals(updated.TileId, ActiveTile.TileId, StringComparison.OrdinalIgnoreCase)) return false;
+        if (!ProfileTileGrid.InBounds(updated)) return false;
+        if (_tiles.Any(other => other.TileId != updated.TileId && ProfileTileGrid.Overlaps(updated, other))) return false;
+        ReplaceActiveTile(updated);
+        return true;
+    }
+
     /// <summary>Deletes the currently-held tile and returns to Browsing. Only valid while Holding -
     /// grev.dad's own tile settings only offer Remove once a tile is selected/open, not mid-resize,
     /// and this matches that.</summary>
@@ -215,7 +234,8 @@ public sealed class ProfileTileGridEditor
 
     private void ReplaceActiveTile(ProfileTile updated)
     {
-        var index = _tiles.FindIndex(tile => tile.TileId == ActiveTile!.TileId);
+        var index = _tiles.FindIndex(tile => ActiveTile is not null &&
+            string.Equals(tile.TileId, ActiveTile.TileId, StringComparison.OrdinalIgnoreCase));
         if (index >= 0) _tiles[index] = updated;
         ActiveTile = updated;
     }
