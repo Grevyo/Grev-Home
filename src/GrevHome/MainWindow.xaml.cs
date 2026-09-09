@@ -216,7 +216,10 @@ public partial class MainWindow : Window
     {
         try
         {
-            await _machineDefaults.SaveAsync(result.GamesRoot, result.BiosRoot);
+            await _machineDefaults.SaveAsync(
+                result.GamesRoot,
+                result.BiosRoot,
+                result.AdditionalGamesRoots);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -900,6 +903,9 @@ public partial class MainWindow : Window
     {
         switch (_navigation.Current)
         {
+            case Route.FirstRunSetup:
+                _firstRunSetupView.HandleBack();
+                break;
             case Route.Dashboard:
                 break;
             case Route.CreateProfile:
