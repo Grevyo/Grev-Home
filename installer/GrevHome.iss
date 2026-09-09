@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.14.7"
+#define MyAppVersion "0.14.8"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -134,7 +134,7 @@ begin
     'Select your existing folder or keep the standard Grev Home location.',
     'Grev Home will use this as the default location for scanning and emulator configuration.',
     False, '');
-  GamesFolderPage.Add(ExpandConstant('{app}\Games'));
+  GamesFolderPage.Add('C:\GrevCo\GrevHome\Games');
 
   BiosPage := CreateInputOptionPage(GamesFolderPage.ID,
     'Do you already have a BIOS folder?',
@@ -150,7 +150,7 @@ begin
     'Select your existing folder or keep the standard Grev Home location.',
     'This shared location will be supplied to supported emulators during setup.',
     False, '');
-  BiosFolderPage.Add(ExpandConstant('{app}\bios'));
+  BiosFolderPage.Add('C:\GrevCo\GrevHome\bios');
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
