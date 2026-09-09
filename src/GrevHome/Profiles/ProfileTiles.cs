@@ -336,7 +336,40 @@ public sealed class ProfileTileService
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
+        CleanUpOrphanedMedia(grevId, tiles);
         return layout;
+    }
+
+    /// <summary>
+    /// Deletes every file under GetMediaRoot that is no longer referenced by any tile.
+    ///
+    /// A pulled sync and a manual media picker change both write a *new* file with a fresh GUID
+    /// name for each save (see ProfileTileMediaConverter.SaveFromDataUrlAsync and
+    /// MainWindow.SelectProfileTileMedia) rather than overwriting the previous one in place - so
+    /// without this, replacing a tile's picture, or every sync pull that touches a media tile,
+    /// leaves the old file behind permanently. Session start already triggers a sync on every
+    /// launch (see MainWindow.ProfileTilesIntegration's _session.Changed handler), so this was an
+    /// unbounded, indefinitely-growing disk leak, not just a one-off.
+    ///
+    /// Runs after a successful save, so it only ever prunes state that is genuinely superseded -
+    /// never anything the layout being saved still points at.
+    /// </summary>
+    private void CleanUpOrphanedMedia(string grevId, IReadOnlyList<ProfileTile> tiles)
+    {
+        var mediaRoot = GetMediaRoot(grevId);
+        if (!Directory.Exists(mediaRoot)) return;
+        var referenced = new HashSet<string>(
+            tiles.Where(tile => !string.IsNullOrWhiteSpace(tile.BackgroundMediaFile))
+                 .Select(tile => Path.GetFileName(tile.BackgroundMediaFile)!),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in Directory.EnumerateFiles(mediaRoot))
+        {
+            if (referenced.Contains(Path.GetFileName(file))) continue;
+            try { File.Delete(file); }
+            catch (IOException) { /* still in use (e.g. a concurrent read) - swept on a later save */ }
+            catch (UnauthorizedAccessException) { /* same as above */ }
+        }
     }
 
     private ProfileTileLayout RecoverDefaults(string path, string reason)

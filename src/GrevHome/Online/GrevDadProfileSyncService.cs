@@ -89,6 +89,15 @@ public sealed class GrevDadProfileSyncService : IDisposable
     private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _profileGates =
         new(StringComparer.OrdinalIgnoreCase);
+    // Separate from _profileGates (progression/history sync) rather than sharing it: tile sync and
+    // progression sync are independent concerns, and serialising them together would make one wait
+    // on the other with no benefit. SyncProfileTilesAsync can be triggered from three independent
+    // places (session start, opening the tile editor, saving it) with no natural ordering between
+    // them, so without a gate two concurrent calls can both read the same "local vs remote" stamps,
+    // both decide to push (harmless but wasteful), or a pull's multi-step write (media files, then
+    // the layout JSON) can interleave with a concurrent push reading a half-written local state.
+    private readonly ConcurrentDictionary<string, SemaphoreSlim> _tileGates =
+        new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
 
     public GrevDadProfileSyncService(
@@ -266,36 +275,45 @@ public sealed class GrevDadProfileSyncService : IDisposable
         var token = _secrets.Read(grevId, AccessCredentialSlot);
         if (string.IsNullOrWhiteSpace(token)) return;
 
-        var local = await _tiles.GetAsync(grevId, cancellationToken);
-        var remote = await FetchProfileTilesAsync(token, cancellationToken);
-        var remoteTiles = remote.Tiles ?? [];
-        var remoteStamp = remote.UpdatedAt ?? 0;
+        var gate = _tileGates.GetOrAdd(grevId, _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try
+        {
+            var local = await _tiles.GetAsync(grevId, cancellationToken);
+            var remote = await FetchProfileTilesAsync(token, cancellationToken);
+            var remoteTiles = remote.Tiles ?? [];
+            var remoteStamp = remote.UpdatedAt ?? 0;
 
-        var localStamp = local.UpdatedAtUtc?.ToUnixTimeSeconds() ?? 0;
-        if (remoteStamp > localStamp)
-        {
-            var mediaRoot = _tiles.GetMediaRoot(grevId);
-            var pulled = new List<ProfileTile>(remoteTiles.Count);
-            foreach (var wire in remoteTiles)
+            var localStamp = local.UpdatedAtUtc?.ToUnixTimeSeconds() ?? 0;
+            if (remoteStamp > localStamp)
             {
-                string? mediaFile = null;
-                if (!string.IsNullOrWhiteSpace(wire.BackgroundMedia))
+                var mediaRoot = _tiles.GetMediaRoot(grevId);
+                var pulled = new List<ProfileTile>(remoteTiles.Count);
+                foreach (var wire in remoteTiles)
                 {
-                    mediaFile = await ProfileTileMediaConverter.SaveFromDataUrlAsync(mediaRoot, wire.BackgroundMedia, cancellationToken);
+                    string? mediaFile = null;
+                    if (!string.IsNullOrWhiteSpace(wire.BackgroundMedia))
+                    {
+                        mediaFile = await ProfileTileMediaConverter.SaveFromDataUrlAsync(mediaRoot, wire.BackgroundMedia, cancellationToken);
+                    }
+                    pulled.Add(FromWireTile(wire, mediaFile));
                 }
-                pulled.Add(FromWireTile(wire, mediaFile));
+                await _tiles.SaveAsync(grevId, pulled, DateTimeOffset.FromUnixTimeSeconds(remoteStamp), cancellationToken);
             }
-            await _tiles.SaveAsync(grevId, pulled, DateTimeOffset.FromUnixTimeSeconds(remoteStamp), cancellationToken);
+            else if (localStamp > remoteStamp)
+            {
+                var mediaRoot = _tiles.GetMediaRoot(grevId);
+                var wireTiles = local.Tiles
+                    .Select(tile => ToWireTile(tile, ProfileTileMediaConverter.ReadAsDataUrl(mediaRoot, tile.BackgroundMediaFile)))
+                    .ToArray();
+                await PushProfileTilesAsync(token, wireTiles, cancellationToken);
+            }
+            // Equal (including both empty) - nothing to do.
         }
-        else if (localStamp > remoteStamp)
+        finally
         {
-            var mediaRoot = _tiles.GetMediaRoot(grevId);
-            var wireTiles = local.Tiles
-                .Select(tile => ToWireTile(tile, ProfileTileMediaConverter.ReadAsDataUrl(mediaRoot, tile.BackgroundMediaFile)))
-                .ToArray();
-            await PushProfileTilesAsync(token, wireTiles, cancellationToken);
+            gate.Release();
         }
-        // Equal (including both empty) - nothing to do.
     }
 
     private async Task<GrevDadProfileTilesResponse> FetchProfileTilesAsync(string token, CancellationToken cancellationToken)
@@ -537,5 +555,10 @@ public sealed class GrevDadProfileSyncService : IDisposable
             gate.Dispose();
         }
         _profileGates.Clear();
+        foreach (var gate in _tileGates.Values)
+        {
+            gate.Dispose();
+        }
+        _tileGates.Clear();
     }
 }
