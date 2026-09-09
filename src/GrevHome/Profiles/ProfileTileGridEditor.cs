@@ -139,7 +139,7 @@ public sealed class ProfileTileGridEditor
     {
         var (dx, dy) = Delta(direction);
         CursorX = Math.Clamp(CursorX + dx, 0, ProfileTileGrid.Columns - 1);
-        CursorY = Math.Clamp(CursorY + dy, 0, ProfileTileGrid.MaxRows - 1);
+        CursorY = Math.Clamp(CursorY + dy, 0, ProfileTileGrid.MaxGridY);
     }
 
     private void TryMoveHeldTile(InputAction direction)

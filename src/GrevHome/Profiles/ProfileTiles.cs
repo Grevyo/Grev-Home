@@ -90,18 +90,47 @@ public sealed record ProfileTileLayout(int SchemaVersion, IReadOnlyList<ProfileT
 }
 
 /// <summary>
-/// Pure grid math - placement, collision and compaction rules. No storage, no UI, so both the
-/// controller-first editor and the persistence service can share one definition of "valid layout"
-/// with grev.dad's rules (PROFILE_COLUMNS=8 / width 1-6 / height 1-4 in public/profile.js).
+/// Pure grid math - placement, collision and validation rules. No storage, no UI, so both the
+/// controller-first editor and the persistence service can share one definition of "valid layout".
+///
+/// This must be kept in lockstep with the server-side contract in src/profile.ts
+/// (tileFromInput/validPlacement/saveProfile) - that TS file is the authoritative contract; this
+/// is the C# mirror of it. See ProfileTiles.ContractParityTests for the checks that are meant to
+/// catch the two drifting apart again the way the kind enum drifted before this file existed.
 /// </summary>
 public static class ProfileTileGrid
 {
-    public const int Columns = 8;
-    public const int MaxRows = 200;
+    public const int Columns = 8; // GRID_COLUMNS
+    public const int MaxRows = 200; // MAX_GRID_Y (199) + 1
+    public const int MaxGridY = 199; // MAX_GRID_Y - a tile's Y itself must never exceed this
     public const int MinWidth = 1;
-    public const int MaxWidth = 6;
+    public const int MaxWidth = 6; // MAX_TILE_WIDTH
     public const int MinHeight = 1;
     public const int MaxHeight = 4;
+    public const int MaxTiles = 40; // MAX_TILES
+    public const int MaxTitleLength = 80;
+    public const int MaxBodyLength = 2000;
+    public const int MaxLinkLabelLength = 80;
+    public const int MaxLinkUrlLength = 500;
+    public const int MaxStatValueLength = 80;
+    public const int MinBackgroundAngle = 0;
+    public const int MaxBackgroundAngle = 360;
+    // MAX_MEDIA_BYTES in src/profile.ts, applied there to the tile's inline base64 data URL.
+    // ProfileTile stores media as a local file instead (see BackgroundMediaFile's doc comment), so
+    // this is enforced against that file's on-disk size in ProfileTileService.SaveAsync rather
+    // than here - Validate stays synchronous/IO-free, matching every other check in this class.
+    public const int MaxBackgroundMediaBytes = 1_400_000;
+
+    private static readonly System.Text.RegularExpressions.Regex UuidPattern = new(
+        "^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    private static readonly System.Text.RegularExpressions.Regex HexColourPattern = new(
+        "^#[0-9a-f]{6}$",
+        System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Compiled);
+
+    public static bool IsValidTileId(string? tileId) => tileId is not null && UuidPattern.IsMatch(tileId);
+    public static bool IsValidHexColour(string? value) => value is not null && HexColourPattern.IsMatch(value);
 
     public static bool Overlaps(ProfileTile a, ProfileTile b) =>
         a.X < b.X + b.Width && a.X + a.Width > b.X &&
@@ -110,7 +139,7 @@ public static class ProfileTileGrid
     public static bool InBounds(ProfileTile tile) =>
         tile.Width is >= MinWidth and <= MaxWidth &&
         tile.Height is >= MinHeight and <= MaxHeight &&
-        tile.X >= 0 && tile.Y >= 0 &&
+        tile.X >= 0 && tile.Y >= 0 && tile.Y <= MaxGridY &&
         tile.X + tile.Width <= Columns &&
         tile.Y + tile.Height <= MaxRows;
 
@@ -133,20 +162,58 @@ public static class ProfileTileGrid
     }
 
     /// <summary>Null when the layout is valid; otherwise a user-facing reason, same wording style as
-    /// grev.dad's tile validation so the same mistake reads the same way on both platforms.</summary>
+    /// grev.dad's tile validation so the same mistake reads the same way on both platforms. Mirrors
+    /// tileFromInput()/saveProfile() in src/profile.ts field for field - see the class doc comment.</summary>
     public static string? Validate(IReadOnlyList<ProfileTile> tiles)
     {
+        if (tiles.Count > MaxTiles) return $"A profile can have up to {MaxTiles} tiles.";
+
+        var seenIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var index = 0; index < tiles.Count; index++)
         {
             var tile = tiles[index];
+
+            if (!IsValidTileId(tile.TileId)) return "Every tile needs a valid ID.";
+            if (!seenIds.Add(tile.TileId)) return "The profile contains an invalid or duplicate tile.";
+
             if (!InBounds(tile)) return "Every tile must stay inside the profile grid.";
-            if (tile.Kind == ProfileTileKind.Link &&
-                (string.IsNullOrWhiteSpace(tile.LinkUrl) ||
-                 !(tile.LinkUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
-                   tile.LinkUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))))
+
+            if (tile.Title is { Length: > MaxTitleLength }) return "A tile title is too long.";
+            if (tile.Body is { Length: > MaxBodyLength }) return "A tile's text is too long.";
+            if (tile.LinkLabel is { Length: > MaxLinkLabelLength }) return "A tile's link label is too long.";
+            if (tile.LinkUrl is { Length: > MaxLinkUrlLength }) return "A tile's link is too long.";
+            if (tile.StatValue is { Length: > MaxStatValueLength }) return "A tile's stat value is too long.";
+
+            if (!IsValidHexColour(tile.BackgroundPrimary) || !IsValidHexColour(tile.BackgroundSecondary) ||
+                !IsValidHexColour(tile.TextColour) || !IsValidHexColour(tile.BorderColour))
             {
-                return "Every link tile needs a valid http:// or https:// URL.";
+                return "Every tile colour must be a valid #RRGGBB hex value.";
             }
+            if (tile.BackgroundAngle is < MinBackgroundAngle or > MaxBackgroundAngle)
+            {
+                return "A tile's gradient angle must be between 0 and 360 degrees.";
+            }
+            if (tile.BackgroundType == ProfileTileBackgroundType.Media && string.IsNullOrWhiteSpace(tile.BackgroundMediaFile))
+            {
+                return "Every picture/GIF background needs an uploaded picture.";
+            }
+
+            switch (tile.Kind)
+            {
+                case ProfileTileKind.Link:
+                    if (string.IsNullOrWhiteSpace(tile.LinkUrl) || !IsValidHttpUrl(tile.LinkUrl))
+                        return "Every link tile needs a valid http:// or https:// URL.";
+                    break;
+                case ProfileTileKind.Media:
+                    if (string.IsNullOrWhiteSpace(tile.BackgroundMediaFile))
+                        return "Every picture/GIF tile needs an uploaded picture.";
+                    break;
+                case ProfileTileKind.Stat:
+                    if (string.IsNullOrWhiteSpace(tile.StatValue))
+                        return "Every stat tile needs a value.";
+                    break;
+            }
+
             for (var other = 0; other < index; other++)
             {
                 if (Overlaps(tile, tiles[other])) return "Profile tiles cannot overlap each other.";
@@ -154,6 +221,10 @@ public static class ProfileTileGrid
         }
         return null;
     }
+
+    private static bool IsValidHttpUrl(string value) =>
+        Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+        (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps);
 
     /// <summary>
     /// Repacks tiles that have drifted into an invalid/overlapping state (e.g. after a schema
@@ -224,6 +295,21 @@ public sealed class ProfileTileService
         var error = ProfileTileGrid.Validate(tiles);
         if (error is not null) throw new InvalidOperationException(error);
 
+        // Mirrors src/profile.ts checking dataUrlByteLength(tile.backgroundMedia) against
+        // MAX_MEDIA_BYTES per tile. This side stores media as a file (see BackgroundMediaFile's
+        // doc comment) rather than an inline data URL, so it checks the file's size on disk
+        // instead - an I/O-bound check, which is why it lives here rather than in the synchronous,
+        // IO-free ProfileTileGrid.Validate.
+        foreach (var tile in tiles)
+        {
+            if (string.IsNullOrWhiteSpace(tile.BackgroundMediaFile)) continue;
+            var mediaPath = Path.Combine(GetMediaRoot(grevId), Path.GetFileName(tile.BackgroundMediaFile));
+            var info = new FileInfo(mediaPath);
+            if (!info.Exists) throw new InvalidOperationException("A tile's picture could not be found.");
+            if (info.Length > ProfileTileGrid.MaxBackgroundMediaBytes)
+                throw new InvalidOperationException("A tile's picture must be no more than 1.4 MB.");
+        }
+
         var layout = new ProfileTileLayout(ProfileTileLayout.CurrentSchemaVersion, tiles);
         var path = GetLayoutFile(grevId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
@@ -259,4 +345,7 @@ public sealed class ProfileTileService
 
     private string GetLayoutFile(string grevId) =>
         Path.Combine(_paths.GetProfilePresentation(grevId), "ProfileTiles", "tiles.json");
+
+    private string GetMediaRoot(string grevId) =>
+        Path.Combine(_paths.GetProfilePresentation(grevId), "ProfileTiles", "Media");
 }
