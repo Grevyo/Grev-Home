@@ -100,7 +100,6 @@ try
     editor.HandleInput(InputAction.Accept);
     Check(editor.Tiles.First(t => t.TileId == a.TileId).Width == 3, "resize commits");
 
-    // Force AddTile to use first-free fallback and verify the generated ID remains server-valid.
     var fallbackEditor = new ProfileTileGridEditor([BaseTile(x: 0, y: 0, width: 1, height: 1)]);
     var added = fallbackEditor.AddTile(ProfileTileKind.Text, 1, 1);
     Check(added is not null, "fallback add should find a free cell");
@@ -113,6 +112,30 @@ try
     Check(saved.Tiles.Count == 2, "SaveAsync returns saved layout");
     var reloaded = await service.GetAsync(grevId);
     Check(reloaded.Tiles.Count == 2, "GetAsync round-trips saved layout");
+
+    var styled = BaseTile() with
+    {
+        Title = "Styled",
+        Body = "Same fields as grev.dad",
+        BackgroundType = ProfileTileBackgroundType.Gradient,
+        BackgroundPrimary = "#123456",
+        BackgroundSecondary = "#abcdef",
+        BackgroundAngle = 225,
+        MediaFit = ProfileTileMediaFit.Contain,
+        MediaOverlay = ProfileTileMediaOverlay.Light,
+        TextColour = "#fedcba",
+        BorderColour = "#654321",
+        FontFamily = ProfileTileFontFamily.Mono
+    };
+    await service.SaveAsync(grevId, [styled]);
+    var styledReloaded = (await service.GetAsync(grevId)).Tiles.Single();
+    Check(styledReloaded.Body == styled.Body, "tile body must round-trip");
+    Check(styledReloaded.BackgroundType == ProfileTileBackgroundType.Gradient, "background type must round-trip");
+    Check(styledReloaded.BackgroundPrimary == "#123456" && styledReloaded.BackgroundSecondary == "#abcdef", "gradient colours must round-trip");
+    Check(styledReloaded.BackgroundAngle == 225, "gradient angle must round-trip");
+    Check(styledReloaded.MediaFit == ProfileTileMediaFit.Contain && styledReloaded.MediaOverlay == ProfileTileMediaOverlay.Light, "media presentation must round-trip");
+    Check(styledReloaded.TextColour == "#fedcba" && styledReloaded.BorderColour == "#654321", "text and border colours must round-trip");
+    Check(styledReloaded.FontFamily == ProfileTileFontFamily.Mono, "font family must round-trip");
 
     var invalid = new List<ProfileTile> { BaseTile(x: 0, width: 2), BaseTile(x: 1, width: 2) };
     var threw = false;
@@ -136,6 +159,16 @@ try
     await File.WriteAllBytesAsync(okPath, new byte[1024]);
     var withMedia = await service.SaveAsync(grevId, [BaseTile(kind: ProfileTileKind.Media) with { BackgroundMediaFile = "fine.png" }]);
     Check(withMedia.Tiles.Single().BackgroundMediaFile == "fine.png", "valid media persists");
+
+    var gifBytes = Convert.FromBase64String("R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==");
+    var gifPath = Path.Combine(mediaRoot, "animated.gif");
+    await File.WriteAllBytesAsync(gifPath, gifBytes);
+    var gifDataUrl = ProfileTileMediaConverter.ReadAsDataUrl(mediaRoot, "animated.gif");
+    Check(gifDataUrl?.StartsWith("data:image/gif;base64,", StringComparison.Ordinal) == true,
+        "animated GIF sync must keep the image/gif MIME type");
+    var gifPayload = gifDataUrl![(gifDataUrl.IndexOf(',') + 1)..];
+    Check(Convert.FromBase64String(gifPayload).SequenceEqual(gifBytes),
+        "animated GIF sync must preserve the original bytes rather than flattening to PNG");
 
     Console.WriteLine("Profile tile tests passed.");
 }
