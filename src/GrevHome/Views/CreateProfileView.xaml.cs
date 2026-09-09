@@ -1,6 +1,8 @@
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Profiles;
+using GrevHome.Online;
+using System.Windows.Media;
 
 namespace GrevHome.Views;
 
@@ -12,10 +14,18 @@ public partial class CreateProfileView : UserControl
     public event EventHandler? CancelRequested;
     public event EventHandler? KeyboardOpened;
     public event EventHandler? KeyboardClosed;
+    public event Action<LocalProfile>? OpenGrevDadRequested;
+    public event Action<LocalProfile>? GenerateGrevDadCodeRequested;
+    public event Action<LocalProfile, GrevDadLinkStart>? OpenGrevDadApprovalRequested;
+    public event Action<LocalProfile>? CheckGrevDadApprovalRequested;
+    public event EventHandler? OnboardingFinished;
+    public event Action<LocalProfile>? OnboardingSkipped;
 
     private AccountRole _selectedRole = AccountRole.Admin;
     private bool _firstProfile;
     private bool _openKeyboardWhenLoaded;
+    private LocalProfile? _createdProfile;
+    private GrevDadLinkStart? _grevDadLink;
 
     public bool IsKeyboardOpen => KeyboardOverlay.IsOpen;
 
@@ -43,6 +53,10 @@ public partial class CreateProfileView : UserControl
     public void Reset(bool firstProfile = false)
     {
         _firstProfile = firstProfile;
+        _createdProfile = null;
+        _grevDadLink = null;
+        AccountDetailsStep.Visibility = Visibility.Visible;
+        GrevDadLinkStep.Visibility = Visibility.Collapsed;
         ProfileNameTextBox.Clear();
         _selectedRole = AccountRole.Admin;
         AdminRoleButton.IsEnabled = true;
@@ -56,6 +70,49 @@ public partial class CreateProfileView : UserControl
     }
 
     public void ShowError(string message) => StatusText.Text = message;
+
+    public void ShowGrevDadStep(LocalProfile profile)
+    {
+        _createdProfile = profile;
+        AccountDetailsStep.Visibility = Visibility.Collapsed;
+        GrevDadLinkStep.Visibility = Visibility.Visible;
+        GrevDadCodeText.Text = string.Empty;
+        GrevDadOnboardingStatus.Text = $"{profile.DisplayName} has been created locally. Linking is optional and can also be done later from Edit Profile.";
+        GenerateGrevDadCodeButton.Visibility = Visibility.Visible;
+        OpenGrevDadApprovalButton.Visibility = Visibility.Collapsed;
+        CheckGrevDadApprovalButton.Visibility = Visibility.Collapsed;
+        FinishGrevDadButton.Visibility = Visibility.Collapsed;
+        SkipGrevDadButton.Visibility = Visibility.Visible;
+        Dispatcher.BeginInvoke(new Action(()=>OpenGrevDadButton.Focus()));
+    }
+
+    public void ShowGrevDadCode(GrevDadLinkStart link)
+    {
+        _grevDadLink = link;
+        GrevDadCodeText.Text = $"Approval code: {link.UserCode}";
+        GrevDadOnboardingStatus.Text = "Approve this code on the signed-in Grev.dad account, then choose Check approval.";
+        GenerateGrevDadCodeButton.Visibility = Visibility.Collapsed;
+        OpenGrevDadApprovalButton.Visibility = Visibility.Visible;
+        CheckGrevDadApprovalButton.Visibility = Visibility.Visible;
+        var green = new SolidColorBrush(Color.FromRgb(24,105,57));
+        OpenGrevDadApprovalButton.Background = green;
+        CheckGrevDadApprovalButton.Background = green;
+        CheckGrevDadApprovalButton.Focus();
+    }
+
+    public void ShowGrevDadOnboardingStatus(string message) => GrevDadOnboardingStatus.Text = message;
+
+    public void ShowGrevDadLinked(string accountName)
+    {
+        GrevDadCodeText.Text = "Connected";
+        GrevDadOnboardingStatus.Text = $"Linked to {accountName}. Shared account data is now being downloaded.";
+        GenerateGrevDadCodeButton.Visibility = Visibility.Collapsed;
+        OpenGrevDadApprovalButton.Visibility = Visibility.Collapsed;
+        CheckGrevDadApprovalButton.Visibility = Visibility.Collapsed;
+        SkipGrevDadButton.Visibility = Visibility.Collapsed;
+        FinishGrevDadButton.Visibility = Visibility.Visible;
+        FinishGrevDadButton.Focus();
+    }
 
     public void CancelKeyboard() => KeyboardOverlay.Cancel();
 
@@ -101,4 +158,15 @@ public partial class CreateProfileView : UserControl
 
     private void Cancel_Click(object sender, RoutedEventArgs e) =>
         CancelRequested?.Invoke(this, EventArgs.Empty);
+
+    private void OpenGrevDad_Click(object sender, RoutedEventArgs e) { if(_createdProfile is { } profile) OpenGrevDadRequested?.Invoke(profile); }
+    private void GenerateGrevDadCode_Click(object sender, RoutedEventArgs e) { if(_createdProfile is { } profile) GenerateGrevDadCodeRequested?.Invoke(profile); }
+    private void OpenGrevDadApproval_Click(object sender, RoutedEventArgs e) { if(_createdProfile is { } profile && _grevDadLink is { } link) OpenGrevDadApprovalRequested?.Invoke(profile,link); }
+    private void CheckGrevDadApproval_Click(object sender, RoutedEventArgs e) { if(_createdProfile is { } profile) CheckGrevDadApprovalRequested?.Invoke(profile); }
+    private void SkipGrevDad_Click(object sender, RoutedEventArgs e)
+    {
+        if (_createdProfile is { } profile) OnboardingSkipped?.Invoke(profile);
+        else OnboardingFinished?.Invoke(this,EventArgs.Empty);
+    }
+    private void FinishGrevDad_Click(object sender, RoutedEventArgs e) => OnboardingFinished?.Invoke(this,EventArgs.Empty);
 }

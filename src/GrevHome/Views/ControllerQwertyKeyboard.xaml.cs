@@ -1,5 +1,7 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using GrevHome.Input;
 
 namespace GrevHome.Views;
 
@@ -8,6 +10,8 @@ public partial class ControllerQwertyKeyboard : UserControl
     private readonly List<Button> _keyButtons = new();
     private bool _upperCase = true;
     private int _maxLength = 50;
+    private bool _password;
+    private bool _symbols;
 
     public event Action<string>? Completed;
     public event EventHandler? Cancelled;
@@ -23,18 +27,79 @@ public partial class ControllerQwertyKeyboard : UserControl
         BuildKeyboard();
     }
 
-    public void Open(string title, string initialValue, int maxLength)
+    public void Open(string title, string? initialValue, int maxLength, bool password = false)
     {
+        _password = password;
+        _symbols = false;
+        const string letters="1234567890QWERTYUIOPASDFGHJKLZXCVBNM";
+        for(var i=0;i<_keyButtons.Count;i++) _keyButtons[i].Tag=letters[i];
         _maxLength = Math.Max(1, maxLength);
-        Value = (initialValue ?? string.Empty).Length > _maxLength
-            ? initialValue[.._maxLength]
-            : initialValue ?? string.Empty;
+        var safeInitialValue = initialValue ?? string.Empty;
+        Value = safeInitialValue.Length > _maxLength
+            ? safeInitialValue[.._maxLength]
+            : safeInitialValue;
         _upperCase = true;
         TitleText.Text = title;
         Visibility = Visibility.Visible;
         UpdatePresentation();
         Opened?.Invoke(this, EventArgs.Empty);
-        Dispatcher.BeginInvoke(new Action(() => _keyButtons.FirstOrDefault()?.Focus()));
+        Dispatcher.BeginInvoke(new Action(FocusInitial));
+    }
+
+    public void FocusInitial()
+    {
+        var first = _keyButtons.FirstOrDefault(button => button.IsVisible && button.IsEnabled);
+        if (first is null)
+        {
+            return;
+        }
+
+        if (!first.Focus())
+        {
+            Dispatcher.BeginInvoke(new Action(() => first.Focus()));
+        }
+    }
+
+    /// <summary>
+    /// Owns controller navigation while this keyboard is visible. The MainWindow shell routes all
+    /// controller actions here before normal page/header navigation, so the form behind a keyboard
+    /// cannot accidentally keep moving or activating controls.
+    /// </summary>
+    public bool HandleControllerInput(InputAction action)
+    {
+        if (!IsOpen)
+        {
+            return false;
+        }
+
+        if (!IsKeyboardFocusWithin)
+        {
+            FocusInitial();
+        }
+
+        switch (action)
+        {
+            case InputAction.Up:
+                MoveFocus(FocusNavigationDirection.Up);
+                break;
+            case InputAction.Down:
+                MoveFocus(FocusNavigationDirection.Down);
+                break;
+            case InputAction.Left:
+                MoveFocus(FocusNavigationDirection.Left);
+                break;
+            case InputAction.Right:
+                MoveFocus(FocusNavigationDirection.Right);
+                break;
+            case InputAction.Accept:
+                ActivateFocusedButton();
+                break;
+            case InputAction.Back:
+                Cancel();
+                break;
+        }
+
+        return true;
     }
 
     public void Cancel()
@@ -140,12 +205,41 @@ public partial class ControllerQwertyKeyboard : UserControl
     private void Close()
     {
         Visibility = Visibility.Collapsed;
+        if (_password) { Value=string.Empty; ValueText.Text=string.Empty; }
         Closed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void Symbols_Click(object sender, RoutedEventArgs e)
+    {
+        _symbols=!_symbols;
+        const string letters="1234567890QWERTYUIOPASDFGHJKLZXCVBNM";
+        const string symbols="!@#$%^&*()_+-=[]{};:'\"\\|,.<>/?`~012345";
+        for(var i=0;i<_keyButtons.Count;i++) _keyButtons[i].Tag=_symbols?symbols[i]:letters[i];
+        UpdatePresentation();
+    }
+
+    private static void MoveFocus(FocusNavigationDirection direction)
+    {
+        if (Keyboard.FocusedElement is UIElement focused)
+        {
+            focused.MoveFocus(new TraversalRequest(direction));
+        }
+    }
+
+    private void ActivateFocusedButton()
+    {
+        if (!IsKeyboardFocusWithin || Keyboard.FocusedElement is not Button button || !button.IsEnabled)
+        {
+            FocusInitial();
+            return;
+        }
+
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
     }
 
     private void UpdatePresentation()
     {
-        ValueText.Text = string.IsNullOrEmpty(Value) ? " " : Value;
+        ValueText.Text = string.IsNullOrEmpty(Value) ? " " : _password ? new string('•',Value.Length) : Value;
         ShiftButton.Content = _upperCase ? "Shift • ABC" : "Shift • abc";
 
         foreach (var button in _keyButtons)

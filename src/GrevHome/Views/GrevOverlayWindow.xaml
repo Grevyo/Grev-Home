@@ -7,52 +7,71 @@
         WindowState="Maximized"
         AllowsTransparency="True"
         Background="Transparent"
+        Foreground="White"
         ShowInTaskbar="False"
         Topmost="True"
         PreviewKeyDown="Window_PreviewKeyDown">
-    <Grid Background="#A6000000">
-        <Border Width="860"
+    <Grid x:Name="OverlayBackdrop" Background="#B8000000" Opacity="1">
+        <Border x:Name="OverlayCard" Width="1040"
                 MaxHeight="820"
-                Padding="34"
+                Padding="30"
                 HorizontalAlignment="Center"
                 VerticalAlignment="Center"
-                Background="#F2171B25"
-                BorderBrush="#52617D"
-                BorderThickness="1"
-                CornerRadius="22">
+                Background="#FA171B25"
+                BorderBrush="#7180A3"
+                BorderThickness="2"
+                CornerRadius="22" RenderTransformOrigin="0.5,0.5">
+            <Border.RenderTransform>
+                <ScaleTransform x:Name="OverlayCardScale" ScaleX="1" ScaleY="1" />
+            </Border.RenderTransform>
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <TextBlock x:Name="TitleText"
                            Grid.Row="0"
                            Text="GREV OVERLAY"
-                           FontSize="34"
-                           FontWeight="SemiBold" />
+                           Foreground="White"
+                           FontSize="32"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
 
                 <TextBlock x:Name="SubtitleText"
                            Grid.Row="1"
-                           Margin="0,8,0,24"
-                           Foreground="{StaticResource MutedBrush}"
+                           Margin="0,7,0,18"
+                           Foreground="#E2E7F0"
                            FontSize="15"
                            TextWrapping="Wrap" />
 
-                <ScrollViewer Grid.Row="2"
-                              MaxHeight="560"
-                              VerticalScrollBarVisibility="Auto">
+                <ScrollViewer x:Name="ContentScrollViewer"
+                              Grid.Row="2"
+                              MaxHeight="520"
+                              HorizontalScrollBarVisibility="Disabled"
+                              VerticalScrollBarVisibility="Auto"
+                              PanningMode="VerticalOnly"
+                              CanContentScroll="False">
                     <StackPanel x:Name="ActionPanel" />
                 </ScrollViewer>
 
+                <UniformGrid x:Name="GuideActionPanel"
+                             Grid.Row="3"
+                             Rows="1"
+                             Margin="-5,18,-5,0"
+                             Visibility="Collapsed" />
+
                 <TextBlock x:Name="HintText"
-                           Grid.Row="3"
-                           Margin="0,24,0,0"
-                           Foreground="{StaticResource MutedBrush}"
+                           Grid.Row="4"
+                           Margin="0,16,0,0"
+                           Foreground="#EEF1F7"
                            Text="A Select   •   B Back / Resume"
-                           FontSize="13" />
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           TextWrapping="Wrap" />
             </Grid>
         </Border>
     </Grid>

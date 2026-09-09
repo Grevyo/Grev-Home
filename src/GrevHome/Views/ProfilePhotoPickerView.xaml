@@ -12,8 +12,9 @@
 
         <Grid Grid.Row="0">
             <StackPanel>
-                <TextBlock Text="Choose Profile Photo" FontSize="40" FontWeight="SemiBold" />
-                <TextBlock Text="Choose a PNG, JPG, JPEG or BMP image. Grev Home copies it into the profile so the original can move later."
+                <TextBlock x:Name="HeadingText" Text="Choose Profile Photo" FontSize="40" FontWeight="SemiBold" />
+                <TextBlock x:Name="DescriptionText"
+                           Text="Choose a PNG, JPG, JPEG or BMP image. Grev Home copies it into the profile so the original can move later."
                            Margin="0,6,0,18" FontSize="15" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
             </StackPanel>
         </Grid>

@@ -1,14 +1,17 @@
 <Window x:Class="GrevHome.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:GrevHome.Views"
         Title="Grev Home"
+        Icon="pack://application:,,,/Assets/Brand/GrevHomeLogo.png"
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowState="Maximized"
         Background="#090C12"
         Foreground="White"
         Loaded="Window_HeaderNavigationLoaded"
-        PreviewKeyDown="Window_PreviewKeyDown">
+        PreviewKeyDown="Window_PreviewKeyDown"
+        Closing="Window_Closing">
     <Grid KeyboardNavigation.DirectionalNavigation="Continue">
         <Grid.Background>
             <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
@@ -17,84 +20,408 @@
             </RadialGradientBrush>
         </Grid.Background>
 
-        <Grid.RowDefinitions>
-            <RowDefinition Height="82" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="44" />
-        </Grid.RowDefinitions>
+        <Image x:Name="DashboardArtworkBackground"
+               IsHitTestVisible="False"
+               Visibility="Collapsed"
+               Opacity="0"
+               Stretch="UniformToFill" />
 
-        <Border Grid.Row="0"
-                Background="#D90B0F17"
-                BorderBrush="#263044"
-                BorderThickness="0,0,0,1">
-            <Grid Margin="28,0" KeyboardNavigation.DirectionalNavigation="Continue">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="*" />
-                    <ColumnDefinition Width="Auto" />
-                    <ColumnDefinition Width="Auto" />
-                </Grid.ColumnDefinitions>
+        <Grid x:Name="AmbientBackgroundLayer" IsHitTestVisible="False" Opacity="0.42" ClipToBounds="True">
+            <Ellipse x:Name="AmbientGlowOne" Width="760" Height="760" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="-250,-330,0,0">
+                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#667EA6FF" Offset="0" /><GradientStop Color="#007EA6FF" Offset="1" /></RadialGradientBrush></Ellipse.Fill>
+                <Ellipse.RenderTransform><TranslateTransform x:Name="AmbientGlowOneTransform" /></Ellipse.RenderTransform>
+            </Ellipse>
+            <Ellipse x:Name="AmbientGlowTwo" Width="680" Height="680" HorizontalAlignment="Right" VerticalAlignment="Bottom" Margin="0,0,-230,-330">
+                <Ellipse.Fill><RadialGradientBrush><GradientStop Color="#554C20A0" Offset="0" /><GradientStop Color="#004C20A0" Offset="1" /></RadialGradientBrush></Ellipse.Fill>
+                <Ellipse.RenderTransform><TranslateTransform x:Name="AmbientGlowTwoTransform" /></Ellipse.RenderTransform>
+            </Ellipse>
+        </Grid>
 
-                <Button x:Name="ShellBackButton"
-                        Grid.Column="0"
-                        Content="← Back"
-                        Width="112"
-                        Height="48"
-                        Margin="0,0,14,0"
-                        VerticalAlignment="Center"
-                        IsEnabled="False"
-                        Click="ShellBack_Click" />
+        <Grid x:Name="ShellInteractionHost" KeyboardNavigation.DirectionalNavigation="Continue">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="82" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="44" />
+            </Grid.RowDefinitions>
 
-                <TextBlock Grid.Column="1"
-                           Text="GREV HOME"
+            <Border Grid.Row="0"
+                    Background="#D90B0F17"
+                    BorderBrush="#263044"
+                    BorderThickness="0,0,0,1">
+                <Grid Margin="28,0" KeyboardNavigation.DirectionalNavigation="Continue">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Button x:Name="ShellBackButton"
+                            Grid.Column="0"
+                            Content="← Back"
+                            Width="108"
+                            Height="48"
+                            Margin="0,0,14,0"
+                            VerticalAlignment="Center"
+                            Visibility="Collapsed"
+                            IsEnabled="False"
+                            Click="ShellBack_Click" />
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <Image Width="42"
+                               Height="42"
+                               Margin="0,0,10,0"
+                               Source="pack://application:,,,/Assets/Brand/GrevHomeLogo.png"
+                               Stretch="Uniform" />
+                        <TextBlock Text="GREV HOME"
+                                   VerticalAlignment="Center"
+                                   FontSize="18"
+                                   FontWeight="Bold"
+                                   Foreground="#C9D3E8" />
+                    </StackPanel>
+
+                    <Button x:Name="ShellFriendsButton" Grid.Column="3" Content="Friends" Width="112" Height="48" Margin="14,0,0,0" Visibility="Collapsed" Click="ShellFriends_Click" />
+
+                    <Button x:Name="ProfileBubbleButton"
+                            Grid.Column="4"
+                            Visibility="Collapsed"
+                            MinWidth="0"
+                            MaxWidth="520"
+                            Height="56"
+                            Margin="14,0,10,0"
+                            Padding="10,5"
+                            ClipToBounds="True"
+                            HorizontalContentAlignment="Left"
+                            VerticalAlignment="Center"
+                            Click="ShellProfileMenu_Click">
+                        <StackPanel x:Name="HeaderPlayersPanel"
+                                    Orientation="Horizontal"
+                                    VerticalAlignment="Center" />
+                    </Button>
+
+                    <Button x:Name="ShellSettingsButton"
+                            Grid.Column="5"
+                            Content="Settings"
+                            Width="118"
+                            Height="48"
+                            VerticalAlignment="Center"
+                            Click="ShellSettings_Click" />
+
+                    <Button x:Name="ShellPowerButton"
+                            Grid.Column="6"
+                            Content="⏻"
+                            Width="58"
+                            Height="Auto"
+                            MinHeight="50"
+                            Margin="10,0,0,0"
+                            Padding="8"
+                            VerticalAlignment="Center"
+                            FontSize="20"
+                            HorizontalContentAlignment="Center"
+                            VerticalContentAlignment="Center"
+                            Click="ShellPower_Click" />
+                </Grid>
+            </Border>
+
+            <ContentControl x:Name="RouteHost"
+                            Grid.Row="1"
+                            Focusable="False"
+                            KeyboardNavigation.DirectionalNavigation="Continue" />
+
+            <Grid Grid.Row="2" Margin="34,0">
+                <TextBlock Text="A / Enter  Select     B / Esc  Back"
                            VerticalAlignment="Center"
-                           FontSize="18"
-                           FontWeight="Bold"
-                           Foreground="#C9D3E8" />
+                           FontSize="12"
+                           Foreground="{StaticResource MutedBrush}" />
+                <TextBlock Text="Hold LB + RB + View to return to Grev Home"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           FontSize="12"
+                           Foreground="{StaticResource MutedBrush}" />
+            </Grid>
+        </Grid>
 
-                <Button x:Name="ProfileBubbleButton"
-                        Grid.Column="3"
+        <Border x:Name="PowerMenuOverlay"
+                Visibility="Collapsed"
+                Background="#88090C12"
+                Panel.ZIndex="90">
+            <Grid>
+                <Border x:Name="PowerMenuCard"
+                        Width="430"
+                        Margin="0,76,28,0"
+                        Padding="22"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Background="#11151E"
+                        BorderBrush="#3A465F"
+                        BorderThickness="1"
+                        CornerRadius="16">
+                    <Border.Resources>
+                        <Style x:Key="PowerMenuButtonStyle"
+                               TargetType="Button"
+                               BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Height" Value="Auto" />
+                            <Setter Property="MinHeight" Value="52" />
+                            <Setter Property="Padding" Value="16,10" />
+                            <Setter Property="ContentTemplate">
+                                <Setter.Value>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding}"
+                                                   TextWrapping="Wrap"
+                                                   TextAlignment="Center"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </DataTemplate>
+                                </Setter.Value>
+                            </Setter>
+                        </Style>
+                    </Border.Resources>
+
+                    <StackPanel>
+                        <TextBlock Text="POWER &amp; SYSTEM"
+                                   FontSize="13"
+                                   FontWeight="Bold"
+                                   Foreground="{StaticResource AccentBrush}"
+                                   Margin="0,0,0,14" />
+                        <TextBlock x:Name="PowerMenuStatusText"
+                                   Text=""
+                                   Visibility="Collapsed"
+                                   Margin="0,0,0,14"
+                                   FontSize="12"
+                                   Foreground="{StaticResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+
+                        <Button x:Name="PowerAppKillerButton"
+                                Content="App Killer"
+                                Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerAppKiller_Click" />
+                        <Button x:Name="PowerRunningAppsButton"
+                                Content="Running Apps"
+                                Margin="0,0,0,14"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerRunningApps_Click" />
+
+                        <Border Height="1" Background="#2B3344" Margin="0,0,0,14" />
+
+                        <Button x:Name="PowerSleepButton"
+                                Content="Sleep"
+                                Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerSleep_Click" />
+                        <Button x:Name="PowerRestartButton"
+                                Content="Restart"
+                                Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerRestart_Click" />
+                        <Button x:Name="PowerShutdownButton"
+                                Content="Shut Down"
+                                Margin="0,0,0,7"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerShutdown_Click" />
+                        <Button x:Name="PowerCloseGrevHomeButton"
+                                Content="Close Grev Home"
+                                Margin="0,0,0,14"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerCloseGrevHome_Click" />
+
+                        <Button x:Name="PowerMenuCancelButton"
+                                Content="Cancel"
+                                Style="{StaticResource PowerMenuButtonStyle}"
+                                Click="PowerMenuCancel_Click" />
+                    </StackPanel>
+                </Border>
+
+                <Border x:Name="ProfileQuickMenuCard"
+                        Width="680"
+                        MaxHeight="760"
+                        Margin="0,76,28,44"
+                        Padding="20"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Stretch"
                         Visibility="Collapsed"
-                        MinWidth="260"
-                        MaxWidth="620"
-                        Height="52"
-                        Margin="14,0,10,0"
-                        Padding="14,8"
-                        VerticalAlignment="Center"
-                        Click="ShellProfileMenu_Click">
-                    <TextBlock x:Name="ControllerStatusText"
-                               Text="No signed-in players"
-                               FontSize="13"
-                               TextTrimming="CharacterEllipsis"
-                               TextWrapping="NoWrap" />
-                </Button>
-
-                <Button x:Name="ShellSettingsButton"
-                        Grid.Column="4"
-                        Content="⚙ Settings"
-                        Width="132"
-                        Height="48"
-                        VerticalAlignment="Center"
-                        Click="ShellSettings_Click" />
+                        Background="#11151E"
+                        BorderBrush="#3A465F"
+                        BorderThickness="1"
+                        CornerRadius="16">
+                    <views:ProfileQuickMenuView x:Name="ProfileQuickMenu" />
+                </Border>
             </Grid>
         </Border>
 
-        <ContentControl x:Name="RouteHost"
-                        Grid.Row="1"
-                        Focusable="False"
-                        KeyboardNavigation.DirectionalNavigation="Continue" />
+        <Border x:Name="StoreModalOverlay"
+                Visibility="Collapsed"
+                Background="#E6090C12"
+                Panel.ZIndex="100">
+            <Grid>
+                <Border MinWidth="560"
+                        MaxWidth="820"
+                        MaxHeight="720"
+                        Margin="36"
+                        Style="{StaticResource ShellModalCardStyle}">
+                    <Grid KeyboardNavigation.DirectionalNavigation="Contained">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
 
-        <Grid Grid.Row="2" Margin="34,0">
-            <TextBlock Text="A / Enter  Select     B / Esc  Back"
-                       VerticalAlignment="Center"
-                       FontSize="12"
-                       Foreground="{StaticResource MutedBrush}" />
-            <TextBlock Text="Hold LB + RB + View to return to Grev Home"
-                       HorizontalAlignment="Right"
-                       VerticalAlignment="Center"
-                       FontSize="12"
-                       Foreground="{StaticResource MutedBrush}" />
-        </Grid>
+                        <TextBlock x:Name="StoreModalTitleText"
+                                   Grid.Row="0"
+                                   Text="Grev Store"
+                                   FontSize="30"
+                                   FontWeight="SemiBold"
+                                   HorizontalAlignment="Center"
+                                   TextAlignment="Center"
+                                   TextWrapping="Wrap" />
+
+                        <Grid Grid.Row="1" Margin="0,22,0,0">
+                            <!-- Progress text can grow or wrap without forcing the whole modal off-screen. -->
+                            <ScrollViewer Visibility="{Binding Visibility, ElementName=StoreProgressPanel}"
+                                          MaxHeight="500"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="StoreProgressPanel">
+                                    <TextBlock x:Name="StoreProgressStageText"
+                                               Text="Preparing"
+                                               FontSize="14"
+                                               FontWeight="Bold"
+                                               Foreground="{StaticResource AccentBrush}"
+                                               HorizontalAlignment="Center" />
+                                    <ProgressBar x:Name="StoreProgressBar"
+                                                 Height="24"
+                                                 Margin="0,16,0,0"
+                                                 Minimum="0"
+                                                 Maximum="100"
+                                                 Value="0" />
+                                    <TextBlock x:Name="StoreProgressPercentText"
+                                               Text="0%"
+                                               Margin="0,8,0,0"
+                                               FontSize="14"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="StoreProgressMessageText"
+                                               Text="Preparing operation…"
+                                               Margin="0,14,0,0"
+                                               FontSize="16"
+                                               Foreground="#D7DCE7"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                    <TextBlock Text="Grev Home is locked until this operation finishes. Do not close the app or interrupt the process."
+                                               Margin="0,16,0,0"
+                                               FontSize="13"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <!-- Warning information scrolls independently; its action footer never moves. -->
+                            <ScrollViewer Visibility="{Binding Visibility, ElementName=StoreWarningPanel}"
+                                          MaxHeight="430"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel x:Name="StoreWarningPanel" Visibility="Collapsed">
+                                    <TextBlock Text="All data associated with this app can be lost by performing this action. Make sure anything you want to keep is backed up before continuing."
+                                               FontSize="18"
+                                               FontWeight="SemiBold"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                    <TextBlock Text="Grev Home preserves profile-owned data where this package supports it, but a backup is the only safe guarantee."
+                                               Margin="0,14,0,0"
+                                               FontSize="14"
+                                               Foreground="{StaticResource MutedBrush}"
+                                               TextWrapping="Wrap"
+                                               TextAlignment="Center" />
+                                </StackPanel>
+                            </ScrollViewer>
+                        </Grid>
+
+                        <Border Grid.Row="2"
+                                Margin="0,20,0,0"
+                                Padding="0,14,0,0"
+                                BorderBrush="#2B3344"
+                                BorderThickness="0,1,0,0"
+                                Visibility="{Binding Visibility, ElementName=StoreWarningPanel}">
+                            <WrapPanel HorizontalAlignment="Center">
+                                <Button x:Name="StoreWarningCancelButton"
+                                        Content="Cancel"
+                                        Style="{StaticResource ShellModalActionButtonStyle}"
+                                        Click="StoreWarningCancel_Click" />
+                                <Button Content="UNINSTALL ANYWAY"
+                                        MinWidth="220"
+                                        Style="{StaticResource ShellModalDangerActionButtonStyle}"
+                                        Click="StoreWarningConfirm_Click" />
+                            </WrapPanel>
+                        </Border>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Border>
+
+        <Border x:Name="StartupIntroOverlay"
+                Background="#05070C"
+                Panel.ZIndex="500"
+                Focusable="False">
+            <Grid ClipToBounds="True">
+                <Ellipse x:Name="IntroOuterGlow"
+                         Width="560"
+                         Height="560"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center"
+                         Opacity="0">
+                    <Ellipse.Fill>
+                        <RadialGradientBrush>
+                            <GradientStop Color="#997EA6FF" Offset="0" />
+                            <GradientStop Color="#337EA6FF" Offset="0.42" />
+                            <GradientStop Color="#0005070C" Offset="1" />
+                        </RadialGradientBrush>
+                    </Ellipse.Fill>
+                    <Ellipse.RenderTransform>
+                        <ScaleTransform x:Name="IntroGlowScale" ScaleX="0.25" ScaleY="0.25" />
+                    </Ellipse.RenderTransform>
+                    <Ellipse.RenderTransformOrigin>0.5,0.5</Ellipse.RenderTransformOrigin>
+                </Ellipse>
+
+                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <Grid x:Name="IntroMark" Width="250" Height="250" HorizontalAlignment="Center" Opacity="0">
+                        <Grid.RenderTransform>
+                            <ScaleTransform x:Name="IntroMarkScale" ScaleX="0.55" ScaleY="0.55" />
+                        </Grid.RenderTransform>
+                        <Grid.RenderTransformOrigin>0.5,0.5</Grid.RenderTransformOrigin>
+                        <Image Source="pack://application:,,,/Assets/Brand/GrevHomeLogo.png"
+                               Stretch="Uniform" />
+                    </Grid>
+
+                    <TextBlock x:Name="IntroTitleText"
+                               Text="GREV HOME"
+                               Margin="0,24,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="48"
+                               FontWeight="Bold"
+                               Foreground="White"
+                               Opacity="0" />
+                    <Border x:Name="IntroLightBar"
+                            Width="0"
+                            Height="2"
+                            Margin="0,14,0,0"
+                            HorizontalAlignment="Center"
+                            Background="#7EA6FF" />
+                    <TextBlock x:Name="IntroTaglineText"
+                               Text="YOUR PC. YOUR WAY."
+                               Margin="0,13,0,0"
+                               HorizontalAlignment="Center"
+                               FontSize="13"
+                               FontWeight="SemiBold"
+                               Foreground="#AEBBD3"
+                               Opacity="0" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
 </Window>

@@ -9,6 +9,8 @@ namespace GrevHome.Profiles;
 
 public sealed class ProfileService
 {
+    public const string BuiltInGuestGrevId = "GREVHOME_GUEST";
+    public const string BuiltInGuestUsername = "__grevhome_builtin_guest__";
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
     public const int MaxBioLength = 160;
@@ -32,7 +34,120 @@ public sealed class ProfileService
         _paths = paths;
     }
 
-    public async Task<IReadOnlyList<LocalProfile>> GetProfilesAsync(CancellationToken cancellationToken = default)
+
+    // One gate per data root also protects username uniqueness and last-admin checks.
+    // Internal methods never reacquire it; reads may perform legacy metadata upgrades.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, SemaphoreSlim> Gates =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    private async Task<T> SerializedAsync<T>(Func<Task<T>> operation, CancellationToken cancellationToken)
+    {
+        var gate = Gates.GetOrAdd(Path.GetFullPath(_paths.Root), _ => new SemaphoreSlim(1, 1));
+        await gate.WaitAsync(cancellationToken);
+        try { return await operation(); }
+        finally { gate.Release(); }
+    }
+
+    public Task<LocalProfile> EnsureBuiltInGuestAsync(CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => EnsureBuiltInGuestCoreAsync(cancellationToken), cancellationToken);
+    public Task<IReadOnlyList<LocalProfile>> GetProfilesAsync(CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => GetProfilesCoreAsync(cancellationToken), cancellationToken);
+    public Task<LocalProfile> CreateAsync(string username, AccountRole role, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => CreateCoreAsync(username, role, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateDisplayNameAsync(string grevId, string displayName, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateDisplayNameCoreAsync(grevId, displayName, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateAvatarAsync(string grevId, string avatarKey, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateAvatarCoreAsync(grevId, avatarKey, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateRoleAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateRoleCoreAsync(grevId, role, cancellationToken), cancellationToken);
+    public Task<LocalProfile> UpdateProfileAsync(string grevId, string displayName, string avatarKey,
+        AccountRole? newRole, string? customAvatarSourcePath = null, string? bio = null,
+        string? statusMessage = null, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => UpdateProfileCoreAsync(grevId, displayName, avatarKey, newRole,
+            customAvatarSourcePath, bio, statusMessage, cancellationToken), cancellationToken);
+
+    public Task<LocalProfile> SetControllerPasswordAsync(string grevId, string password, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => SetControllerPasswordCoreAsync(grevId, password, cancellationToken), cancellationToken);
+    public Task<LocalProfile> ClearControllerPasswordAsync(string grevId, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => ClearControllerPasswordCoreAsync(grevId, cancellationToken), cancellationToken);
+
+    public bool VerifyControllerPassword(LocalProfile profile, string password)
+    {
+        if (!profile.HasControllerPassword) return true;
+        try
+        {
+            var salt = Convert.FromBase64String(profile.PasswordSalt!);
+            var expected = Convert.FromBase64String(profile.PasswordHash!);
+            var actual = System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(password, salt,
+                profile.PasswordIterations, System.Security.Cryptography.HashAlgorithmName.SHA256, expected.Length);
+            return System.Security.Cryptography.CryptographicOperations.FixedTimeEquals(actual, expected);
+        }
+        catch (FormatException) { return false; }
+    }
+
+    private async Task<LocalProfile> SetControllerPasswordCoreAsync(string grevId, string password, CancellationToken cancellationToken)
+    {
+        if (password.Length is < 4 or > 64) throw new InvalidOperationException("Controller passwords must be 4 to 64 characters.");
+        var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest does not use a password.");
+        var salt = System.Security.Cryptography.RandomNumberGenerator.GetBytes(16);
+        const int iterations = 210_000;
+        var hash = System.Security.Cryptography.Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations,
+            System.Security.Cryptography.HashAlgorithmName.SHA256, 32);
+        var updated = profile with { PasswordSalt = Convert.ToBase64String(salt), PasswordHash = Convert.ToBase64String(hash), PasswordIterations = iterations };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
+    private async Task<LocalProfile> ClearControllerPasswordCoreAsync(string grevId, CancellationToken cancellationToken)
+    {
+        var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        var updated = profile with { PasswordSalt = null, PasswordHash = null, PasswordIterations = 0 };
+        await WriteMetadataAsync(updated, cancellationToken);
+        return updated;
+    }
+
+    private async Task<LocalProfile> EnsureBuiltInGuestCoreAsync(CancellationToken cancellationToken = default)
+    {
+        var existing = await GetProfilesCoreAsync(cancellationToken);
+        var guest = existing.FirstOrDefault(profile => string.Equals(profile.GrevId, BuiltInGuestGrevId, StringComparison.OrdinalIgnoreCase));
+        var reservedUsername = BuiltInGuestUsername;
+        var suffix = 0;
+        while (existing.Any(profile => profile.GrevId != BuiltInGuestGrevId &&
+                   string.Equals(profile.Username, reservedUsername, StringComparison.OrdinalIgnoreCase)))
+            reservedUsername = BuiltInGuestUsername + (++suffix).ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (guest is not null)
+        {
+            var repaired = guest with
+            {
+                GrevId = BuiltInGuestGrevId,
+                Username = reservedUsername,
+                DisplayName = "Guest",
+                Role = AccountRole.Guest,
+                Bio = string.Empty,
+                StatusMessage = string.Empty,
+                IsBuiltInGuest = true,
+                PasswordSalt = null,
+                PasswordHash = null,
+                PasswordIterations = 0
+            };
+            if (repaired != guest) await WriteMetadataAsync(repaired, cancellationToken);
+            return repaired;
+        }
+
+        var profile = new LocalProfile(
+            BuiltInGuestGrevId,
+            reservedUsername,
+            "Guest",
+            DateTimeOffset.UtcNow,
+            AccountRole.Guest,
+            IsBuiltInGuest: true);
+        _paths.EnsureProfileLayout(profile.GrevId);
+        await WriteMetadataAsync(profile, cancellationToken);
+        return profile;
+    }
+
+    private async Task<IReadOnlyList<LocalProfile>> GetProfilesCoreAsync(CancellationToken cancellationToken = default)
     {
         _paths.EnsureMachineLayout();
         var profiles = new List<LocalProfile>();
@@ -51,13 +166,46 @@ public sealed class ProfileService
             {
                 await using var stream = File.OpenRead(metadataPath);
                 var profile = await JsonSerializer.DeserializeAsync<LocalProfile>(stream, _jsonOptions, cancellationToken);
-                if (profile is null || !string.Equals(folderName, profile.GrevId, StringComparison.OrdinalIgnoreCase)) continue;
+                if (profile is null || !string.Equals(folderName, profile.GrevId, StringComparison.OrdinalIgnoreCase))
+                {
+                    PreserveDamagedProfileMetadata(
+                        metadataPath,
+                        "Profile metadata is empty or its GrevID does not match the owning profile folder.");
+                    continue;
+                }
 
                 var needsUpgrade = false;
+                if (string.IsNullOrWhiteSpace(profile.Username) && string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    PreserveDamagedProfileMetadata(
+                        metadataPath,
+                        "Profile metadata contains neither a Username nor a DisplayName.");
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(profile.Username))
                 {
                     profile = profile with { Username = profile.DisplayName };
                     needsUpgrade = true;
+                }
+
+                if (string.IsNullOrWhiteSpace(profile.DisplayName))
+                {
+                    profile = profile with { DisplayName = profile.Username };
+                    needsUpgrade = true;
+                }
+
+                try
+                {
+                    _ = ValidateUsername(profile.Username);
+                    _ = ValidateDisplayName(profile.DisplayName);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    PreserveDamagedProfileMetadata(
+                        metadataPath,
+                        $"Profile identity failed validation: {ex.Message}");
+                    continue;
                 }
 
                 if (profile.Bio is null)
@@ -93,32 +241,47 @@ public sealed class ProfileService
                 profiles.Add(profile);
                 _paths.EnsureProfileLayout(profile.GrevId);
             }
-            catch (JsonException)
+            catch (JsonException ex)
             {
-                // A damaged profile must not prevent the rest of Grev Home from reaching Login.
+                PreserveDamagedProfileMetadata(
+                    metadataPath,
+                    $"Profile JSON could not be parsed: {ex.Message}");
             }
             catch (ArgumentException)
             {
                 // Invalid or legacy profile-folder identities are ignored rather than trusted as paths.
             }
+            catch (IOException)
+            {
+                // One unreadable/locked profile must not take down every other local account at Login.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Treat an inaccessible profile as unavailable rather than crashing the Grev Home shell.
+            }
         }
 
         return profiles
-            .OrderBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(profile => profile.IsBuiltInGuest)
+            .ThenBy(profile => profile.DisplayName, StringComparer.OrdinalIgnoreCase)
             .ThenBy(profile => profile.Username, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
-    public async Task<LocalProfile> CreateAsync(string username, AccountRole role, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> CreateCoreAsync(string username, AccountRole role, CancellationToken cancellationToken = default)
     {
         username = ValidateUsername(username);
-        var existing = await GetProfilesAsync(cancellationToken);
+        if (username.StartsWith(BuiltInGuestUsername, StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("That username is reserved for the built-in Guest.");
+        var existing = await GetProfilesCoreAsync(cancellationToken);
+        EnsureProfileIdentitySetHealthy(existing);
+
         if (existing.Any(profile => string.Equals(profile.Username, username, StringComparison.OrdinalIgnoreCase)))
         {
             throw new InvalidOperationException($"A local account with username '{username}' already exists.");
         }
 
-        if (existing.Count == 0) role = AccountRole.Admin;
+        if (existing.All(profile => profile.IsBuiltInGuest)) role = AccountRole.Admin;
 
         var grevId = CreateUniqueGrevId(username, existing);
         var profile = new LocalProfile(grevId, username, username, DateTimeOffset.UtcNow, role, ProfileAvatarCatalog.DefaultKey);
@@ -137,16 +300,17 @@ public sealed class ProfileService
         }
     }
 
-    public async Task<LocalProfile> UpdateDisplayNameAsync(string grevId, string displayName, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> UpdateDisplayNameCoreAsync(string grevId, string displayName, CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
         var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest name is fixed. Only its profile picture can be changed.");
         var updated = profile with { DisplayName = displayName };
         await WriteMetadataAsync(updated, cancellationToken);
         return updated;
     }
 
-    public async Task<LocalProfile> UpdateAvatarAsync(string grevId, string avatarKey, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> UpdateAvatarCoreAsync(string grevId, string avatarKey, CancellationToken cancellationToken = default)
     {
         var profile = await GetRequiredProfileAsync(grevId, cancellationToken);
         var normalized = ProfileAvatarCatalog.Normalize(avatarKey);
@@ -164,18 +328,20 @@ public sealed class ProfileService
         return updated;
     }
 
-    public async Task<LocalProfile> UpdateRoleAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default)
+    private async Task<LocalProfile> UpdateRoleCoreAsync(string grevId, AccountRole role, CancellationToken cancellationToken = default)
     {
-        var profiles = await GetProfilesAsync(cancellationToken);
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
+        EnsureProfileIdentitySetHealthy(profiles);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
+        if (profile.IsBuiltInGuest) throw new InvalidOperationException("The built-in Guest role is fixed.");
         EnsureRoleChangeIsSafe(profile, role, profiles);
         var updated = profile with { Role = role };
         await WriteMetadataAsync(updated, cancellationToken);
         return updated;
     }
 
-    public async Task<LocalProfile> UpdateProfileAsync(
+    private async Task<LocalProfile> UpdateProfileCoreAsync(
         string grevId,
         string displayName,
         string avatarKey,
@@ -186,13 +352,25 @@ public sealed class ProfileService
         CancellationToken cancellationToken = default)
     {
         displayName = ValidateDisplayName(displayName);
-        var profiles = await GetProfilesAsync(cancellationToken);
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
         var profile = profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
             ?? throw new InvalidOperationException("That local account does not exist.");
+
+        if (profile.IsBuiltInGuest)
+        {
+            displayName = profile.DisplayName;
+            newRole = AccountRole.Guest;
+            bio = profile.Bio;
+            statusMessage = profile.StatusMessage;
+        }
 
         var normalizedBio = bio is null ? profile.Bio : ValidateBio(bio);
         var normalizedStatusMessage = statusMessage is null ? profile.StatusMessage : ValidateStatusMessage(statusMessage);
         var role = newRole ?? profile.Role;
+        if (role != profile.Role)
+        {
+            EnsureProfileIdentitySetHealthy(profiles);
+        }
         EnsureRoleChangeIsSafe(profile, role, profiles);
 
         var normalizedAvatar = ProfileAvatarCatalog.Normalize(avatarKey);
@@ -308,9 +486,29 @@ public sealed class ProfileService
         }
     }
 
+    private void EnsureProfileIdentitySetHealthy(IReadOnlyCollection<LocalProfile> readableProfiles)
+    {
+        var persistentDirectories = Directory.EnumerateDirectories(_paths.Profiles)
+            .Where(directory => !Path.GetFileName(directory).StartsWith('_'))
+            .ToArray();
+
+        if (persistentDirectories.Length != readableProfiles.Count)
+        {
+            throw new InvalidOperationException(
+                "One or more persistent profile folders have missing or unreadable identity metadata. Recover or repair those profiles before creating accounts or changing machine roles.");
+        }
+
+        if (readableProfiles.GroupBy(profile => profile.GrevId, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1) ||
+            readableProfiles.GroupBy(profile => profile.Username, StringComparer.OrdinalIgnoreCase).Any(group => group.Count() > 1))
+        {
+            throw new InvalidOperationException(
+                "Duplicate local GrevID or Username identity data was detected. Resolve the profile integrity problem before creating accounts or changing machine roles.");
+        }
+    }
+
     private async Task<LocalProfile> GetRequiredProfileAsync(string grevId, CancellationToken cancellationToken)
     {
-        var profiles = await GetProfilesAsync(cancellationToken);
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
         return profiles.FirstOrDefault(candidate => string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
                ?? throw new InvalidOperationException("That local account does not exist.");
     }
@@ -369,9 +567,17 @@ public sealed class ProfileService
         var temporaryPath = metadataPath + ".tmp";
         try
         {
-            await using (var stream = File.Create(temporaryPath))
+            await using (var stream = new FileStream(
+                             temporaryPath,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             16 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, profile, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
             File.Move(temporaryPath, metadataPath, overwrite: true);
         }
@@ -379,6 +585,16 @@ public sealed class ProfileService
         {
             if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
         }
+    }
+
+    private void PreserveDamagedProfileMetadata(string metadataPath, string reason)
+    {
+        CorruptDataQuarantine.TryPreserve(
+            _paths,
+            metadataPath,
+            "ProfileMetadata",
+            reason,
+            out _);
     }
 
     private static string ValidateUsername(string username)

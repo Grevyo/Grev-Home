@@ -15,6 +15,12 @@ public sealed class AppPaths
     public string RuntimeData => Path.Combine(Data, "Runtime");
     public string InputData => Path.Combine(Data, "Input");
     public string ControllerShortcutsFile => Path.Combine(InputData, "controller-shortcuts.json");
+    public string NotificationData => Path.Combine(Data, "Notifications");
+    public string NotificationFile => Path.Combine(NotificationData, "notifications.json");
+    public string TransferData => Path.Combine(Data, "Transfers");
+    public string TransferStateFile => Path.Combine(TransferData, "transfers.json");
+    public string PresentationData => Path.Combine(Data, "Presentation");
+    public string ShellMotionSettingsFile => Path.Combine(PresentationData, "shell-motion.json");
     public string Profiles => Path.Combine(Root, "Profiles");
     public string GuestShared => Path.Combine(Profiles, "_GuestShared");
     public string GuestStats => Path.Combine(GuestShared, "Stats");
@@ -70,6 +76,36 @@ public sealed class AppPaths
     public string GetProfileThemes(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Themes");
 
+    public string GetProfilePresentation(string grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Presentation");
+
+    public string GetProfileAppPresentation(string grevId) =>
+        Path.Combine(GetProfilePresentation(grevId), "Apps");
+
+    public string GetProfileAppPresentationRoot(string grevId, string appId) =>
+        Path.Combine(GetProfileAppPresentation(grevId), AppIdentity.ValidateAppId(appId));
+
+    public string GetProfileAppPresentationMetadata(string grevId, string appId) =>
+        Path.Combine(GetProfileAppPresentationRoot(grevId, appId), "presentation.json");
+
+    public string GetProfileSettings(string grevId) =>
+        Path.Combine(GetProfileRoot(grevId), "Settings");
+
+    public string GetProfileAppLibraryPreferencesFile(string grevId) =>
+        Path.Combine(GetProfileSettings(grevId), "app-library.json");
+
+    public string GetProfileAppSettings(string grevId) =>
+        Path.Combine(GetProfileSettings(grevId), "Apps");
+
+    public string GetProfileAppSettingsRoot(string grevId, string appId) =>
+        Path.Combine(GetProfileAppSettings(grevId), AppIdentity.ValidateAppId(appId));
+
+    public string GetProfileAppControllerProfileFile(string grevId, string appId) =>
+        Path.Combine(GetProfileAppSettingsRoot(grevId, appId), "controller-profile.json");
+
+    public string GetProfileAppControllerGuidePreferenceFile(string grevId, string appId) =>
+        Path.Combine(GetProfileAppSettingsRoot(grevId, appId), "controller-guide.json");
+
     public string GetGlobalAppRoot(string appId) =>
         Path.Combine(GlobalApps, AppIdentity.ValidateAppId(appId));
 
@@ -83,6 +119,9 @@ public sealed class AppPaths
         Directory.CreateDirectory(AppCatalogueData);
         Directory.CreateDirectory(RuntimeData);
         Directory.CreateDirectory(InputData);
+        Directory.CreateDirectory(NotificationData);
+        Directory.CreateDirectory(TransferData);
+        Directory.CreateDirectory(PresentationData);
         Directory.CreateDirectory(Profiles);
         Directory.CreateDirectory(Global);
         Directory.CreateDirectory(GlobalApps);
@@ -104,6 +143,10 @@ public sealed class AppPaths
         Directory.CreateDirectory(GetProfileConnections(grevId));
         Directory.CreateDirectory(GetProfileScreenshots(grevId));
         Directory.CreateDirectory(GetProfileThemes(grevId));
+        Directory.CreateDirectory(GetProfilePresentation(grevId));
+        Directory.CreateDirectory(GetProfileAppPresentation(grevId));
+        Directory.CreateDirectory(GetProfileSettings(grevId));
+        Directory.CreateDirectory(GetProfileAppSettings(grevId));
     }
 
     public void EnsureGuestLayout()

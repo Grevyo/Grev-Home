@@ -35,6 +35,35 @@ public sealed record FileTransferRequest(
 
 public sealed class FileSystemService
 {
+    private static string FavoritesFile(string grevHomeRoot) => Path.Combine(Path.GetFullPath(grevHomeRoot), "FileFavorites.json");
+
+    public IReadOnlyList<FileHomeLocation> GetFavoriteLocations(string grevHomeRoot)
+    {
+        try
+        {
+            if (!File.Exists(FavoritesFile(grevHomeRoot))) return Array.Empty<FileHomeLocation>();
+            var paths = System.Text.Json.JsonSerializer.Deserialize<string[]>(File.ReadAllText(FavoritesFile(grevHomeRoot))) ?? [];
+            return paths.Where(Directory.Exists).Distinct(StringComparer.OrdinalIgnoreCase)
+                .Select(path => new FileHomeLocation(Path.GetFileName(path.TrimEnd('\\')) is { Length: > 0 } name ? name : path, path, "Favourite folder", FileEntryKind.Folder)).ToArray();
+        }
+        catch (IOException) { return Array.Empty<FileHomeLocation>(); }
+        catch (System.Text.Json.JsonException) { return Array.Empty<FileHomeLocation>(); }
+    }
+
+    public void ToggleFavorite(string grevHomeRoot, string directoryPath)
+    {
+        var directory = NormalizeDirectory(directoryPath);
+        if (!Directory.Exists(directory)) throw new DirectoryNotFoundException(directory);
+        var favorites = GetFavoriteLocations(grevHomeRoot).Select(item => item.Path).ToList();
+        var existing = favorites.FindIndex(path => string.Equals(path, directory, StringComparison.OrdinalIgnoreCase));
+        if (existing >= 0) favorites.RemoveAt(existing); else favorites.Add(directory);
+        Directory.CreateDirectory(Path.GetDirectoryName(FavoritesFile(grevHomeRoot))!);
+        File.WriteAllText(FavoritesFile(grevHomeRoot), System.Text.Json.JsonSerializer.Serialize(favorites));
+    }
+
+    public bool IsFavorite(string grevHomeRoot, string directoryPath) =>
+        GetFavoriteLocations(grevHomeRoot).Any(item => string.Equals(item.Path, NormalizeDirectory(directoryPath), StringComparison.OrdinalIgnoreCase));
+
     public IReadOnlyList<FileHomeLocation> GetHomeLocations(string grevHomeRoot)
     {
         var locations = new List<FileHomeLocation>();
@@ -45,7 +74,8 @@ public sealed class FileSystemService
         AddKnownFolder(locations, "Downloads", Path.Combine(userProfile, "Downloads"), "Windows Downloads");
         AddKnownFolder(locations, "Documents", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Windows Documents");
         AddKnownFolder(locations, "Pictures", Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "Windows Pictures");
-        AddKnownFolder(locations, "Grev Home Data", grevHomeRoot, "Profiles, app data and Grev Home machine data");
+        AddKnownFolder(locations, "Grev Home Data", grevHomeRoot, "Read-only view of profiles, app data and Grev Home machine data");
+        locations.AddRange(GetFavoriteLocations(grevHomeRoot));
 
         foreach (var drive in DriveInfo.GetDrives().Where(drive => drive.IsReady))
         {
@@ -129,11 +159,16 @@ public sealed class FileSystemService
         return Directory.GetParent(normalized)?.FullName;
     }
 
-    public string CreateFolder(string directoryPath, string folderName)
+    public string CreateFolder(
+        string directoryPath,
+        string folderName,
+        string? grevHomeRoot = null)
     {
         var parent = NormalizeDirectory(directoryPath);
+        EnsureManagedWriteAllowed(parent, grevHomeRoot, allowWritableContainerItself: true);
         var name = ValidateName(folderName);
         var target = Path.Combine(parent, name);
+        EnsureManagedWriteAllowed(target, grevHomeRoot, allowWritableContainerItself: false);
 
         if (Directory.Exists(target) || File.Exists(target))
         {
@@ -143,14 +178,19 @@ public sealed class FileSystemService
         return Directory.CreateDirectory(target).FullName;
     }
 
-    public string Rename(string sourcePath, string newName)
+    public string Rename(
+        string sourcePath,
+        string newName,
+        string? grevHomeRoot = null)
     {
         var source = NormalizeExistingPath(sourcePath);
         EnsureNotRoot(source);
+        EnsureManagedWriteAllowed(source, grevHomeRoot, allowWritableContainerItself: false);
         var name = ValidateName(newName);
         var parent = Path.GetDirectoryName(source)
             ?? throw new InvalidOperationException("That item cannot be renamed.");
         var target = Path.Combine(parent, name);
+        EnsureManagedWriteAllowed(target, grevHomeRoot, allowWritableContainerItself: false);
 
         if (string.Equals(source, target, StringComparison.OrdinalIgnoreCase))
         {
@@ -171,10 +211,11 @@ public sealed class FileSystemService
         return target;
     }
 
-    public void Delete(string sourcePath)
+    public void Delete(string sourcePath, string? grevHomeRoot = null)
     {
         var source = NormalizeExistingPath(sourcePath);
         EnsureNotRoot(source);
+        EnsureManagedWriteAllowed(source, grevHomeRoot, allowWritableContainerItself: false);
 
         if (Directory.Exists(source))
         {
@@ -186,13 +227,19 @@ public sealed class FileSystemService
         }
     }
 
-    public string Paste(FileTransferRequest transfer, string destinationDirectory)
+    public string Paste(
+        FileTransferRequest transfer,
+        string destinationDirectory,
+        string? grevHomeRoot = null)
     {
         var source = NormalizeExistingPath(transfer.SourcePath);
         EnsureNotRoot(source);
+        EnsureManagedWriteAllowed(source, grevHomeRoot, allowWritableContainerItself: false);
         var destination = NormalizeDirectory(destinationDirectory);
+        EnsureManagedWriteAllowed(destination, grevHomeRoot, allowWritableContainerItself: true);
         var name = Path.GetFileName(source.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
         var target = Path.Combine(destination, name);
+        EnsureManagedWriteAllowed(target, grevHomeRoot, allowWritableContainerItself: false);
 
         EnsureTargetDoesNotExist(target);
         EnsureDestinationIsNotInsideSource(source, target);
@@ -351,6 +398,64 @@ public sealed class FileSystemService
             throw new InvalidOperationException("Drive roots cannot be renamed, moved, copied or deleted.");
         }
     }
+
+    private static void EnsureManagedWriteAllowed(
+        string path,
+        string? grevHomeRoot,
+        bool allowWritableContainerItself)
+    {
+        if (string.IsNullOrWhiteSpace(grevHomeRoot))
+        {
+            return;
+        }
+
+        var managedRoot = NormalizeForComparison(grevHomeRoot);
+        var candidate = NormalizeForComparison(path);
+        if (!IsSameOrDescendant(candidate, managedRoot))
+        {
+            return;
+        }
+
+        var writableRoots = new[]
+        {
+            NormalizeForComparison(Path.Combine(managedRoot, "TestArea")),
+            NormalizeForComparison(Path.Combine(managedRoot, "Downloads"))
+        };
+
+        foreach (var writableRoot in writableRoots)
+        {
+            if (string.Equals(candidate, writableRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                if (allowWritableContainerItself)
+                {
+                    return;
+                }
+
+                throw new InvalidOperationException(
+                    "Grev Home's managed TestArea/Downloads container itself cannot be renamed, moved, copied or deleted.");
+            }
+
+            if (IsDescendant(candidate, writableRoot))
+            {
+                return;
+            }
+        }
+
+        throw new InvalidOperationException(
+            "Grev Home managed data is read-only in the generic Files browser. Use the owning Grev Home feature to change profiles, apps, saves or machine data.");
+    }
+
+    private static bool IsSameOrDescendant(string candidate, string root) =>
+        string.Equals(candidate, root, StringComparison.OrdinalIgnoreCase) || IsDescendant(candidate, root);
+
+    private static bool IsDescendant(string candidate, string root)
+    {
+        var prefix = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        return candidate.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeForComparison(string path) =>
+        Path.GetFullPath(path).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
     private static void EnsureDestinationIsNotInsideSource(string source, string target)
     {

@@ -16,6 +16,10 @@ An app definition owns stable metadata and launch rules:
 
 UI areas must reference this common definition rather than hard-code individual applications.
 
+Individual ROM/disc-image content is intentionally separate from this installed-app definition.
+See [GAME_LIBRARY.md](GAME_LIBRARY.md) for the profile-owned game library and platform-to-emulator
+resolver.
+
 ## Install strategies
 
 ### SharedBinary

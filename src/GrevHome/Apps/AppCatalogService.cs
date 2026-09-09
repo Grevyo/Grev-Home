@@ -30,15 +30,31 @@ public sealed class AppCatalogService
                 _jsonOptions,
                 cancellationToken) ?? new List<AppDefinition>();
 
+            if (definitions.Any(definition => !IsValidDefinition(definition)))
+            {
+                CorruptDataQuarantine.TryPreserve(
+                    _paths,
+                    _paths.AppCatalogueFile,
+                    "AppCatalogue",
+                    "One or more app catalogue entries failed semantic validation.",
+                    out _);
+                return Array.Empty<AppDefinition>();
+            }
+
             return definitions
-                .Where(IsValidDefinition)
                 .GroupBy(definition => definition.AppId, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.Last())
                 .OrderBy(definition => definition.Name, StringComparer.OrdinalIgnoreCase)
                 .ToArray();
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            CorruptDataQuarantine.TryPreserve(
+                _paths,
+                _paths.AppCatalogueFile,
+                "AppCatalogue",
+                $"App catalogue JSON could not be read: {ex.Message}",
+                out _);
             return Array.Empty<AppDefinition>();
         }
     }
@@ -60,9 +76,17 @@ public sealed class AppCatalogService
 
         try
         {
-            await using (var stream = File.Create(temporaryPath))
+            await using (var stream = new FileStream(
+                             temporaryPath,
+                             FileMode.Create,
+                             FileAccess.Write,
+                             FileShare.None,
+                             16 * 1024,
+                             FileOptions.Asynchronous | FileOptions.WriteThrough))
             {
                 await JsonSerializer.SerializeAsync(stream, definitions, _jsonOptions, cancellationToken);
+                await stream.FlushAsync(cancellationToken);
+                stream.Flush(flushToDisk: true);
             }
 
             File.Move(temporaryPath, _paths.AppCatalogueFile, overwrite: true);
@@ -99,7 +123,7 @@ public sealed class AppCatalogService
             throw new ArgumentException("App name must be between 1 and 100 characters.", nameof(definition));
         }
 
-        if (string.IsNullOrWhiteSpace(definition.Launch.Executable))
+        if (definition.Launch is null || string.IsNullOrWhiteSpace(definition.Launch.Executable))
         {
             throw new ArgumentException("An app definition must include an executable launch target.", nameof(definition));
         }

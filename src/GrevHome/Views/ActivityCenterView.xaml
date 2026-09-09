@@ -1,0 +1,88 @@
+<UserControl x:Class="GrevHome.Views.ActivityCenterView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             Focusable="False">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled"
+                  PanningMode="VerticalOnly"
+                  CanContentScroll="False">
+        <StackPanel Margin="64,38,64,46">
+            <DockPanel Margin="0,0,0,24">
+                <Button x:Name="BackButton"
+                        Width="110"
+                        Height="46"
+                        Margin="0,0,18,0"
+                        DockPanel.Dock="Left"
+                        Click="Back_Click"
+                        Content="Back" />
+                <StackPanel>
+                    <TextBlock Text="Activity Center"
+                               FontSize="38"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="Notifications, status and Grev Home transfers"
+                               Margin="0,5,0,0"
+                               FontSize="15"
+                               Foreground="{StaticResource MutedBrush}" />
+                </StackPanel>
+            </DockPanel>
+
+            <Border Padding="20"
+                    Margin="0,0,0,20"
+                    CornerRadius="10"
+                    Background="#14000000">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <StackPanel DockPanel.Dock="Left">
+                            <TextBlock Text="NOTIFICATIONS"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock x:Name="NotificationSummaryText"
+                                       Margin="0,5,0,0"
+                                       FontSize="15" />
+                        </StackPanel>
+                        <Button x:Name="MarkAllReadButton"
+                                Width="150"
+                                Height="42"
+                                HorizontalAlignment="Right"
+                                Click="MarkAllRead_Click"
+                                Content="Mark all read" />
+                    </DockPanel>
+                    <StackPanel x:Name="NotificationsPanel" />
+                </StackPanel>
+            </Border>
+
+            <Border Padding="20"
+                    CornerRadius="10"
+                    Background="#14000000">
+                <StackPanel>
+                    <DockPanel Margin="0,0,0,12">
+                        <StackPanel DockPanel.Dock="Left">
+                            <TextBlock Text="DOWNLOADS &amp; TRANSFERS"
+                                       FontSize="13"
+                                       FontWeight="Bold"
+                                       Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock x:Name="TransferSummaryText"
+                                       Margin="0,5,0,0"
+                                       FontSize="15" />
+                        </StackPanel>
+                        <Button x:Name="ClearFinishedButton"
+                                Width="150"
+                                Height="42"
+                                HorizontalAlignment="Right"
+                                Click="ClearFinished_Click"
+                                Content="Clear finished" />
+                    </DockPanel>
+                    <StackPanel x:Name="TransfersPanel" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="ActivityStatusText"
+                       Visibility="Collapsed"
+                       Margin="4,18,4,0"
+                       Foreground="{StaticResource AccentBrush}"
+                       FontSize="13"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

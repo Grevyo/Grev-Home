@@ -30,20 +30,32 @@ public sealed record LaunchSessionSnapshot(
     LaunchSessionState State,
     int RootProcessId,
     IReadOnlyList<int> ProcessIds,
-    string? FailureMessage)
+    string? FailureMessage,
+    long? TrackedDurationSeconds = null,
+    bool KeepShellHiddenWhileRunning = false)
 {
-    public TimeSpan Elapsed => (EndedAtUtc ?? DateTimeOffset.UtcNow) - StartedAtUtc;
+    public TimeSpan Elapsed => TrackedDurationSeconds is long seconds
+        ? TimeSpan.FromSeconds(Math.Max(0, seconds))
+        : (EndedAtUtc ?? DateTimeOffset.UtcNow) - StartedAtUtc;
 }
 
 internal sealed class TrackedLaunchSession
 {
     private readonly object _gate = new();
     private readonly Dictionary<int, DateTimeOffset> _processes = new();
+    private long _accumulatedSuspendedSeconds;
+    private DateTimeOffset? _suspendedAtUtc;
 
     public Guid LaunchSessionId { get; }
     public string AppId { get; }
     public string AppName { get; }
     public string? PrimaryGrevId { get; }
+    public string? ProcessName { get; }
+    public IReadOnlyList<string> AdditionalProcessNames { get; }
+    public bool TrackDescendantProcesses { get; }
+    public bool ForceKillEntireProcessTree { get; }
+    public bool KeepShellHiddenWhileRunning { get; }
+    public bool TrackForegroundUsageOnly { get; }
     public IReadOnlyList<LaunchParticipant> Participants { get; }
     public DateTimeOffset StartedAtUtc { get; }
     public DateTimeOffset LastObservedAliveAtUtc { get; private set; }
@@ -52,10 +64,34 @@ internal sealed class TrackedLaunchSession
     public int RootProcessId { get; }
     public string? FailureMessage { get; private set; }
 
+    public long AccumulatedSuspendedSeconds
+    {
+        get { lock (_gate) return _accumulatedSuspendedSeconds; }
+    }
+
+    public DateTimeOffset? SuspendedAtUtc
+    {
+        get { lock (_gate) return _suspendedAtUtc; }
+    }
+
+    public IReadOnlyList<string> DeclaredProcessNames =>
+        new[] { ProcessName }
+            .Concat(AdditionalProcessNames)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
     public TrackedLaunchSession(
         string appId,
         string appName,
         string? primaryGrevId,
+        string? processName,
+        IReadOnlyList<string>? additionalProcessNames,
+        bool trackDescendantProcesses,
+        bool forceKillEntireProcessTree,
+        bool keepShellHiddenWhileRunning,
+        bool trackForegroundUsageOnly,
         IReadOnlyList<LaunchParticipant> participants,
         RuntimeProcessIdentity rootProcess,
         DateTimeOffset startedAtUtc)
@@ -64,12 +100,20 @@ internal sealed class TrackedLaunchSession
             appId,
             appName,
             primaryGrevId,
+            processName,
+            additionalProcessNames,
+            trackDescendantProcesses,
+            forceKillEntireProcessTree,
+            keepShellHiddenWhileRunning,
+            trackForegroundUsageOnly,
             participants,
             rootProcess.ProcessId,
             new[] { rootProcess },
             startedAtUtc,
             startedAtUtc,
-            LaunchSessionState.Running)
+            LaunchSessionState.Running,
+            0,
+            null)
     {
     }
 
@@ -78,22 +122,43 @@ internal sealed class TrackedLaunchSession
         string appId,
         string appName,
         string? primaryGrevId,
+        string? processName,
+        IReadOnlyList<string>? additionalProcessNames,
+        bool trackDescendantProcesses,
+        bool forceKillEntireProcessTree,
+        bool keepShellHiddenWhileRunning,
+        bool trackForegroundUsageOnly,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
         DateTimeOffset startedAtUtc,
         DateTimeOffset lastObservedAliveAtUtc,
-        LaunchSessionState state)
+        LaunchSessionState state,
+        long accumulatedSuspendedSeconds,
+        DateTimeOffset? suspendedAtUtc)
     {
         LaunchSessionId = launchSessionId;
         AppId = appId;
         AppName = appName;
         PrimaryGrevId = primaryGrevId;
+        ProcessName = string.IsNullOrWhiteSpace(processName) ? null : processName.Trim();
+        AdditionalProcessNames = (additionalProcessNames ?? Array.Empty<string>())
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Select(name => name.Trim())
+            .Where(name => !string.Equals(name, ProcessName, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        TrackDescendantProcesses = trackDescendantProcesses;
+        ForceKillEntireProcessTree = forceKillEntireProcessTree;
+        KeepShellHiddenWhileRunning = keepShellHiddenWhileRunning;
+        TrackForegroundUsageOnly = trackForegroundUsageOnly;
         Participants = participants;
         RootProcessId = rootProcessId;
         StartedAtUtc = startedAtUtc;
         LastObservedAliveAtUtc = lastObservedAliveAtUtc;
         State = state is LaunchSessionState.Closing ? LaunchSessionState.Closing : LaunchSessionState.Running;
+        _accumulatedSuspendedSeconds = Math.Max(0, accumulatedSuspendedSeconds);
+        _suspendedAtUtc = suspendedAtUtc;
 
         foreach (var process in processes.Where(process => process.ProcessId > 0))
         {
@@ -106,23 +171,39 @@ internal sealed class TrackedLaunchSession
         string appId,
         string appName,
         string? primaryGrevId,
+        string? processName,
+        IReadOnlyList<string>? additionalProcessNames,
+        bool trackDescendantProcesses,
+        bool forceKillEntireProcessTree,
+        bool keepShellHiddenWhileRunning,
+        bool trackForegroundUsageOnly,
         IReadOnlyList<LaunchParticipant> participants,
         int rootProcessId,
         IReadOnlyList<RuntimeProcessIdentity> processes,
         DateTimeOffset startedAtUtc,
         DateTimeOffset lastObservedAliveAtUtc,
-        LaunchSessionState state) =>
+        LaunchSessionState state,
+        long accumulatedSuspendedSeconds = 0,
+        DateTimeOffset? suspendedAtUtc = null) =>
         new(
             launchSessionId,
             appId,
             appName,
             primaryGrevId,
+            processName,
+            additionalProcessNames,
+            trackDescendantProcesses,
+            forceKillEntireProcessTree,
+            keepShellHiddenWhileRunning,
+            trackForegroundUsageOnly,
             participants,
             rootProcessId,
             processes,
             startedAtUtc,
             lastObservedAliveAtUtc,
-            state);
+            state,
+            accumulatedSuspendedSeconds,
+            suspendedAtUtc);
 
     public IReadOnlyList<int> GetKnownProcessIds()
     {
@@ -165,6 +246,44 @@ internal sealed class TrackedLaunchSession
         }
     }
 
+    public void MarkSuspended(DateTimeOffset suspendedAtUtc)
+    {
+        lock (_gate)
+        {
+            if (EndedAtUtc is null && _suspendedAtUtc is null)
+            {
+                _suspendedAtUtc = suspendedAtUtc;
+            }
+        }
+    }
+
+    public void MarkResumed(DateTimeOffset resumedAtUtc)
+    {
+        lock (_gate)
+        {
+            if (_suspendedAtUtc is not { } suspendedAt)
+            {
+                return;
+            }
+
+            if (resumedAtUtc > suspendedAt)
+            {
+                _accumulatedSuspendedSeconds = checked(
+                    _accumulatedSuspendedSeconds +
+                    Math.Max(0L, (long)Math.Round((resumedAtUtc - suspendedAt).TotalSeconds)));
+            }
+            _suspendedAtUtc = null;
+        }
+    }
+
+    public long GetTrackedDurationSeconds(DateTimeOffset throughUtc)
+    {
+        lock (_gate)
+        {
+            return CalculateTrackedDurationSecondsLocked(throughUtc);
+        }
+    }
+
     public void MarkClosing()
     {
         lock (_gate)
@@ -204,6 +323,9 @@ internal sealed class TrackedLaunchSession
     {
         lock (_gate)
         {
+            var effectiveEnd = EndedAtUtc ?? DateTimeOffset.UtcNow;
+            var trackedSeconds = CalculateTrackedDurationSecondsLocked(effectiveEnd);
+
             return new LaunchSessionSnapshot(
                 LaunchSessionId,
                 AppId,
@@ -215,7 +337,24 @@ internal sealed class TrackedLaunchSession
                 State,
                 RootProcessId,
                 _processes.Keys.OrderBy(id => id).ToArray(),
-                FailureMessage);
+                FailureMessage,
+                trackedSeconds,
+                KeepShellHiddenWhileRunning);
         }
+    }
+
+    private long CalculateTrackedDurationSecondsLocked(DateTimeOffset throughUtc)
+    {
+        var effectiveEnd = throughUtc < StartedAtUtc ? StartedAtUtc : throughUtc;
+        var suspendedSeconds = _accumulatedSuspendedSeconds;
+        if (_suspendedAtUtc is { } suspendedAt && effectiveEnd > suspendedAt)
+        {
+            suspendedSeconds = checked(
+                suspendedSeconds +
+                Math.Max(0L, (long)Math.Round((effectiveEnd - suspendedAt).TotalSeconds)));
+        }
+
+        var rawSeconds = Math.Max(0L, (long)Math.Round((effectiveEnd - StartedAtUtc).TotalSeconds));
+        return Math.Max(0L, rawSeconds - suspendedSeconds);
     }
 }

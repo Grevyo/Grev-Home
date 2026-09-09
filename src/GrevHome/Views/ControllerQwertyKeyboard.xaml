@@ -8,12 +8,13 @@
             <StackPanel>
                 <TextBlock x:Name="TitleText" Text="Enter text" HorizontalAlignment="Center" FontSize="28" FontWeight="SemiBold" />
                 <Border Margin="0,16,0,20" Padding="16,12" Background="#090C12" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="10">
-                    <TextBlock x:Name="ValueText" MinHeight="32" FontSize="22" TextWrapping="Wrap" TextAlignment="Center" />
+                    <TextBlock x:Name="ValueText" MinHeight="32" MaxHeight="80" FontSize="22" TextWrapping="Wrap" TextAlignment="Center" />
                 </Border>
                 <StackPanel x:Name="KeyboardRows" />
                 <WrapPanel HorizontalAlignment="Center" Margin="0,12,0,0">
                     <Button x:Name="ShiftButton" Content="Shift" Width="120" Height="54" Margin="4" Click="Shift_Click" />
-                    <Button Content="Space" Width="330" Height="54" Margin="4" Click="Space_Click" />
+                    <Button Content="Symbols" Width="120" Height="54" Margin="4" Click="Symbols_Click" />
+                    <Button Content="Space" Width="200" Height="54" Margin="4" Click="Space_Click" />
                     <Button Content="⌫ Backspace" Width="160" Height="54" Margin="4" Click="Backspace_Click" />
                     <Button Content="Clear" Width="110" Height="54" Margin="4" Click="Clear_Click" />
                 </WrapPanel>

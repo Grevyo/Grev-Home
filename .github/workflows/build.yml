@@ -28,3 +28,15 @@ jobs:
 
       - name: Build
         run: dotnet build .\src\GrevHome\GrevHome.csproj --configuration Release --nologo
+
+      - name: Verify account restore isolation
+        run: dotnet run --project .\tests\AccountRestore\AccountRestore.csproj --configuration Release
+
+      - name: Verify storage and input hardening
+        run: dotnet run --project .\tests\Hardening\Hardening.csproj --configuration Release
+
+      - name: Verify official installer publishers without executing installers
+        run: dotnet run --project .\tests\Hardening\Hardening.csproj --configuration Release -- --official-installers
+
+      - name: Verify profile carousel and password keyboard
+        run: dotnet run --project .\tests\ProfileCarousel\ProfileCarousel.csproj --configuration Release

@@ -5,7 +5,8 @@
              Focusable="False">
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
-            <StackPanel Margin="72,42" HorizontalAlignment="Center" Width="900">
+            <Grid>
+            <StackPanel x:Name="AccountDetailsStep" Margin="72,42" HorizontalAlignment="Center" Width="900">
                 <TextBlock Text="Create account"
                            HorizontalAlignment="Center"
                            FontSize="42"
@@ -61,6 +62,31 @@
                     <Button Content="Cancel" Width="150" Height="56" Margin="6" Click="Cancel_Click" />
                 </StackPanel>
             </StackPanel>
+            <StackPanel x:Name="GrevDadLinkStep" Margin="72,42" HorizontalAlignment="Center" Width="900" Visibility="Collapsed">
+                <TextBlock Text="Connect Grev.dad" HorizontalAlignment="Center" FontSize="42" FontWeight="SemiBold" />
+                <TextBlock Text="Optional • connect this local account to your Grev.dad account to share and restore XP, levels and achievements."
+                           HorizontalAlignment="Center" TextAlignment="Center" Margin="0,8,0,24" FontSize="16"
+                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                <Border Padding="22" Background="#090C12" BorderBrush="#2B3344" BorderThickness="1">
+                    <StackPanel>
+                        <TextBlock Text="1 • Open Grev.dad and sign in to the account you want to connect." FontSize="18" TextWrapping="Wrap" />
+                        <Button x:Name="OpenGrevDadButton" Content="Open Grev.dad • sign in" MinWidth="270" Height="56" Margin="0,14,0,22" HorizontalAlignment="Left" Click="OpenGrevDad_Click" />
+                        <TextBlock Text="2 • Generate an approval code, approve it on Grev.dad, then check approval here." FontSize="18" TextWrapping="Wrap" />
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button x:Name="GenerateGrevDadCodeButton" Content="Generate approval code" MinWidth="250" Height="56" Margin="0,0,10,10" Click="GenerateGrevDadCode_Click" />
+                            <Button x:Name="OpenGrevDadApprovalButton" Content="Open approval page" MinWidth="220" Height="56" Margin="0,0,10,10" Visibility="Collapsed" Click="OpenGrevDadApproval_Click" />
+                            <Button x:Name="CheckGrevDadApprovalButton" Content="Check approval" MinWidth="190" Height="56" Margin="0,0,10,10" Visibility="Collapsed" Click="CheckGrevDadApproval_Click" />
+                        </WrapPanel>
+                        <TextBlock x:Name="GrevDadCodeText" FontSize="26" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,8,0,0" />
+                        <TextBlock x:Name="GrevDadOnboardingStatus" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                    </StackPanel>
+                </Border>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">
+                    <Button x:Name="FinishGrevDadButton" Content="Continue to sign in" Width="220" Height="56" Margin="6" Visibility="Collapsed" Click="FinishGrevDad_Click" />
+                    <Button x:Name="SkipGrevDadButton" Content="Skip for now" Width="190" Height="56" Margin="6" Click="SkipGrevDad_Click" />
+                </StackPanel>
+            </StackPanel>
+            </Grid>
         </ScrollViewer>
 
         <local:ControllerQwertyKeyboard x:Name="KeyboardOverlay" Panel.ZIndex="100" />

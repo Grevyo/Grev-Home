@@ -19,7 +19,6 @@ public partial class FileExplorerView : UserControl
     private FileHomeLocation? _selectedHomeLocation;
     private FileNameEditorMode _editorMode;
     private string? _editorSourcePath;
-    private bool _lowercase;
 
     public event EventHandler? BackToDashboardRequested;
     public event EventHandler? HomeRequested;
@@ -34,19 +33,28 @@ public partial class FileExplorerView : UserControl
     public event Action<string>? MoveRequested;
     public event EventHandler? PasteRequested;
     public event EventHandler? CancelTransferRequested;
+    public event Action<string>? FavoriteRequested;
 
-    public bool IsModalOpen => EditorOverlay.Visibility == Visibility.Visible || DeleteOverlay.Visibility == Visibility.Visible;
+    public bool IsModalOpen => KeyboardOverlay.IsOpen || DeleteOverlay.Visibility == Visibility.Visible;
 
     public FileExplorerView()
     {
         InitializeComponent();
-        BuildKeyboard();
         ClearSelection();
+
+        // Files deliberately reuses the one Grev Home controller keyboard. The old Files-only
+        // hand-built keyboard has been removed so keyboard behaviour cannot drift between pages.
+        KeyboardOverlay.Completed += value =>
+            NameRequested?.Invoke(new FileNameRequest(_editorMode, value, _editorSourcePath));
+        KeyboardOverlay.Cancelled += (_, _) =>
+            StatusText.Text = "Rename/create action cancelled.";
+        KeyboardOverlay.Opened += (_, _) => ModalOpened?.Invoke(this, EventArgs.Empty);
+        KeyboardOverlay.Closed += (_, _) => ModalClosed?.Invoke(this, EventArgs.Empty);
     }
 
     public void SetHome(IReadOnlyList<FileHomeLocation> locations, FileTransferRequest? transfer)
     {
-        LocationText.Text = "Files Home";
+        LocationText.Text = "Grev Files Home";
         EntriesPanel.Children.Clear();
         ClearSelection();
 
@@ -59,8 +67,9 @@ public partial class FileExplorerView : UserControl
         EmptyText.Text = locations.Count == 0 ? "No locations are available." : string.Empty;
         UpButton.IsEnabled = false;
         NewFolderButton.IsEnabled = false;
+        FavoriteButton.IsEnabled = false;
         SetTransfer(transfer, canPaste: false);
-        StatusText.Text = "Select a location or drive. B returns to Dashboard from Files Home.";
+        StatusText.Text = "Select a location or drive. B returns to Dashboard from Grev Files Home.";
     }
 
     public void SetDirectory(
@@ -82,19 +91,23 @@ public partial class FileExplorerView : UserControl
         EmptyText.Visibility = entries.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         UpButton.IsEnabled = hasParent;
         NewFolderButton.IsEnabled = true;
+        FavoriteButton.IsEnabled = true;
         SetTransfer(transfer, canPaste: true);
         StatusText.Text = "Select an item, then choose an action. B goes to the parent folder.";
     }
 
     public void ShowStatus(string message) => StatusText.Text = message;
 
-    public void ShowEditorError(string message) => EditorStatusText.Text = message;
+    public void ShowEditorError(string message) =>
+        StatusText.Text = $"Rename/create failed: {message}";
 
     public void CloseEditor(string message)
     {
-        if (EditorOverlay.Visibility == Visibility.Visible)
+        if (KeyboardOverlay.IsOpen)
         {
-            EditorOverlay.Visibility = Visibility.Collapsed;
+            // Programmatic completion is silent here; the normal Done/Cancel path already raises
+            // KeyboardOverlay.Closed and therefore owns the matching modal-history pop.
+            KeyboardOverlay.Visibility = Visibility.Collapsed;
             ModalClosed?.Invoke(this, EventArgs.Empty);
         }
 
@@ -114,8 +127,25 @@ public partial class FileExplorerView : UserControl
 
     public void CloseModals()
     {
-        EditorOverlay.Visibility = Visibility.Collapsed;
+        // Used while navigation is already performing the modal Back transition. Hide the shared
+        // keyboard directly so its Closed event cannot create a second history pop.
+        KeyboardOverlay.Visibility = Visibility.Collapsed;
         DeleteOverlay.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Gives every Files modal an explicit controller landing target. The shared keyboard owns its
+    /// own first-key focus. Delete intentionally starts on Cancel.
+    /// </summary>
+    public void RefocusModal()
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (DeleteOverlay.Visibility == Visibility.Visible)
+            {
+                DeleteCancelButton.Focus();
+            }
+        }));
     }
 
     private Button CreateHomeLocationButton(FileHomeLocation location)
@@ -203,6 +233,7 @@ public partial class FileExplorerView : UserControl
         MoveButton.IsEnabled = false;
         RenameButton.IsEnabled = false;
         DeleteButton.IsEnabled = false;
+        FavoriteButton.IsEnabled = false;
     }
 
     private void SelectEntry(FileBrowserEntry entry)
@@ -216,6 +247,7 @@ public partial class FileExplorerView : UserControl
         MoveButton.IsEnabled = true;
         RenameButton.IsEnabled = true;
         DeleteButton.IsEnabled = true;
+        FavoriteButton.IsEnabled = entry.Kind == FileEntryKind.Folder;
     }
 
     private void ClearSelection()
@@ -229,6 +261,7 @@ public partial class FileExplorerView : UserControl
         MoveButton.IsEnabled = false;
         RenameButton.IsEnabled = false;
         DeleteButton.IsEnabled = false;
+        FavoriteButton.IsEnabled = false;
     }
 
     private void SetTransfer(FileTransferRequest? transfer, bool canPaste)
@@ -251,96 +284,11 @@ public partial class FileExplorerView : UserControl
     {
         _editorMode = mode;
         _editorSourcePath = sourcePath;
-        _lowercase = false;
-        UpdateKeyboardCase();
-        NameTextBox.Text = initialName;
-        NameTextBox.CaretIndex = NameTextBox.Text.Length;
-        EditorTitleText.Text = mode == FileNameEditorMode.CreateFolder ? "New Folder" : "Rename Item";
-        EditorStatusText.Text = "Use the controller keyboard or a physical keyboard.";
-        EditorOverlay.Visibility = Visibility.Visible;
-        ModalOpened?.Invoke(this, EventArgs.Empty);
+        KeyboardOverlay.Open(
+            mode == FileNameEditorMode.CreateFolder ? "New Folder" : "Rename Item",
+            initialName,
+            maxLength: 120);
     }
-
-    private void BuildKeyboard()
-    {
-        const string keys = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890-_.()";
-        foreach (var key in keys)
-        {
-            var button = new Button
-            {
-                Content = key.ToString(),
-                Tag = key,
-                Height = 46,
-                Margin = new Thickness(3),
-                FontSize = 16
-            };
-            button.Click += NameKey_Click;
-            NameKeyboard.Children.Add(button);
-        }
-    }
-
-    private void UpdateKeyboardCase()
-    {
-        foreach (var button in NameKeyboard.Children.OfType<Button>())
-        {
-            if (button.Tag is not char original)
-            {
-                continue;
-            }
-
-            button.Content = char.IsLetter(original)
-                ? (_lowercase ? char.ToLowerInvariant(original) : char.ToUpperInvariant(original)).ToString()
-                : original.ToString();
-        }
-
-        CaseButton.Content = _lowercase ? "aA" : "Aa";
-    }
-
-    private void NameKey_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not Button { Tag: char original } || NameTextBox.Text.Length >= NameTextBox.MaxLength)
-        {
-            return;
-        }
-
-        var value = char.IsLetter(original) && _lowercase
-            ? char.ToLowerInvariant(original)
-            : original;
-        NameTextBox.Text += value;
-        NameTextBox.CaretIndex = NameTextBox.Text.Length;
-    }
-
-    private void ToggleCase_Click(object sender, RoutedEventArgs e)
-    {
-        _lowercase = !_lowercase;
-        UpdateKeyboardCase();
-    }
-
-    private void NameSpace_Click(object sender, RoutedEventArgs e)
-    {
-        if (NameTextBox.Text.Length < NameTextBox.MaxLength)
-        {
-            NameTextBox.Text += " ";
-            NameTextBox.CaretIndex = NameTextBox.Text.Length;
-        }
-    }
-
-    private void NameBackspace_Click(object sender, RoutedEventArgs e)
-    {
-        if (NameTextBox.Text.Length == 0)
-        {
-            return;
-        }
-
-        NameTextBox.Text = NameTextBox.Text[..^1];
-        NameTextBox.CaretIndex = NameTextBox.Text.Length;
-    }
-
-    private void SaveName_Click(object sender, RoutedEventArgs e) =>
-        NameRequested?.Invoke(new FileNameRequest(_editorMode, NameTextBox.Text, _editorSourcePath));
-
-    private void CancelEditor_Click(object sender, RoutedEventArgs e) =>
-        CloseEditor("Rename/create action cancelled.");
 
     private void Open_Click(object sender, RoutedEventArgs e)
     {
@@ -408,6 +356,12 @@ public partial class FileExplorerView : UserControl
 
     private void NewFolder_Click(object sender, RoutedEventArgs e) =>
         BeginEditor(FileNameEditorMode.CreateFolder, string.Empty, null);
+
+    private void Favorite_Click(object sender, RoutedEventArgs e)
+    {
+        var path = _selectedEntry?.Kind == FileEntryKind.Folder ? _selectedEntry.Path : null;
+        if (path is not null) FavoriteRequested?.Invoke(path);
+    }
 
     private void Paste_Click(object sender, RoutedEventArgs e) => PasteRequested?.Invoke(this, EventArgs.Empty);
 
