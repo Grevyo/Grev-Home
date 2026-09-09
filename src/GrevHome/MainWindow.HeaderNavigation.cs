@@ -33,6 +33,7 @@ public partial class MainWindow
         InitializeRuntimeRecoveryIntegration();
         InitializeAppControllerRuntimeIntegration();
         InitializeProfilePlayersIntegration();
+        InitializeProfileTilesIntegration();
         InitializeDashboardDataIntegration();
         InitializeDashboardPresentationIntegration();
         InitializeFilesIntegration();
@@ -80,6 +81,7 @@ public partial class MainWindow
     private void CorrectHeaderNavigation(InputAction action, Button originalFocus)
     {
         if(_navigation.Current==Route.GrevDadWeb && _grevDad.WebOwnsControllerInput) return;
+        if (_navigation.Current == Route.ProfileTiles) return;
         if (IsStoreModalOpen || IsPowerMenuOpen || GetOpenControllerKeyboard() is not null ||
             _overlayWindow.IsOpen || !originalFocus.IsVisible || !originalFocus.IsEnabled)
         {

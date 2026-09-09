@@ -15,6 +15,7 @@ public enum Route
     ProfilePlayers,
     ProfileView,
     ProfileEdit,
+    ProfileTiles,
     ProfilePhotoPicker,
     GameAdd,
     GameFilePicker,
