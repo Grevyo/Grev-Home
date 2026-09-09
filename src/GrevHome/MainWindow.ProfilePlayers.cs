@@ -425,6 +425,14 @@ public partial class MainWindow
         if (_profileKeyboardModalRoute != route) return;
         _navigation.DiscardBackEntry(route);
         _profileKeyboardModalRoute = null;
+        if (route == Route.CreateProfile)
+        {
+            _createProfileView.RestoreControllerFocusAfterKeyboard();
+        }
+        else
+        {
+            FocusRouteSoon();
+        }
     }
 
     private void RenderProfileTarget()

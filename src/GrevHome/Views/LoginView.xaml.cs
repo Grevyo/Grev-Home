@@ -14,16 +14,19 @@ public partial class LoginView : UserControl
     private SessionContext? _session;
     private Button? _lastProfileFocus;
     private ProfileSignInRequest? _pendingPasswordProfile;
+    private bool _adminManagementMode;
     private IReadOnlyDictionary<string, ProfileStatsSnapshot> _stats = new Dictionary<string, ProfileStatsSnapshot>();
     private IReadOnlyDictionary<string, ProfilePresentationSettings> _presentations = new Dictionary<string, ProfilePresentationSettings>();
 
     public event Action<ProfileSignInRequest>? LocalProfileSignInRequested;
     public event Action<int?>? GuestSignInRequested;
     public event EventHandler? CreateProfileRequested;
+    public event EventHandler? ManageProfilesRequested;
     public event Action<ProfileSignInRequest, string>? PasswordSignInRequested;
 
     public int? ActivationControllerIndex { get; set; }
     public Button CreateAccountFocusTarget => CreateAccountButton;
+    public Button ManageProfilesFocusTarget => ManageProfilesButton;
     public IReadOnlyList<Button> ProfileFocusTargets => ProfilesPanel.Children.OfType<Button>().Where(button => button.IsVisible && button.IsEnabled && button.Focusable).ToArray();
 
     public LoginView()
@@ -35,6 +38,11 @@ public partial class LoginView : UserControl
             _pendingPasswordProfile = null;
         };
         PasswordKeyboard.Cancelled += (_, _) => _pendingPasswordProfile = null;
+        PasswordKeyboard.Closed += (_, _) => Dispatcher.BeginInvoke(new Action(() =>
+        {
+            if (_lastProfileFocus is { IsVisible: true, IsEnabled: true }) _lastProfileFocus.Focus();
+            else (ProfileFocusTargets.FirstOrDefault() ?? ManageProfilesButton).Focus();
+        }));
     }
 
     public void SetProfileDetails(IReadOnlyDictionary<string, ProfileStatsSnapshot> stats,
@@ -70,6 +78,9 @@ public partial class LoginView : UserControl
                                session.PrimaryUser is { } primary &&
                                AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManageProfiles);
         CreateAccountButton.Visibility = canCreateAccount && !slotsFull ? Visibility.Visible : Visibility.Collapsed;
+        ManageProfilesButton.Visibility = !addingPlayer && profiles.Any(profile => profile.Role == AccountRole.Admin)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
 
         ProfilesPanel.Children.Clear();
         foreach (var profile in profiles)
@@ -123,6 +134,16 @@ public partial class LoginView : UserControl
     }
 
     public void ClearStatus() => ShowStatus(string.Empty);
+
+    public void BeginAdminManagementSignIn()
+    {
+        _adminManagementMode = true;
+        ShowStatus("Select an Admin profile to manage accounts. Its controller password is required when configured.");
+        var firstAdmin = ProfileFocusTargets.FirstOrDefault(button => button.Tag is LocalProfile { Role: AccountRole.Admin });
+        (firstAdmin ?? ManageProfilesButton).Focus();
+    }
+
+    public void EndAdminManagementSignIn() => _adminManagementMode = false;
 
     private Button CreateTemporaryGuestButton()
     {
@@ -240,6 +261,12 @@ public partial class LoginView : UserControl
     {
         if (sender is not Button { Tag: LocalProfile profile }) return;
 
+        if (_adminManagementMode && profile.Role != AccountRole.Admin)
+        {
+            ShowStatus("Profile management requires an Admin account.");
+            return;
+        }
+
         var session = _session;
         if (session?.HasSignedInUsers == true &&
             (session.PrimaryUser is not { } primary || !AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManagePlayers)))
@@ -309,6 +336,7 @@ public partial class LoginView : UserControl
     }
 
     private void CreateProfile_Click(object sender, RoutedEventArgs e) => CreateProfileRequested?.Invoke(this, EventArgs.Empty);
+    private void ManageProfiles_Click(object sender, RoutedEventArgs e) => ManageProfilesRequested?.Invoke(this, EventArgs.Empty);
 
     public bool MoveProfileFocus(GrevHome.Input.InputAction action, Button original)
     {
@@ -323,6 +351,21 @@ public partial class LoginView : UserControl
         {
             if (CreateAccountButton.IsVisible && CreateAccountButton.IsEnabled) CreateAccountButton.Focus();
             else original.Focus();
+            return true;
+        }
+        if (original == CreateAccountButton && action == GrevHome.Input.InputAction.Right && ManageProfilesButton.IsVisible)
+        {
+            ManageProfilesButton.Focus();
+            return true;
+        }
+        if (original == ManageProfilesButton && action == GrevHome.Input.InputAction.Left && CreateAccountButton.IsVisible)
+        {
+            CreateAccountButton.Focus();
+            return true;
+        }
+        if (original == ManageProfilesButton && action == GrevHome.Input.InputAction.Up && cards.Count > 0)
+        {
+            (cards.Contains(_lastProfileFocus!) ? _lastProfileFocus! : cards[0]).Focus();
             return true;
         }
         if (original == CreateAccountButton && action == GrevHome.Input.InputAction.Up && cards.Count>0)

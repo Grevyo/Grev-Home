@@ -51,6 +51,7 @@ public partial class MainWindow : Window
     private IReadOnlyList<LocalProfile> _profiles = Array.Empty<LocalProfile>();
     private Guid? _foregroundLaunchSessionId;
     private readonly Dictionary<string, (int Failures, DateTimeOffset LockedUntil)> _profilePasswordAttempts = new(StringComparer.OrdinalIgnoreCase);
+    private bool _profileManagementSignInPending;
     private ShortcutRecordRequest? _pendingShortcutRecord;
     private readonly GrevDadCoordinator _grevDad;
 
@@ -103,6 +104,7 @@ public partial class MainWindow : Window
         _loginView.PasswordSignInRequested += VerifyPasswordAndSignIn;
         _loginView.GuestSignInRequested += SignInTemporaryGuest;
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
+        _loginView.ManageProfilesRequested += (_, _) => BeginProfileManagementSignIn();
 
         _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
         _createProfileView.OnboardingFinished += (_,_)=>ReturnToLogin();
@@ -241,6 +243,12 @@ public partial class MainWindow : Window
 
     private void SignInLocal(ProfileSignInRequest request)
     {
+        if (_profileManagementSignInPending && request.Profile.Role != AccountRole.Admin)
+        {
+            _loginView.ShowStatus("Profile management requires an Admin account.");
+            return;
+        }
+
         var addingPlayer = _session.HasSignedInUsers;
         if (addingPlayer && _session.SignedInUsers.Count >= SessionContext.MaximumPlayers)
         {
@@ -261,6 +269,15 @@ public partial class MainWindow : Window
 
         _loginView.ClearStatus();
         _session.SignInLocal(request.Profile, request.ControllerIndex);
+
+        if (_profileManagementSignInPending)
+        {
+            _profileManagementSignInPending = false;
+            _loginView.EndAdminManagementSignIn();
+            RefreshProfilePlayerViews();
+            _navigation.Navigate(Route.ProfilePlayers);
+            return;
+        }
 
         if (!addingPlayer)
         {
@@ -677,6 +694,12 @@ public partial class MainWindow : Window
         _navigation.Navigate(Route.CreateProfile);
     }
 
+    private void BeginProfileManagementSignIn()
+    {
+        _profileManagementSignInPending = true;
+        _loginView.BeginAdminManagementSignIn();
+    }
+
     private async Task CreateProfileAsync(CreateProfileRequest request)
     {
         try
@@ -706,6 +729,8 @@ public partial class MainWindow : Window
     {
         CancelShortcutRecording(showMessage: false);
         _loginView.ClearStatus();
+        _profileManagementSignInPending = false;
+        _loginView.EndAdminManagementSignIn();
         _session.SignOutAll();
         _navigation.Reset(Route.Login);
     }

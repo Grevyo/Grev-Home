@@ -30,7 +30,7 @@
                              MaxLength="50"
                              IsReadOnly="True"
                              IsTabStop="False" />
-                    <Button Grid.Column="1"
+                    <Button x:Name="OpenKeyboardButton" Grid.Column="1"
                             Content="Open Keyboard"
                             Width="180"
                             Height="56"
@@ -58,7 +58,7 @@
                            TextWrapping="Wrap" />
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
-                    <Button Content="Create Account" Width="210" Height="56" Margin="6" Click="Create_Click" />
+                    <Button x:Name="CreateAccountButton" Content="Create Account" Width="210" Height="56" Margin="6" Click="Create_Click" />
                     <Button Content="Cancel" Width="150" Height="56" Margin="6" Click="Cancel_Click" />
                 </StackPanel>
             </StackPanel>

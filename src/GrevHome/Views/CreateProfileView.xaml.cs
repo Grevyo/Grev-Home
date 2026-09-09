@@ -36,6 +36,7 @@ public partial class CreateProfileView : UserControl
         {
             ProfileNameTextBox.Text = value;
             ProfileNameTextBox.CaretIndex = ProfileNameTextBox.Text.Length;
+            Dispatcher.BeginInvoke(new Action(() => CreateAccountButton.Focus()));
         };
         KeyboardOverlay.Opened += (_, _) => KeyboardOpened?.Invoke(this, EventArgs.Empty);
         KeyboardOverlay.Closed += (_, _) => KeyboardClosed?.Invoke(this, EventArgs.Empty);
@@ -115,6 +116,12 @@ public partial class CreateProfileView : UserControl
     }
 
     public void CancelKeyboard() => KeyboardOverlay.Cancel();
+
+    public void RestoreControllerFocusAfterKeyboard()
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+            (string.IsNullOrWhiteSpace(ProfileNameTextBox.Text) ? OpenKeyboardButton : CreateAccountButton).Focus()));
+    }
 
     private void OpenKeyboard_Click(object sender, RoutedEventArgs e) => OpenKeyboard();
 
