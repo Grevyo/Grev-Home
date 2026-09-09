@@ -1,6 +1,7 @@
 using GrevHome.Storage;
 
 var previousOverride = Environment.GetEnvironmentVariable("GREV_HOME_ROOT");
+var testRoot = Path.Combine(Path.GetTempPath(), "GrevHome-InstallLayout-" + Guid.NewGuid().ToString("N"));
 try
 {
     Environment.SetEnvironmentVariable("GREV_HOME_ROOT", null);
@@ -19,11 +20,33 @@ try
     Check(PathsEqual(alternateDriveRoot, @"D:\GrevCo\GrevHome"),
         "Drive choices must use <drive>:\\GrevCo\\GrevHome, never <drive>:\\GrevHome.");
 
-    Console.WriteLine("Install layout tests passed: Grev-owned defaults are rooted under GrevCo/GrevHome.");
+    // Multiple Games locations are machine-wide library roots, with the primary first. This uses a
+    // temporary custom AppPaths root so the test never touches the runner's real C:\GrevCo tree.
+    var testPaths = new AppPaths(testRoot);
+    testPaths.EnsureMachineLayout();
+    var testDefaults = new MachineDefaultsService(testPaths);
+    var primaryGames = Path.Combine(testRoot, "Libraries", "Primary");
+    var extraOne = Path.Combine(testRoot, "Libraries", "Arcade");
+    var extraTwo = Path.Combine(testRoot, "Libraries", "Retro");
+    var bios = Path.Combine(testRoot, "Firmware");
+
+    await testDefaults.SaveAsync(primaryGames, bios, [extraOne, extraTwo, extraOne]);
+    var saved = await testDefaults.GetAsync();
+    Check(saved.SetupCompleted, "Saving machine library locations must complete first-run setup.");
+    Check(saved.AdditionalGamesRoots?.Count == 2, "Additional Games roots must be persisted and de-duplicated.");
+
+    var roots = await testDefaults.GetGamesRootsAsync();
+    Check(roots.Count == 3, "GetGamesRootsAsync must return primary plus every additional Games location.");
+    Check(PathsEqual(roots[0], primaryGames), "The primary Games root must remain first.");
+    Check(roots.Skip(1).Any(path => PathsEqual(path, extraOne)) && roots.Skip(1).Any(path => PathsEqual(path, extraTwo)),
+        "Every configured additional Games location must round-trip through machine defaults.");
+
+    Console.WriteLine("Install layout tests passed: Grev-owned defaults stay under GrevCo/GrevHome and multiple Games roots round-trip safely.");
 }
 finally
 {
     Environment.SetEnvironmentVariable("GREV_HOME_ROOT", previousOverride);
+    try { if (Directory.Exists(testRoot)) Directory.Delete(testRoot, recursive: true); } catch { }
 }
 
 static bool PathsEqual(string left, string right) =>
