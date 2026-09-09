@@ -205,7 +205,10 @@ begin
   PreferencesFile := ExpandConstant('{app}\Data\installer-first-run.ini');
   SetIniString('Setup', 'GamesRoot', GamesFolderPage.Values[0], PreferencesFile);
   SetIniString('Setup', 'BiosRoot', BiosFolder, PreferencesFile);
-  SetIniString('Setup', 'EmulatorSetup', BoolToStr(EmulatorSetupSelected(), True), PreferencesFile);
+  if EmulatorSetupSelected() then
+    SetIniString('Setup', 'EmulatorSetup', 'True', PreferencesFile)
+  else
+    SetIniString('Setup', 'EmulatorSetup', 'False', PreferencesFile);
   SetIniString('Setup', 'Consoles', SelectedConsoleList(), PreferencesFile);
 end;
 
