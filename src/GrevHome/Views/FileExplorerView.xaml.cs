@@ -54,7 +54,7 @@ public partial class FileExplorerView : UserControl
 
     public void SetHome(IReadOnlyList<FileHomeLocation> locations, FileTransferRequest? transfer)
     {
-        LocationText.Text = "Files Home";
+        LocationText.Text = "Grev Files Home";
         EntriesPanel.Children.Clear();
         ClearSelection();
 
@@ -69,7 +69,7 @@ public partial class FileExplorerView : UserControl
         NewFolderButton.IsEnabled = false;
         FavoriteButton.IsEnabled = false;
         SetTransfer(transfer, canPaste: false);
-        StatusText.Text = "Select a location or drive. B returns to Dashboard from Files Home.";
+        StatusText.Text = "Select a location or drive. B returns to Dashboard from Grev Files Home.";
     }
 
     public void SetDirectory(

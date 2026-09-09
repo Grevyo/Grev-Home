@@ -16,6 +16,6 @@ Existing website awards and Home milestones share the account collection. Home m
 
 ## Browser controller test
 
-Open Grev's Web Browser from the dashboard. It starts at Google and does not require a website link. Select Browse page, move between links/fields using the D-pad, activate with A, type a search using the shared on-screen keyboard, then open a result. B returns to the toolbar; test back, reload, Google search and return to Home. Test controller focus after page navigation and profile switching.
+Open Grev Web from the dashboard. It starts at Google and does not require a website link. Select Browse page, move between links/fields using the D-pad, activate with A, type a search using the shared on-screen keyboard, then open a result. B returns to the toolbar; test back, reload, Google search and return to Home. Test controller focus after page navigation and profile switching.
 
 The general browser permits HTTPS pages, with separate per-profile storage from the origin-restricted Grev.dad account browser. Downloads and permission prompts remain blocked. Test Google consent and normal HTML forms; arbitrary third-party canvas widgets, uploads and external sign-in flows are not guaranteed controller-compatible. WebView2 Runtime is required. Real Windows/controller validation remains a manual audit, not a CI assertion.

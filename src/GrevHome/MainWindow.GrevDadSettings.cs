@@ -32,9 +32,9 @@ public partial class MainWindow
         _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
         _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
         _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
-        _createProfileView.OpenGrevDadRequested += _=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
+        _createProfileView.OpenGrevDadRequested += profile=>OpenGrevDadWebsite(profile,new Uri(RequireGrevDadAccountService().BaseUri,"login?next=%2Flink-grev-home"));
         _createProfileView.GenerateGrevDadCodeRequested += profile=>_ = BeginGrevDadLinkFromOnboardingAsync(profile);
-        _createProfileView.OpenGrevDadApprovalRequested += (_,link)=>OpenGrevDadApprovalPage(link.VerificationUri);
+        _createProfileView.OpenGrevDadApprovalRequested += (profile,link)=>OpenGrevDadWebsite(profile,link.VerificationUri);
         _createProfileView.CheckGrevDadApprovalRequested += profile=>_ = CheckGrevDadLinkFromOnboardingAsync(profile);
 
         var service = RequireGrevDadAccountService();
