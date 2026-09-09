@@ -209,8 +209,15 @@ public partial class FolderPickerView : UserControl
     {
         Dispatcher.BeginInvoke(new Action(() =>
         {
-            if (UseFolderButton.IsEnabled) UseFolderButton.Focus();
-            else EntriesPanel.Children.OfType<Button>().FirstOrDefault()?.Focus() ?? CancelButton.Focus();
+            if (UseFolderButton.IsEnabled)
+            {
+                UseFolderButton.Focus();
+                return;
+            }
+
+            var first = EntriesPanel.Children.OfType<Button>().FirstOrDefault();
+            if (first is not null) first.Focus();
+            else CancelButton.Focus();
         }));
     }
 
