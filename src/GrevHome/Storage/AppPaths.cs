@@ -127,6 +127,12 @@ public sealed class AppPaths
     public void EnsureMachineLayout()
     {
         Directory.CreateDirectory(Root);
+
+        // Before creating fresh canonical machine/profile state, give the dedicated migration
+        // service one chance to import recognisable data from the pre-GrevCo storage layout.
+        // The importer is a no-op for custom/test roots and leaves the legacy tree untouched.
+        new LegacyDataMigrationService(this).ImportIfNeededAsync().GetAwaiter().GetResult();
+
         Directory.CreateDirectory(Data);
         Directory.CreateDirectory(AppCatalogueData);
         Directory.CreateDirectory(RuntimeData);
