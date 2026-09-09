@@ -261,10 +261,17 @@ public partial class FirstRunSetupView : UserControl
 
     private void UpdateScanChoice() =>
         ScanChoiceButton.Content = _scanGamesFolder
-            ? "✓  Scan my configured Games locations after I create my account"
+            ? "✓  Scan my primary Games folder after I create my account"
             : "○  Skip scanning - I'll add games myself";
 
-    private static string Normalize(string path) => Path.GetFullPath(path.Trim()).TrimEnd(Path.DirectorySeparatorChar);
+    private static string Normalize(string path)
+    {
+        var full = Path.GetFullPath(path.Trim());
+        var root = Path.GetPathRoot(full);
+        return !string.IsNullOrWhiteSpace(root) && string.Equals(full, root, StringComparison.OrdinalIgnoreCase)
+            ? root
+            : full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
 
     private enum FolderPickerPurpose
     {
