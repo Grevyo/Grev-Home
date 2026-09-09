@@ -5,43 +5,94 @@ using GrevHome.Storage;
 namespace GrevHome.Profiles;
 
 /// <summary>
-/// Grev Home's profile tile grid. This mirrors the tile shape and grid rules grev.dad's web
-/// profile editor already uses (src/profile-card-tiles.ts and the freePlacement/tileLayoutError/
-/// compactTiles logic in public/profile-tile-save-fix.js and public/dashboard-freeze-fix.js), so a
-/// tile placed on one side keeps the same meaning on the other. Kept intentionally smaller than
-/// grev.dad's full styling set (no background/media/border customization yet) - this is the grid
-/// and persistence foundation a controller-first tile editor is built on; presentation options can
-/// grow later without changing the placement contract.
+/// Grev Home's profile tile grid. This mirrors the tile shape and grid rules grev.dad's own
+/// profile tile grid uses - profileTileDefaults()/PROFILE_COLUMNS/PROFILE_MAX_WIDTH/
+/// PROFILE_MAX_HEIGHT in public/profile.js, and the placement/collision math duplicated in
+/// public/profile-tile-controller.js - so a tile placed on one side keeps the same meaning on the
+/// other: 8-column grid, up to 200 rows, each tile 1-6 wide and 1-4 tall.
+///
+/// grev.dad actually has *two* different tile systems and this mirrors the grid one, not the
+/// other: the small in-card tile strip (public/profile-card-tiles.js, kinds feature/link/custom,
+/// a 4-column x 7-row grid capped at 4 tiles) is a separate feature that lives inside the profile
+/// card itself and is out of scope here. This type is named ProfileTile rather than the tempting
+/// ProfileCardTile specifically to avoid colliding with that other, unrelated concept.
 /// </summary>
-public enum ProfileCardTileKind
+public enum ProfileTileKind
 {
-    Feature,
+    Text,
     Link,
-    Custom
+    Media,
+    Stat
 }
 
-public sealed record ProfileCardTile(
+public enum ProfileTileBackgroundType
+{
+    Solid,
+    Gradient,
+    Media
+}
+
+public enum ProfileTileMediaFit
+{
+    Cover,
+    Contain,
+    Stretch
+}
+
+public enum ProfileTileMediaOverlay
+{
+    None,
+    Dark,
+    Light
+}
+
+public enum ProfileTileFontFamily
+{
+    System,
+    Display,
+    Mono,
+    Serif,
+    Rounded
+}
+
+public sealed record ProfileTile(
     string TileId,
-    ProfileCardTileKind Kind,
+    ProfileTileKind Kind,
     int X,
     int Y,
     int Width,
     int Height,
-    string? FeatureId = null,
     string? Title = null,
-    string? Description = null,
-    string? LinkUrl = null);
+    string? Body = null,
+    string? LinkLabel = null,
+    string? LinkUrl = null,
+    string? StatValue = null,
+    ProfileTileBackgroundType BackgroundType = ProfileTileBackgroundType.Solid,
+    string BackgroundPrimary = "#11161d",
+    string BackgroundSecondary = "#3157c9",
+    int BackgroundAngle = 135,
+    // Grev.dad stores this tile's picture as an inline base64 data URL, matching every other piece
+    // of profile media on that side. Grev Home stores media as local files elsewhere (see
+    // DashboardTileOverride.TileMediaFile / ProfileMediaDataUrl), so this holds a local filename
+    // instead - a future sync layer converts between the two representations rather than this type
+    // carrying a multi-megabyte string around in memory and on every JSON round-trip.
+    string? BackgroundMediaFile = null,
+    ProfileTileMediaFit MediaFit = ProfileTileMediaFit.Cover,
+    ProfileTileMediaOverlay MediaOverlay = ProfileTileMediaOverlay.Dark,
+    string TextColour = "#f4f7fb",
+    string BorderColour = "#394657",
+    ProfileTileFontFamily FontFamily = ProfileTileFontFamily.System);
 
-public sealed record ProfileCardTileLayout(int SchemaVersion, IReadOnlyList<ProfileCardTile> Tiles)
+public sealed record ProfileTileLayout(int SchemaVersion, IReadOnlyList<ProfileTile> Tiles)
 {
-    public static ProfileCardTileLayout Empty { get; } = new(CurrentSchemaVersion, []);
+    public static ProfileTileLayout Empty { get; } = new(CurrentSchemaVersion, []);
     public const int CurrentSchemaVersion = 1;
 }
 
 /// <summary>
 /// Pure grid math - placement, collision and compaction rules. No storage, no UI, so both the
 /// controller-first editor and the persistence service can share one definition of "valid layout"
-/// with grev.dad's rules (same GRID_COLUMNS=8 / width 1-6 / height 1-4 as profile-tile-save-fix.js).
+/// with grev.dad's rules (PROFILE_COLUMNS=8 / width 1-6 / height 1-4 in public/profile.js).
 /// </summary>
 public static class ProfileTileGrid
 {
@@ -52,11 +103,11 @@ public static class ProfileTileGrid
     public const int MinHeight = 1;
     public const int MaxHeight = 4;
 
-    public static bool Overlaps(ProfileCardTile a, ProfileCardTile b) =>
+    public static bool Overlaps(ProfileTile a, ProfileTile b) =>
         a.X < b.X + b.Width && a.X + a.Width > b.X &&
         a.Y < b.Y + b.Height && a.Y + a.Height > b.Y;
 
-    public static bool InBounds(ProfileCardTile tile) =>
+    public static bool InBounds(ProfileTile tile) =>
         tile.Width is >= MinWidth and <= MaxWidth &&
         tile.Height is >= MinHeight and <= MaxHeight &&
         tile.X >= 0 && tile.Y >= 0 &&
@@ -65,16 +116,16 @@ public static class ProfileTileGrid
 
     /// <summary>
     /// Finds the first free top-left cell for a tile of the given size, scanning row-major like
-    /// grev.dad's freePlacement. Returns null when nothing fits.
+    /// grev.dad's firstFreeProfilePlacement. Returns null when nothing fits.
     /// </summary>
-    public static ProfileCardTile? FindFreePlacement(
-        IReadOnlyList<ProfileCardTile> existing, ProfileCardTileKind kind, int width, int height, string? tileId = null)
+    public static ProfileTile? FindFreePlacement(
+        IReadOnlyList<ProfileTile> existing, ProfileTileKind kind, int width, int height, string? tileId = null)
     {
         for (var y = 0; y <= MaxRows - height; y++)
         {
             for (var x = 0; x <= Columns - width; x++)
             {
-                var candidate = new ProfileCardTile(tileId ?? Guid.NewGuid().ToString("N"), kind, x, y, width, height);
+                var candidate = new ProfileTile(tileId ?? Guid.NewGuid().ToString("N"), kind, x, y, width, height);
                 if (!existing.Any(other => Overlaps(candidate, other))) return candidate;
             }
         }
@@ -82,14 +133,14 @@ public static class ProfileTileGrid
     }
 
     /// <summary>Null when the layout is valid; otherwise a user-facing reason, same wording style as
-    /// tileLayoutError() on the web so the same mistake reads the same way on both platforms.</summary>
-    public static string? Validate(IReadOnlyList<ProfileCardTile> tiles)
+    /// grev.dad's tile validation so the same mistake reads the same way on both platforms.</summary>
+    public static string? Validate(IReadOnlyList<ProfileTile> tiles)
     {
         for (var index = 0; index < tiles.Count; index++)
         {
             var tile = tiles[index];
             if (!InBounds(tile)) return "Every tile must stay inside the profile grid.";
-            if (tile.Kind == ProfileCardTileKind.Link &&
+            if (tile.Kind == ProfileTileKind.Link &&
                 (string.IsNullOrWhiteSpace(tile.LinkUrl) ||
                  !(tile.LinkUrl.StartsWith("http://", StringComparison.OrdinalIgnoreCase) ||
                    tile.LinkUrl.StartsWith("https://", StringComparison.OrdinalIgnoreCase))))
@@ -106,12 +157,11 @@ public static class ProfileTileGrid
 
     /// <summary>
     /// Repacks tiles that have drifted into an invalid/overlapping state (e.g. after a schema
-    /// change) into the first available free cells, preserving order. Mirrors compactTiles() in
-    /// dashboard-freeze-fix.js.
+    /// change) into the first available free cells, preserving order.
     /// </summary>
-    public static IReadOnlyList<ProfileCardTile> Compact(IReadOnlyList<ProfileCardTile> tiles)
+    public static IReadOnlyList<ProfileTile> Compact(IReadOnlyList<ProfileTile> tiles)
     {
-        var packed = new List<ProfileCardTile>(tiles.Count);
+        var packed = new List<ProfileTile>(tiles.Count);
         foreach (var source in tiles)
         {
             var width = Math.Clamp(source.Width, MinWidth, MaxWidth);
@@ -129,34 +179,34 @@ public static class ProfileTileGrid
 /// Per-GrevID tile layout storage. Same shape as ProfilePresentationSettingsService: atomic
 /// temp-then-move JSON under the profile's presentation root.
 /// </summary>
-public sealed class ProfileCardTileService
+public sealed class ProfileTileService
 {
     private readonly AppPaths _paths;
     private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWithStringEnums;
 
-    public ProfileCardTileService(AppPaths paths) => _paths = paths;
+    public ProfileTileService(AppPaths paths) => _paths = paths;
 
-    public async Task<ProfileCardTileLayout> GetAsync(string grevId, CancellationToken cancellationToken = default)
+    public async Task<ProfileTileLayout> GetAsync(string grevId, CancellationToken cancellationToken = default)
     {
         var path = GetLayoutFile(grevId);
-        if (!File.Exists(path)) return ProfileCardTileLayout.Empty;
+        if (!File.Exists(path)) return ProfileTileLayout.Empty;
 
         try
         {
             await using var stream = File.OpenRead(path);
-            var layout = await JsonSerializer.DeserializeAsync<ProfileCardTileLayout>(stream, _json, cancellationToken);
+            var layout = await JsonSerializer.DeserializeAsync<ProfileTileLayout>(stream, _json, cancellationToken);
             if (layout is null) return RecoverDefaults(path, "Profile tile layout contained no usable value.");
-            if (layout.SchemaVersion > ProfileCardTileLayout.CurrentSchemaVersion)
+            if (layout.SchemaVersion > ProfileTileLayout.CurrentSchemaVersion)
             {
                 throw new InvalidDataException(
-                    $"Profile tile schema {layout.SchemaVersion} is newer than this Grev Home build supports ({ProfileCardTileLayout.CurrentSchemaVersion}).");
+                    $"Profile tile schema {layout.SchemaVersion} is newer than this Grev Home build supports ({ProfileTileLayout.CurrentSchemaVersion}).");
             }
 
             var error = ProfileTileGrid.Validate(layout.Tiles);
             if (error is null) return layout;
 
             // A stale/corrupt layout is repaired rather than discarded outright - the tiles
-            // themselves (feature choices, links, custom titles) are still worth keeping.
+            // themselves (text, links, stats) are still worth keeping.
             var repaired = ProfileTileGrid.Compact(layout.Tiles);
             return ProfileTileGrid.Validate(repaired) is null
                 ? layout with { Tiles = repaired }
@@ -168,13 +218,13 @@ public sealed class ProfileCardTileService
         }
     }
 
-    public async Task<ProfileCardTileLayout> SaveAsync(
-        string grevId, IReadOnlyList<ProfileCardTile> tiles, CancellationToken cancellationToken = default)
+    public async Task<ProfileTileLayout> SaveAsync(
+        string grevId, IReadOnlyList<ProfileTile> tiles, CancellationToken cancellationToken = default)
     {
         var error = ProfileTileGrid.Validate(tiles);
         if (error is not null) throw new InvalidOperationException(error);
 
-        var layout = new ProfileCardTileLayout(ProfileCardTileLayout.CurrentSchemaVersion, tiles);
+        var layout = new ProfileTileLayout(ProfileTileLayout.CurrentSchemaVersion, tiles);
         var path = GetLayoutFile(grevId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + ".tmp";
@@ -197,14 +247,14 @@ public sealed class ProfileCardTileService
         return layout;
     }
 
-    private ProfileCardTileLayout RecoverDefaults(string path, string reason)
+    private ProfileTileLayout RecoverDefaults(string path, string reason)
     {
-        if (!CorruptDataQuarantine.TryPreserve(_paths, path, "ProfileCardTiles", reason, out _))
+        if (!CorruptDataQuarantine.TryPreserve(_paths, path, "ProfileTiles", reason, out _))
         {
             throw new InvalidDataException(
                 "Grev Home found invalid profile tile data but could not preserve a recovery copy. The original file was left untouched.");
         }
-        return ProfileCardTileLayout.Empty;
+        return ProfileTileLayout.Empty;
     }
 
     private string GetLayoutFile(string grevId) =>

@@ -25,9 +25,9 @@ public enum ProfileTileEditorMode
 
 public sealed class ProfileTileGridEditor
 {
-    private List<ProfileCardTile> _tiles;
+    private List<ProfileTile> _tiles;
 
-    public ProfileTileGridEditor(IReadOnlyList<ProfileCardTile> tiles)
+    public ProfileTileGridEditor(IReadOnlyList<ProfileTile> tiles)
     {
         _tiles = tiles.ToList();
         var first = _tiles.FirstOrDefault();
@@ -35,16 +35,16 @@ public sealed class ProfileTileGridEditor
         CursorY = first?.Y ?? 0;
     }
 
-    public IReadOnlyList<ProfileCardTile> Tiles => _tiles;
+    public IReadOnlyList<ProfileTile> Tiles => _tiles;
     public ProfileTileEditorMode Mode { get; private set; } = ProfileTileEditorMode.Browsing;
     public int CursorX { get; private set; }
     public int CursorY { get; private set; }
 
     /// <summary>The tile currently picked up or being resized, or null while just browsing.</summary>
-    public ProfileCardTile? ActiveTile { get; private set; }
-    private ProfileCardTile? _activeTileOrigin;
+    public ProfileTile? ActiveTile { get; private set; }
+    private ProfileTile? _activeTileOrigin;
 
-    public ProfileCardTile? TileAt(int x, int y) =>
+    public ProfileTile? TileAt(int x, int y) =>
         _tiles.FirstOrDefault(tile => x >= tile.X && x < tile.X + tile.Width && y >= tile.Y && y < tile.Y + tile.Height);
 
     /// <summary>Feed one InputAction from the controller (or an equivalent keyboard binding) in.
@@ -177,7 +177,7 @@ public sealed class ProfileTileGridEditor
         ReplaceActiveTile(_activeTileOrigin);
     }
 
-    private void ReplaceActiveTile(ProfileCardTile updated)
+    private void ReplaceActiveTile(ProfileTile updated)
     {
         var index = _tiles.FindIndex(tile => tile.TileId == ActiveTile!.TileId);
         if (index >= 0) _tiles[index] = updated;
