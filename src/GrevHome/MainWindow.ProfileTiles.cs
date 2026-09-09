@@ -133,7 +133,7 @@ public partial class MainWindow
         try
         {
             var layout = await service.GetAsync(profile.GrevId);
-            _profileTileEditorView.Load(layout.Tiles);
+            _profileTileEditorView.Load(layout.Tiles, service.GetMediaRoot(profile.GrevId));
             _navigation.Navigate(Route.ProfileTiles);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
