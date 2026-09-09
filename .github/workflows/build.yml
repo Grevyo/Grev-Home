@@ -42,10 +42,20 @@ jobs:
         run: |
           dotnet run --project .\tests\InstallLayout\InstallLayout.csproj --configuration Release
           if ($LASTEXITCODE -ne 0) { throw 'Install layout regression test failed.' }
-          $legacyRootReferences = Get-ChildItem .\src,.\installer -Recurse -File | Where-Object { $_.Extension -in '.cs','.xaml','.iss' } | Select-String -SimpleMatch 'C:\GrevHome'
-          if ($legacyRootReferences) {
-            $legacyRootReferences | ForEach-Object { Write-Host "Legacy root reference: $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
-            throw 'Production source still contains the legacy C:\GrevHome root.'
+
+          # The only production code allowed to know the pre-GrevCo C:\GrevHome path is the
+          # dedicated one-time migration service. Any other reference is a regression back to the
+          # old install/storage convention.
+          $allowedLegacyFile = [IO.Path]::GetFullPath((Join-Path $PWD 'src\GrevHome\Storage\LegacyDataMigrationService.cs'))
+          $legacyRootReferences = Get-ChildItem .\src,.\installer -Recurse -File |
+            Where-Object { $_.Extension -in '.cs','.xaml','.iss' } |
+            Select-String -SimpleMatch 'C:\GrevHome'
+          $unexpectedLegacyReferences = $legacyRootReferences | Where-Object {
+            [IO.Path]::GetFullPath($_.Path) -ne $allowedLegacyFile
+          }
+          if ($unexpectedLegacyReferences) {
+            $unexpectedLegacyReferences | ForEach-Object { Write-Host "Unexpected legacy root reference: $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+            throw 'Production source contains the legacy C:\GrevHome root outside the migration service.'
           }
 
       - name: Verify official installer publishers without executing installers
