@@ -215,6 +215,33 @@ try
     dirtyEditor.MarkSaved();
     Check(!dirtyEditor.IsDirty, "MarkSaved must rebase the dirty baseline onto the current layout");
 
+    // --- SyncedAccountUserId: the cross-account data-leak guard on unlink/relink ---
+    var identityGrevId = "GTESTIDENTITY";
+    paths.EnsureProfileLayout(identityGrevId);
+    var identityService = new ProfileTileService(paths);
+    var accountATile = BaseTile(x: 0, y: 0) with { Title = "Account A tile" };
+    await identityService.SaveAsync(identityGrevId, [accountATile],
+        syncedAccountUserId: "account-a", setSyncedAccountUserId: true);
+    var afterSync = await identityService.GetAsync(identityGrevId);
+    Check(afterSync.SyncedAccountUserId == "account-a", "SaveAsync must persist an explicitly stamped account identity");
+
+    // An ordinary local edit (the tile editor's own Save - no sync identity involved) must leave
+    // the stamped identity untouched, not silently clear it.
+    await identityService.SaveAsync(identityGrevId, [accountATile with { Title = "Edited locally" }]);
+    var afterLocalEdit = await identityService.GetAsync(identityGrevId);
+    Check(afterLocalEdit.SyncedAccountUserId == "account-a",
+        "an ordinary local save must preserve the layout's existing synced-account identity");
+    Check(afterLocalEdit.Tiles.Single().Title == "Edited locally", "the local edit itself must still take effect");
+
+    // A pull for a different account (setSyncedAccountUserId: true again, this time account-b)
+    // must overwrite both the tiles and the stamped identity - this is the actual recovery path
+    // after SyncProfileTilesAsync detects the mismatch above and re-pulls instead of trusting local.
+    await identityService.SaveAsync(identityGrevId, [BaseTile(x: 0, y: 0) with { Title = "Account B tile" }],
+        syncedAccountUserId: "account-b", setSyncedAccountUserId: true);
+    var afterRelink = await identityService.GetAsync(identityGrevId);
+    Check(afterRelink.SyncedAccountUserId == "account-b", "a fresh pull for a different account must restamp the identity");
+    Check(afterRelink.Tiles.Single().Title == "Account B tile", "a fresh pull for a different account must replace the tiles");
+
     Console.WriteLine("Profile tile tests passed.");
 }
 finally

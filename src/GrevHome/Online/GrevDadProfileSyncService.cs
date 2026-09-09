@@ -283,8 +283,18 @@ public sealed class GrevDadProfileSyncService : IDisposable
             var remote = await FetchProfileTilesAsync(token, cancellationToken);
             var remoteTiles = remote.Tiles ?? [];
             var remoteStamp = remote.UpdatedAt ?? 0;
+            var currentAccountUserId = account.Account?.UserId;
 
-            var localStamp = local.UpdatedAtUtc?.ToUnixTimeSeconds() ?? 0;
+            // Unlink deliberately leaves the local tile layout on disk (see ProfileTileLayout's
+            // SyncedAccountUserId doc comment) - if a *different* grev.dad account was linked since
+            // this layout was last confirmed, its timestamp belongs to that other account and must
+            // never be trusted to win a "local is newer, push it" comparison against the account
+            // that is actually linked now. Treated as if local has no comparable state at all: pull
+            // whatever the current account actually has, the same as a genuinely fresh install.
+            var localBelongsToCurrentAccount =
+                local.SyncedAccountUserId is null || local.SyncedAccountUserId == currentAccountUserId;
+            var localStamp = localBelongsToCurrentAccount ? local.UpdatedAtUtc?.ToUnixTimeSeconds() ?? 0 : 0;
+
             if (remoteStamp > localStamp)
             {
                 var mediaRoot = _tiles.GetMediaRoot(grevId);
@@ -298,7 +308,10 @@ public sealed class GrevDadProfileSyncService : IDisposable
                     }
                     pulled.Add(FromWireTile(wire, mediaFile));
                 }
-                await _tiles.SaveAsync(grevId, pulled, DateTimeOffset.FromUnixTimeSeconds(remoteStamp), cancellationToken);
+                await _tiles.SaveAsync(
+                    grevId, pulled, DateTimeOffset.FromUnixTimeSeconds(remoteStamp),
+                    syncedAccountUserId: currentAccountUserId, setSyncedAccountUserId: true,
+                    cancellationToken: cancellationToken);
             }
             else if (localStamp > remoteStamp)
             {
@@ -307,6 +320,12 @@ public sealed class GrevDadProfileSyncService : IDisposable
                     .Select(tile => ToWireTile(tile, ProfileTileMediaConverter.ReadAsDataUrl(mediaRoot, tile.BackgroundMediaFile)))
                     .ToArray();
                 await PushProfileTilesAsync(token, wireTiles, cancellationToken);
+                // Confirmed as belonging to the current account by successfully pushing under its
+                // token - stamp it so a later sync can trust this layout's timestamp again.
+                await _tiles.SaveAsync(
+                    grevId, local.Tiles, local.UpdatedAtUtc,
+                    syncedAccountUserId: currentAccountUserId, setSyncedAccountUserId: true,
+                    cancellationToken: cancellationToken);
             }
             // Equal (including both empty) - nothing to do.
         }
