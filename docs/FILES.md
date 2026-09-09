@@ -1,4 +1,4 @@
-# Grev File Explorer — Milestone 0.8
+# Grev Files — Milestone 0.8
 
 Milestone 0.8 introduces the first internal Grev Home file browser. It is a controller-first Grev Home surface inside the existing persistent `MainWindow`; it does not automate or embed Windows Explorer.
 

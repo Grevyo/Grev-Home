@@ -33,6 +33,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
         DisposeBrowser();
         _home=home;
         _generalBrowser=generalBrowser;
+        BrowserTitle.Text=generalBrowser?"Grev Web":"Grev Web • Grev.dad";
         BrowserHomeButton.Content=generalBrowser?"Google search":"Grev.dad home";
         if (!IsAllowed(target.AbsoluteUri)) { HintText.Text="Only your configured Grev.dad website can open here."; return; }
         var generation=_generation;
@@ -87,7 +88,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
         if(!_browsing) return false;
         if(action==InputAction.Back) { _browsing=false;BrowseButton.Focus();return true; }
         if(action==InputAction.Accept) _=ActivateAsync();
-        else _=RunAsync($"window.grevController?.move({(action is InputAction.Left or InputAction.Up ? -1:1)})");
+        else _=RunAsync($"window.grevController?.move('{action.ToString().ToLowerInvariant()}')");
         return true;
     }
 
@@ -146,7 +147,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
         ShowBrowser();
     }
     private void ShowBrowser() { if(_browser is not null && IsEnabled) _browser.Visibility=Visibility.Visible;BrowseButton.Focus(); }
-    private void Browse_Click(object sender,RoutedEventArgs e) { _browsing=true;_=RunAsync("window.grevController?.move(1)"); }
+    private void Browse_Click(object sender,RoutedEventArgs e) { _browsing=true;_=RunAsync("window.grevController?.move('down')"); }
     private void Previous_Click(object sender,RoutedEventArgs e) { if(_browser?.CoreWebView2?.CanGoBack==true) _browser.CoreWebView2.GoBack(); }
     private void Home_Click(object sender,RoutedEventArgs e) => _browser?.CoreWebView2?.Navigate(_home.AbsoluteUri);
     private void Reload_Click(object sender,RoutedEventArgs e) => _browser?.CoreWebView2?.Reload();
@@ -169,9 +170,15 @@ public partial class GrevDadWebView : UserControl, IDisposable
       const visible=e=>!e.disabled && e.getClientRects().length && getComputedStyle(e).visibility!=='hidden' && !e.closest('[inert]');
       const items=()=>Array.from(document.querySelectorAll('a[href],button,input:not([type=hidden]),textarea,select,[role=button],[tabindex="0"]')).filter(visible);
       const style=document.createElement('style');style.textContent='[data-grev-focus]{outline:4px solid #87b5ff!important;outline-offset:4px!important;box-shadow:0 0 20px #427cec!important}';document.head.append(style);
+      const center=e=>{const r=e.getBoundingClientRect();return {x:r.left+r.width/2,y:r.top+r.height/2}};
       window.grevController={
-        move(d){let a=items();if(!a.length)return;let i=a.indexOf(selected);if(selected)selected.removeAttribute('data-grev-focus');
-          selected=a[(i+d+a.length)%a.length];selected.setAttribute('data-grev-focus','');selected.focus({preventScroll:true});selected.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});},
+        move(direction){let a=items();if(!a.length)return;if(!selected||!selected.isConnected){selected=a[0];}
+          else {const from=center(selected);const candidates=a.filter(e=>e!==selected).map(e=>{const p=center(e),dx=p.x-from.x,dy=p.y-from.y;
+            const valid=direction==='left'?dx<0:direction==='right'?dx>0:direction==='up'?dy<0:dy>0;
+            if(!valid)return null;const primary=(direction==='left'||direction==='right')?Math.abs(dx):Math.abs(dy);
+            const secondary=(direction==='left'||direction==='right')?Math.abs(dy):Math.abs(dx);return {e,score:primary+secondary*2.5};})
+            .filter(Boolean).sort((x,y)=>x.score-y.score);if(candidates.length)selected=candidates[0].e;}
+          a.forEach(e=>e.removeAttribute('data-grev-focus'));selected.setAttribute('data-grev-focus','');selected.focus({preventScroll:true});selected.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});},
         activate(){if(!selected||!selected.isConnected)return null;
           if(selected.matches('select')){editing=selected;return {kind:'select',options:Array.from(selected.options).map(o=>({text:o.text,value:o.value,disabled:o.disabled}))};}
           if(selected.matches('textarea,input:not([type=button]):not([type=submit]):not([type=checkbox]):not([type=radio]):not([type=file]):not([type=range]):not([type=color])')){

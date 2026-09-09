@@ -790,9 +790,9 @@ public sealed partial class GrevDadCoordinator
         _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
         _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
         _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
-        _createProfileView.OpenGrevDadRequested += _=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
+        _createProfileView.OpenGrevDadRequested += profile=>OpenGrevDadWebsite(profile,new Uri(RequireGrevDadAccountService().BaseUri,"login?next=%2Flink-grev-home"));
         _createProfileView.GenerateGrevDadCodeRequested += profile=>_ = BeginGrevDadLinkFromOnboardingAsync(profile);
-        _createProfileView.OpenGrevDadApprovalRequested += (_,link)=>OpenGrevDadApprovalPage(link.VerificationUri);
+        _createProfileView.OpenGrevDadApprovalRequested += (profile,link)=>OpenGrevDadWebsite(profile,link.VerificationUri);
         _createProfileView.CheckGrevDadApprovalRequested += profile=>_ = CheckGrevDadLinkFromOnboardingAsync(profile);
 
         var service = RequireGrevDadAccountService();
@@ -1487,6 +1487,8 @@ public sealed partial class GrevDadCoordinator
     private readonly GrevDadWebView _grevDadWebView = new();
     private Uri? _grevDadWebTarget;
     private string? _grevDadWebOwner;
+    private string? _grevDadWebRequestedOwner;
+    private bool _grevDadWebRequiresActiveOwner = true;
     private bool _generalWebBrowser;
 
     private void InitializeGrevDadWebIntegration()
@@ -1495,7 +1497,7 @@ public sealed partial class GrevDadCoordinator
         _dashboardView.WebBrowserRequested += (_, _) =>
         {
             if (_session.PrimaryUser?.GrevId is null) { _dashboardView.ShowStatus("Choose a local profile to open the browser."); return; }
-            _generalWebBrowser = true; _grevDadWebTarget = new Uri("https://www.google.com/"); _navigation.Navigate(Route.GrevDadWeb);
+            _generalWebBrowser = true; _grevDadWebTarget = new Uri("https://www.google.com/"); _grevDadWebRequestedOwner = null; _grevDadWebRequiresActiveOwner = true; _navigation.Navigate(Route.GrevDadWeb);
         };
         _grevDadWebView.ExitRequested += (_, _) => _navigation.GoBack();
         _navigation.RouteChanged += route =>
@@ -1503,7 +1505,7 @@ public sealed partial class GrevDadCoordinator
             if (route == Route.GrevDadWeb)
             {
                 _routeHost.Content = _grevDadWebView;
-                var grevId = _session.PrimaryUser?.GrevId;
+                var grevId = _grevDadWebRequestedOwner ?? _session.PrimaryUser?.GrevId;
                 if (grevId is null) { _navigation.GoBack(); return; }
                 _grevDadWebOwner = grevId;
                 var home = _generalWebBrowser ? new Uri("https://www.google.com/") : RequireGrevDadAccountService().BaseUri;
@@ -1512,12 +1514,13 @@ public sealed partial class GrevDadCoordinator
             }
             else
             {
-                _grevDadWebView.Dispose(); _grevDadWebOwner = null;
+                _grevDadWebView.Dispose(); _grevDadWebOwner = null; _grevDadWebRequestedOwner = null;
             }
         };
         _session.Changed += (_, _) => _dispatcher.BeginInvoke(new Action(() =>
         {
-            if (_navigation.Current == Route.GrevDadWeb && !string.Equals(_grevDadWebOwner, _session.PrimaryUser?.GrevId, StringComparison.OrdinalIgnoreCase))
+            if (_navigation.Current == Route.GrevDadWeb && _grevDadWebRequiresActiveOwner &&
+                !string.Equals(_grevDadWebOwner, _session.PrimaryUser?.GrevId, StringComparison.OrdinalIgnoreCase))
             { _grevDadWebView.Dispose(); _navigation.GoBack(); }
         }));
     }
@@ -1529,6 +1532,20 @@ public sealed partial class GrevDadCoordinator
         if (target.Scheme != "https" || !string.Equals(target.Host, home.Host, StringComparison.OrdinalIgnoreCase) || target.Port != home.Port)
         { _profileEditView.ShowGrevDadStatus("The approval address is not on the configured Grev.dad website."); return; }
         _grevDadWebTarget = target;
+        _grevDadWebRequestedOwner = null;
+        _grevDadWebRequiresActiveOwner = true;
+        _generalWebBrowser = false;
+        _navigation.Navigate(Route.GrevDadWeb);
+    }
+
+    private void OpenGrevDadWebsite(LocalProfile owner, Uri target)
+    {
+        var home = RequireGrevDadAccountService().BaseUri;
+        if (target.Scheme != "https" || !string.Equals(target.Host, home.Host, StringComparison.OrdinalIgnoreCase) || target.Port != home.Port)
+        { _createProfileView.ShowGrevDadOnboardingStatus("The requested page is not on the configured Grev.dad website."); return; }
+        _grevDadWebTarget = target;
+        _grevDadWebRequestedOwner = owner.GrevId;
+        _grevDadWebRequiresActiveOwner = false;
         _generalWebBrowser = false;
         _navigation.Navigate(Route.GrevDadWeb);
     }
