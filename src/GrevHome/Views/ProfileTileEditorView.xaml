@@ -25,6 +25,31 @@
    </ScrollViewer>
   </Border>
 
+  <Border x:Name="SettingsPanel" Grid.Row="1" Width="390" HorizontalAlignment="Right" VerticalAlignment="Stretch"
+          Margin="0,22,54,22" Padding="22" Background="#F20B0E14" BorderBrush="#59677E" BorderThickness="1"
+          CornerRadius="14" Visibility="Collapsed" Panel.ZIndex="30">
+   <StackPanel>
+    <TextBlock Text="TILE SETTINGS" FontSize="12" FontWeight="Bold" Foreground="{StaticResource AccentBrush}"/>
+    <TextBlock x:Name="SettingsHeadingText" Margin="0,7,0,0" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap"/>
+    <TextBlock x:Name="SettingsPositionText" Margin="0,4,0,14" FontSize="12" Foreground="{StaticResource MutedBrush}"/>
+    <Border Padding="14" Background="#151B25" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="8">
+     <StackPanel>
+      <TextBlock x:Name="SettingsFieldText" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}"/>
+      <TextBlock x:Name="SettingsValueText" Margin="0,7,0,0" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>
+      <TextBlock x:Name="SettingsDetailText" Margin="0,7,0,0" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"/>
+     </StackPanel>
+    </Border>
+    <TextBlock Margin="0,16,0,10" FontSize="12" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap"
+               Text="Controller: Up/Down chooses a setting, Left/Right changes list/range values, A edits or chooses media, B closes settings."/>
+    <WrapPanel>
+     <Button Content="Previous" Margin="0,0,8,8" Click="SettingsPrevious_Click"/>
+     <Button Content="Change" Margin="0,0,8,8" Click="SettingsActivate_Click"/>
+     <Button Content="Next" Margin="0,0,8,8" Click="SettingsNext_Click"/>
+     <Button Content="Close" Margin="0,0,8,8" Click="SettingsClose_Click"/>
+    </WrapPanel>
+   </StackPanel>
+  </Border>
+
   <Grid Grid.Row="2" Margin="40,0,40,26">
    <Grid.ColumnDefinitions>
     <ColumnDefinition Width="*"/>
