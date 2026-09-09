@@ -83,18 +83,54 @@ grev.dad's matching side is `public/profile-tile-controller.js`: a keyboard grid
 keys/Enter/Escape/R) and a Gamepad API poller, both driving the same up/down/left/right/accept/back
 action set as this file, alongside its existing mouse drag.
 
+## The editor view
+
+`Views/ProfileTileEditorView.xaml(.cs)` is the controller-first surface: it renders
+`ProfileTileGridEditor`'s tiles and cursor onto a scrollable `Canvas`, and supports everything the
+model supports - move, resize, add (a small "add at cursor" toolbar for Text/Link/Media/Stat, using
+`ProfileTileGridEditor.AddTile`, new this session alongside `RemoveActiveTile`), remove, and a
+minimal text-field edit (Title/LinkUrl/StatValue) via the existing `ControllerQwertyKeyboard`
+overlay, the same one `ProfileEditView` already uses for text entry.
+
+It is deliberately self-contained - no dependency on `MainWindow`'s navigation beyond its own
+`BackRequested`/`SaveRequested` events - because wiring it into that router is not done here.
+`MainWindow.xaml.cs` is large and was not read this session; guessing at its routing conventions
+blind risked corrupting working navigation for a much smaller payoff than getting the editor itself
+right. Whoever wires this in needs to:
+
+1. Host `ProfileTileEditorView` the way another full-screen surface (e.g. `DashboardTileSettingsView`)
+   is hosted - find that pattern in `MainWindow`/`MainWindow.*.cs` first.
+2. Call `view.Load(await new ProfileTileService(paths).GetAsync(grevId))` when opening it.
+3. Forward the same `InputAction` stream `MainWindow.AppControllerRuntime.cs` already produces for
+   D-Pad into `view.HandleInput(action)` while it is the active surface, instead of letting it fall
+   through to `MoveFocus` - and set `view.IsControllerActive` from whichever input last arrived
+   (controller event vs. a physical `KeyDown`) so the footer prompt reads correctly.
+4. On `SaveRequested`, call `ProfileTileService.SaveAsync(grevId, tiles)`; on `BackRequested`,
+   return to wherever profile editing was opened from (discarding unsaved changes, or prompting -
+   this view raises the event either way and leaves that choice to the host, the same way
+   `DashboardTileSettingsView.BackRequested` does).
+5. Optionally call `GrevDadProfileSyncService.SyncProfileTilesAsync` after a successful save (see
+   Cloud sync below) so a local edit reaches grev.dad promptly rather than waiting for whatever
+   other trigger eventually calls it.
+
+**NOT VERIFIED**, same caveat as everything else in this document: authored without a Windows/.NET
+toolchain, never compiled. XAML is exactly the kind of thing this environment cannot catch a
+mistake in - a bad binding or missing `using` reads fine here and fails only on a real build.
+
 ## Still to do
 
-- **A `ProfileTileEditorView`-style XAML surface** that renders the grid and cursor and forwards
-  `InputAction`s into `ProfileTileGridEditor`. Nothing in Grev Home actually calls
-  `ProfileTileService` or `ProfileTileGridEditor` yet - this branch adds the model and the
-  controller-input logic, not a usable feature. This needs a Windows/WPF build to iterate on
-  visually, which this change was not made on.
-- **Wiring `SyncProfileTilesAsync` to an actual call site** and to an automated test (see the
-  Cloud sync section above) - the method exists and is documented but nothing calls it yet.
-- An "add tile" flow from an empty cell (today `HandleInput` deliberately returns `false` for
-  Accept on an empty cell so a future catalogue/picker UI can own that instead of the grid editor
-  guessing what should appear) - the same boundary grev.dad's own controller draws.
-- Unit/manual verification of `ProfileTiles.cs` and `ProfileTileGridEditor.cs` on an actual
-  Windows/WPF build (a `tests/ProfileTiles`-style project, matching `tests/ProfileCarousel`). This
+- **Wiring the editor view into `MainWindow`'s navigation** (see above) and **wiring
+  `SyncProfileTilesAsync` to an actual call site** and to an automated test (see Cloud sync above) -
+  both exist and are documented but nothing calls either yet.
+- `HandleInput` itself still returns `false` for Accept on an empty cell (unchanged) - the view
+  adds tiles through its own toolbar (`ProfileTileGridEditor.AddTile`) rather than that path, so a
+  D-Pad user reaches "add" via the toolbar buttons (already focus/D-Pad navigable through Grev
+  Home's existing `MoveFocus` wiring) rather than pressing Accept on empty space. A more direct
+  "Accept on empty cell opens a kind picker right there" flow is still open if that turns out to
+  read better once this is actually on screen.
+- Editing a tile's picture (`ProfileTileKind.Media`) isn't wired into the view yet - `EditTile_Click`
+  shows a message and stops rather than opening a media/file picker.
+- Unit/manual verification of everything in this document on an actual Windows/WPF build (a
+  `tests/ProfileTiles`-style project exists and covers the non-view pieces; the view itself has no
+  test at all - WPF UI is much harder to unit test than the pure logic classes are). This
   repository was authored without access to a .NET toolchain and has not been compiled.

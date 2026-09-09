@@ -76,6 +76,29 @@ public sealed class ProfileTileGridEditor
         }
     }
 
+    /// <summary>Adds a new tile of the given kind/size, placed at the cursor if that cell is free
+    /// (so "add tile" while browsing an empty spot puts it right there, matching where the cursor
+    /// visually is) or at the first free cell elsewhere on the grid otherwise, then immediately
+    /// enters Holding on it so it can be repositioned without a second Accept. Returns null - and
+    /// changes nothing - when the grid genuinely has no room left for a tile of that size.</summary>
+    public ProfileTile? AddTile(ProfileTileKind kind, int width, int height)
+    {
+        var atCursor = new ProfileTile(Guid.NewGuid().ToString(), kind, CursorX, CursorY, width, height);
+        var placement =
+            ProfileTileGrid.InBounds(atCursor) && !_tiles.Any(other => ProfileTileGrid.Overlaps(atCursor, other))
+                ? atCursor
+                : ProfileTileGrid.FindFreePlacement(_tiles, kind, width, height);
+        if (placement is null) return null;
+
+        _tiles.Add(placement);
+        CursorX = placement.X;
+        CursorY = placement.Y;
+        ActiveTile = placement;
+        _activeTileOrigin = placement;
+        Mode = ProfileTileEditorMode.Holding;
+        return placement;
+    }
+
     private bool HandleHolding(InputAction action)
     {
         if (ActiveTile is null) { Mode = ProfileTileEditorMode.Browsing; return false; }
@@ -132,6 +155,19 @@ public sealed class ProfileTileGridEditor
     {
         if (Mode != ProfileTileEditorMode.Holding || ActiveTile is null) return false;
         Mode = ProfileTileEditorMode.Resizing;
+        return true;
+    }
+
+    /// <summary>Deletes the currently-held tile and returns to Browsing. Only valid while Holding -
+    /// grev.dad's own tile settings only offer Remove once a tile is selected/open, not mid-resize,
+    /// and this matches that.</summary>
+    public bool RemoveActiveTile()
+    {
+        if (Mode != ProfileTileEditorMode.Holding || ActiveTile is null) return false;
+        _tiles.RemoveAll(tile => tile.TileId == ActiveTile.TileId);
+        ActiveTile = null;
+        _activeTileOrigin = null;
+        Mode = ProfileTileEditorMode.Browsing;
         return true;
     }
 
