@@ -164,6 +164,12 @@ public sealed class MachineDefaultsService
         }
     }
 
-    private static string Normalize(string path) =>
-        Path.GetFullPath(path.Trim()).TrimEnd(Path.DirectorySeparatorChar);
+    private static string Normalize(string path)
+    {
+        var full = Path.GetFullPath(path.Trim());
+        var root = Path.GetPathRoot(full);
+        return !string.IsNullOrWhiteSpace(root) && string.Equals(full, root, StringComparison.OrdinalIgnoreCase)
+            ? root
+            : full.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+    }
 }
