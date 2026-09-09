@@ -37,7 +37,7 @@ public partial class FirstRunSetupView : UserControl
 
     /// <summary>Prepares the wizard for display. The passed-in defaults are whatever a fresh
     /// <see cref="GrevHome.Storage.MachineDefaultsService"/> would resolve to before setup has ever run.</summary>
-    public void Reset(string defaultGamesRoot, string defaultBiosRoot)
+    public void Reset(string defaultGamesRoot, string defaultBiosRoot, IReadOnlyList<string>? selectedConsoles = null)
     {
         _defaultGamesRoot = defaultGamesRoot;
         _defaultBiosRoot = defaultBiosRoot;
@@ -45,6 +45,11 @@ public partial class FirstRunSetupView : UserControl
         _biosRoot = defaultBiosRoot;
         GamesPathText.Text = _gamesRoot;
         BiosPathText.Text = _biosRoot;
+        var consoles = selectedConsoles ?? [];
+        SelectedConsolesText.Text = consoles.Count == 0
+            ? "No emulator consoles were selected during installation. You can add them later from Grev Store."
+            : $"Installer selection: {string.Join(", ", consoles)}";
+        BiosSection.Visibility = consoles.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         StatusText.Text = string.Empty;
         _scanGamesFolder = true;
         UpdateScanChoice();
@@ -141,13 +146,14 @@ public partial class FirstRunSetupView : UserControl
 
     private void Continue_Click(object sender, RoutedEventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_gamesRoot) || string.IsNullOrWhiteSpace(_biosRoot))
+        if (string.IsNullOrWhiteSpace(_gamesRoot) ||
+            (BiosSection.Visibility == Visibility.Visible && string.IsNullOrWhiteSpace(_biosRoot)))
         {
             StatusText.Text = "Choose both a Games folder and a BIOS folder to continue.";
             return;
         }
 
-        if (TrustedInstallerSupport.PathsEqual(_gamesRoot, _biosRoot))
+        if (BiosSection.Visibility == Visibility.Visible && TrustedInstallerSupport.PathsEqual(_gamesRoot, _biosRoot))
         {
             StatusText.Text = "Games and BIOS folders must be different locations.";
             return;

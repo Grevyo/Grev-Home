@@ -198,7 +198,14 @@ public partial class MainWindow : Window
             // First launch on this PC: ask where games and BIOS files should live before Login is
             // ever shown. Every profile, and every app installed through the Grev Store, will use
             // whatever is chosen here - see MachineDefaultsService.
-            _firstRunSetupView.Reset(_machineDefaults.DefaultGamesRoot, _machineDefaults.DefaultBiosRoot);
+            var installerPreferences = InstallerFirstRunPreferences.Load(
+                _paths,
+                _machineDefaults.DefaultGamesRoot,
+                _machineDefaults.DefaultBiosRoot);
+            _firstRunSetupView.Reset(
+                installerPreferences.GamesRoot,
+                installerPreferences.BiosRoot,
+                installerPreferences.EmulatorSetup ? installerPreferences.Consoles : []);
             _navigation.Reset(Route.FirstRunSetup);
         }
         else

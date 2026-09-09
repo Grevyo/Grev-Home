@@ -15,11 +15,24 @@ try
     Check(PathsEqual(defaults.DefaultBiosRoot, @"C:\GrevCo\GrevHome\Bios"),
         "Default BIOS folder must stay under C:\\GrevCo\\GrevHome.");
 
+    var preferenceRoot = Path.Combine(Path.GetTempPath(), "GrevHomeInstallerPreferences-" + Guid.NewGuid().ToString("N"));
+    var preferencePaths = new AppPaths(preferenceRoot);
+    Directory.CreateDirectory(preferencePaths.Data);
+    await File.WriteAllTextAsync(
+        Path.Combine(preferencePaths.Data, "installer-first-run.ini"),
+        "[Setup]\nGamesRoot=D:\\Games\nBiosRoot=D:\\BIOS\nEmulatorSetup=True\nConsoles=Nintendo - Nintendo DS|Microsoft - Original Xbox\n");
+    var preferences = InstallerFirstRunPreferences.Load(preferencePaths, @"C:\fallback-games", @"C:\fallback-bios");
+    Check(PathsEqual(preferences.GamesRoot, @"D:\Games") && PathsEqual(preferences.BiosRoot, @"D:\BIOS"),
+        "Installer folder choices must reach first-run setup.");
+    Check(preferences.EmulatorSetup && preferences.Consoles.Count == 2,
+        "Installer emulator and console choices must reach first-run setup.");
+    Directory.Delete(preferenceRoot, recursive: true);
+
     var alternateDriveRoot = AppPaths.GetStandardRootForDrive(@"D:\");
     Check(PathsEqual(alternateDriveRoot, @"D:\GrevCo\GrevHome"),
         "Drive choices must use <drive>:\\GrevCo\\GrevHome, never <drive>:\\GrevHome.");
 
-    Console.WriteLine("Install layout tests passed: Grev-owned defaults are rooted under GrevCo/GrevHome.");
+    Console.WriteLine("Install layout tests passed: Grev-owned defaults and installer choices are handed off correctly.");
 }
 finally
 {

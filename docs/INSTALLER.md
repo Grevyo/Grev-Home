@@ -30,4 +30,4 @@ Third-party software that is intentionally system-installed, such as Microsoft W
 
 ## First run
 
-The installer does not ask for Games/BIOS folder locations itself - that happens inside the app, once, the first time it is launched. The defaults are `C:\GrevCo\GrevHome\Games` and `C:\GrevCo\GrevHome\Bios`. If another drive is selected in the controller-friendly drive picker, Grev Home keeps the same layout on that drive, for example `D:\GrevCo\GrevHome\Games`.
+The installer first asks whether emulator support is wanted, which consoles should be prepared, and whether Games/BIOS folders already exist. It offers `C:\GrevCo\GrevHome\Games` and `C:\GrevCo\GrevHome\bios` as the standard locations and passes those selections into the controller-first setup shown on Grev Home's first launch. BIOS setup is omitted when no emulator console was selected.
