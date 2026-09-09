@@ -27,10 +27,29 @@ public partial class MainWindow
         _profileTileEditorView.SaveRequested += tiles => _ = SaveProfileTilesAsync(tiles);
         _profileTileEditorView.ChooseMediaRequested += (_, _) => OpenProfileTileMediaPicker();
         _profilePhotoPickerView.PhotoSelected += SelectProfileTileMedia;
+
+        // ControllerInputService already has a proper app-input mode. While Profile Tiles is open,
+        // D-Pad/A/B and X/Y/View arrive here instead of also going through the shell's generic focus
+        // navigator, which avoids the double-input bug the original unwired view would have caused.
         _controllerInput.AppControlPressed += input =>
         {
             if (_navigation.Current != Route.ProfileTiles) return;
-            Dispatcher.BeginInvoke(new Action(() => _profileTileEditorView.HandleExtendedControl(input.Control)));
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                _profileTileEditorView.IsControllerActive = true;
+                var action = input.Control switch
+                {
+                    AppControllerControl.DPadUp => InputAction.Up,
+                    AppControllerControl.DPadDown => InputAction.Down,
+                    AppControllerControl.DPadLeft => InputAction.Left,
+                    AppControllerControl.DPadRight => InputAction.Right,
+                    AppControllerControl.A => InputAction.Accept,
+                    AppControllerControl.B => InputAction.Back,
+                    _ => (InputAction?)null
+                };
+                if (action.HasValue) HandleProfileTileInput(action.Value, input.ControllerIndex);
+                else _profileTileEditorView.HandleExtendedControl(input.Control);
+            }));
         };
 
         _navigation.RouteChanged += route =>
@@ -40,6 +59,15 @@ public partial class MainWindow
                 _controllerInput.AppInputMode = true;
                 RouteHost.Content = _profileTileEditorView;
                 FocusRouteSoon();
+
+                // Returning from the tile media picker via Cancel leaves the selection untouched.
+                // Clear the picker-purpose marker so a later normal profile-photo picker has the
+                // correct wording again.
+                if (_profileTileMediaGrevId is not null)
+                {
+                    _profileTileMediaGrevId = null;
+                    _profilePhotoPickerView.SetPurpose("Choose Profile Photo", "profile photo");
+                }
             }
             else
             {
@@ -72,7 +100,6 @@ public partial class MainWindow
         };
     }
 
-    /// <summary>Called by MainWindow's central input router before generic focus navigation.</summary>
     private bool HandleProfileTileInput(InputAction action, int? controllerIndex)
     {
         if (_navigation.Current != Route.ProfileTiles) return false;
@@ -83,7 +110,7 @@ public partial class MainWindow
             _navigation.GoBack();
             return true;
         }
-        return true; // this route owns shell navigation; never let D-Pad also move button focus.
+        return true;
     }
 
     private async Task OpenProfileTilesAsync()
@@ -96,8 +123,8 @@ public partial class MainWindow
 
         _profileEditDraftBeforeTiles = _profileEditView.CaptureDraft();
 
-        // For the user's own linked profile, pull any newer grev.dad layout first. This is also the
-        // fresh-install restore path because an empty local timestamp loses to cloud updatedAt.
+        // Pull a newer cloud layout before opening. An empty local timestamp loses to a real cloud
+        // timestamp, so this is also the fresh-install restore path after relinking Grev Home.
         if (string.Equals(actor.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase))
         {
             await _grevDad.SyncProfileTilesNowAsync(profile.GrevId);
@@ -179,6 +206,7 @@ public partial class MainWindow
             }
 
             _profileTileMediaGrevId = null;
+            _profilePhotoPickerView.SetPurpose("Choose Profile Photo", "profile photo");
             _navigation.GoBack();
             _profileTileEditorView.ShowStatus($"Selected {Path.GetFileName(path)}. Save to keep and sync it.");
         }
