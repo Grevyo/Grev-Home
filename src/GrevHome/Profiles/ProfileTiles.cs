@@ -420,16 +420,26 @@ public static class ProfileTileMediaConverter
         return fileName;
     }
 
-    /// <summary>Local -> cloud. Reuses ProfileMediaDataUrl - the same helper already used to share
-    /// a Grev Home avatar/banner as a data URL elsewhere - rather than a second image encoder.
-    /// Returns null when the tile has no local media file (nothing to convert).</summary>
+    /// <summary>Local -> cloud. Animated GIFs are sent byte-for-byte so Grev Home never flattens
+    /// them to a single PNG frame. Other image types keep using ProfileMediaDataUrl's existing
+    /// downscale/PNG path, which is shared with avatar/banner sync.</summary>
     public static string? ReadAsDataUrl(string mediaRoot, string? mediaFileName)
     {
         if (string.IsNullOrWhiteSpace(mediaFileName)) return null;
-        // ProfileTileService.GetMediaRoot is not GetProfileRoot, so this uses
-        // ProfileMediaDataUrl.TryReadFile (a full path) rather than TryRead (GrevID + file name,
-        // resolved against GetProfileRoot) - same conversion, different base directory.
         var sourcePath = Path.Combine(mediaRoot, Path.GetFileName(mediaFileName));
-        return File.Exists(sourcePath) ? ProfileMediaDataUrl.TryReadFile(sourcePath) : null;
+        if (!File.Exists(sourcePath)) return null;
+
+        if (string.Equals(Path.GetExtension(sourcePath), ".gif", StringComparison.OrdinalIgnoreCase))
+        {
+            var info = new FileInfo(sourcePath);
+            if (info.Length <= 0 || info.Length > ProfileTileGrid.MaxBackgroundMediaBytes)
+                throw new IOException("A tile's animated GIF must be no more than 1.4 MB.");
+            return $"data:image/gif;base64,{Convert.ToBase64String(File.ReadAllBytes(sourcePath))}";
+        }
+
+        // ProfileTileService.GetMediaRoot is not GetProfileRoot, so use the full-path helper for
+        // static formats. BMP in particular is intentionally converted to PNG because Grev.dad's
+        // profile tile API does not accept BMP data URLs.
+        return ProfileMediaDataUrl.TryReadFile(sourcePath);
     }
 }
