@@ -21,6 +21,8 @@ public partial class MainWindow
     private ProfileEditRequest? _profileEditDraftBeforePhotoPicker;
     private Route? _profileKeyboardModalRoute;
     private bool _profilePlayersIntegrationReady;
+    private string? _profileDeleteArmedGrevId;
+    private DateTimeOffset _profileDeleteArmedUntilUtc;
 
     private void InitializeProfilePlayersIntegration()
     {
@@ -44,6 +46,7 @@ public partial class MainWindow
         _profilePlayersView.SetPrimaryRequested += SetPrimaryFromProfileMenu;
         _profilePlayersView.AssignControllerRequested += AssignControllerFromProfileMenu;
         _profilePlayersView.UnassignControllerRequested += UnassignControllerFromProfileMenu;
+        _profilePlayersView.DeleteProfileRequested += grevId => _ = DeleteProfileAsync(grevId);
 
         ProfileQuickMenu.ViewProfileRequested += OpenProfileViewFromQuickMenu;
         ProfileQuickMenu.SetPrimaryRequested += SetPrimaryFromProfileMenu;
@@ -99,6 +102,50 @@ public partial class MainWindow
             _profileEditView.ShowStatus("Controller password removed.");
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException) { _profileEditView.ShowStatus(ex.Message); }
+    }
+
+    private async Task DeleteProfileAsync(string grevId)
+    {
+        var actor = _session.PrimaryUser;
+        var target = _profiles.FirstOrDefault(profile =>
+            string.Equals(profile.GrevId, grevId, StringComparison.OrdinalIgnoreCase));
+        if (actor is null || target is null ||
+            !AccountAuthorizationService.Allows(actor.Role, AccountPermission.ManageProfiles))
+        {
+            _profilePlayersView.ShowStatus("Only the Primary Admin can delete local profiles.");
+            return;
+        }
+        if (_session.SignedInUsers.Any(user =>
+            string.Equals(user.GrevId, grevId, StringComparison.OrdinalIgnoreCase)))
+        {
+            _profilePlayersView.ShowStatus("Sign this profile out before deleting it.");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (!string.Equals(_profileDeleteArmedGrevId, grevId, StringComparison.OrdinalIgnoreCase) ||
+            now > _profileDeleteArmedUntilUtc)
+        {
+            _profileDeleteArmedGrevId = grevId;
+            _profileDeleteArmedUntilUtc = now.AddSeconds(10);
+            _profilePlayersView.ShowStatus($"Delete {target.DisplayName}? Select Delete Profile again within 10 seconds to confirm.");
+            return;
+        }
+
+        _profileDeleteArmedGrevId = null;
+        _profileDeleteArmedUntilUtc = DateTimeOffset.MinValue;
+        try
+        {
+            await _profileService.DeleteAsync(grevId);
+            _profiles = await _profileService.GetProfilesAsync();
+            RefreshSessionSurfaces();
+            RefreshProfilePlayerViews();
+            _profilePlayersView.ShowStatus($"{target.DisplayName} was removed. Its files were moved to Data\\DeletedProfiles for recovery.");
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            _profilePlayersView.ShowStatus(ex.Message);
+        }
     }
 
     private void HandleProfileRouteChanged(Route route)

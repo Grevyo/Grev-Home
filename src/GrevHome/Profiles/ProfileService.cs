@@ -70,6 +70,8 @@ public sealed class ProfileService
         SerializedAsync(() => SetControllerPasswordCoreAsync(grevId, password, cancellationToken), cancellationToken);
     public Task<LocalProfile> ClearControllerPasswordAsync(string grevId, CancellationToken cancellationToken = default) =>
         SerializedAsync(() => ClearControllerPasswordCoreAsync(grevId, cancellationToken), cancellationToken);
+    public Task<string> DeleteAsync(string grevId, CancellationToken cancellationToken = default) =>
+        SerializedAsync(() => DeleteCoreAsync(grevId, cancellationToken), cancellationToken);
 
     public bool VerifyControllerPassword(LocalProfile profile, string password)
     {
@@ -105,6 +107,31 @@ public sealed class ProfileService
         var updated = profile with { PasswordSalt = null, PasswordHash = null, PasswordIterations = 0 };
         await WriteMetadataAsync(updated, cancellationToken);
         return updated;
+    }
+
+    private async Task<string> DeleteCoreAsync(string grevId, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var profiles = await GetProfilesCoreAsync(cancellationToken);
+        var profile = profiles.FirstOrDefault(candidate =>
+            string.Equals(candidate.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+            ?? throw new InvalidOperationException("That profile no longer exists.");
+        if (profile.IsBuiltInGuest)
+            throw new InvalidOperationException("The built-in Guest profile cannot be deleted.");
+        if (profile.Role == AccountRole.Admin &&
+            profiles.Count(candidate => !candidate.IsBuiltInGuest && candidate.Role == AccountRole.Admin) <= 1)
+            throw new InvalidOperationException("The final Admin profile cannot be deleted.");
+
+        var source = _paths.GetProfileRoot(profile.GrevId);
+        if (!Directory.Exists(source))
+            throw new DirectoryNotFoundException("The profile folder could not be found.");
+        var trashRoot = Path.Combine(_paths.Data, "DeletedProfiles");
+        Directory.CreateDirectory(trashRoot);
+        var destination = Path.Combine(trashRoot,
+            $"{DateTimeOffset.UtcNow:yyyyMMdd-HHmmss}-{profile.GrevId}-{Guid.NewGuid():N}");
+        cancellationToken.ThrowIfCancellationRequested();
+        Directory.Move(source, destination);
+        return destination;
     }
 
     private async Task<LocalProfile> EnsureBuiltInGuestCoreAsync(CancellationToken cancellationToken = default)

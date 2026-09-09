@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.14.8"
+#define MyAppVersion "0.14.9"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -82,7 +82,12 @@ var
 
 function EmulatorSetupSelected(): Boolean;
 begin
-  Result := UsagePage.Values[0];
+  Result := UsagePage.Values[2];
+end;
+
+function GamesSetupSelected(): Boolean;
+begin
+  Result := UsagePage.Values[0] or EmulatorSetupSelected();
 end;
 
 function AnyConsoleSelected(): Boolean;
@@ -104,10 +109,13 @@ begin
     'How will you use Grev Home?',
     'Choose whether this PC needs emulator setup.',
     'Grev Home will use this to prepare the right folders and first-launch steps.',
-    True, False);
-  UsagePage.Add('Set up emulators and console games');
-  UsagePage.Add('PC games and apps only');
-  UsagePage.SelectedValueIndex := 0;
+    False, False);
+  UsagePage.Add('PC games');
+  UsagePage.Add('Apps');
+  UsagePage.Add('Emulators and console games');
+  UsagePage.Values[0] := True;
+  UsagePage.Values[1] := True;
+  UsagePage.Values[2] := True;
 
   ConsolePage := CreateInputOptionPage(UsagePage.ID,
     'Which consoles will you use?',
@@ -157,8 +165,7 @@ function ShouldSkipPage(PageID: Integer): Boolean;
 begin
   Result :=
     ((PageID = ConsolePage.ID) and not EmulatorSetupSelected()) or
-    (((PageID = GamesPage.ID) or (PageID = GamesFolderPage.ID)) and
-      not EmulatorSetupSelected()) or
+    (((PageID = GamesPage.ID) or (PageID = GamesFolderPage.ID)) and not GamesSetupSelected()) or
     (((PageID = BiosPage.ID) or (PageID = BiosFolderPage.ID)) and
       (not EmulatorSetupSelected() or not AnyConsoleSelected()));
 end;
@@ -166,6 +173,12 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  if (CurPageID = UsagePage.ID) and
+     not (UsagePage.Values[0] or UsagePage.Values[1] or UsagePage.Values[2]) then
+  begin
+    MsgBox('Select at least one way you plan to use Grev Home.', mbInformation, MB_OK);
+    Result := False;
+  end;
   if (CurPageID = ConsolePage.ID) and EmulatorSetupSelected() and not AnyConsoleSelected() then
   begin
     MsgBox('Select at least one console, or go back and choose PC games and apps only.', mbInformation, MB_OK);
@@ -208,7 +221,15 @@ begin
   if EmulatorSetupSelected() then
     SetIniString('Setup', 'EmulatorSetup', 'True', PreferencesFile)
   else
-    SetIniString('Setup', 'EmulatorSetup', 'False', PreferencesFile);
+  SetIniString('Setup', 'EmulatorSetup', 'False', PreferencesFile);
+  if UsagePage.Values[0] then
+    SetIniString('Setup', 'PCGames', 'True', PreferencesFile)
+  else
+    SetIniString('Setup', 'PCGames', 'False', PreferencesFile);
+  if UsagePage.Values[1] then
+    SetIniString('Setup', 'Apps', 'True', PreferencesFile)
+  else
+    SetIniString('Setup', 'Apps', 'False', PreferencesFile);
   SetIniString('Setup', 'Consoles', SelectedConsoleList(), PreferencesFile);
 end;
 

@@ -21,7 +21,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
     {
         InitializeComponent();
         KeyboardOverlay.Completed += value => _ = SetFieldAsync(value);
-        KeyboardOverlay.Cancelled += (_,_) => ShowBrowser();
+        KeyboardOverlay.Cancelled += (_,_) => ReturnToPage();
         IsEnabledChanged+=(_,_)=>
         {
             if(_browser is not null) _browser.Visibility=IsEnabled && !KeyboardOverlay.IsOpen && ChoicesOverlay.Visibility!=Visibility.Visible ? Visibility.Visible : Visibility.Hidden;
@@ -57,14 +57,20 @@ public partial class GrevDadWebView : UserControl, IDisposable
             core.NavigationStarting += (_,e)=>
             {
                 if(!IsAllowed(e.Uri)) { e.Cancel=true; HintText.Text=_generalBrowser?"Only HTTPS web pages can open here.":"External websites stay outside the Grev.dad account browser."; }
-                else { _browsing=false;AddressText.Text=new Uri(e.Uri).GetLeftPart(UriPartial.Path); BrowseButton.Focus(); }
+                else { _browsing=false;AddressText.Text=new Uri(e.Uri).GetLeftPart(UriPartial.Path); }
             };
             core.NewWindowRequested += (_,e)=> { e.Handled=true; if(IsAllowed(e.Uri)) core.Navigate(e.Uri); };
             core.NavigationCompleted += async (_,e)=>
             {
                 if(generation!=_generation) return;
                 if(!e.IsSuccess) {HintText.Text="The page could not load. Check your connection, then choose Reload or Back.";return;}
-                try { await core.ExecuteScriptAsync(ControllerScript); HintText.Text="Basic page navigation: D-pad selects • A opens/types • B returns. Embedded/custom controls may need a keyboard or mouse."; }
+                try
+                {
+                    await core.ExecuteScriptAsync(ControllerScript);
+                    _browsing=true;
+                    await core.ExecuteScriptAsync("window.grevController?.move('down')");
+                    HintText.Text="Controller browsing active: D-pad selects • A opens or types • B returns to browser controls.";
+                }
                 catch (Exception ex) when(ex is InvalidOperationException or System.Runtime.InteropServices.COMException) {HintText.Text="Choose Reload to reconnect the browser.";}
             };
             core.Navigate(target.AbsoluteUri);
@@ -82,7 +88,7 @@ public partial class GrevDadWebView : UserControl, IDisposable
     {
         if(ChoicesOverlay.Visibility==Visibility.Visible)
         {
-            if(action==InputAction.Back) { ChoicesOverlay.Visibility=Visibility.Collapsed;ShowBrowser();return true; }
+            if(action==InputAction.Back) { ChoicesOverlay.Visibility=Visibility.Collapsed;ReturnToPage();return true; }
             return false;
         }
         if(!_browsing) return false;
@@ -144,9 +150,13 @@ public partial class GrevDadWebView : UserControl, IDisposable
     private async Task SetFieldAsync(string value)
     {
         await RunAsync($"window.grevController?.setValue({JsonSerializer.Serialize(value)})");
-        ShowBrowser();
+        ReturnToPage();
     }
-    private void ShowBrowser() { if(_browser is not null && IsEnabled) _browser.Visibility=Visibility.Visible;BrowseButton.Focus(); }
+    private void ReturnToPage()
+    {
+        if(_browser is not null && IsEnabled) _browser.Visibility=Visibility.Visible;
+        _browsing=true;
+    }
     private void Browse_Click(object sender,RoutedEventArgs e) { _browsing=true;_=RunAsync("window.grevController?.move('down')"); }
     private void Previous_Click(object sender,RoutedEventArgs e) { if(_browser?.CoreWebView2?.CanGoBack==true) _browser.CoreWebView2.GoBack(); }
     private void Home_Click(object sender,RoutedEventArgs e) => _browser?.CoreWebView2?.Navigate(_home.AbsoluteUri);

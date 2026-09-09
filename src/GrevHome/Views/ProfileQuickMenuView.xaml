@@ -71,8 +71,8 @@
                         Style="{StaticResource ProfileQuickActionButtonStyle}"
                         Click="AddPlayer_Click" />
                 <Button x:Name="ManagePlayersButton"
-                        Content="Manage Players"
-                        MinWidth="142"
+                        Content="Manage Profiles &amp; Players"
+                        MinWidth="210"
                         Style="{StaticResource ProfileQuickActionButtonStyle}"
                         Click="ManagePlayers_Click" />
                 <Button x:Name="CloseButton"

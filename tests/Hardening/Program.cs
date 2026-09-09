@@ -68,6 +68,12 @@ try
     Check(!File.ReadAllText(paths.GetProfileMetadata(player.GrevId)).Contains("ABXY1234", StringComparison.Ordinal), "Plaintext password must never be stored");
     await first.ClearControllerPasswordAsync(player.GrevId);
     Check(!(await first.GetProfilesAsync()).Single(p => p.GrevId == player.GrevId).HasControllerPassword, "Controller password must be removable");
+    await ExpectAsync<InvalidOperationException>(() => first.DeleteAsync(ProfileService.BuiltInGuestGrevId));
+    await ExpectAsync<InvalidOperationException>(() => first.DeleteAsync(legacyGuest.GrevId));
+    var removable = await first.CreateAsync("DeleteMe", AccountRole.Standard);
+    var recoveredAt = await first.DeleteAsync(removable.GrevId);
+    Check(Directory.Exists(recoveredAt), "Deleted profile data must be moved to recoverable storage");
+    Check((await first.GetProfilesAsync()).All(p => p.GrevId != removable.GrevId), "Deleted profile must leave the active profile list");
     Check(KeyboardRemoteInputMapper.Map(Key.BrowserBack) == InputAction.Back, "Remote back mapping");
     Check(KeyboardRemoteInputMapper.Map(Key.VolumeUp) is null, "Volume must remain owned by Windows/media application");
     Check(KeyboardRemoteInputMapper.Map(Key.A) is null, "Typing keys must not become shell navigation");

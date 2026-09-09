@@ -30,4 +30,4 @@ Third-party software that is intentionally system-installed, such as Microsoft W
 
 ## First run
 
-The installer first asks whether emulator support is wanted, which consoles should be prepared, and whether Games/BIOS folders already exist. It offers `C:\GrevCo\GrevHome\Games` and `C:\GrevCo\GrevHome\bios` as the standard locations and passes those selections into the controller-first setup shown on Grev Home's first launch. BIOS setup is omitted when no emulator console was selected.
+The installer first offers independent PC games, apps and emulator/console-game choices, so any combination can be selected. When emulator support is selected it asks which consoles should be prepared and whether Games/BIOS folders already exist. It offers `C:\GrevCo\GrevHome\Games` and `C:\GrevCo\GrevHome\bios` as the standard locations and passes those selections into the controller-first setup shown on Grev Home's first launch. BIOS setup is omitted when no emulator console was selected.

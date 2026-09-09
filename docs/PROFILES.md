@@ -41,6 +41,8 @@ Custom photos are selected through Grev Home's own controller-first photo picker
 
 When a custom photo is saved, Grev Home copies the image into that GrevID's profile root and stores only the local avatar filename in `profile.json`. The original source image may then be moved or deleted without breaking the profile picture.
 
+An Admin Primary User can open **Manage Profiles & Players** from Who's Playing. Local profiles which are not signed in may be deleted with a second-press confirmation. The built-in Guest and final Admin are protected. Deleted profile folders move to `Data\DeletedProfiles` so an accidental deletion remains recoverable.
+
 Custom photos are rendered on Login, Profile & Players, View Profile and Edit Profile.
 
 ## Text entry

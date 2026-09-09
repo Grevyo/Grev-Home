@@ -21,11 +21,14 @@ public partial class ProfilePlayersView : UserControl
     public event Action<Guid>? SetPrimaryRequested;
     public event Action<PlayerControllerAssignmentRequest>? AssignControllerRequested;
     public event Action<PlayerControllerAssignmentRequest>? UnassignControllerRequested;
+    public event Action<string>? DeleteProfileRequested;
 
     public ProfilePlayersView()
     {
         InitializeComponent();
     }
+
+    public void ShowStatus(string message) => StatusText.Text = message;
 
     public void SetState(SessionContext session, IReadOnlyList<bool> connectedControllers, IReadOnlyList<LocalProfile> profiles)
     {
@@ -42,6 +45,7 @@ public partial class ProfilePlayersView : UserControl
             : $"{session.SignedInUsers.Count} players signed in. Manage profiles, Primary User and controller assignments here.";
 
         var canManagePlayers = primary is not null && AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManagePlayers);
+        var canManageProfiles = primary is not null && AccountAuthorizationService.Allows(primary.Role, AccountPermission.ManageProfiles);
         AddPlayerButton.Content = $"Player {session.SignedInUsers.Count + 1} Sign In";
         AddPlayerButton.IsEnabled = session.SignedInUsers.Count < 4 && canManagePlayers;
 
@@ -54,6 +58,41 @@ public partial class ProfilePlayersView : UserControl
         for (var index = 0; index < session.SignedInUsers.Count; index++)
         {
             PlayersPanel.Children.Add(CreatePlayerCard(index + 1, session.SignedInUsers[index], session, connectedControllers, profiles, primary));
+        }
+
+        ManageProfilesSection.Visibility = canManageProfiles ? Visibility.Visible : Visibility.Collapsed;
+        LocalProfilesPanel.Children.Clear();
+        if (canManageProfiles)
+        {
+            foreach (var profile in profiles.Where(candidate => !candidate.IsBuiltInGuest))
+            {
+                var signedIn = session.SignedInUsers.Any(user =>
+                    string.Equals(user.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase));
+                var isFinalAdmin = profile.Role == AccountRole.Admin &&
+                    profiles.Count(candidate => !candidate.IsBuiltInGuest && candidate.Role == AccountRole.Admin) <= 1;
+                var row = new Grid { Margin = new Thickness(0, 0, 0, 8) };
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+                row.Children.Add(new TextBlock
+                {
+                    Text = $"{profile.DisplayName}  •  @{profile.Username}  •  {profile.Role}" + (signedIn ? "  •  SIGNED IN" : string.Empty),
+                    FontSize = 17,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    TextWrapping = TextWrapping.Wrap
+                });
+                var deleteButton = new Button
+                {
+                    Content = isFinalAdmin ? "Final Admin" : "Delete Profile",
+                    Width = 150,
+                    Height = 46,
+                    Margin = new Thickness(12, 0, 0, 0),
+                    IsEnabled = !signedIn && !isFinalAdmin
+                };
+                Grid.SetColumn(deleteButton, 1);
+                deleteButton.Click += (_, _) => DeleteProfileRequested?.Invoke(profile.GrevId);
+                row.Children.Add(deleteButton);
+                LocalProfilesPanel.Children.Add(row);
+            }
         }
 
         StatusText.Text = connectedControllers.Any(isConnected => isConnected)
