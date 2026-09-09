@@ -1,3 +1,4 @@
+using GrevHome.Files;
 using GrevHome.Games;
 using GrevHome.Navigation;
 using GrevHome.Views;
@@ -14,9 +15,10 @@ public partial class MainWindow
     private CancellationTokenSource? _gameScanCancellation;
 
     /// <summary>
-    /// Set during first-run setup when the user asks for their Games folder to be scanned. The scan
-    /// itself cannot run then - games belong to a GrevID and no profile exists yet - so it is held
-    /// here and offered once the first account is actually signed in.
+    /// Set during first-run setup when the user asks for their primary Games folder to be scanned.
+    /// The scan itself cannot run then - games belong to a GrevID and no profile exists yet - so it
+    /// is held here and offered once the first account is actually signed in. Additional configured
+    /// Games locations are always available as quick locations on Scan Directory Home.
     /// </summary>
     private string? _pendingFirstRunScanRoot;
 
@@ -44,8 +46,8 @@ public partial class MainWindow
     }
 
     /// <summary>
-    /// Settings entry point. Starts at the machine-wide Games folder chosen during first-run setup,
-    /// since that is where games are expected to live.
+    /// Settings entry point. Opens Scan Directory Home so every configured Games location is shown
+    /// together instead of silently favouring only the primary root when a library spans drives.
     /// </summary>
     private void OpenGameScanFromSettings()
     {
@@ -55,22 +57,7 @@ public partial class MainWindow
             return;
         }
 
-        _ = OpenGameScanAtGamesRootAsync();
-    }
-
-    private async Task OpenGameScanAtGamesRootAsync()
-    {
-        string? gamesRoot = null;
-        try
-        {
-            gamesRoot = await _machineDefaults.GetGamesRootAsync();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
-        {
-            // Falling back to the drive list is always safe; the user can browse anywhere from there.
-        }
-
-        OpenGameScan(gamesRoot);
+        OpenGameScan();
     }
 
     private void OpenGameScan(string? startAt = null)
@@ -93,19 +80,60 @@ public partial class MainWindow
         _navigation.Navigate(Route.GameScan);
     }
 
-    private void ShowGameScanHome()
+    private async void ShowGameScanHome()
     {
         _gameScanCurrentPath = null;
+        var locations = new List<FileHomeLocation>();
+
         try
         {
-            var locations = _fileSystem.GetHomeLocations(_paths.Root)
-                .Where(location => location.Name is not "Test Area")
-                .ToArray();
+            var gameRoots = await _machineDefaults.GetGamesRootsAsync();
+            for (var index = 0; index < gameRoots.Count; index++)
+            {
+                var root = gameRoots[index];
+                if (!Directory.Exists(root)) continue;
+                locations.Add(new FileHomeLocation(
+                    index == 0 ? "Primary Games" : $"Games Location {index + 1}",
+                    root,
+                    index == 0 ? "Configured primary Games folder" : "Configured additional Games folder",
+                    FileEntryKind.Folder));
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or ArgumentException)
+        {
+            // The normal Files locations below still leave Scan Directory completely usable.
+        }
+
+        try
+        {
+            foreach (var location in _fileSystem.GetHomeLocations(_paths.Root)
+                         .Where(location => location.Name is not "Test Area"))
+            {
+                if (locations.Any(existing => PathsEqualForScan(existing.Path, location.Path))) continue;
+                locations.Add(location);
+            }
+
             _gameScanView.ShowHome(locations);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            _gameScanView.ShowError(ex.Message);
+            if (locations.Count > 0) _gameScanView.ShowHome(locations);
+            else _gameScanView.ShowError(ex.Message);
+        }
+    }
+
+    private static bool PathsEqualForScan(string left, string right)
+    {
+        try
+        {
+            return string.Equals(
+                Path.GetFullPath(left).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                Path.GetFullPath(right).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar),
+                StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
         }
     }
 
@@ -434,6 +462,6 @@ public partial class MainWindow
 
         OpenGameScan(root);
         _gameScanView.ShowStatus(
-            "You asked during setup to scan for games. This is your Games folder - choose Scan This Folder to add what is in it.");
+            "You asked during setup to scan for games. This is your primary Games folder - choose Scan This Folder to add what is in it. Your other Games locations are available from Home.");
     }
 }
