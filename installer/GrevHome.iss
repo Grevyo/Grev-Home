@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.16.0"
+#define MyAppVersion "0.16.1"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir

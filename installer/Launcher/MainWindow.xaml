@@ -93,8 +93,8 @@
             <Border Grid.Column="0" Background="#B20D1221" CornerRadius="26,0,0,26" BorderBrush="#26304A" BorderThickness="0,0,1,0">
                 <Grid Margin="27,28,27,25"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
-                        <Image Source="Assets/GrevMark.png" Width="52" Height="52" Stretch="Uniform"/>
-                        <StackPanel Margin="12,6,0,0"><TextBlock Text="GREV HOME" FontSize="16" FontWeight="Bold"/><TextBlock Text="SETUP  ·  0.16" Foreground="#66DFFF" FontSize="10" FontWeight="SemiBold"/></StackPanel>
+                        <Image Source="Assets/GrevHomeLogo.png" Width="52" Height="52" Stretch="Uniform"/>
+                        <StackPanel Margin="12,6,0,0"><TextBlock Text="GREV HOME" FontSize="16" FontWeight="Bold"/><TextBlock Text="SETUP  ·  0.16.1" Foreground="#66DFFF" FontSize="10" FontWeight="SemiBold"/></StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Row="1" VerticalAlignment="Center">
                         <TextBlock Text="YOUR SETUP" Foreground="#74809B" FontWeight="Bold" FontSize="10" Margin="3,0,0,14"/>
@@ -104,9 +104,17 @@
                         <TextBlock x:Name="Step4" Text="04  Folders" FontSize="14" Margin="3,9" Foreground="#65718C"/>
                         <TextBlock x:Name="Step5" Text="05  Install" FontSize="14" Margin="3,9" Foreground="#65718C"/>
                     </StackPanel>
-                    <Border Grid.Row="2" Background="White" CornerRadius="12" Padding="10,7">
-                        <Image Source="Assets/GrevCo.jpeg" Height="38" Stretch="Uniform"/>
-                    </Border>
+                    <StackPanel Grid.Row="2">
+                        <Border Background="#151C30" BorderBrush="#293550" BorderThickness="1" CornerRadius="12" Padding="10,7" Margin="0,0,0,9">
+                            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="34"/><ColumnDefinition/></Grid.ColumnDefinitions>
+                                <Image Source="Assets/GrevMark.png" Width="29" Height="29" Stretch="Uniform"/>
+                                <StackPanel Grid.Column="1" Margin="8,0,0,0" VerticalAlignment="Center"><TextBlock Text="CREATED BY" Foreground="#75829D" FontSize="8" FontWeight="Bold"/><TextBlock Text="Grev" Foreground="#EEF2FF" FontSize="12" FontWeight="SemiBold"/></StackPanel>
+                            </Grid>
+                        </Border>
+                        <Border Background="White" CornerRadius="12" Padding="10,7">
+                            <Image Source="Assets/GrevCo.jpeg" Height="38" Stretch="Uniform"/>
+                        </Border>
+                    </StackPanel>
                 </Grid>
             </Border>
 
@@ -130,7 +138,7 @@
                         </StackPanel>
                         <Grid Grid.Column="1">
                             <Ellipse Width="310" Height="310" Fill="#101A33"><Ellipse.Effect><BlurEffect Radius="2"/></Ellipse.Effect></Ellipse>
-                            <Image x:Name="HeroMark" Source="Assets/GrevMark.png" Width="310" Height="310" Stretch="Uniform" RenderTransformOrigin="0.5,0.5">
+                            <Image x:Name="HeroMark" Source="Assets/GrevHomeLogo.png" Width="310" Height="310" Stretch="Uniform" RenderTransformOrigin="0.5,0.5">
                                 <Image.RenderTransform><TransformGroup><ScaleTransform x:Name="HeroScale" ScaleX="1" ScaleY="1"/><RotateTransform x:Name="HeroRotate" Angle="-2"/></TransformGroup></Image.RenderTransform>
                             </Image>
                         </Grid>
@@ -189,7 +197,7 @@
 
                     <Grid x:Name="InstallPage" Visibility="Collapsed">
                         <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center" Width="640">
-                            <Grid Width="180" Height="180"><Ellipse Fill="#101B35"/><Image Source="Assets/GrevMark.png" Stretch="Uniform"/></Grid>
+                            <Grid Width="180" Height="180"><Ellipse Fill="#101B35"/><Image Source="Assets/GrevHomeLogo.png" Stretch="Uniform"/></Grid>
                             <TextBlock x:Name="InstallTitle" Text="Creating your Grev Home…" FontSize="31" FontWeight="Bold" TextAlignment="Center" Margin="0,18,0,7"/>
                             <TextBlock x:Name="InstallStatus" Text="Preparing setup" Foreground="#9EA9BF" FontSize="14" TextAlignment="Center"/>
                             <ProgressBar x:Name="InstallProgress" Height="8" Minimum="0" Maximum="100" Value="2" Margin="0,25,0,0" Foreground="#25D6FF" Background="#182039" BorderThickness="0"/>

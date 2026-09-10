@@ -4,7 +4,8 @@ Grev Home 0.16 replaces the visible stock setup wizard with a controller-first W
 
 ## Brand roles
 
-- `GrevMark.png` is the personal Grev identity. It is the animated hero artwork and installation-state mark.
+- `GrevHomeLogo.png` is the main product identity. It is used in the installer header, animated hero and installation state.
+- `GrevMark.png` is the personal Grev identity. It appears as the creator signature.
 - `GrevCo.jpeg` is the company identity. It appears as a stable signature card in the installer rail.
 
 The source assets live in `installer/Launcher/Assets` and are compiled into the single installer executable.
