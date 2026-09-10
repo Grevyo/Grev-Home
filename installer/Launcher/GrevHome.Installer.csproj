@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AssemblyName>GrevHomeSetup</AssemblyName>
+    <RootNamespace>GrevHome.Installer</RootNamespace>
+    <ApplicationIcon>..\..\src\GrevHome\Assets\Brand\GrevHome.ico</ApplicationIcon>
+    <Version>0.16.0</Version>
+    <PublishSingleFile>true</PublishSingleFile>
+    <SelfContained>true</SelfContained>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\GrevMark.png" />
+    <Resource Include="Assets\GrevCo.jpeg" />
+    <EmbeddedResource Include="$(EnginePath)"
+                      LogicalName="GrevHomeSetupEngine.exe"
+                      Condition="'$(EnginePath)' != ''" />
+  </ItemGroup>
+</Project>

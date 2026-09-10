@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.15.3"
+#define MyAppVersion "0.16.0"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -17,6 +17,12 @@
 #endif
 #ifndef MyWebViewBootstrapper
 #define MyWebViewBootstrapper "MicrosoftEdgeWebview2Setup.exe"
+#endif
+#ifndef MyOutputDir
+#define MyOutputDir "..\dist"
+#endif
+#ifndef MyOutputBaseFilename
+#define MyOutputBaseFilename "GrevHomeSetup"
 #endif
 
 [Setup]
@@ -33,8 +39,8 @@ DisableProgramGroupPage=yes
 ; (see App.xaml.cs). Reusing it here means Setup asks the user to close a
 ; running Grev Home before it overwrites its files, instead of failing partway.
 AppMutex=Local\GrevHome.Shell.Instance
-OutputDir=..\dist
-OutputBaseFilename=GrevHomeSetup
+OutputDir={#MyOutputDir}
+OutputBaseFilename={#MyOutputBaseFilename}
 SetupIconFile=..\src\GrevHome\Assets\Brand\GrevHome.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma
@@ -85,6 +91,19 @@ begin
   Result := UsagePage.Values[2];
 end;
 
+function ParamIsEnabled(Name: String; DefaultValue: String): Boolean;
+begin
+  Result := CompareText(ExpandConstant('{param:' + Name + '|' + DefaultValue + '}'), '1') = 0;
+end;
+
+function ConsoleWasSelected(ConsoleName: String): Boolean;
+var
+  Selection: String;
+begin
+  Selection := '|' + ExpandConstant('{param:CONSOLES|}') + '|';
+  Result := Pos('|' + ConsoleName + '|', Selection) > 0;
+end;
+
 function GamesSetupSelected(): Boolean;
 begin
   Result := UsagePage.Values[0] or EmulatorSetupSelected();
@@ -113,20 +132,29 @@ begin
   UsagePage.Add('PC games');
   UsagePage.Add('Apps');
   UsagePage.Add('Emulators and console games');
-  UsagePage.Values[0] := True;
-  UsagePage.Values[1] := True;
-  UsagePage.Values[2] := True;
+  UsagePage.Values[0] := ParamIsEnabled('PCGAMES', '1');
+  UsagePage.Values[1] := ParamIsEnabled('APPS', '1');
+  UsagePage.Values[2] := ParamIsEnabled('EMULATORS', '1');
 
   ConsolePage := CreateInputOptionPage(UsagePage.ID,
     'Which consoles will you use?',
     'Select every console you want Grev Home to prepare for.',
     'You can change or add systems later inside Grev Home.',
     False, False);
-  ConsolePage.Add('Nintendo - Nintendo DS');
-  ConsolePage.Add('Nintendo - Nintendo Switch');
-  ConsolePage.Add('Nintendo - Nintendo 3DS');
-  ConsolePage.Add('Microsoft - Original Xbox');
-  ConsolePage.Add('Sony - PlayStation 2');
+  ConsolePage.Add('PlayStation');
+  ConsolePage.Add('PlayStation 2');
+  ConsolePage.Add('PlayStation 3');
+  ConsolePage.Add('Nintendo DS');
+  ConsolePage.Add('Nintendo Switch');
+  ConsolePage.Add('Nintendo 3DS');
+  ConsolePage.Add('Original Xbox');
+  ConsolePage.Values[0] := ConsoleWasSelected('PlayStation');
+  ConsolePage.Values[1] := ConsoleWasSelected('PlayStation 2');
+  ConsolePage.Values[2] := ConsoleWasSelected('PlayStation 3');
+  ConsolePage.Values[3] := ConsoleWasSelected('Nintendo DS');
+  ConsolePage.Values[4] := ConsoleWasSelected('Nintendo Switch');
+  ConsolePage.Values[5] := ConsoleWasSelected('Nintendo 3DS');
+  ConsolePage.Values[6] := ConsoleWasSelected('Original Xbox');
 
   GamesPage := CreateInputOptionPage(ConsolePage.ID,
     'Do you already have a Games folder?',
@@ -142,7 +170,7 @@ begin
     'Select your existing folder or keep the standard Grev Home location.',
     'Grev Home will use this as the default location for scanning and emulator configuration.',
     False, '');
-  GamesFolderPage.Add('C:\GrevCo\GrevHome\Games');
+  GamesFolderPage.Add(ExpandConstant('{param:GAMESROOT|C:\GrevCo\GrevHome\Games}'));
 
   BiosPage := CreateInputOptionPage(GamesFolderPage.ID,
     'Do you already have a BIOS folder?',
@@ -158,7 +186,7 @@ begin
     'Select your existing folder or keep the standard Grev Home location.',
     'This shared location will be supplied to supported emulators during setup.',
     False, '');
-  BiosFolderPage.Add('C:\GrevCo\GrevHome\bios');
+  BiosFolderPage.Add(ExpandConstant('{param:BIOSROOT|C:\GrevCo\GrevHome\bios}'));
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
