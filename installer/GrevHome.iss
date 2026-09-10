@@ -170,7 +170,8 @@ begin
     'Select your existing folder or keep the standard Grev Home location.',
     'Grev Home will use this as the default location for scanning and emulator configuration.',
     False, '');
-  GamesFolderPage.Add(ExpandConstant('{param:GAMESROOT|C:\GrevCo\GrevHome\Games}'));
+  GamesFolderPage.Add('Games folder:');
+  GamesFolderPage.Values[0] := ExpandConstant('{param:GAMESROOT|C:\GrevCo\GrevHome\Games}');
 
   BiosPage := CreateInputOptionPage(GamesFolderPage.ID,
     'Do you already have a BIOS folder?',
@@ -186,7 +187,8 @@ begin
     'Select your existing folder or keep the standard Grev Home location.',
     'This shared location will be supplied to supported emulators during setup.',
     False, '');
-  BiosFolderPage.Add(ExpandConstant('{param:BIOSROOT|C:\GrevCo\GrevHome\bios}'));
+  BiosFolderPage.Add('BIOS folder:');
+  BiosFolderPage.Values[0] := ExpandConstant('{param:BIOSROOT|C:\GrevCo\GrevHome\bios}');
 end;
 
 function ShouldSkipPage(PageID: Integer): Boolean;
