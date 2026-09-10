@@ -53,7 +53,9 @@ internal static class Program
         window.UpdateLayout();Pump();
         var scroll=(ScrollViewer)login.FindName("ProfilesScroll");
         var createAccount=(Button)login.FindName("CreateAccountButton");
+        var manageProfiles=(Button)login.FindName("ManageProfilesButton");
         Check(createAccount.IsVisible,"Who's Playing must always offer Create Account before a session starts");
+        Check(!manageProfiles.IsVisible,"Manage Profiles must stay hidden when no Admin profile exists");
         Check(scroll.ScrollableWidth<1,"Four profiles must fit without horizontal scrolling at 720p");
         login.Refresh(profiles,new SessionContext(),[true,false,false,false]);
         window.UpdateLayout();Pump();
@@ -64,6 +66,18 @@ internal static class Program
         for(var i=0;i<7;i++){Check(login.MoveProfileFocus(InputAction.Right,cards[i]),"Right navigation must be handled");Pump();}
         Check(scroll.HorizontalOffset>0,"Controller focus must scroll to the offscreen profile");
         Check(login.MoveProfileFocus(InputAction.Right,cards[7]),"Right edge must remain contained");
+        var adminProfiles=profiles.Select((profile,index)=>index==0?profile with {Role=AccountRole.Admin}:profile).ToArray();
+        login.Refresh(adminProfiles,new SessionContext(),[true,false,false,false]);
+        window.UpdateLayout();Pump();
+        Check(manageProfiles.IsVisible,"Who's Playing must expose Manage Profiles when an Admin exists");
+        createAccount.Focus();Pump();
+        Check(login.MoveProfileFocus(InputAction.Right,createAccount) && manageProfiles.IsKeyboardFocused,
+            "Controller Right must move from Create New User to Manage Profiles");
+        Check(login.MoveProfileFocus(InputAction.Left,manageProfiles) && createAccount.IsKeyboardFocused,
+            "Controller Left must return from Manage Profiles to Create New User");
+        login.BeginAdminManagementSignIn();Pump();
+        Check(login.ProfileFocusTargets.First(button=>button.Tag is LocalProfile {Role:AccountRole.Admin}).IsKeyboardFocused,
+            "Manage Profiles must focus an Admin profile for authorization");
         var keyboard=new ControllerQwertyKeyboard();
         keyboard.Open("Password","secret",256,true);
         var value=(TextBlock)keyboard.FindName("ValueText");
