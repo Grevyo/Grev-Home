@@ -193,9 +193,17 @@ public partial class MainWindow : Window
         string? tempRoot = null;
         try
         {
+            if (Process.GetProcessesByName("GrevHome").Any(process => !process.HasExited))
+            {
+                throw new InvalidOperationException("Grev Home is still running. Close it completely, then select Try again.");
+            }
+
             tempRoot = Path.Combine(Path.GetTempPath(), "GrevHomeInstaller", Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(tempRoot);
             var enginePath = Path.Combine(tempRoot, "GrevHomeSetupEngine.exe");
+            var logDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Grev Home", "Installer Logs");
+            Directory.CreateDirectory(logDirectory);
+            var logPath = Path.Combine(logDirectory, $"setup-{DateTime.Now:yyyyMMdd-HHmmss}.log");
             await ExtractEngineAsync(enginePath);
 
             var selectedConsoles = string.Join('|', ConsoleChecks().Where(x => x.IsChecked == true).Select(x => x.Content?.ToString()));
@@ -207,7 +215,7 @@ public partial class MainWindow : Window
             };
             foreach (var argument in new[]
             {
-                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS",
+                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", $"/LOG={logPath}",
                 $"/GAMESROOT={_gamesPath}", $"/BIOSROOT={_biosPath}",
                 $"/PCGAMES={(PcGamesCheck.IsChecked == true ? 1 : 0)}",
                 $"/APPS={(AppsCheck.IsChecked == true ? 1 : 0)}",
@@ -217,7 +225,7 @@ public partial class MainWindow : Window
 
             using var process = Process.Start(start) ?? throw new InvalidOperationException("The setup engine could not start.");
             await process.WaitForExitAsync();
-            if (process.ExitCode != 0) throw new InvalidOperationException($"Setup stopped with code {process.ExitCode}.");
+            if (process.ExitCode != 0) throw new InvalidOperationException(BuildSetupError(process.ExitCode, logPath));
 
             progressTimer.Stop();
             InstallProgress.Value = 100;
@@ -251,6 +259,32 @@ public partial class MainWindow : Window
                 try { Directory.Delete(tempRoot, true); } catch { }
             }
         }
+    }
+
+    private static string BuildSetupError(int exitCode, string logPath)
+    {
+        var detail = "";
+        try
+        {
+            detail = File.ReadLines(logPath)
+                .Reverse()
+                .FirstOrDefault(line => line.Contains("error", StringComparison.OrdinalIgnoreCase) ||
+                                        line.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+                                        line.Contains("mutex", StringComparison.OrdinalIgnoreCase) ||
+                                        line.Contains("access is denied", StringComparison.OrdinalIgnoreCase))
+                ?.Trim() ?? "";
+        }
+        catch { }
+
+        if (detail.Length > 220) detail = detail[..220] + "…";
+        var message = exitCode switch
+        {
+            2 => "Setup was cancelled.",
+            5 => "Setup completed, but Windows needs to restart.",
+            _ => $"The setup engine stopped with code {exitCode}."
+        };
+        if (!string.IsNullOrWhiteSpace(detail)) message += $" {detail}";
+        return $"{message}\nLog saved to: {logPath}";
     }
 
     private async Task ExtractEngineAsync(string destination)

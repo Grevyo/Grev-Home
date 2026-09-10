@@ -94,7 +94,7 @@
                 <Grid Margin="27,28,27,25"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
                         <Image Source="Assets/GrevHomeLogo.png" Width="52" Height="52" Stretch="Uniform"/>
-                        <StackPanel Margin="12,6,0,0"><TextBlock Text="GREV HOME" FontSize="16" FontWeight="Bold"/><TextBlock Text="SETUP  ·  0.16.2" Foreground="#66DFFF" FontSize="10" FontWeight="SemiBold"/></StackPanel>
+                        <StackPanel Margin="12,6,0,0"><TextBlock Text="GREV HOME" FontSize="16" FontWeight="Bold"/><TextBlock Text="SETUP  ·  0.16.3" Foreground="#66DFFF" FontSize="10" FontWeight="SemiBold"/></StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Row="1" VerticalAlignment="Center">
                         <TextBlock Text="YOUR SETUP" Foreground="#74809B" FontWeight="Bold" FontSize="10" Margin="3,0,0,14"/>

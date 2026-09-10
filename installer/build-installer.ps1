@@ -27,6 +27,38 @@ try {
 
     $enginePath = Join-Path $engineDir "GrevHomeSetupEngine.exe"
     if (-not (Test-Path $enginePath)) { throw "Installer engine output was not created." }
+
+    if ($env:CI -eq "true") {
+        $smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("GrevHome-smoke-" + [guid]::NewGuid().ToString("N"))
+        $smokeInstall = Join-Path $smokeRoot "App"
+        $smokeLog = Join-Path $smokeRoot "setup.log"
+        New-Item -ItemType Directory -Path $smokeRoot | Out-Null
+        $smokeStart = [System.Diagnostics.ProcessStartInfo]::new($enginePath)
+        $smokeStart.UseShellExecute = $false
+        $smokeStart.CreateNoWindow = $true
+        @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+            "/DIR=$smokeInstall", "/LOG=$smokeLog",
+            "/GAMESROOT=$(Join-Path $smokeRoot 'Games')",
+            "/BIOSROOT=$(Join-Path $smokeRoot 'bios')",
+            "/PCGAMES=1", "/APPS=1", "/EMULATORS=1", "/CONSOLES=PlayStation 2"
+        ) | ForEach-Object { [void]$smokeStart.ArgumentList.Add($_) }
+        $smokeProcess = [System.Diagnostics.Process]::Start($smokeStart)
+        $smokeProcess.WaitForExit()
+        if ($smokeProcess.ExitCode -ne 0) {
+            if (Test-Path $smokeLog) { Get-Content $smokeLog -Tail 80 | Write-Host }
+            throw "Silent installer smoke test failed with exit code $($smokeProcess.ExitCode)."
+        }
+        if (-not (Test-Path (Join-Path $smokeInstall "GrevHome.exe"))) {
+            throw "Silent installer smoke test did not install GrevHome.exe."
+        }
+        $smokeUninstaller = Join-Path $smokeInstall "unins000.exe"
+        if (Test-Path $smokeUninstaller) {
+            $uninstallProcess = Start-Process -FilePath $smokeUninstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
+            if ($uninstallProcess.ExitCode -ne 0) { throw "Installer smoke-test cleanup failed." }
+        }
+    }
+
     dotnet publish installer\Launcher\GrevHome.Installer.csproj -c Release -r win-x64 --self-contained true -o $launcherDir "-p:EnginePath=$enginePath"
     if ($LASTEXITCODE -ne 0) { throw "Custom installer publish failed." }
 
@@ -39,5 +71,6 @@ try {
     if ($prerequisiteDir -and (Test-Path $prerequisiteDir)) { Remove-Item -LiteralPath $prerequisiteDir -Recurse -Force }
     if ($engineDir -and (Test-Path $engineDir)) { Remove-Item -LiteralPath $engineDir -Recurse -Force }
     if ($launcherDir -and (Test-Path $launcherDir)) { Remove-Item -LiteralPath $launcherDir -Recurse -Force }
+    if ($smokeRoot -and (Test-Path $smokeRoot)) { Remove-Item -LiteralPath $smokeRoot -Recurse -Force -ErrorAction SilentlyContinue }
     Pop-Location
 }

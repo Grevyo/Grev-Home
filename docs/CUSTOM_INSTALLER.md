@@ -30,3 +30,5 @@ When a standard location is selected, the installer visibly warns that the user 
 ## Packaging
 
 Run `installer\build-installer.ps1` on Windows. It publishes Grev Home, downloads and validates Microsoft's WebView2 bootstrapper, compiles the silent Inno engine, embeds it in the self-contained WPF launcher and writes `dist\GrevHomeSetup.exe` plus its SHA-256 file.
+
+CI also executes the silent engine into a disposable directory and verifies that `GrevHome.exe` was genuinely installed before publishing a release. Runtime failures retain a timestamped engine log under `%LOCALAPPDATA%\Grev Home\Installer Logs`; the custom failure screen reports the useful engine detail and log location. A running Grev Home instance is detected before the engine starts and produces a direct instruction instead of an unexplained exit code.
