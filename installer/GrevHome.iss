@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.15.2"
+#define MyAppVersion "0.15.3"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -149,8 +149,8 @@ begin
     'Selected console emulators may require BIOS or firmware files that you legally provide.',
     'Grev Home never downloads BIOS files. The standard folder is C:\GrevCo\GrevHome\bios.',
     True, False);
-  BiosPage.Add('Use my existing BIOS folder');
-  BiosPage.Add('Create the standard Grev Home BIOS folder');
+  BiosPage.Add('Use my existing BIOS folder (Browse to directory)');
+  BiosPage.Add('Use the Grev Home standard (C:\GrevCo\GrevHome\bios)');
   BiosPage.SelectedValueIndex := 1;
 
   BiosFolderPage := CreateInputDirPage(BiosPage.ID,
