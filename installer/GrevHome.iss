@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.15.1"
+#define MyAppVersion "0.15.2"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -133,8 +133,8 @@ begin
     'Grev Home can use an existing library or create its standard folder.',
     'The standard option is C:\GrevCo\GrevHome\Games.',
     True, False);
-  GamesPage.Add('Use my existing Games folder');
-  GamesPage.Add('Create the standard Grev Home Games folder');
+  GamesPage.Add('Use my existing Games folder (Browse to directory)');
+  GamesPage.Add('Use the Grev Home standard (C:\GrevCo\GrevHome\Games)');
   GamesPage.SelectedValueIndex := 1;
 
   GamesFolderPage := CreateInputDirPage(GamesPage.ID,
