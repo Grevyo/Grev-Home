@@ -76,6 +76,7 @@
     <Border CornerRadius="26" Background="#090D18" BorderBrush="#34405C" BorderThickness="1">
         <Border.Effect><DropShadowEffect BlurRadius="34" ShadowDepth="8" Opacity="0.55" Color="#000000"/></Border.Effect>
         <Grid ClipToBounds="True">
+            <Grid.ColumnDefinitions><ColumnDefinition Width="270"/><ColumnDefinition/></Grid.ColumnDefinitions>
             <Canvas IsHitTestVisible="False">
                 <Ellipse x:Name="AmbientPurple" Width="540" Height="540" Canvas.Left="690" Canvas.Top="-260" Opacity="0.17" RenderTransformOrigin="0.5,0.5">
                     <Ellipse.RenderTransform><TranslateTransform/></Ellipse.RenderTransform>
@@ -88,7 +89,6 @@
                     <Ellipse.Effect><BlurEffect Radius="65"/></Ellipse.Effect>
                 </Ellipse>
             </Canvas>
-            <Grid.ColumnDefinitions><ColumnDefinition Width="270"/><ColumnDefinition/></Grid.ColumnDefinitions>
 
             <Border Grid.Column="0" Background="#B20D1221" CornerRadius="26,0,0,26" BorderBrush="#26304A" BorderThickness="0,0,1,0">
                 <Grid Margin="27,28,27,25"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
