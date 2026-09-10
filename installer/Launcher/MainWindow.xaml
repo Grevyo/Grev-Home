@@ -94,7 +94,7 @@
                 <Grid Margin="27,28,27,25"><Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <StackPanel Orientation="Horizontal">
                         <Image Source="Assets/GrevHomeLogo.png" Width="52" Height="52" Stretch="Uniform"/>
-                        <StackPanel Margin="12,6,0,0"><TextBlock Text="GREV HOME" FontSize="16" FontWeight="Bold"/><TextBlock Text="SETUP  ·  0.16.1" Foreground="#66DFFF" FontSize="10" FontWeight="SemiBold"/></StackPanel>
+                        <StackPanel Margin="12,6,0,0"><TextBlock Text="GREV HOME" FontSize="16" FontWeight="Bold"/><TextBlock Text="SETUP  ·  0.16.2" Foreground="#66DFFF" FontSize="10" FontWeight="SemiBold"/></StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Row="1" VerticalAlignment="Center">
                         <TextBlock Text="YOUR SETUP" Foreground="#74809B" FontWeight="Bold" FontSize="10" Margin="3,0,0,14"/>
@@ -173,13 +173,18 @@
                                 <RadioButton x:Name="GamesExisting" GroupName="Games" Content="Use my existing Games folder" Tag="Browse to directory" Style="{StaticResource FolderCard}" Checked="FolderChoice_Changed"/>
                                 <Button x:Name="BrowseGamesButton" Content="Browse for Games folder" Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Click="BrowseGames_Click" Visibility="Collapsed"/>
                                 <TextBlock x:Name="GamesPathText" Text="C:\GrevCo\GrevHome\Games" Foreground="#69DBFF" FontSize="11" TextWrapping="Wrap" Margin="2,11,0,0"/>
+                                <Border x:Name="GamesStandardNotice" Background="#241D2B" BorderBrush="#805687" BorderThickness="1" CornerRadius="10" Padding="11" Margin="0,13,0,0">
+                                    <TextBlock Foreground="#E9C7EE" FontSize="11" TextWrapping="Wrap" LineHeight="17"><Run FontWeight="Bold" Text="Your files are still needed. "/><Run Text="After setup, move your legally obtained ROMs and ISOs into this Games folder. Grev Home does not provide game files."/></TextBlock>
+                                </Border>
                             </StackPanel>
                             <StackPanel Grid.Column="2"><TextBlock Text="BIOS folder" FontSize="25" FontWeight="Bold"/><TextBlock Text="Only needed for selected emulators." Foreground="#99A5BD" Margin="0,5,0,17"/>
                                 <RadioButton x:Name="BiosStandard" GroupName="Bios" Content="Use the Grev Home standard" Tag="C:\GrevCo\GrevHome\bios" Style="{StaticResource FolderCard}" IsChecked="True" Checked="FolderChoice_Changed"/>
                                 <RadioButton x:Name="BiosExisting" GroupName="Bios" Content="Use my existing BIOS folder" Tag="Browse to directory" Style="{StaticResource FolderCard}" Checked="FolderChoice_Changed"/>
                                 <Button x:Name="BrowseBiosButton" Content="Browse for BIOS folder" Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Click="BrowseBios_Click" Visibility="Collapsed"/>
                                 <TextBlock x:Name="BiosPathText" Text="C:\GrevCo\GrevHome\bios" Foreground="#69DBFF" FontSize="11" TextWrapping="Wrap" Margin="2,11,0,0"/>
-                                <Border Background="#141C30" CornerRadius="10" Padding="11" Margin="0,16,0,0"><TextBlock Text="Grev Home never downloads copyrighted BIOS or firmware files." Foreground="#AEB8CD" FontSize="11" TextWrapping="Wrap"/></Border>
+                                <Border x:Name="BiosStandardNotice" Background="#241D2B" BorderBrush="#805687" BorderThickness="1" CornerRadius="10" Padding="11" Margin="0,13,0,0">
+                                    <TextBlock Foreground="#E9C7EE" FontSize="11" TextWrapping="Wrap" LineHeight="17"><Run FontWeight="Bold" Text="Your files are still needed. "/><Run Text="After setup, move legally obtained BIOS or firmware files from hardware you own into this BIOS folder. Grev Home does not provide BIOS files."/></TextBlock>
+                                </Border>
                             </StackPanel>
                         </Grid>
                     </Grid>

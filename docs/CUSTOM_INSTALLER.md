@@ -25,6 +25,8 @@ Games and BIOS each provide the same two choices:
 
 Grev Home never downloads BIOS or firmware files.
 
+When a standard location is selected, the installer visibly warns that the user must move their own legally obtained ROMs and ISOs into the Games folder, and legally obtained BIOS or firmware files from hardware they own into the BIOS folder. Grev Home does not provide these files.
+
 ## Packaging
 
 Run `installer\build-installer.ps1` on Windows. It publishes Grev Home, downloads and validates Microsoft's WebView2 bootstrapper, compiles the silent Inno engine, embeds it in the self-contained WPF launcher and writes `dist\GrevHomeSetup.exe` plus its SHA-256 file.

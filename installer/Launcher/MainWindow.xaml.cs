@@ -155,6 +155,8 @@ public partial class MainWindow : Window
         if (!IsLoaded) return;
         BrowseGamesButton.Visibility = GamesExisting.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         BrowseBiosButton.Visibility = BiosExisting.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        GamesStandardNotice.Visibility = GamesStandard.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        BiosStandardNotice.Visibility = BiosStandard.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
         if (GamesStandard.IsChecked == true) _gamesPath = @"C:\GrevCo\GrevHome\Games";
         if (BiosStandard.IsChecked == true) _biosPath = @"C:\GrevCo\GrevHome\bios";
         GamesPathText.Text = _gamesPath;

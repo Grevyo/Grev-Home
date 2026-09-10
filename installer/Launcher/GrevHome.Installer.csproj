@@ -8,7 +8,7 @@
     <AssemblyName>GrevHomeSetup</AssemblyName>
     <RootNamespace>GrevHome.Installer</RootNamespace>
     <ApplicationIcon>..\..\src\GrevHome\Assets\Brand\GrevHome.ico</ApplicationIcon>
-    <Version>0.16.1</Version>
+    <Version>0.16.2</Version>
     <PublishSingleFile>true</PublishSingleFile>
     <SelfContained>true</SelfContained>
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
