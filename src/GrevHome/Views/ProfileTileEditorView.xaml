@@ -58,6 +58,7 @@
    <TextBlock x:Name="PromptText" Grid.Column="0" VerticalAlignment="Center" FontSize="15" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
    <StackPanel Grid.Column="1" Orientation="Horizontal">
     <Button Content="Edit Tile" Margin="0,0,10,0" Click="EditTile_Click" IsTabStop="False"/>
+    <Button Content="Duplicate Tile" Margin="0,0,10,0" Click="DuplicateTile_Click" IsTabStop="False"/>
     <Button Content="Remove Tile" Margin="0,0,10,0" Click="RemoveTile_Click" IsTabStop="False"/>
     <Button Content="Save" Margin="0,0,10,0" Click="Save_Click" IsTabStop="False"/>
     <Button Content="Back" Click="Back_Click" IsTabStop="False"/>

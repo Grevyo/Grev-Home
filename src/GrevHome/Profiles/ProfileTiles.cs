@@ -88,7 +88,16 @@ public sealed record ProfileTile(
 // src/profile.ts) to decide whether to push or pull. A fresh install's Empty layout has this unset
 // (default), which always loses to a real cloud timestamp - that is what makes "sync" and "restore
 // after reinstall" the same code path rather than two to keep in sync with each other.
-public sealed record ProfileTileLayout(int SchemaVersion, IReadOnlyList<ProfileTile> Tiles, DateTimeOffset? UpdatedAtUtc = null)
+//
+// SyncedAccountUserId records which grev.dad account this layout's UpdatedAtUtc is meaningful for.
+// Unlinking a profile clears its access credential but deliberately leaves this local layout file
+// alone (there is nothing wrong with the tiles themselves). If a *different* grev.dad account is
+// then linked to the same local GrevID, the local timestamp is from the old account and must never
+// be trusted to decide "local is newer, push it" against the new account - that would overwrite
+// the new account's real profile with the previous account's leftover local tiles. See
+// SyncProfileTilesAsync, which is the only thing that ever sets this field.
+public sealed record ProfileTileLayout(
+    int SchemaVersion, IReadOnlyList<ProfileTile> Tiles, DateTimeOffset? UpdatedAtUtc = null, string? SyncedAccountUserId = null)
 {
     public static ProfileTileLayout Empty { get; } = new(CurrentSchemaVersion, []);
     public const int CurrentSchemaVersion = 1;
@@ -294,8 +303,16 @@ public sealed class ProfileTileService
         }
     }
 
+    /// <summary>
+    /// syncedAccountUserId/setSyncedAccountUserId: by default (setSyncedAccountUserId: false) an
+    /// ordinary local edit (the tile editor's own Save) carries the layout's existing
+    /// SyncedAccountUserId forward unchanged - it has no opinion on which account a local edit
+    /// belongs to. Only GrevDadProfileSyncService passes setSyncedAccountUserId: true, to actually
+    /// record which grev.dad account a pulled-or-confirmed-pushed layout belongs to.
+    /// </summary>
     public async Task<ProfileTileLayout> SaveAsync(
         string grevId, IReadOnlyList<ProfileTile> tiles, DateTimeOffset? updatedAtUtc = null,
+        string? syncedAccountUserId = null, bool setSyncedAccountUserId = false,
         CancellationToken cancellationToken = default)
     {
         var error = ProfileTileGrid.Validate(tiles);
@@ -316,7 +333,11 @@ public sealed class ProfileTileService
                 throw new InvalidOperationException("A tile's picture must be no more than 1.4 MB.");
         }
 
-        var layout = new ProfileTileLayout(ProfileTileLayout.CurrentSchemaVersion, tiles, updatedAtUtc ?? DateTimeOffset.UtcNow);
+        var accountUserId = setSyncedAccountUserId
+            ? syncedAccountUserId
+            : (await GetAsync(grevId, cancellationToken)).SyncedAccountUserId;
+        var layout = new ProfileTileLayout(
+            ProfileTileLayout.CurrentSchemaVersion, tiles, updatedAtUtc ?? DateTimeOffset.UtcNow, accountUserId);
         var path = GetLayoutFile(grevId);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var temporary = path + ".tmp";
@@ -336,7 +357,40 @@ public sealed class ProfileTileService
         {
             if (File.Exists(temporary)) File.Delete(temporary);
         }
+        CleanUpOrphanedMedia(grevId, tiles);
         return layout;
+    }
+
+    /// <summary>
+    /// Deletes every file under GetMediaRoot that is no longer referenced by any tile.
+    ///
+    /// A pulled sync and a manual media picker change both write a *new* file with a fresh GUID
+    /// name for each save (see ProfileTileMediaConverter.SaveFromDataUrlAsync and
+    /// MainWindow.SelectProfileTileMedia) rather than overwriting the previous one in place - so
+    /// without this, replacing a tile's picture, or every sync pull that touches a media tile,
+    /// leaves the old file behind permanently. Session start already triggers a sync on every
+    /// launch (see MainWindow.ProfileTilesIntegration's _session.Changed handler), so this was an
+    /// unbounded, indefinitely-growing disk leak, not just a one-off.
+    ///
+    /// Runs after a successful save, so it only ever prunes state that is genuinely superseded -
+    /// never anything the layout being saved still points at.
+    /// </summary>
+    private void CleanUpOrphanedMedia(string grevId, IReadOnlyList<ProfileTile> tiles)
+    {
+        var mediaRoot = GetMediaRoot(grevId);
+        if (!Directory.Exists(mediaRoot)) return;
+        var referenced = new HashSet<string>(
+            tiles.Where(tile => !string.IsNullOrWhiteSpace(tile.BackgroundMediaFile))
+                 .Select(tile => Path.GetFileName(tile.BackgroundMediaFile)!),
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var file in Directory.EnumerateFiles(mediaRoot))
+        {
+            if (referenced.Contains(Path.GetFileName(file))) continue;
+            try { File.Delete(file); }
+            catch (IOException) { /* still in use (e.g. a concurrent read) - swept on a later save */ }
+            catch (UnauthorizedAccessException) { /* same as above */ }
+        }
     }
 
     private ProfileTileLayout RecoverDefaults(string path, string reason)

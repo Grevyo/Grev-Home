@@ -170,6 +170,78 @@ try
     Check(Convert.FromBase64String(gifPayload).SequenceEqual(gifBytes),
         "animated GIF sync must preserve the original bytes rather than flattening to PNG");
 
+    // --- orphaned media cleanup: a save must delete media files no tile references any more ---
+    var orphanRoot = service.GetMediaRoot(grevId);
+    var keptPath = Path.Combine(orphanRoot, "kept.png");
+    var orphanedPath = Path.Combine(orphanRoot, "orphaned.png");
+    await File.WriteAllBytesAsync(keptPath, new byte[512]);
+    await File.WriteAllBytesAsync(orphanedPath, new byte[512]);
+    await service.SaveAsync(grevId, [BaseTile(kind: ProfileTileKind.Media) with { BackgroundMediaFile = "kept.png" }]);
+    Check(File.Exists(keptPath), "a save must never delete media a tile still references");
+    Check(!File.Exists(orphanedPath),
+        "a save must delete media files no tile references any more (previously leaked indefinitely - every sync pull and every tile picture change wrote a new file and never removed the old one)");
+
+    // --- duplicate tile ---
+    var originalTile = BaseTile(x: 0, y: 0, width: 2, height: 1) with { Title = "Original" };
+    var dupEditor = new ProfileTileGridEditor([originalTile]);
+    dupEditor.HandleInput(InputAction.Accept);
+    var duplicate = dupEditor.DuplicateActiveTile();
+    Check(duplicate is not null, "duplicating a held tile must succeed when there is free space");
+    Check(duplicate!.Title == "Original", "a duplicate must copy the source tile's content");
+    Check(duplicate.TileId != originalTile.TileId, "a duplicate must get its own tile ID, not share the source's");
+    Check(dupEditor.Tiles.Count == 2, "duplicating must add a second tile, not replace the first");
+    Check(dupEditor.Tiles.Any(t => t.TileId == originalTile.TileId), "the original tile must remain after duplicating");
+    Check(dupEditor.ActiveTile!.TileId == duplicate.TileId, "duplicating must hold the new copy, not the original");
+    Check(ProfileTileGrid.Validate(dupEditor.Tiles) is null, "the original and its duplicate must never overlap");
+    var noSpaceEditor = new ProfileTileGridEditor([BaseTile(x: 0, y: 0, width: 6, height: 4)]);
+    // A single 6x4 tile does not literally fill the whole 8x200 grid, so duplicating it should
+    // still find room elsewhere - this only exercises that a duplicate is placed somewhere new,
+    // not the "completely full grid" edge case (which FindFreePlacement's own contract covers).
+    noSpaceEditor.HandleInput(InputAction.Accept);
+    Check(noSpaceEditor.DuplicateActiveTile() is not null, "duplicating must find free space elsewhere on a large grid");
+
+    // --- IsDirty / MarkSaved: the "confirm before discarding unsaved changes" safeguard ---
+    var dirtyEditor = new ProfileTileGridEditor([BaseTile(x: 0, y: 0)]);
+    Check(!dirtyEditor.IsDirty, "a freshly loaded editor must not be dirty");
+    dirtyEditor.HandleInput(InputAction.Accept);
+    dirtyEditor.HandleInput(InputAction.Right);
+    Check(dirtyEditor.IsDirty, "moving a tile must mark the editor dirty");
+    dirtyEditor.HandleInput(InputAction.Back);
+    Check(!dirtyEditor.IsDirty, "cancelling a move (Back) must return to not-dirty, not stay dirty");
+    dirtyEditor.HandleInput(InputAction.Accept);
+    dirtyEditor.HandleInput(InputAction.Right);
+    dirtyEditor.HandleInput(InputAction.Accept);
+    Check(dirtyEditor.IsDirty, "a confirmed move must stay dirty");
+    dirtyEditor.MarkSaved();
+    Check(!dirtyEditor.IsDirty, "MarkSaved must rebase the dirty baseline onto the current layout");
+
+    // --- SyncedAccountUserId: the cross-account data-leak guard on unlink/relink ---
+    var identityGrevId = "GTESTIDENTITY";
+    paths.EnsureProfileLayout(identityGrevId);
+    var identityService = new ProfileTileService(paths);
+    var accountATile = BaseTile(x: 0, y: 0) with { Title = "Account A tile" };
+    await identityService.SaveAsync(identityGrevId, [accountATile],
+        syncedAccountUserId: "account-a", setSyncedAccountUserId: true);
+    var afterSync = await identityService.GetAsync(identityGrevId);
+    Check(afterSync.SyncedAccountUserId == "account-a", "SaveAsync must persist an explicitly stamped account identity");
+
+    // An ordinary local edit (the tile editor's own Save - no sync identity involved) must leave
+    // the stamped identity untouched, not silently clear it.
+    await identityService.SaveAsync(identityGrevId, [accountATile with { Title = "Edited locally" }]);
+    var afterLocalEdit = await identityService.GetAsync(identityGrevId);
+    Check(afterLocalEdit.SyncedAccountUserId == "account-a",
+        "an ordinary local save must preserve the layout's existing synced-account identity");
+    Check(afterLocalEdit.Tiles.Single().Title == "Edited locally", "the local edit itself must still take effect");
+
+    // A pull for a different account (setSyncedAccountUserId: true again, this time account-b)
+    // must overwrite both the tiles and the stamped identity - this is the actual recovery path
+    // after SyncProfileTilesAsync detects the mismatch above and re-pulls instead of trusting local.
+    await identityService.SaveAsync(identityGrevId, [BaseTile(x: 0, y: 0) with { Title = "Account B tile" }],
+        syncedAccountUserId: "account-b", setSyncedAccountUserId: true);
+    var afterRelink = await identityService.GetAsync(identityGrevId);
+    Check(afterRelink.SyncedAccountUserId == "account-b", "a fresh pull for a different account must restamp the identity");
+    Check(afterRelink.Tiles.Single().Title == "Account B tile", "a fresh pull for a different account must replace the tiles");
+
     Console.WriteLine("Profile tile tests passed.");
 }
 finally
