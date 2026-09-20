@@ -57,6 +57,7 @@ public partial class GrevStoreView : UserControl
                     package.Presentation.TileColor)
             };
 
+            ShellTileMotion.Attach(button);
             button.Click += Package_Click;
             PackagesPanel.Children.Add(button);
         }

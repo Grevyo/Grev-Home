@@ -165,6 +165,8 @@ internal static class Program
                 OverlayTransitionsEnabled:false,
                 ReturnHomeTransitionEnabled:false,
                 TileFocusAnimationEnabled:false,
+                TileHoverEffectsEnabled:false,
+                TileRevealAnimationEnabled:false,
                 ModalTransitionsEnabled:false,
                 AmbientBackgroundEnabled:false,
                 ButtonPressFeedbackEnabled:false,
@@ -181,6 +183,31 @@ internal static class Program
         {
             if(Directory.Exists(motionRoot))Directory.Delete(motionRoot,true);
         }
+
+        // Every "settings-" tile in the dashboard catalogue must open a real settings page. A tile
+        // that exists in the catalogue but resolves to nothing is a dead button on Home.
+        foreach(var definition in DashboardTileCatalog.All.Where(item=>item.Id.StartsWith("settings-",StringComparison.Ordinal)))
+            Check(SettingsView.ResolveSettingsPage(definition.Id) is not null,$"Dashboard tile '{definition.Id}' must open a settings page");
+
+        // Tile motion must leave tiles fully visible when the reveal setting is off, so turning
+        // animation off can never hide a tile rather than merely not animating it.
+        var motionTile=new Button{Width=100,Height=60};
+        ShellTileMotion.Configure(new ShellMotionSettings(TileRevealAnimationEnabled:false));
+        motionTile.Opacity=0;
+        ShellTileMotion.PlayReveal([motionTile]);
+        Check(Math.Abs(motionTile.Opacity-1)<0.0001,"Tiles must be fully visible when the reveal animation is disabled");
+
+        ShellTileMotion.Configure(new ShellMotionSettings());
+        ShellTileMotion.PlayReveal([motionTile]);
+        Check(motionTile.RenderTransform is System.Windows.Media.TransformGroup,"The reveal animation must own a tile transform it can animate");
+
+        // With all tile motion off a tile is returned to rest instead of being left mid-transform.
+        ShellTileMotion.Configure(new ShellMotionSettings(TileFocusAnimationEnabled:false,TileHoverEffectsEnabled:false));
+        ShellTileMotion.Attach(motionTile);
+        ShellTileMotion.Settle(motionTile);
+        var restScale=((System.Windows.Media.TransformGroup)motionTile.RenderTransform).Children[0] as System.Windows.Media.ScaleTransform;
+        Check(restScale is not null && Math.Abs(restScale.ScaleX-1)<0.0001 && motionTile.Effect is null,"Disabling tile motion must leave tiles at rest with no residual effect");
+        ShellTileMotion.Configure(new ShellMotionSettings());
 
         var guestRoot=Path.Combine(Path.GetTempPath(),"GrevHomeBuiltInGuestTest-"+Guid.NewGuid().ToString("N"));
         try
@@ -200,7 +227,7 @@ internal static class Program
             if(Directory.Exists(guestRoot))Directory.Delete(guestRoot,true);
         }
         window.Close();
-        Console.WriteLine("Carousel tests passed: profiles, dashboard and settings hubs, focus scrolling, edge fades and password masking.");
+        Console.WriteLine("Carousel tests passed: profiles, dashboard and settings hubs, tile motion, settings tile reachability, focus scrolling, edge fades and password masking.");
         app.Shutdown();
     }
     private static void Pump()=>Dispatcher.CurrentDispatcher.Invoke(()=>{},DispatcherPriority.ApplicationIdle);

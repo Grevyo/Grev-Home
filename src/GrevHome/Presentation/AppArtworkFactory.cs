@@ -154,6 +154,10 @@ public static class AppArtworkFactory
                 "power" => "\uE7E8",
                 "admin" => "\uE77B",
                 "friends" => "\uE716",
+                "profile" => "\uE13D",
+                "players" => "\uE716",
+                "add-game" => "\uE710",
+                "scan" => "\uE721",
                 "web" => "\uE774",
                 _ => "\uE10C"
             };

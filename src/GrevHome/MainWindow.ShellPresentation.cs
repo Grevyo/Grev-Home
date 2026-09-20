@@ -37,6 +37,7 @@ public partial class MainWindow
         {
             if (StoreModalOverlay.IsVisible && StoreModalOverlay.Child is FrameworkElement card) AnimateModalEntrance(card);
         };
+        ShellTileMotion.Configure(_shellMotionSettings);
         ApplyAmbientBackgroundSetting();
     }
 
@@ -46,6 +47,7 @@ public partial class MainWindow
         {
             await _shellMotionSettingsService.SaveAsync(settings);
             _shellMotionSettings = settings;
+            ShellTileMotion.Configure(settings);
             _settingsView.SetMotionSettings(settings);
             _overlayWindow.ConfigurePresentation(settings);
             if (!settings.ScreenTransitionsEnabled) ResetRouteAnimation();
@@ -172,33 +174,23 @@ public partial class MainWindow
         }));
     }
 
+    /// <summary>
+    /// Focus motion is delegated to <see cref="ShellTileMotion"/> so a controller focus and a
+    /// mouse hover drive the same transform on the same element. Attaching on first focus also
+    /// covers tiles that views create at runtime without every view having to remember to opt in.
+    /// </summary>
     private void PresentationFocusChanged(object sender, KeyboardFocusChangedEventArgs e)
     {
-        if (!_shellMotionSettings.TileFocusAnimationEnabled) return;
-        if (e.OldFocus is Button oldButton) AnimateButtonScale(oldButton, 1);
-        if (e.NewFocus is Button newButton) AnimateButtonScale(newButton, 1.025);
-    }
-
-    private void AnimateButtonScale(Button button, double target)
-    {
-        if (button.RenderTransform is not ScaleTransform scale)
-        {
-            scale = new ScaleTransform(1, 1);
-            button.RenderTransform = scale;
-            button.RenderTransformOrigin = new Point(.5, .5);
-        }
-        var easing = new CubicEase { EasingMode = EasingMode.EaseOut };
-        scale.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(target, MotionDuration(130)) { EasingFunction = easing });
-        scale.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(target, MotionDuration(130)) { EasingFunction = easing });
+        if (e.OldFocus is Button oldButton) ShellTileMotion.Settle(oldButton);
+        if (e.NewFocus is not Button newButton) return;
+        ShellTileMotion.Attach(newButton);
+        ShellTileMotion.Settle(newButton);
     }
 
     private void PulseFocusedButton(Button button)
     {
-        if (!_shellMotionSettings.TileFocusAnimationEnabled) return;
-        AnimateButtonScale(button, 1.045);
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(110 * MotionSpeedFactor) };
-        timer.Tick += (_, _) => { timer.Stop(); AnimateButtonScale(button, 1.025); };
-        timer.Start();
+        ShellTileMotion.Attach(button);
+        ShellTileMotion.Pulse(button);
     }
 
     private void AnimateModalEntrance(FrameworkElement card)

@@ -18,6 +18,26 @@ public enum SettingsPage
 
 public partial class SettingsView
 {
+    /// <summary>
+    /// Single source of truth for which settings page a "settings-" dashboard tile opens. This
+    /// lives here rather than inside a view switch so a tile can be added to the catalogue and
+    /// verified as reachable without constructing WPF. Every catalogue id prefixed "settings-"
+    /// must resolve; the regression test enforces that.
+    /// </summary>
+    public static SettingsPage? ResolveSettingsPage(string tileId) => tileId switch
+    {
+        "settings-account" => SettingsPage.Account,
+        "settings-controller" => SettingsPage.ControllerShortcuts,
+        "settings-audio" => SettingsPage.Audio,
+        "settings-display" => SettingsPage.Display,
+        "settings-connections" => SettingsPage.Connections,
+        "settings-system" => SettingsPage.SystemInformation,
+        "settings-game-scan" => SettingsPage.GameScanning,
+        "settings-theme" => SettingsPage.ThemeAndMotion,
+        "settings-power" => SettingsPage.Power,
+        _ => null
+    };
+
     private void AccountSectionButton_Click(object sender, RoutedEventArgs e) =>
         OpenSettingsSection(AccountSection, AccountSectionContent, "Account");
 

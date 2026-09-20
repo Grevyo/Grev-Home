@@ -93,19 +93,32 @@
                 </ScrollViewer>
             </StackPanel>
 
+            <TextBlock Text="ACCOUNT"
+                       Margin="10,0,0,8"
+                       FontSize="13"
+                       FontWeight="Bold"
+                       Foreground="{StaticResource MutedBrush}" />
+            <ScrollViewer Style="{StaticResource DashboardCarouselStyle}" Margin="0,0,0,22">
+                <StackPanel x:Name="AccountCarouselPanel" Orientation="Horizontal">
+                <Button x:Name="MyProfileButton" Tag="my-profile" Style="{StaticResource DashboardTileStyle}" Click="MyProfile_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
+                <Button x:Name="UsersControllersButton" Tag="users-controllers" Style="{StaticResource DashboardTileStyle}" Click="UsersControllers_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
+                </StackPanel>
+            </ScrollViewer>
+
             <TextBlock Text="APPS &amp; CONTENT"
                        Margin="10,0,0,8"
                        FontSize="13"
                        FontWeight="Bold"
                        Foreground="{StaticResource MutedBrush}" />
             <ScrollViewer Style="{StaticResource DashboardCarouselStyle}" Margin="0,0,0,22">
-                <StackPanel Orientation="Horizontal">
+                <StackPanel x:Name="AppsCarouselPanel" Orientation="Horizontal">
                 <Button x:Name="YourGamesButton" Tag="your-games" Style="{StaticResource DashboardTileStyle}" Click="YourGames_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Your Games" Style="{StaticResource DashboardTileTitleStyle}" />
                         <TextBlock x:Name="GamesSummaryText" Text="Open your complete game library" Style="{StaticResource DashboardTileDetailStyle}" />
                     </StackPanel>
                 </Button>
+                <Button x:Name="AddGameButton" Tag="add-game" Style="{StaticResource DashboardTileStyle}" Click="AddGame_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="InstalledAppsButton" Tag="installed-apps" Style="{StaticResource DashboardTileStyle}" Click="InstalledApps_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
                     <StackPanel>
                         <TextBlock Text="Installed Apps" Style="{StaticResource DashboardTileTitleStyle}" />
@@ -145,7 +158,7 @@
                        FontWeight="Bold"
                        Foreground="{StaticResource MutedBrush}" />
             <ScrollViewer x:Name="SystemCarousel" Style="{StaticResource DashboardCarouselStyle}">
-                <StackPanel Orientation="Horizontal">
+                <StackPanel x:Name="SystemCarouselPanel" Orientation="Horizontal">
                 <Button x:Name="RunningAppsButton"
                         Tag="running-apps"
                         Style="{StaticResource DashboardTileStyle}"
@@ -184,6 +197,7 @@
                 <Button x:Name="SettingsDisplayButton" Tag="settings-display" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsConnectionsButton" Tag="settings-connections" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsSystemButton" Tag="settings-system" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
+                <Button x:Name="SettingsGameScanButton" Tag="settings-game-scan" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsThemeButton" Tag="settings-theme" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="SettingsPowerButton" Tag="settings-power" Style="{StaticResource DashboardTileStyle}" Click="SettingsPage_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
                 <Button x:Name="AdminConsoleButton"
