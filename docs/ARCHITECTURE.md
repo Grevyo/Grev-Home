@@ -228,16 +228,24 @@ The future system will **generalise package metadata and reusable infrastructure
 
 Package manifests must never become unrestricted arbitrary PowerShell/CMD execution documents.
 
-## Theme contract — intentionally late
+## Theme contract
 
-Themes remain a product goal, but Theme Engine/Theme Studio work is intentionally deferred until the behavioral/system backbone is stable.
-
-When eventually implemented:
+Theme Engine/Theme Studio work was originally deferred until the behavioral/system backbone was
+stable. A minimal, real theme engine (`docs/THEMES.md`) now exists ahead of that milestone at
+explicit product-owner request, on the understanding that it holds to the contract below rather
+than becoming a second architecture:
 
 - themes affect presentation/layout only;
 - themes never own navigation/business/process logic;
-- the built-in default theme is always recoverable;
-- theme data should be exportable/importable and eventually shareable.
+- the built-in default theme (`grev-default`) is always recoverable and can never be edited or
+  deleted, and any corrupt or missing custom theme falls back to it rather than the shell failing
+  to start;
+- theme data is one JSON file per custom theme under the machine's `Themes` folder, so it is
+  already copyable between machines; a dedicated in-app import/export flow is not yet built.
+
+Deeper theme surfaces remain deferred until the backbone milestone: per-app/per-GrevID visual
+overrides beyond dashboard tile presentation, layout-level theme packs, and a shareable theme
+marketplace/format all still belong to that later phase.
 
 No current backbone milestone should be blocked on theme abstractions or theme packaging.
 

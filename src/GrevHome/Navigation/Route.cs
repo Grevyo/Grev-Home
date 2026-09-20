@@ -30,6 +30,7 @@ public enum Route
     RunningApps,
     AppKiller,
     Settings,
+    ThemeCreator,
     AdminConsole,
     Files,
     ActivityCenter

@@ -42,7 +42,7 @@
                     <TextBlock Text="Manage apps Grev Home is actively tracking. Close Normally is the safe first choice; Force Kill is the emergency option and always needs confirmation."
                                Margin="0,7,0,0"
                                FontSize="15"
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{DynamicResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
 
@@ -72,7 +72,7 @@
                         <TextBlock Text="ACTIVE SESSIONS"
                                    FontSize="11"
                                    FontWeight="Bold"
-                                   Foreground="{StaticResource MutedBrush}" />
+                                   Foreground="{DynamicResource MutedBrush}" />
                         <TextBlock x:Name="SessionSummaryText"
                                    Text="0"
                                    Margin="0,4,0,0"
@@ -84,7 +84,7 @@
                         <TextBlock Text="TRACKED PROCESSES"
                                    FontSize="11"
                                    FontWeight="Bold"
-                                   Foreground="{StaticResource MutedBrush}" />
+                                   Foreground="{DynamicResource MutedBrush}" />
                         <TextBlock x:Name="ProcessSummaryText"
                                    Text="0"
                                    Margin="0,4,0,0"
@@ -102,7 +102,7 @@
                        TextAlignment="Center"
                        TextWrapping="Wrap"
                        FontSize="18"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
 
             <StackPanel x:Name="SessionsPanel" />
 
@@ -114,7 +114,7 @@
                     CornerRadius="12">
                 <TextBlock x:Name="StatusText"
                            Text="Select a running app. Force Kill can interrupt saves or configuration writes and always requires a second press on the same session."
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
             </Border>
         </StackPanel>

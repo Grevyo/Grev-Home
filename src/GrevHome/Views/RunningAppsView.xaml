@@ -10,7 +10,7 @@
                     <TextBlock Text="Live Grev Home launch sessions and their tracked process trees."
                                Margin="0,6,0,0"
                                FontSize="16"
-                               Foreground="{StaticResource MutedBrush}" />
+                               Foreground="{DynamicResource MutedBrush}" />
                 </StackPanel>
                 <Button Content="Back"
                         Width="120"
@@ -24,7 +24,7 @@
                        Text="No apps are currently running through Grev Home."
                        Margin="8,20"
                        FontSize="18"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
 
             <WrapPanel x:Name="SessionsPanel" />
 
@@ -36,7 +36,7 @@
                     CornerRadius="12">
                 <TextBlock x:Name="StatusText"
                            Text="Running Apps is read-only in 0.4. Switching and closing processes arrive in the App Switcher / App Killer milestones."
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
             </Border>
         </StackPanel>

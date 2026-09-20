@@ -42,6 +42,7 @@ public partial class SettingsView : UserControl
     private ShellMotionSettings _motionSettings = new();
 
     public event EventHandler? BackRequested;
+    public event EventHandler? ManageThemesRequested;
     public event Action<string>? SaveDisplayNameRequested;
     public event Action<ShortcutRecordRequest>? RecordShortcutRequested;
     public event Action<string>? RemoveShortcutRequested;
@@ -131,6 +132,7 @@ public partial class SettingsView : UserControl
     private void OverlayTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { OverlayTransitionsEnabled = !_motionSettings.OverlayTransitionsEnabled });
     private void ReturnHomeTransition_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ReturnHomeTransitionEnabled = !_motionSettings.ReturnHomeTransitionEnabled });
     private void TileFocusAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileFocusAnimationEnabled = !_motionSettings.TileFocusAnimationEnabled });
+    private void ManageThemes_Click(object sender, RoutedEventArgs e) => ManageThemesRequested?.Invoke(this, EventArgs.Empty);
     private void TileHoverEffects_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileHoverEffectsEnabled = !_motionSettings.TileHoverEffectsEnabled });
     private void TileRevealAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileRevealAnimationEnabled = !_motionSettings.TileRevealAnimationEnabled });
     private void ModalTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ModalTransitionsEnabled = !_motionSettings.ModalTransitionsEnabled });

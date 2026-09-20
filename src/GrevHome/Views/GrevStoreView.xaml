@@ -15,7 +15,7 @@
             <TextBlock x:Name="ContextText"
                        Margin="0,6,0,0"
                        FontSize="15"
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{DynamicResource MutedBrush}"
                        TextWrapping="Wrap" />
         </StackPanel>
 
@@ -35,7 +35,7 @@
                            Margin="0,28,0,0"
                            HorizontalAlignment="Center"
                            FontSize="18"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            Visibility="Collapsed" />
                 <WrapPanel x:Name="PackagesPanel" />
             </StackPanel>
@@ -50,7 +50,7 @@
                 CornerRadius="12">
             <TextBlock x:Name="StatusText"
                        Text="Every trusted Grev Home installer appears here. Package defaults are supplied by Grev Home and each profile can later override its own app presentation."
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{DynamicResource MutedBrush}"
                        TextWrapping="Wrap" />
         </Border>
     </Grid>

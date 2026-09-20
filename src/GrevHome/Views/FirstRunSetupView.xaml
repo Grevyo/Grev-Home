@@ -16,16 +16,16 @@
                            TextWrapping="Wrap"
                            Margin="0,10,0,34"
                            FontSize="16"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
                 <TextBlock x:Name="SelectedConsolesText"
                            Margin="0,0,0,24"
                            TextAlignment="Center"
                            TextWrapping="Wrap"
                            FontSize="16"
-                           Foreground="{StaticResource AccentBrush}" />
+                           Foreground="{DynamicResource AccentBrush}" />
 
-                <TextBlock Text="GAMES FOLDER" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                <TextBlock Text="Where installed games are stored." Margin="0,2,0,8" Foreground="{StaticResource MutedBrush}" />
+                <TextBlock Text="GAMES FOLDER" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="Where installed games are stored." Margin="0,2,0,8" Foreground="{DynamicResource MutedBrush}" />
                 <TextBox x:Name="GamesPathText"
                          Height="52"
                          Padding="14,8"
@@ -40,8 +40,8 @@
                 </StackPanel>
 
                 <StackPanel x:Name="BiosSection">
-                <TextBlock Text="BIOS FOLDER" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                <TextBlock Text="Where emulator BIOS / firmware files are stored." Margin="0,2,0,8" Foreground="{StaticResource MutedBrush}" />
+                <TextBlock Text="BIOS FOLDER" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="Where emulator BIOS / firmware files are stored." Margin="0,2,0,8" Foreground="{DynamicResource MutedBrush}" />
                 <TextBox x:Name="BiosPathText"
                          Height="52"
                          Padding="14,8"
@@ -56,10 +56,10 @@
                 </StackPanel>
                 </StackPanel>
 
-                <TextBlock Text="EXISTING GAMES" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="EXISTING GAMES" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
                 <TextBlock Text="If your Games folder already has games in it, Grev Home can scan it and add them for you."
                            Margin="0,2,0,8"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
                 <Button x:Name="ScanChoiceButton"
                         Content="✓  Scan for games after I create my account"
@@ -74,7 +74,7 @@
                            HorizontalAlignment="Center"
                            TextAlignment="Center"
                            TextWrapping="Wrap"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                     <Button Content="Continue" Width="220" Height="56" Margin="6" Click="Continue_Click" />

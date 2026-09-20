@@ -22,7 +22,7 @@
                     <Button Content="Cancel" Width="150" Height="56" Margin="5" Click="Cancel_Click" />
                     <Button Content="Done" Width="190" Height="56" Margin="5" Click="Done_Click" />
                 </WrapPanel>
-                <TextBlock Text="D-pad / stick to move  •  A to type  •  Shift changes case  •  B cancels" HorizontalAlignment="Center" Margin="0,14,0,0" Foreground="{StaticResource MutedBrush}" FontSize="12" />
+                <TextBlock Text="D-pad / stick to move  •  A to type  •  Shift changes case  •  B cancels" HorizontalAlignment="Center" Margin="0,14,0,0" Foreground="{DynamicResource MutedBrush}" FontSize="12" />
             </StackPanel>
         </Border>
     </Grid>

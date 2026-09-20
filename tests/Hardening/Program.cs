@@ -121,7 +121,35 @@ try
             Path.Combine(ps2Root, "Road Trip.iso"), DateTimeOffset.UtcNow)
     });
     Check(rescan.AlreadyInLibrary == 1, "A rescan must not duplicate an existing game path");
-    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection.");
+
+    var themeService = new ThemeService(paths);
+    var initialState = await themeService.LoadAsync();
+    Check(initialState.ActiveThemeId == ThemeCatalog.DefaultThemeId, "A new machine must start on the shipped default theme");
+    Check(initialState.CustomThemes.Count == 0, "A new machine must start with no custom themes");
+    Check(themeService.ResolveActive(initialState) == ThemeCatalog.Default, "The default theme must resolve to the shipped Grev Default definition");
+
+    await ExpectAsync<InvalidOperationException>(() => themeService.SaveCustomThemeAsync(ThemeCatalog.Default with { Name = "Hijacked" }));
+    Check((await themeService.LoadAsync()).CustomThemes.Count == 0, "Attempting to overwrite a built-in theme must not create or alter any file");
+
+    var draft = new ThemeDefinition("custom-test", "My Theme", "#101010", "#151515", "#333333", "#202020", "#303030", "#FF8800", "#AAAAAA", "#D8B65A", "#D94B55", "#747B88");
+    await ExpectAsync<InvalidOperationException>(() => themeService.SaveCustomThemeAsync(draft with { Accent = "not-a-color" }));
+    var saved = await themeService.SaveCustomThemeAsync(draft);
+    Check(!saved.IsBuiltIn, "A saved custom theme must never be marked as built-in");
+    await themeService.SetActiveThemeAsync(saved.Id);
+
+    var reloaded = await themeService.LoadAsync();
+    Check(reloaded.ActiveThemeId == "custom-test", "The active theme id must survive a reload");
+    Check(reloaded.CustomThemes.Any(theme => theme.Id == "custom-test" && theme.Accent == "#FF8800"), "A saved custom theme must survive a reload with its exact colors");
+    Check(themeService.ResolveActive(reloaded).Name == "My Theme", "ResolveActive must return the saved custom theme once it is active");
+
+    await themeService.DeleteCustomThemeAsync("custom-test");
+    var afterDelete = await themeService.LoadAsync();
+    Check(afterDelete.CustomThemes.Count == 0, "A deleted custom theme must no longer be listed");
+    Check(themeService.ResolveActive(afterDelete) == ThemeCatalog.Default, "Deleting the active custom theme must fall back to the shipped default rather than crashing");
+
+    await ExpectAsync<InvalidOperationException>(() => themeService.DeleteCustomThemeAsync(ThemeCatalog.DefaultThemeId));
+
+    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip.");
 }
 finally { Directory.Delete(root, recursive: true); }
 

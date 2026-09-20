@@ -24,7 +24,7 @@
         <Style x:Key="DashboardTileDetailStyle" TargetType="TextBlock">
             <Setter Property="Margin" Value="0,8,0,0" />
             <Setter Property="FontSize" Value="13" />
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
         <Style x:Key="DashboardCarouselStyle" TargetType="ScrollViewer">
@@ -54,7 +54,7 @@
                 <TextBlock x:Name="SessionUsersText"
                            Margin="0,6,0,0"
                            FontSize="15"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
             </StackPanel>
 
@@ -65,11 +65,11 @@
                            Margin="10,0,0,8"
                            FontSize="13"
                            FontWeight="Bold"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
                 <TextBlock x:Name="ActivitySummaryText"
                            Margin="10,0,10,6"
                            FontSize="14"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
                 <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
                     <StackPanel Orientation="Horizontal">
@@ -97,7 +97,7 @@
                        Margin="10,0,0,8"
                        FontSize="13"
                        FontWeight="Bold"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
             <ScrollViewer Style="{StaticResource DashboardCarouselStyle}" Margin="0,0,0,22">
                 <StackPanel x:Name="AccountCarouselPanel" Orientation="Horizontal">
                 <Button x:Name="MyProfileButton" Tag="my-profile" Style="{StaticResource DashboardTileStyle}" Click="MyProfile_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick" />
@@ -109,7 +109,7 @@
                        Margin="10,0,0,8"
                        FontSize="13"
                        FontWeight="Bold"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
             <ScrollViewer Style="{StaticResource DashboardCarouselStyle}" Margin="0,0,0,22">
                 <StackPanel x:Name="AppsCarouselPanel" Orientation="Horizontal">
                 <Button x:Name="YourGamesButton" Tag="your-games" Style="{StaticResource DashboardTileStyle}" Click="YourGames_Click" PreviewMouseRightButtonUp="DashboardTile_RightClick">
@@ -144,8 +144,8 @@
 
             <StackPanel x:Name="FriendsSection" Visibility="Collapsed" Margin="0,0,0,22">
                 <Grid Margin="10,0,10,8">
-                    <TextBlock Text="FRIENDS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
-                    <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{StaticResource MutedBrush}" />
+                    <TextBlock Text="FRIENDS" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
+                    <TextBlock x:Name="FriendsSummaryText" HorizontalAlignment="Right" FontSize="12" Foreground="{DynamicResource MutedBrush}" />
                 </Grid>
                 <ScrollViewer Style="{StaticResource DashboardCarouselStyle}">
                     <StackPanel x:Name="FriendsPanel" Orientation="Horizontal" />
@@ -156,7 +156,7 @@
                        Margin="10,0,0,8"
                        FontSize="13"
                        FontWeight="Bold"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
             <ScrollViewer x:Name="SystemCarousel" Style="{StaticResource DashboardCarouselStyle}">
                 <StackPanel x:Name="SystemCarouselPanel" Orientation="Horizontal">
                 <Button x:Name="RunningAppsButton"
@@ -217,7 +217,7 @@
             <TextBlock x:Name="DashboardStatusText"
                        Visibility="Collapsed"
                        Margin="10,18,10,0"
-                       Foreground="{StaticResource AccentBrush}"
+                       Foreground="{DynamicResource AccentBrush}"
                        FontSize="13"
                        TextWrapping="Wrap" />
         </StackPanel>

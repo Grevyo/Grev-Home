@@ -130,6 +130,12 @@ See [`docs/OVERLAY.md`](docs/OVERLAY.md) and [`docs/CONTROLLER_SHORTCUTS.md`](do
 
 See [`docs/SETTINGS.md`](docs/SETTINGS.md).
 
+## Theme Creator
+
+A minimal Theme Engine and in-app Theme Creator recolor the shell's shared chrome - buttons,
+tiles, cards and role badges - live, with four built-in themes and unlimited saved custom themes.
+See [`docs/THEMES.md`](docs/THEMES.md).
+
 ## Runtime data layout
 
 By default Grev Home creates and uses:

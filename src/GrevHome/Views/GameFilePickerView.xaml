@@ -15,7 +15,7 @@
             <TextBlock x:Name="DescriptionText"
                        Margin="0,6,0,18"
                        FontSize="15"
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{DynamicResource MutedBrush}"
                        TextWrapping="Wrap" />
         </StackPanel>
 
@@ -28,7 +28,7 @@
             </Grid.ColumnDefinitions>
             <Button Content="Home" Width="110" Height="46" Margin="0,0,8,0" Click="Home_Click" />
             <Button Grid.Column="1" x:Name="UpButton" Content="Up" Width="110" Height="46" Margin="0,0,12,0" Click="Up_Click" />
-            <TextBlock Grid.Column="2" x:Name="PathText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{StaticResource MutedBrush}" />
+            <TextBlock Grid.Column="2" x:Name="PathText" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" Foreground="{DynamicResource MutedBrush}" />
             <Button Grid.Column="3" Content="Cancel" Width="120" Height="46" Click="Cancel_Click" />
         </Grid>
 
@@ -36,6 +36,6 @@
             <WrapPanel x:Name="EntriesPanel" />
         </ScrollViewer>
 
-        <TextBlock Grid.Row="3" x:Name="StatusText" Margin="0,14,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+        <TextBlock Grid.Row="3" x:Name="StatusText" Margin="0,14,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
     </Grid>
 </UserControl>
