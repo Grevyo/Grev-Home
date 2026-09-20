@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Input;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 using GrevHome.Sessions;
 
@@ -112,6 +113,7 @@ public partial class LoginView : UserControl
                     }
                 }
             };
+            ShellTileMotion.Attach(button);
             button.Click += LocalProfile_Click;
             button.GotKeyboardFocus += Profile_GotFocus;
             ProfilesPanel.Children.Add(button);
@@ -124,6 +126,7 @@ public partial class LoginView : UserControl
 
         NoProfilesText.Visibility = profiles.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ResizeCards();
+        ShellTileMotion.PlayReveal(ProfilesPanel.Children.OfType<FrameworkElement>());
         ProfilesScroll.ScrollToHorizontalOffset(0);
     }
 
@@ -164,6 +167,7 @@ public partial class LoginView : UserControl
                 }
             }
         };
+        ShellTileMotion.Attach(button);
         button.Click += TemporaryGuest_Click;
         button.GotKeyboardFocus += Profile_GotFocus;
         return button;

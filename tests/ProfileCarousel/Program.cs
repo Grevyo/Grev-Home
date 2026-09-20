@@ -209,6 +209,15 @@ internal static class Program
         Check(restScale is not null && Math.Abs(restScale.ScaleX-1)<0.0001 && motionTile.Effect is null,"Disabling tile motion must leave tiles at rest with no residual effect");
         ShellTileMotion.Configure(new ShellMotionSettings());
 
+        // A tile that already carries its own effect (a profile card's chosen glow frame) must
+        // never have that effect replaced by the shared hover glow.
+        var framedTile=new Button{Width=100,Height=60};
+        var ownEffect=new System.Windows.Media.Effects.DropShadowEffect{Color=System.Windows.Media.Colors.Red};
+        framedTile.Effect=ownEffect;
+        ShellTileMotion.Attach(framedTile);
+        ShellTileMotion.Press(framedTile);
+        Check(ReferenceEquals(framedTile.Effect,ownEffect),"Tile hover motion must never replace a tile's own effect");
+
         var guestRoot=Path.Combine(Path.GetTempPath(),"GrevHomeBuiltInGuestTest-"+Guid.NewGuid().ToString("N"));
         try
         {

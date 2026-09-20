@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Files;
 using GrevHome.Games;
+using GrevHome.Presentation;
 
 namespace GrevHome.Views;
 
@@ -100,6 +101,7 @@ public partial class GameFilePickerView : UserControl
                 }
             }
         };
+        ShellTileMotion.Attach(button);
         button.Click += Item_Click;
         EntriesPanel.Children.Add(button);
     }

@@ -53,6 +53,10 @@ public static class ShellTileMotion
         ArgumentNullException.ThrowIfNull(button);
         if (GetAttached(button)) return;
         SetAttached(button, true);
+        // A tile may already carry its own permanent effect (a profile card's chosen glow frame,
+        // for instance). That effect is preserved as-is: the accent hover glow only ever applies
+        // to a tile that had no effect of its own, so it can never overwrite one.
+        SetBaseEffect(button, button.Effect);
 
         button.MouseEnter += (_, _) => Settle(button);
         button.MouseLeave += (_, _) => Settle(button);
@@ -180,10 +184,10 @@ public static class ShellTileMotion
         if (!_settings.TileHoverEffectsEnabled && !_settings.TileFocusAnimationEnabled)
         {
             // All tile motion is off, but focus must still be visible. The XAML focus border
-            // carries that, so the tile is returned to rest with no animation and no residual
-            // effect rather than being left mid-transform.
+            // carries that, so the tile is returned to rest with no animation. Its own effect, if
+            // any, is left exactly as it was rather than being cleared.
             StopAndSet(EnsureTransform(button), RestScale, 0);
-            button.Effect = null;
+            if (GetBaseEffect(button) is null) button.Effect = null;
             return;
         }
 
@@ -193,6 +197,12 @@ public static class ShellTileMotion
         group.BeginAnimation(ScaleTransform.ScaleXProperty, new DoubleAnimation(scale, duration) { EasingFunction = easing });
         group.BeginAnimation(ScaleTransform.ScaleYProperty, new DoubleAnimation(scale, duration) { EasingFunction = easing });
         translate.BeginAnimation(TranslateTransform.YProperty, new DoubleAnimation(lift, duration) { EasingFunction = easing });
+
+        // A tile with its own effect (a profile card's chosen frame) keeps it untouched; only
+        // scale/lift apply. WPF renders one Effect per element, so layering an accent glow on top
+        // is not possible without replacing that effect, and replacing it is exactly what must
+        // not happen.
+        if (GetBaseEffect(button) is not null) return;
 
         if (glow)
         {
@@ -270,9 +280,21 @@ public static class ShellTileMotion
     private static void SetAttached(DependencyObject element, bool value) =>
         element.SetValue(AttachedProperty, value);
 
+    private static Effect? GetBaseEffect(DependencyObject element) =>
+        (Effect?)element.GetValue(BaseEffectProperty);
+
+    private static void SetBaseEffect(DependencyObject element, Effect? value) =>
+        element.SetValue(BaseEffectProperty, value);
+
     private static readonly DependencyProperty AttachedProperty = DependencyProperty.RegisterAttached(
         "ShellTileMotionAttached",
         typeof(bool),
         typeof(ShellTileMotion),
         new PropertyMetadata(false));
+
+    private static readonly DependencyProperty BaseEffectProperty = DependencyProperty.RegisterAttached(
+        "ShellTileMotionBaseEffect",
+        typeof(Effect),
+        typeof(ShellTileMotion),
+        new PropertyMetadata(null));
 }

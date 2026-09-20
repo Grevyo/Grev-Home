@@ -49,6 +49,17 @@ Settings hub, Grev Store, Installed Apps and game tiles all attach to it rather 
 buttons themselves, so a mouse hover and a controller focus produce the same lift, scale and accent
 glow. The helper owns an attached tile's `RenderTransform`; a caller must not assign its own.
 
+The same helper drives every other tile-like browsing surface in the shell: friend cards (Home
+and the Friends page), login/session profile cards, and artwork/media picker thumbnails (Dashboard
+tile artwork, game console logos, game and profile photo pickers). A tile that already carries its
+own permanent effect — a profile card's chosen glow frame, for instance — keeps that effect
+untouched; the shared hover glow only ever applies to a tile that had none of its own, since WPF
+renders one `Effect` per element and overwriting it would destroy the user's choice. Small inline
+action buttons (View/Edit/Sign Out rows, App Killer's Force Close, text-list pickers) intentionally
+stay on the plain shared `Button` style rather than tile motion — that distinction is what keeps
+"tile" motion legible as a browsing affordance instead of becoming background noise on every
+control in the shell.
+
 Three machine settings under Theme & Motion govern it, and each keeps its own meaning:
 
 - **Tile hover effects** — mouse hover lift, scale and glow.

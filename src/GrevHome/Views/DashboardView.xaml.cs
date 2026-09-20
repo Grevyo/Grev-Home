@@ -256,8 +256,8 @@ public partial class DashboardView : UserControl
                      .ThenByDescending(item => item.Presence.UpdatedAtUtc ?? DateTimeOffset.MinValue)
                      .ThenBy(item => item.DisplayName))
         {
+            // CreateFriendCard already attaches ShellTileMotion.
             var friendButton = FriendsView.CreateFriendCard(friend, this, selected => FriendProfileRequested?.Invoke(selected));
-            ShellTileMotion.Attach(friendButton);
             FriendsPanel.Children.Add(friendButton);
         }
 
