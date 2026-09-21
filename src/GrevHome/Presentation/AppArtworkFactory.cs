@@ -154,6 +154,10 @@ public static class AppArtworkFactory
                 "power" => "\uE7E8",
                 "admin" => "\uE77B",
                 "friends" => "\uE716",
+                "profile" => "\uE13D",
+                "players" => "\uE716",
+                "add-game" => "\uE710",
+                "scan" => "\uE721",
                 "web" => "\uE774",
                 _ => "\uE10C"
             };
@@ -270,6 +274,15 @@ public static class AppArtworkFactory
         return bitmap;
     }
 
+    /// <summary>
+    /// Resolves a shared theme brush for a static drawing helper, which has no FrameworkElement
+    /// to call the ordinary instance FindResource through. Falls back to the fixed color rather
+    /// than throwing if Application.Current is unavailable (a design-time or isolated test
+    /// context), so this neutral graphic can never crash the shell that draws it.
+    /// </summary>
+    private static Brush ThemedBrush(string key, Color fallback) =>
+        System.Windows.Application.Current?.Resources[key] as Brush ?? new SolidColorBrush(fallback);
+
     private static Color ParseColor(string? value)
     {
         if (string.IsNullOrWhiteSpace(value)) return DefaultBackground;
@@ -298,7 +311,7 @@ public static class AppArtworkFactory
         {
             Width = size * 0.54,
             Height = size * 0.54,
-            Stroke = new SolidColorBrush(Color.FromRgb(151, 160, 179)),
+            Stroke = ThemedBrush("MutedBrush", Color.FromRgb(151, 160, 179)),
             StrokeThickness = Math.Max(2, size * 0.035),
             Opacity = 0.8,
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -311,7 +324,7 @@ public static class AppArtworkFactory
             Height = size * 0.24,
             RadiusX = size * 0.04,
             RadiusY = size * 0.04,
-            Fill = new SolidColorBrush(Color.FromRgb(126, 166, 255)),
+            Fill = ThemedBrush("AccentBrush", Color.FromRgb(126, 166, 255)),
             Opacity = 0.9,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,

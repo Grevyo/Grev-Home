@@ -19,7 +19,7 @@ Grev Home is a controller-first Windows console shell designed to make a PC usab
 - Global controller shortcuts are configuration-driven and may be remapped without changing application code.
 - Grev Store/package installers are deliberately deferred until the core operating environment is mature.
 - Themes/Theme Studio are deliberately late-stage work. Behavior, recovery, system controls, files, storage, accounts and runtime stability come first.
-- Normal Grev Home runtime data lives under **`C:\GrevHome`**, which the app creates automatically on first run.
+- Normal Grev Home runtime data lives under **`C:\GrevCo\GrevHome`**, which the app creates automatically on first run.
 
 ## Identity example
 
@@ -130,18 +130,31 @@ See [`docs/OVERLAY.md`](docs/OVERLAY.md) and [`docs/CONTROLLER_SHORTCUTS.md`](do
 
 See [`docs/SETTINGS.md`](docs/SETTINGS.md).
 
+## Theme Creator
+
+A minimal Theme Engine and in-app Theme Creator recolor the shell's shared chrome - buttons,
+tiles, cards and role badges - live, with four built-in themes and unlimited saved custom themes.
+See [`docs/THEMES.md`](docs/THEMES.md).
+
+## Cloud saves
+
+An optional, per-app opt-in bridge uploads a linked GrevID's save data to Grev.dad after a
+completed play session and can restore it on another Grev Home machine, the same local-first
+guarantee as every other Grev.dad feature: local save data stays authoritative, and Grev.dad being
+unreachable never blocks or interrupts playing. See [`docs/CLOUD_SAVES.md`](docs/CLOUD_SAVES.md).
+
 ## Runtime data layout
 
 By default Grev Home creates and uses:
 
 ```text
-C:\GrevHome\
+C:\GrevCo\GrevHome\
 ```
 
 For development/testing only, the root can be redirected with `GREV_HOME_ROOT`.
 
 ```text
-C:\GrevHome\
+C:\GrevCo\GrevHome\
 ├── Data\
 │   ├── Apps\
 │   ├── Runtime\

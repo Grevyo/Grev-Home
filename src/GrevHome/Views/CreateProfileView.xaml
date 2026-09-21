@@ -15,9 +15,9 @@
                            HorizontalAlignment="Center"
                            Margin="0,8,0,24"
                            FontSize="16"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
 
-                <TextBlock Text="USERNAME • PERMANENT • UP TO 50 CHARACTERS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="USERNAME • PERMANENT • UP TO 50 CHARACTERS" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
                 <Grid Margin="0,7,0,20">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
@@ -38,7 +38,7 @@
                             Click="OpenKeyboard_Click" />
                 </Grid>
 
-                <TextBlock Text="ACCOUNT ROLE" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,6,0,8" />
+                <TextBlock Text="ACCOUNT ROLE" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,6,0,8" />
                 <WrapPanel HorizontalAlignment="Center" Margin="0,0,0,8">
                     <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="210" Height="58" Margin="5" Click="Role_Click" />
                     <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="210" Height="58" Margin="5" Click="Role_Click" />
@@ -48,13 +48,13 @@
                            Text="Admin • full Grev Home access."
                            HorizontalAlignment="Center"
                            Margin="0,0,0,14"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
 
                 <TextBlock x:Name="StatusText"
                            Text="Display Name starts the same as Username and can be changed later without changing GrevID or folders."
                            Margin="0,0,0,20"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
 
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
@@ -66,8 +66,8 @@
                 <TextBlock Text="Connect Grev.dad" HorizontalAlignment="Center" FontSize="42" FontWeight="SemiBold" />
                 <TextBlock Text="Optional • connect this local account to your Grev.dad account to share and restore XP, levels and achievements."
                            HorizontalAlignment="Center" TextAlignment="Center" Margin="0,8,0,24" FontSize="16"
-                           Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
-                <Border Padding="22" Background="#090C12" BorderBrush="#2B3344" BorderThickness="1">
+                           Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+                <Border Padding="22" Background="{DynamicResource WindowBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1">
                     <StackPanel>
                         <TextBlock Text="1 • Open Grev.dad and sign in to the account you want to connect." FontSize="18" TextWrapping="Wrap" />
                         <Button x:Name="OpenGrevDadButton" Content="Open Grev.dad • sign in" MinWidth="270" Height="56" Margin="0,14,0,22" HorizontalAlignment="Left" Click="OpenGrevDad_Click" />
@@ -77,8 +77,8 @@
                             <Button x:Name="OpenGrevDadApprovalButton" Content="Open approval page" MinWidth="220" Height="56" Margin="0,0,10,10" Visibility="Collapsed" Click="OpenGrevDadApproval_Click" />
                             <Button x:Name="CheckGrevDadApprovalButton" Content="Check approval" MinWidth="190" Height="56" Margin="0,0,10,10" Visibility="Collapsed" Click="CheckGrevDadApproval_Click" />
                         </WrapPanel>
-                        <TextBlock x:Name="GrevDadCodeText" FontSize="26" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" Margin="0,8,0,0" />
-                        <TextBlock x:Name="GrevDadOnboardingStatus" Margin="0,8,0,0" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="GrevDadCodeText" FontSize="26" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" Margin="0,8,0,0" />
+                        <TextBlock x:Name="GrevDadOnboardingStatus" Margin="0,8,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,24,0,0">

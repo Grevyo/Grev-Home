@@ -53,7 +53,15 @@ public partial class MainWindow
 
         _navigation.RouteChanged += route =>
         {
-            if (route == Route.Dashboard) _ = RefreshDashboardTilesAsync();
+            if (route == Route.Dashboard)
+            {
+                _ = RefreshDashboardTilesAsync();
+                // Queued behind tile rendering so the reveal animates finished tiles rather than
+                // whatever the previous route left on screen.
+                Dispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.ApplicationIdle,
+                    new Action(_dashboardView.PlayEntranceAnimation));
+            }
             else if (route == Route.DashboardTileSettings) { RouteHost.Content = _dashboardTileSettingsView; _ = RenderDashboardTileSettingsAsync(); }
             else if (route == Route.DashboardTileArtworkPicker) RouteHost.Content = _dashboardTileArtworkPicker;
         };

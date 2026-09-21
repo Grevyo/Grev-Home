@@ -350,26 +350,29 @@ public sealed class GameScanService
     }
 
     /// <summary>
-    /// Orders the choices offered for a shared extension. PlayStation 2 leads because it is the
-    /// one console Grev Home installs a dedicated emulator for, and .iso/.bin/.chd collections
-    /// are overwhelmingly PS2 in practice.
+    /// Orders the choices offered for a shared extension. Modern standalone systems lead because
+    /// their disc formats overlap heavily; folder aliases still take precedence over this order.
     /// </summary>
     private static int RankPlatform(GamePlatform platform) => platform switch
     {
-        GamePlatform.PlayStation2 => 0,
-        GamePlatform.PlayStation => 1,
-        GamePlatform.PlayStationPortable => 2,
-        GamePlatform.GameCube => 3,
-        GamePlatform.Wii => 4,
-        GamePlatform.SegaDreamcast => 5,
-        GamePlatform.SegaSaturn => 6,
-        GamePlatform.SegaCD => 7,
-        GamePlatform.SegaGenesis => 8,
-        GamePlatform.NintendoEntertainmentSystem => 9,
-        GamePlatform.SuperNintendo => 10,
-        GamePlatform.Nintendo64 => 11,
-        GamePlatform.Arcade => 12,
-        _ => 20
+        GamePlatform.PlayStation3 => 0,
+        GamePlatform.PlayStation2 => 1,
+        GamePlatform.Xbox360 => 2,
+        GamePlatform.Xbox => 3,
+        GamePlatform.WiiU => 4,
+        GamePlatform.GameCube => 5,
+        GamePlatform.Wii => 6,
+        GamePlatform.PlayStation => 7,
+        GamePlatform.PlayStationPortable => 8,
+        GamePlatform.SegaDreamcast => 9,
+        GamePlatform.SegaSaturn => 10,
+        GamePlatform.SegaCD => 11,
+        GamePlatform.SegaGenesis => 12,
+        GamePlatform.NintendoEntertainmentSystem => 13,
+        GamePlatform.SuperNintendo => 14,
+        GamePlatform.Nintendo64 => 15,
+        GamePlatform.Arcade => 16,
+        _ => 30
     };
 
     private static IReadOnlyDictionary<string, GamePlatform> BuildFolderAliases()
@@ -393,6 +396,8 @@ public sealed class GameScanService
         }
 
         Add(GamePlatform.PlayStation2, "ps2", "playstation 2", "sony playstation 2");
+        Add(GamePlatform.PlayStation3, "ps3", "playstation 3", "sony playstation 3");
+        Add(GamePlatform.PlayStationVita, "vita", "psvita", "ps vita", "playstation vita");
         Add(GamePlatform.PlayStation, "ps1", "psx", "psone", "playstation 1", "sony playstation");
         Add(GamePlatform.PlayStationPortable, "psp", "playstation portable");
         Add(GamePlatform.Arcade, "mame", "fbneo", "fba", "neogeo", "neo geo", "arcade roms");
@@ -411,6 +416,9 @@ public sealed class GameScanService
         Add(GamePlatform.Nintendo3DS, "3ds", "n3ds", "nintendo 3ds");
         Add(GamePlatform.GameCube, "gc", "ngc", "gamecube", "game cube", "nintendo gamecube");
         Add(GamePlatform.Wii, "wii", "nintendo wii");
+        Add(GamePlatform.WiiU, "wiiu", "wii u", "nintendo wii u");
+        Add(GamePlatform.Xbox, "xbox", "original xbox", "xbox classic");
+        Add(GamePlatform.Xbox360, "xbox360", "xbox 360", "360");
         Add(GamePlatform.SegaMasterSystem, "sms", "master system", "sega master system");
         Add(GamePlatform.SegaGenesis, "genesis", "megadrive", "mega drive", "md", "sega genesis", "sega megadrive");
         Add(GamePlatform.SegaGameGear, "gg", "gamegear", "game gear", "sega game gear");

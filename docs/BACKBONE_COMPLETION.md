@@ -211,7 +211,9 @@ These are features/presentation work and must not distract from the backbone gat
 
 - additional emulator/app catalogue work;
 - moving every installer download through the transfer UI;
-- Theme engine / Theme Maker / visual theme packs;
+- visual theme packs and a shareable theme marketplace/format (a minimal Theme Engine/Theme
+  Creator shipped early at explicit product-owner request; see `docs/THEMES.md` and the theme
+  contract in `docs/ARCHITECTURE.md` for the boundary it stays inside of);
 - Friends list screen and social UI polish;
 - Activity feed UI;
 - visual game-history/profile presentation;

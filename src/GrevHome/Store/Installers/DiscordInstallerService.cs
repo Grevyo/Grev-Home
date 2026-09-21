@@ -147,7 +147,7 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
             await InstallerSignatureVerifier.VerifyAsync(installerPath, "Discord Inc.", cancellationToken);
 
             cancellationToken.ThrowIfCancellationRequested();
-            progress?.Report(new PackageInstallProgress("Install", "Starting Discord's official Windows installer…", 72));
+            progress?.Report(new PackageInstallProgress("Install", "Installing Discord silently for this Windows account…", 72));
             await RunInstallerAsync(installerPath, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Verify", "Waiting for Discord's Windows-user installation to become available…", 88));
@@ -230,7 +230,9 @@ public sealed class DiscordInstallerService : ITrustedPackageInstaller
         using var process = Process.Start(new ProcessStartInfo
         {
             FileName = installerPath,
-            UseShellExecute = true,
+            Arguments = "--silent",
+            UseShellExecute = false,
+            CreateNoWindow = true,
             WorkingDirectory = Path.GetDirectoryName(installerPath) ?? Environment.CurrentDirectory
         }) ?? throw new InvalidOperationException("Windows did not start DiscordSetup.exe.");
 

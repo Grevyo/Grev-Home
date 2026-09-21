@@ -83,6 +83,7 @@ public partial class GameSettingsView : UserControl
                 Content = AppArtworkFactory.CreateTransparent(iconPath, 58),
                 ToolTip = "Use this saved console logo for the current game"
             };
+            ShellTileMotion.Attach(button);
             button.Click += ReusableIcon_Click;
             SavedIconsPanel.Children.Add(button);
         }

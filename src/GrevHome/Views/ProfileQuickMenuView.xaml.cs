@@ -110,7 +110,7 @@ public partial class ProfileQuickMenuView : UserControl
         {
             Margin = new Thickness(0, 0, 0, 10),
             Padding = new Thickness(14),
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            Background = (Brush)FindResource("CardBackgroundBrush"),
             BorderBrush = roleBrush,
             BorderThickness = new Thickness(user.IsPrimary ? 2 : 1.5),
             CornerRadius = new CornerRadius(12),

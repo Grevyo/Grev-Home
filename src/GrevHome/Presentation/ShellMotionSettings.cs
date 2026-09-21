@@ -10,6 +10,8 @@ public sealed record ShellMotionSettings(
     bool OverlayTransitionsEnabled = true,
     bool ReturnHomeTransitionEnabled = true,
     bool TileFocusAnimationEnabled = true,
+    bool TileHoverEffectsEnabled = true,
+    bool TileRevealAnimationEnabled = true,
     bool ModalTransitionsEnabled = true,
     bool AmbientBackgroundEnabled = true,
     bool DashboardBackgroundsEnabled = true,

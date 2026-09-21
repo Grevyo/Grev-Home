@@ -26,7 +26,7 @@ Feature initializers must not secretly initialize sibling systems. Shared runtim
 
 Grev Home writes fatal exception details to:
 
-`C:\GrevHome\Logs\grevhome-crash.log`
+`C:\GrevCo\GrevHome\Logs\grevhome-crash.log`
 
 or the equivalent `Logs` directory under `GREV_HOME_ROOT`.
 

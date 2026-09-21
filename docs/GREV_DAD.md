@@ -66,7 +66,7 @@ That online information can then support future Grev.dad features such as:
 - comparing hours, games, stats or achievements;
 - activity/community surfaces.
 
-Grev.dad is **not** intended to be the authoritative storage location for the Grev Home profile, saves, settings or runtime state.
+Grev.dad is **not** intended to be the authoritative storage location for the Grev Home profile, saves, settings or runtime state. Cloud saves (`docs/CLOUD_SAVES.md`) are the one save-related exception to "publish only," and even there Grev.dad is a transport target for a copy, never the authority: the local save folder stays authoritative, syncing is opt-in per app, and it is only ever offered after a completed local session rather than being the thing a save is read from at launch.
 
 ## Offline-first contract
 

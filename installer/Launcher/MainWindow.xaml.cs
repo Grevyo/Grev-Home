@@ -19,6 +19,7 @@ public partial class MainWindow : Window
     private readonly Grid[] _pages;
     private readonly TextBlock[] _steps;
     private readonly DispatcherTimer _controllerTimer;
+    private readonly bool _updateMode;
     private int _page;
     private bool _installing;
     private bool _installed;
@@ -29,7 +30,12 @@ public partial class MainWindow : Window
 
     public MainWindow()
     {
+        _updateMode = Environment.GetCommandLineArgs()
+            .Skip(1)
+            .Any(argument => string.Equals(argument, "--update", StringComparison.OrdinalIgnoreCase));
         InitializeComponent();
+        var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "unknown";
+        SetupVersionText.Text = $"{(_updateMode ? "UPDATE" : "SETUP")}  ·  {version}";
         _pages = [WelcomePage, IntentPage, ConsolesPage, FoldersPage, ReadyPage, InstallPage];
         _steps = [Step1, Step2, Step3, Step4, Step5];
         _controllerTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(70) };
@@ -38,8 +44,64 @@ public partial class MainWindow : Window
         Loaded += (_, _) =>
         {
             AnimateHero();
-            NextButton.Focus();
+            if (_updateMode)
+            {
+                _ = RunUpdateAsync();
+            }
+            else
+            {
+                NextButton.Focus();
+            }
         };
+    }
+
+    private async Task RunUpdateAsync()
+    {
+        ShowPage(5);
+        InstallTitle.Text = "Updating Grev Home";
+        InstallStatus.Text = "Waiting for Grev Home to close safely";
+        try
+        {
+            await WaitForGrevHomeToExitAsync(TimeSpan.FromSeconds(30));
+            await RunInstallerAsync(skipRunningAppCheck: true);
+            if (!_installed) return;
+
+            var app = @"C:\GrevCo\GrevHome\GrevHome.exe";
+            if (!File.Exists(app))
+            {
+                throw new FileNotFoundException("The update completed, but Grev Home could not be found.", app);
+            }
+
+            Process.Start(new ProcessStartInfo(app) { UseShellExecute = true });
+            Close();
+        }
+        catch (Exception ex) when (ex is IOException or InvalidOperationException or UnauthorizedAccessException or Win32Exception)
+        {
+            _installing = false;
+            InstallTitle.Text = "Update needs your attention.";
+            InstallStatus.Text = ex.Message;
+            InstallPercent.Text = "";
+            NavigationBar.Visibility = Visibility.Visible;
+            BackButton.Visibility = Visibility.Collapsed;
+            NextButton.Content = "Try again";
+            NextButton.Click -= Next_Click;
+            NextButton.Click += RetryUpdate_Click;
+            NextButton.Focus();
+        }
+    }
+
+    private static async Task WaitForGrevHomeToExitAsync(TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (Process.GetProcessesByName("GrevHome").Any(process => !process.HasExited))
+        {
+            if (DateTime.UtcNow >= deadline)
+            {
+                throw new InvalidOperationException("Grev Home did not close in time. Close it completely, then select Try again.");
+            }
+
+            await Task.Delay(200);
+        }
     }
 
     private void AnimateHero()
@@ -175,7 +237,7 @@ public partial class MainWindow : Window
         if (dialog.ShowDialog(this) == true) { _biosPath = dialog.FolderName; BiosPathText.Text = _biosPath; }
     }
 
-    private async Task RunInstallerAsync()
+    private async Task RunInstallerAsync(bool skipRunningAppCheck = false)
     {
         _installing = true;
         ShowPage(5);
@@ -193,7 +255,7 @@ public partial class MainWindow : Window
         string? tempRoot = null;
         try
         {
-            if (Process.GetProcessesByName("GrevHome").Any(process => !process.HasExited))
+            if (!skipRunningAppCheck && Process.GetProcessesByName("GrevHome").Any(process => !process.HasExited))
             {
                 throw new InvalidOperationException("Grev Home is still running. Close it completely, then select Try again.");
             }
@@ -216,6 +278,7 @@ public partial class MainWindow : Window
             foreach (var argument in new[]
             {
                 "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/CLOSEAPPLICATIONS", $"/LOG={logPath}",
+                $"/UPDATE={(_updateMode ? 1 : 0)}",
                 $"/GAMESROOT={_gamesPath}", $"/BIOSROOT={_biosPath}",
                 $"/PCGAMES={(PcGamesCheck.IsChecked == true ? 1 : 0)}",
                 $"/APPS={(AppsCheck.IsChecked == true ? 1 : 0)}",
@@ -247,10 +310,11 @@ public partial class MainWindow : Window
             InstallStatus.Text = ex.Message;
             InstallPercent.Text = "";
             NavigationBar.Visibility = Visibility.Visible;
-            BackButton.Visibility = Visibility.Visible;
+            BackButton.Visibility = _updateMode ? Visibility.Collapsed : Visibility.Visible;
             NextButton.Content = "Try again";
             NextButton.Click -= Next_Click;
-            NextButton.Click += Retry_Click;
+            if (_updateMode) NextButton.Click += RetryUpdate_Click;
+            else NextButton.Click += Retry_Click;
         }
         finally
         {
@@ -300,6 +364,12 @@ public partial class MainWindow : Window
         NextButton.Click -= Retry_Click;
         NextButton.Click += Next_Click;
         ShowPage(4);
+    }
+
+    private void RetryUpdate_Click(object sender, RoutedEventArgs e)
+    {
+        NextButton.Click -= RetryUpdate_Click;
+        _ = RunUpdateAsync();
     }
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)

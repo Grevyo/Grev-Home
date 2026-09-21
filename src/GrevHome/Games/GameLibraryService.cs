@@ -8,7 +8,12 @@ namespace GrevHome.Games;
 [JsonConverter(typeof(JsonStringEnumConverter))]
 public enum GamePlatform
 {
+    PlayStation3,
+    PlayStationVita,
     PlayStation2,
+    WiiU,
+    Xbox,
+    Xbox360,
     Arcade,
     Atari2600,
     Atari5200,
@@ -447,7 +452,12 @@ public sealed class GameLibraryService
 
     public static string GetPlatformDisplayName(GamePlatform platform) => platform switch
     {
+        GamePlatform.PlayStation3 => "PlayStation 3",
+        GamePlatform.PlayStationVita => "PlayStation Vita",
         GamePlatform.PlayStation2 => "PlayStation 2",
+        GamePlatform.WiiU => "Nintendo Wii U",
+        GamePlatform.Xbox => "Original Xbox",
+        GamePlatform.Xbox360 => "Xbox 360",
         GamePlatform.Arcade => "Arcade",
         GamePlatform.Atari2600 => "Atari 2600",
         GamePlatform.Atari5200 => "Atari 5200",
@@ -484,6 +494,10 @@ public sealed class GameLibraryService
 
     public static IReadOnlySet<string> GetSupportedExtensions(GamePlatform platform) => platform switch
     {
+        GamePlatform.PlayStation3 => Extensions(".self", ".elf"),
+        // Vita VPK files are installation packages, not directly launchable game images. Vita3K
+        // owns title installation and Grev Home must not misrepresent a VPK as a playable entry.
+        GamePlatform.PlayStationVita => Extensions(),
         GamePlatform.PlayStation2 => new HashSet<string>(StringComparer.OrdinalIgnoreCase)
         {
             ".iso", ".chd", ".cue", ".bin", ".img", ".cso", ".zso", ".gz", ".mdf", ".nrg", ".isz"
@@ -503,6 +517,8 @@ public sealed class GameLibraryService
         GamePlatform.NintendoDS => Extensions(".nds", ".zip", ".7z"),
         GamePlatform.Nintendo3DS => Extensions(".3ds", ".3dsx", ".cci", ".cxi", ".app"),
         GamePlatform.GameCube or GamePlatform.Wii => Extensions(".iso", ".gcm", ".gcz", ".rvz", ".wia", ".wbfs", ".dol", ".elf"),
+        GamePlatform.WiiU => Extensions(".wua", ".wud", ".wux", ".rpx"),
+        GamePlatform.Xbox or GamePlatform.Xbox360 => Extensions(".iso", ".xex"),
         GamePlatform.SegaMasterSystem => Extensions(".sms", ".bin", ".rom", ".zip", ".7z"),
         GamePlatform.SegaGenesis => Extensions(".md", ".gen", ".bin", ".smd", ".zip", ".7z"),
         GamePlatform.SegaGameGear => Extensions(".gg", ".bin", ".zip", ".7z"),

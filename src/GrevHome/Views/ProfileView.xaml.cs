@@ -287,7 +287,7 @@ public partial class ProfileView : UserControl
             MinHeight = 126,
             Padding = new Thickness(16),
             Margin = new Thickness(6),
-            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
             BorderBrush = _levelBandBrush,
             BorderThickness = new Thickness(1, 4, 1, 1),
             CornerRadius = new CornerRadius(0)
@@ -326,8 +326,8 @@ public partial class ProfileView : UserControl
         {
             Padding = new Thickness(12),
             Margin = new Thickness(0, 4, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(0)
         };
@@ -373,8 +373,8 @@ public partial class ProfileView : UserControl
         {
             Padding = new Thickness(12, 9, 12, 9),
             Margin = new Thickness(0, 4, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(0)
         };
@@ -406,8 +406,8 @@ public partial class ProfileView : UserControl
         {
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 4, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(0)
         };
@@ -438,13 +438,12 @@ public partial class ProfileView : UserControl
             MinHeight = 92,
             Padding = new Thickness(12),
             Margin = new Thickness(4),
-            Background = new SolidColorBrush(
-                milestone.IsEarned
-                    ? Color.FromRgb(18, 29, 38)
-                    : Color.FromRgb(9, 12, 18)),
+            Background = milestone.IsEarned
+                ? new SolidColorBrush(Color.FromRgb(18, 29, 38))
+                : (Brush)FindResource("WindowBackgroundBrush"),
             BorderBrush = milestone.IsEarned
                 ? (Brush)FindResource("AccentBrush")
-                : new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+                : (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(0)
         };

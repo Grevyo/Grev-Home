@@ -25,7 +25,7 @@
                        TextWrapping="Wrap"
                        Margin="0,8,0,22"
                        FontSize="16"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
         </StackPanel>
 
         <Grid x:Name="CarouselHost" Grid.Row="1" MaxWidth="1600" SizeChanged="Carousel_SizeChanged">
@@ -39,7 +39,7 @@
                            Text="No accounts yet. Create the first Grev Home account below."
                            VerticalAlignment="Center"
                            Margin="0,4,0,10"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap"
                            TextAlignment="Center" />
         </Grid>
@@ -53,10 +53,10 @@
                    TextAlignment="Center"
                    TextWrapping="Wrap"
                    FontSize="13"
-                   Foreground="{StaticResource AccentBrush}" />
+                   Foreground="{DynamicResource AccentBrush}" />
 
         <StackPanel Grid.Row="3" HorizontalAlignment="Center" Margin="0,14,0,0">
-            <TextBlock x:Name="CarouselHintText" HorizontalAlignment="Center" Foreground="{StaticResource MutedBrush}" FontSize="13" />
+            <TextBlock x:Name="CarouselHintText" HorizontalAlignment="Center" Foreground="{DynamicResource MutedBrush}" FontSize="13" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
                 <Button x:Name="CreateAccountButton"
                         Content="＋ Create New User"
@@ -78,7 +78,7 @@
                        HorizontalAlignment="Center"
                        TextAlignment="Center"
                        FontSize="12"
-                       Foreground="{StaticResource MutedBrush}" />
+                       Foreground="{DynamicResource MutedBrush}" />
         </StackPanel>
         <local:ControllerQwertyKeyboard xmlns:local="clr-namespace:GrevHome.Views" x:Name="PasswordKeyboard" Grid.RowSpan="4" Panel.ZIndex="200" />
     </Grid>

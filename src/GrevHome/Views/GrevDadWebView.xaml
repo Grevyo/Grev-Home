@@ -16,7 +16,7 @@
   </WrapPanel>
   <Grid x:Name="BrowserHost" Grid.Row="2" Margin="0,8" Background="#10151F"/>
   <StackPanel Grid.Row="3"><TextBlock x:Name="AddressText" FontSize="12" TextTrimming="CharacterEllipsis"/>
-  <TextBlock x:Name="HintText" Margin="4,8" TextWrapping="Wrap" Foreground="{StaticResource MutedBrush}" Text="Choose Browse page. D-pad selects links and fields; A opens or types; B returns to these controls."/></StackPanel>
+  <TextBlock x:Name="HintText" Margin="4,8" TextWrapping="Wrap" Foreground="{DynamicResource MutedBrush}" Text="Choose Browse page. D-pad selects links and fields; A opens or types; B returns to these controls."/></StackPanel>
   <Border x:Name="ChoicesOverlay" Grid.RowSpan="4" Background="#F010151F" Visibility="Collapsed" Padding="40" KeyboardNavigation.DirectionalNavigation="Cycle">
    <ScrollViewer VerticalScrollBarVisibility="Hidden"><StackPanel x:Name="ChoicesPanel"/></ScrollViewer>
   </Border>

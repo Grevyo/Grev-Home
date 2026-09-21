@@ -31,7 +31,9 @@ public partial class GrevStoreAppView : UserControl
         SessionUser? primaryUser,
         AppLifecycleSnapshot lifecycle,
         string installLocation,
-        string dataLocation)
+        string dataLocation,
+        string gamesLocation,
+        string biosLocation)
     {
         _package = package;
         _installedEntry = lifecycle.InstalledEntry;
@@ -77,7 +79,9 @@ public partial class GrevStoreAppView : UserControl
         {
             var setupNotice = package.SetupNotice
                 .Replace("{InstallLocation}", installLocation, StringComparison.Ordinal)
-                .Replace("{DataLocation}", dataLocation, StringComparison.Ordinal);
+                .Replace("{DataLocation}", dataLocation, StringComparison.Ordinal)
+                .Replace("{GamesLocation}", gamesLocation, StringComparison.Ordinal)
+                .Replace("{BiosLocation}", biosLocation, StringComparison.Ordinal);
             description = $"{description}\n\n{setupNotice}";
         }
         DescriptionText.Text = description;
@@ -107,7 +111,7 @@ public partial class GrevStoreAppView : UserControl
                 Margin = new Thickness(0, 5, 0, 0),
                 Padding = new Thickness(12, 10, 12, 10),
                 CornerRadius = new CornerRadius(9),
-                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(9, 12, 18)),
+                Background = (System.Windows.Media.Brush)FindResource("WindowBackgroundBrush"),
                 Child = new TextBlock
                 {
                     Text = $"•  {integration}",
@@ -236,7 +240,9 @@ public partial class GrevStoreAppView : UserControl
         InstallationMetadataText.Text = $"Registered {manifest.InstalledAtUtc.ToLocalTime():g}" +
                                            (string.IsNullOrWhiteSpace(manifest.OwnerGrevId) ? string.Empty : $"  •  Owner {manifest.OwnerGrevId}");
 
-        StatusText.Text = lifecycle.RepairNeeded
+        StatusText.Text = lifecycle.Health.State == PackageHealthState.SetupRequired
+            ? lifecycle.Health.Message
+            : lifecycle.RepairNeeded
             ? "Repair is available because the package health check found missing or inconsistent app files."
             : lifecycle.UpdateAvailable
                 ? $"This package declares {package.VersionPolicy?.CurrentVersion} as the trusted current Grev Home version. Close the app before updating."
@@ -330,6 +336,7 @@ public partial class GrevStoreAppView : UserControl
     private static string FormatHealth(PackageHealthState state) => state switch
     {
         PackageHealthState.Healthy => "Healthy",
+        PackageHealthState.SetupRequired => "Setup required",
         PackageHealthState.RepairRecommended => "Repair recommended",
         _ => "Unknown"
     };

@@ -37,7 +37,7 @@ Grev Home does not execute package-supplied scripts.
 For a profile `<GrevID>`:
 
 ```text
-C:\GrevHome\Profiles\<GrevID>\
+C:\GrevCo\GrevHome\Profiles\<GrevID>\
 ├── Apps\
 │   └── pcsx2\
 │       ├── pcsx2-qt.exe
@@ -45,8 +45,7 @@ C:\GrevHome\Profiles\<GrevID>\
 │       └── PCSX2 package/runtime files
 └── AppData\
     └── pcsx2\
-        ├── bios\
-        ├── inis / settings created by PCSX2
+        ├── PCSX2.ini with Grev Home's controller-first defaults
         ├── memory cards created/configured by PCSX2
         ├── game settings
         ├── covers/cache/resources
@@ -75,7 +74,7 @@ Profiles\<GrevID>\AppData\pcsx2
 
 The exact relative path is generated with `Path.GetRelativePath`; it is not hard-coded to one Grev Home root or Windows account.
 
-PCSX2's Stable BIOS settings use `<DataRoot>\bios` as the default BIOS search folder. Grev Home creates that folder when PCSX2 is installed or repaired.
+After PCSX2 generates a version-correct configuration, Grev Home points its BIOS search path at the machine BIOS folder selected during Grev Home setup and adds the selected Games folder as a recursive game-list path. Fresh installs are marked setup-complete and configured to start in PCSX2's fullscreen Big Picture interface. Update and repair preserve an existing PCSX2 configuration instead of replacing user choices.
 
 ## BIOS boundary
 
@@ -84,10 +83,10 @@ PCSX2 requires a PlayStation 2 BIOS to run games. The BIOS is proprietary and Gr
 The Store product page displays a dynamic setup notice for the current Primary GrevID:
 
 ```text
-BIOS required: PCSX2 cannot run games until a PlayStation 2 BIOS dumped from a console you own has been configured. Put the BIOS files in <that GrevID's PCSX2 data folder>\bios, open PCSX2 and select/configure that BIOS. Once this is done, PCSX2 is ready to run your PS2 game dumps.
+BIOS required: PCSX2 cannot run games until a PlayStation 2 BIOS dumped from a console you own has been configured. Put the BIOS files in <the machine BIOS folder selected in Grev Home>, open PCSX2 and select that BIOS. Grev Home has already configured the BIOS search path, Games search path and controller-first fullscreen interface.
 ```
 
-The displayed folder path must resolve from the active GrevID rather than being hard-coded to one Windows account/profile.
+The displayed folder path resolves from Grev Home's machine defaults rather than being hard-coded to one Windows account/profile.
 
 A future Grev Home help action may open official PCSX2 BIOS-dumping documentation in the user's browser. That is deliberately outside the initial installer scope.
 
@@ -108,10 +107,11 @@ Fresh install:
 7. extract to temporary staging with no visible PCSX2 setup wizard;
 8. verify `pcsx2-qt.exe` exists in a recognised package layout;
 9. move verified binaries into `Profiles\<GrevID>\Apps\pcsx2`;
-10. create `Profiles\<GrevID>\AppData\pcsx2\bios`;
+10. create the persistent GrevID PCSX2 data structure and the selected machine BIOS/Games folders;
 11. write `Apps\pcsx2\portable.txt` so PCSX2 Stable resolves DataRoot to the GrevID AppData folder;
 12. start PCSX2 with its supported `-testconfig` option and require a successful exit;
-13. register the installed manifest only after the executable has passed that startup/configuration self-test.
+13. apply the verified PCSX2 settings contract: selected BIOS folder, recursive Games folder, completed setup wizard and fullscreen Big Picture startup;
+14. register the installed manifest only after the executable has passed that startup/configuration self-test.
 
 A failed fresh install removes only the newly created PCSX2 binary root. Persistent GrevID AppData is not treated as disposable installer staging.
 
@@ -123,10 +123,10 @@ The PCSX2 package health check validates:
 - `pcsx2-qt.exe` exists;
 - required Microsoft Visual C++ x64 runtime is present;
 - profile-owned PCSX2 data root exists;
-- profile-owned `bios` folder exists;
+- selected machine BIOS folder exists;
 - `portable.txt` exists and resolves exactly to the current GrevID's PCSX2 AppData root.
 
-A missing BIOS file does **not** make the package itself damaged. Grev Home reports the installation as healthy while clearly reminding the user that their own dumped BIOS still needs to be placed/configured.
+A missing BIOS file does **not** make the package itself damaged. Grev Home reports the installation as healthy while clearly reminding the user that their own dumped BIOS still needs to be placed and selected. Grev Home does not guess between multiple BIOS images because region and user choice matter.
 
 ## Update and repair
 
@@ -167,7 +167,7 @@ Uninstall must never affect another GrevID.
 
 ## Controller/runtime behavior
 
-PCSX2 declares native controller support, but the first-run Qt setup still needs mouse/keyboard-style interaction before the emulator and gamepad mappings are fully configured. Grev Home therefore ships an **enabled temporary per-GrevID controller profile** named `Emulated Keyboard & Mouse`.
+PCSX2 declares native controller support, and Grev Home now skips the desktop setup wizard in favour of PCSX2's fullscreen Big Picture interface. BIOS selection or unusual controller hardware may still require setup interaction, so Grev Home retains an **enabled temporary per-GrevID controller profile** named `Emulated Keyboard & Mouse` as a fallback.
 
 Default temporary setup mappings:
 
@@ -221,15 +221,15 @@ Per-GrevID presentation overrides use the same 0.12 presentation contract as Ret
 Milestone 0.13 is not physically accepted until the target Grev Home Windows machine confirms:
 
 1. PCSX2 appears in Grev Store as a Profile App.
-2. The BIOS notice shows the current Primary GrevID's actual PCSX2 data/BIOS path.
+2. The BIOS notice shows the selected machine-wide BIOS and Games paths.
 3. Download completes using the official verified portable package.
 4. `pcsx2-qt.exe` is installed under the current GrevID's `Apps\pcsx2` root.
-5. `AppData\pcsx2\bios` is created.
+5. The selected machine-wide BIOS and Games folders are created and written into `PCSX2.ini`.
 6. `Apps\pcsx2\portable.txt` resolves PCSX2 Stable DataRoot into the current GrevID's AppData folder.
 7. PCSX2 passes its `-testconfig` startup validation before install/repair is accepted.
 8. Open launches PCSX2 without unsupported command-line options.
-9. The first-run `Emulated Keyboard & Mouse` mappings can operate the PCSX2 setup UI from a controller.
-10. The PCSX2 setup guide is controller-accessible and explains why temporary desktop controls are active.
+9. First launch skips the desktop setup wizard and opens PCSX2's fullscreen Big Picture interface.
+10. The PCSX2 setup guide is controller-accessible and explains the remaining BIOS-selection step and temporary desktop-control fallback.
 11. `Disable Emulated Keyboard & Mouse` disables only the Grev layer for the current GrevID and PCSX2 native controller input remains functional.
 12. App Settings can re-enable/disable the same `Emulated Keyboard & Mouse` profile.
 13. Return Home/Overlay continue to work.

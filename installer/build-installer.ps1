@@ -38,7 +38,7 @@ try {
         $smokeStart.CreateNoWindow = $true
         @(
             "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
-            "/DIR=$smokeInstall", "/LOG=$smokeLog",
+            "/DIR=$smokeInstall", "/LOG=$smokeLog", "/UPDATE=0",
             "/GAMESROOT=$(Join-Path $smokeRoot 'Games')",
             "/BIOSROOT=$(Join-Path $smokeRoot 'bios')",
             "/PCGAMES=1", "/APPS=1", "/EMULATORS=1", "/CONSOLES=PlayStation 2"
@@ -51,6 +51,30 @@ try {
         }
         if (-not (Test-Path (Join-Path $smokeInstall "GrevHome.exe"))) {
             throw "Silent installer smoke test did not install GrevHome.exe."
+        }
+        $smokePreferences = Join-Path $smokeInstall "Data\installer-first-run.ini"
+        if (-not (Test-Path $smokePreferences)) {
+            throw "Silent installer smoke test did not persist first-run preferences."
+        }
+        $preservedPreferences = "[Setup]`r`nGamesRoot=D:\Preserve-Me`r`n"
+        Set-Content -LiteralPath $smokePreferences -Value $preservedPreferences -NoNewline
+        $updateLog = Join-Path $smokeRoot "update.log"
+        $updateStart = [System.Diagnostics.ProcessStartInfo]::new($enginePath)
+        $updateStart.UseShellExecute = $false
+        $updateStart.CreateNoWindow = $true
+        @(
+            "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
+            "/DIR=$smokeInstall", "/LOG=$updateLog", "/UPDATE=1",
+            "/GAMESROOT=D:\Must-Not-Replace", "/BIOSROOT=D:\Must-Not-Replace"
+        ) | ForEach-Object { [void]$updateStart.ArgumentList.Add($_) }
+        $updateProcess = [System.Diagnostics.Process]::Start($updateStart)
+        $updateProcess.WaitForExit()
+        if ($updateProcess.ExitCode -ne 0) {
+            if (Test-Path $updateLog) { Get-Content $updateLog -Tail 80 | Write-Host }
+            throw "Silent update smoke test failed with exit code $($updateProcess.ExitCode)."
+        }
+        if ((Get-Content -LiteralPath $smokePreferences -Raw) -ne $preservedPreferences) {
+            throw "Silent update replaced the existing first-run preferences."
         }
         $smokeUninstaller = Join-Path $smokeInstall "unins000.exe"
         if (Test-Path $smokeUninstaller) {

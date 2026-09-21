@@ -32,6 +32,7 @@ public partial class DashboardTileSettingsView : UserControl
         foreach (var path in reusable)
         {
             var button = new Button { Width = 112, Height = 76, Margin = new Thickness(0,0,8,8), Padding = new Thickness(4), Tag = path, Content = AppArtworkFactory.CreateTransparent(path, 62) };
+            ShellTileMotion.Attach(button);
             button.Click += (_, _) => ReusableMediaRequested?.Invoke(path);
             ReusablePanel.Children.Add(button);
         }

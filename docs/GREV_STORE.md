@@ -134,6 +134,12 @@ For a Profile App, install/update/repair/uninstall require the correct persisten
 
 All package-changing actions delegate to the trusted installer registry. The Store page must never implement generic unsafe download/extract/delete behavior itself.
 
+## Windows startup policy
+
+Store apps are opt-in launches. Installing, adopting, updating or repairing a package removes that app's matching per-user Windows `Run`, `RunOnce`, StartupApproved and Startup-folder entries. Grev Home re-applies the same rule when a managed app session ends because native applications can recreate their startup entry while open.
+
+This policy applies generically to every trusted Store package and leaves unrelated startup entries and vendor update mechanisms untouched. Grev Home itself may later gain an explicit appliance-startup option, but that never grants Store apps permission to launch at Windows sign-in.
+
 ## Current trusted package examples
 
 ### RetroArch
@@ -201,7 +207,7 @@ After an app is installed, a persistent GrevID may customise its presentation wi
 Overrides live under:
 
 ```text
-C:\GrevHome\Profiles\<GrevID>\Presentation\Apps\<AppId>\
+C:\GrevCo\GrevHome\Profiles\<GrevID>\Presentation\Apps\<AppId>\
 ├── presentation.json
 ├── icon.<ext>
 ├── tile.<ext>

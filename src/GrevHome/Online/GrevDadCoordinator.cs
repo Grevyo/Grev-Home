@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Threading;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Notifications;
 using GrevHome.Profiles;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
@@ -47,6 +48,7 @@ public sealed partial class GrevDadCoordinator
     private readonly Func<Task> _refreshLoginProfileDetailsAsync;
     private readonly Func<string, Task> _loadProfileStatsAsync;
     private readonly Action _returnToLogin;
+    private readonly Func<NotificationSeverity, string, string, string, string?, Task> _publishNotificationAsync;
 
     public GrevDadCoordinator(
         AppPaths paths,
@@ -64,7 +66,8 @@ public sealed partial class GrevDadCoordinator
         Func<LocalProfile?> getProfileTarget,
         Func<Task> refreshLoginProfileDetailsAsync,
         Func<string, Task> loadProfileStatsAsync,
-        Action returnToLogin)
+        Action returnToLogin,
+        Func<NotificationSeverity, string, string, string, string?, Task> publishNotificationAsync)
     {
         _paths = paths;
         _session = session;
@@ -82,6 +85,7 @@ public sealed partial class GrevDadCoordinator
         _refreshLoginProfileDetailsAsync = refreshLoginProfileDetailsAsync;
         _loadProfileStatsAsync = loadProfileStatsAsync;
         _returnToLogin = returnToLogin;
+        _publishNotificationAsync = publishNotificationAsync;
     }
 
     private SessionHistoryService? _sessionHistory;
@@ -97,6 +101,7 @@ public sealed partial class GrevDadCoordinator
         InitializeGrevDadIntegration();
         InitializeGrevDadMaintenanceIntegration();
         InitializeGrevDadProfileSyncIntegration();
+        InitializeGrevDadSaveSyncIntegration();
         InitializeGrevDadSettingsIntegration();
         InitializeGrevDadPrivacySettingsUiIntegration();
     }
@@ -121,6 +126,7 @@ public sealed partial class GrevDadCoordinator
         _grevDadSyncRetryTimer.Stop();
         _grevDadSyncRetries.Clear();
         _grevDadProfileSync?.Dispose();
+        _grevDadSaveSync?.Dispose();
 
         _grevDadLinkPollTimer.Stop();
     }
@@ -668,6 +674,173 @@ public sealed partial class GrevDadCoordinator
             ScheduleGrevDadSyncRetry(grevId);
         }
     }
+
+    private GrevDadSaveSyncService? _grevDadSaveSync;
+    private bool _grevDadSaveSyncReady;
+
+    private void InitializeGrevDadSaveSyncIntegration()
+    {
+        if (_grevDadSaveSyncReady)
+        {
+            return;
+        }
+
+        _grevDadSaveSyncReady = true;
+        _grevDadSaveSync = new GrevDadSaveSyncService(_paths, RequireGrevDadAccountService());
+
+        // Mirrors GrevDadProfileSyncService's own use of this event: session changes are an explicit
+        // sign-in edge, so a newly-Primary (or newly signed-in) GrevID gets its cloud saves checked
+        // once here rather than needing a separate polling loop.
+        var seenAtLogin = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        _session.Changed += (_, _) =>
+        {
+            var current = _session.SignedInUsers
+                .Select(user => user.GrevId)
+                .Where(grevId => !string.IsNullOrWhiteSpace(grevId))
+                .Select(grevId => grevId!)
+                .ToArray();
+
+            foreach (var grevId in current)
+            {
+                if (seenAtLogin.Add(grevId))
+                {
+                    _ = CheckSaveSyncOnLoginSafeAsync(grevId);
+                }
+            }
+
+            seenAtLogin.IntersectWith(current);
+        };
+    }
+
+    /// <summary>
+    /// Cloud saves are opt-in per app per GrevID (see GrevDadSaveSyncService.SetEnabledAsync), so
+    /// this only actually uploads for apps a user chose in Settings; for every other app it is a
+    /// cheap local check with no network call. A conflict (remote also changed since Grev Home last
+    /// touched it) is never silently overwritten by this automatic path - it is reported through
+    /// Activity Center instead, and the user resolves it explicitly from App Settings > Cloud Saves.
+    /// Uploads are best-effort: a failure here does not retry on a timer the way progression sync
+    /// does - the next completed session, or a manual "Sync Now" in Settings, tries again. Never
+    /// awaited by anything that could block returning to Home after a session ends.
+    /// </summary>
+    public void QueueSaveSyncAfterLocalHistory(LaunchSessionSnapshot snapshot)
+    {
+        var sync = _grevDadSaveSync;
+        var grevId = snapshot.PrimaryGrevId;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId))
+        {
+            return;
+        }
+
+        _ = UploadSaveIfEnabledSafeAsync(sync, grevId, snapshot.AppId, snapshot.AppName);
+    }
+
+    private async Task UploadSaveIfEnabledSafeAsync(GrevDadSaveSyncService sync, string grevId, string appId, string appName)
+    {
+        try
+        {
+            if (!await sync.IsEnabledAsync(grevId, appId)) return;
+
+            // Never turn an unavailable conflict check into a blind upload. Skipping one automatic
+            // sync is safer than overwriting a save that may have advanced on another device.
+            CloudSaveState remote;
+            try
+            {
+                remote = await sync.CheckRemoteAsync(grevId, appId);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                return;
+            }
+
+            if (remote.Status == CloudSaveStatus.Conflict)
+            {
+                await _publishNotificationAsync(
+                    NotificationSeverity.Warning,
+                    "Cloud Saves",
+                    $"{appName} cloud save conflict",
+                    $"{appName}'s save changed on another device since it was last synced, and it also changed here. Open App Settings > Cloud Saves to choose which one to keep.",
+                    grevId);
+                return;
+            }
+
+            if (remote.Status is CloudSaveStatus.Offline or CloudSaveStatus.Error or
+                CloudSaveStatus.NotLinked or CloudSaveStatus.RemoteChangesAvailable)
+            {
+                return;
+            }
+
+            await sync.UploadAsync(grevId, appId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // Cloud saves are best-effort background transport over locally-authoritative save
+            // data; a failure here must never surface as a crash or interrupt returning to Home.
+        }
+    }
+
+    /// <summary>
+    /// Checks every app that has cloud saves enabled for a newly signed-in GrevID and surfaces the
+    /// result through Activity Center, matching the same "warn, never auto-overwrite" conflict
+    /// contract as the post-session upload path. Best-effort: Grev.dad being unreachable at sign-in
+    /// must never interrupt or delay signing in, so this always runs after the session has already
+    /// changed rather than being awaited by it.
+    /// </summary>
+    private async Task CheckSaveSyncOnLoginSafeAsync(string grevId)
+    {
+        var sync = _grevDadSaveSync;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId))
+        {
+            return;
+        }
+
+        try
+        {
+            var apps = await sync.GetEnabledAppsAsync(grevId);
+            var conflicts = 0;
+            var remoteChanges = 0;
+            foreach (var appId in apps)
+            {
+                CloudSaveState state;
+                try
+                {
+                    state = await sync.CheckRemoteAsync(grevId, appId);
+                }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+                {
+                    continue;
+                }
+
+                if (state.Status == CloudSaveStatus.Conflict) conflicts++;
+                else if (state.Status == CloudSaveStatus.RemoteChangesAvailable) remoteChanges++;
+            }
+
+            if (conflicts > 0)
+            {
+                await _publishNotificationAsync(
+                    NotificationSeverity.Warning,
+                    "Cloud Saves",
+                    conflicts == 1 ? "A cloud save conflict needs your attention" : $"{conflicts} cloud save conflicts need your attention",
+                    "One or more app saves changed both here and on another device since they were last synced. Open App Settings > Cloud Saves for each app to choose which save to keep.",
+                    grevId);
+            }
+            else if (remoteChanges > 0)
+            {
+                await _publishNotificationAsync(
+                    NotificationSeverity.Info,
+                    "Cloud Saves",
+                    remoteChanges == 1 ? "A newer cloud save is available" : $"{remoteChanges} newer cloud saves are available",
+                    "A save on Grev.dad is newer than the local copy for at least one app. Restore it from App Settings > Cloud Saves when you're ready.",
+                    grevId);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // Best-effort login sweep only; never block or fail sign-in itself.
+        }
+    }
+
+    /// <summary>Everything AppSettingsView needs to show and drive the Cloud Saves section.</summary>
+    public GrevDadSaveSyncService? SaveSyncService => _grevDadSaveSync;
 
     private void ScheduleGrevDadSyncContinuation(string grevId)
     {

@@ -1,4 +1,5 @@
 using GrevHome.Apps;
+using GrevHome.Store;
 
 namespace GrevHome.Games;
 
@@ -20,8 +21,49 @@ public sealed class GameLaunchResolver
         return game.Platform switch
         {
             GamePlatform.PlayStation2 => ResolvePlayStation2(game, installedApps, grevId),
+            GamePlatform.GameCube or GamePlatform.Wii => ResolveStandalone(game, installedApps, grevId, "dolphin", "-b -e"),
+            GamePlatform.Nintendo3DS => ResolveStandalone(game, installedApps, grevId, "azahar", ""),
+            GamePlatform.PlayStation3 => ResolveStandalone(game, installedApps, grevId, "rpcs3", "--no-gui"),
+            GamePlatform.WiiU => ResolveStandalone(game, installedApps, grevId, "cemu", "-f -g"),
+            GamePlatform.Xbox360 => ResolveStandalone(game, installedApps, grevId, "xenia", ""),
+            GamePlatform.Xbox => ResolveStandalone(game, installedApps, grevId, "xemu", "-dvd_path"),
             _ => ResolveRetroArch(game, installedApps, grevId)
         };
+    }
+
+    private static InstalledAppEntry ResolveStandalone(GameLibraryEntry game,
+        IReadOnlyList<InstalledAppEntry> installedApps, string grevId, string emulatorAppId, string gameArgumentPrefix)
+    {
+        var installed = installedApps.FirstOrDefault(entry =>
+            string.Equals(entry.Manifest.Definition.AppId, emulatorAppId, StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(entry.Manifest.OwnerGrevId, grevId, StringComparison.OrdinalIgnoreCase));
+        if (installed is null)
+            throw new InvalidOperationException($"{emulatorAppId} is not installed for this GrevID. Install it from Grev Store first.");
+        if (!installed.AvailableToCurrentUser)
+            throw new InvalidOperationException(installed.AvailabilityMessage ?? $"{emulatorAppId} is unavailable to this GrevID.");
+
+        EnsureStandaloneReady(installed, emulatorAppId);
+
+        var launch = installed.Manifest.Definition.Launch;
+        var arguments = string.Join(" ", new[] { launch.Arguments, gameArgumentPrefix, QuoteArgument(game.SourcePath) }
+            .Where(value => !string.IsNullOrWhiteSpace(value)));
+        var definition = installed.Manifest.Definition with
+        {
+            AppId = game.GameId,
+            Name = game.DisplayName,
+            Kind = AppKind.GameLauncher,
+            Launch = launch with { Arguments = arguments, SingleInstance = false },
+            Description = $"{GameLibraryService.GetPlatformDisplayName(game.Platform)} game launched through {installed.Manifest.Definition.Name}."
+        };
+        return new InstalledAppEntry(new InstalledAppManifest(definition, installed.Manifest.Version, game.AddedAtUtc, grevId),
+            installed.BinaryRoot, installed.DataRoot, true, null);
+    }
+
+    private static void EnsureStandaloneReady(InstalledAppEntry installed, string emulatorAppId)
+    {
+        var readiness = StandaloneEmulatorReadiness.Inspect(
+            emulatorAppId, installed.BinaryRoot, installed.DataRoot ?? installed.BinaryRoot);
+        if (!readiness.IsReady) throw new InvalidOperationException(readiness.LaunchMessage);
     }
 
     private static InstalledAppEntry ResolveRetroArch(

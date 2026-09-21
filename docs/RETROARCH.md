@@ -59,7 +59,7 @@ No RetroArch configuration or RetroAchievements account may silently leak betwee
 For a profile `<GrevID>`, the intended ownership is:
 
 ```text
-C:\GrevHome\Profiles\<GrevID>\
+C:\GrevCo\GrevHome\Profiles\<GrevID>\
 ├── Apps\
 │   └── retroarch\
 │       ├── retroarch.exe
@@ -132,11 +132,11 @@ Example:
 ```text
 Grev is Primary
 → launch RetroArch
-→ C:\GrevHome\Profiles\<GrevGrevID>\Apps\retroarch\retroarch.exe
+→ C:\GrevCo\GrevHome\Profiles\<GrevGrevID>\Apps\retroarch\retroarch.exe
 
 Player 2 becomes Primary
 → launch RetroArch
-→ C:\GrevHome\Profiles\<Player2GrevID>\Apps\retroarch\retroarch.exe
+→ C:\GrevCo\GrevHome\Profiles\<Player2GrevID>\Apps\retroarch\retroarch.exe
 ```
 
 Changing Primary affects future launches only; it never mutates a RetroArch instance that is already running.

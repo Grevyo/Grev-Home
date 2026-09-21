@@ -44,7 +44,8 @@ public sealed record GrevStorePackageDefinition(
 public sealed class GrevStoreCatalogService
 {
     private static readonly IReadOnlyList<GrevStorePackageDefinition> Packages =
-    [
+    new GrevStorePackageDefinition[]
+    {
         new GrevStorePackageDefinition(
             PackageId: "retroarch",
             InstallerId: RetroArchInstallerService.InstallerId,
@@ -86,6 +87,7 @@ public sealed class GrevStoreCatalogService
                 NativeAutoUpdate: false),
             Featured: true,
             StoreDescription: "RetroArch is a multi-system emulation frontend that can run games from many classic consoles through individual emulator cores. Grev Home installs RetroArch as a Profile App so every GrevID can keep its own emulator environment, RetroAchievements identity, settings, saves and states without conflicting with another user on the same machine.",
+            SetupNotice: "Core setup may be required: Grev Home configures RetroArch's shared Games and BIOS folders, profile data and fullscreen startup automatically. RetroArch may still need to be opened to download or configure the emulator cores required by your games. Grev Home never supplies copyrighted games or proprietary BIOS files.",
             GrevHomeIntegrations:
             [
                 "Profile-isolated install, configuration, saves and save states for the current GrevID.",
@@ -143,7 +145,7 @@ public sealed class GrevStoreCatalogService
                 NativeAutoUpdate: false),
             Onboarding: new AppOnboardingDefinition(
                 Title: "PCSX2 Setup Controls",
-                Summary: "Emulated keyboard and mouse controls are temporarily enabled so PCSX2 can be configured from the controller before its native gamepad setup is finished. Complete the PCSX2 setup wizard, BIOS selection and controller configuration, then disable this Grev control layer below so PCSX2 receives only its normal native controller input. You can turn it back on at any time from PCSX2 App Settings.",
+                Summary: "Grev Home has already completed PCSX2's normal first-run configuration. Emulated keyboard and mouse controls remain available for selecting your own BIOS or making custom changes. Once that is done, disable this Grev control layer below so PCSX2 receives only its normal native controller input. You can turn it back on at any time from PCSX2 App Settings.",
                 ControllerGuideControls:
                 [
                     AppControllerControl.RightTrigger,
@@ -164,14 +166,14 @@ public sealed class GrevStoreCatalogService
                 QuickDisableControllerProfileDescription: "Use this after PCSX2 is configured. It only disables Grev Home's temporary keyboard/mouse translation for this GrevID; it does not disable PCSX2's native controller support or delete any mappings. The same switch remains available in App Settings."),
             Featured: true,
             StoreDescription: "PCSX2 is a PlayStation 2 emulator. Grev Home installs the official Stable Windows x64 portable build as a Profile App and gives each GrevID a separate PCSX2 data path so configuration, BIOS selection, memory cards and other emulator data do not silently mix between profiles.",
-            SetupNotice: "BIOS required: PCSX2 cannot run games until a PlayStation 2 BIOS dumped from a console you own has been configured. Put the BIOS files in {DataLocation}\\bios, open PCSX2 and select/configure that BIOS. Once this is done, PCSX2 is ready to run your PS2 game dumps.",
+            SetupNotice: "BIOS required: put a PlayStation 2 BIOS dumped from a console you own in {BiosLocation}, then select it once inside PCSX2. Grev Home has already completed the normal first-run configuration, added {GamesLocation}, and enabled PCSX2's fullscreen controller interface. After BIOS selection, PCSX2 itself should never need to be opened unless you want custom configuration; launch PS2 games directly from Grev Home.",
             GrevHomeIntegrations:
             [
                 "Official PCSX2 Stable Windows x64 Qt portable package, pinned and SHA-256 verified before extraction.",
                 "Profile-owned binaries for the current GrevID; PCSX2 Stable portable.txt redirects its DataRoot into persistent GrevID AppData.",
-                "The BIOS folder is created automatically inside the GrevID PCSX2 data root; Grev Home never supplies proprietary PlayStation 2 BIOS files.",
-                "Trusted update and repair replace only PCSX2 binaries while preserving the GrevID's PCSX2 data and BIOS folder.",
-                "Temporary per-GrevID Grev Desktop controls make the PCSX2 first-run wizard keyboard/mouse-accessible from a controller, with a one-press disable helper once native controller setup is complete.",
+                "The selected shared BIOS and Games folders are created and configured automatically; Grev Home never supplies proprietary PlayStation 2 BIOS files.",
+                "Trusted update and repair replace only PCSX2 binaries while preserving GrevID data and the shared BIOS/Games locations.",
+                "Temporary per-GrevID Grev Desktop controls remain available for BIOS selection or custom configuration, with a one-press disable helper afterward.",
                 "PCSX2 native controller support remains intact while Grev Home provides Return Home, Overlay, Running Apps, App Killer and tracked playtime around the emulator."
             ]),
 
@@ -335,7 +337,9 @@ public sealed class GrevStoreCatalogService
                 "Grev Desktop controls: right stick moves the pointer, RT left-clicks, LT right-clicks, left stick scrolls, X opens the keyboard and B sends Escape.",
                 "Launch maximized through the Grev Home runtime for Return Home, Overlay, Running Apps and App Killer; playtime counts only while Discord is the foreground app, not while it sits in the tray."
             ])
-    ];
+    }.Concat(StandaloneEmulatorCatalog.Packages)
+        .Concat(MediaCenterCatalog.Packages)
+        .ToArray();
 
     public IReadOnlyList<GrevStorePackageDefinition> GetAll() => Packages;
 

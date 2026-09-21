@@ -51,26 +51,23 @@ public partial class ProfileEditView
         _grevDadEditorBuilt = true;
         _grevDadEditorCard.Margin = new Thickness(0, 22, 0, 0);
         _grevDadEditorCard.Padding = new Thickness(20);
-        _grevDadEditorCard.Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
-        _grevDadEditorCard.BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68));
+        _grevDadEditorCard.SetResourceReference(Border.BackgroundProperty, "WindowBackgroundBrush");
+        _grevDadEditorCard.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         _grevDadEditorCard.BorderThickness = new Thickness(1);
         _grevDadEditorCard.CornerRadius = new CornerRadius(0);
 
         var stack = new StackPanel();
-        stack.Children.Add(new TextBlock
-        {
-            Text = "GREV.DAD ACCOUNT",
-            FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = (Brush)FindResource("AccentBrush")
-        });
-        stack.Children.Add(new TextBlock
+        var grevDadHeading = new TextBlock { Text = "GREV.DAD ACCOUNT", FontSize = 12, FontWeight = FontWeights.Bold };
+        grevDadHeading.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        stack.Children.Add(grevDadHeading);
+        var grevDadIntroText = new TextBlock
         {
             Text = "Add or remove the Grev.dad account linked to this GrevID and choose what this profile shares online. Your Grev.dad password is never stored in Grev Home.",
             Margin = new Thickness(0, 7, 0, 0),
-            Foreground = (Brush)FindResource("MutedBrush"),
             TextWrapping = TextWrapping.Wrap
-        });
+        };
+        grevDadIntroText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        stack.Children.Add(grevDadIntroText);
 
         _grevDadConnectionText.Margin = new Thickness(0, 14, 0, 0);
         _grevDadConnectionText.FontSize = 20;
@@ -78,29 +75,30 @@ public partial class ProfileEditView
         stack.Children.Add(_grevDadConnectionText);
 
         _grevDadIdentityText.Margin = new Thickness(0, 5, 0, 0);
-        _grevDadIdentityText.Foreground = (Brush)FindResource("MutedBrush");
+        _grevDadIdentityText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         _grevDadIdentityText.TextWrapping = TextWrapping.Wrap;
         stack.Children.Add(_grevDadIdentityText);
 
         _grevDadCodeText.Margin = new Thickness(0, 12, 0, 0);
         _grevDadCodeText.FontSize = 22;
         _grevDadCodeText.FontWeight = FontWeights.Bold;
-        _grevDadCodeText.Foreground = (Brush)FindResource("AccentBrush");
+        _grevDadCodeText.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
         _grevDadCodeText.TextWrapping = TextWrapping.Wrap;
         stack.Children.Add(_grevDadCodeText);
 
         _grevDadApprovalText.Margin = new Thickness(0, 4, 0, 0);
-        _grevDadApprovalText.Foreground = (Brush)FindResource("MutedBrush");
+        _grevDadApprovalText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         _grevDadApprovalText.TextWrapping = TextWrapping.Wrap;
         stack.Children.Add(_grevDadApprovalText);
 
-        stack.Children.Add(new TextBlock
+        var grevDadInstructionsText = new TextBlock
         {
             Text = "First open Grev.dad and sign in to the account you want to link. Return here to generate a code, approve it on the website, then choose Check approval.",
             Margin = new Thickness(0, 14, 0, 10),
-            Foreground = (Brush)FindResource("MutedBrush"),
             TextWrapping = TextWrapping.Wrap
-        });
+        };
+        grevDadInstructionsText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        stack.Children.Add(grevDadInstructionsText);
         ConfigureGrevDadButton(_grevDadWebsiteButton,"Open Grev.dad • sign in",230,(_,_)=>OpenGrevDadWebsiteRequested?.Invoke(this,EventArgs.Empty));
         _grevDadWebsiteButton.HorizontalAlignment = HorizontalAlignment.Left;
         stack.Children.Add(_grevDadWebsiteButton);
@@ -131,19 +129,12 @@ public partial class ProfileEditView
         accountActions.Children.Add(_grevDadUnlinkButton);
         stack.Children.Add(accountActions);
 
-        stack.Children.Add(new Border
-        {
-            Height = 1,
-            Margin = new Thickness(0, 14, 0, 14),
-            Background = new SolidColorBrush(Color.FromRgb(43, 51, 68))
-        });
-        stack.Children.Add(new TextBlock
-        {
-            Text = "PRIVACY & ACTIVITY SHARING",
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = (Brush)FindResource("MutedBrush")
-        });
+        var grevDadDivider = new Border { Height = 1, Margin = new Thickness(0, 14, 0, 14) };
+        grevDadDivider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        stack.Children.Add(grevDadDivider);
+        var privacyHeading = new TextBlock { Text = "PRIVACY & ACTIVITY SHARING", FontSize = 11, FontWeight = FontWeights.Bold };
+        privacyHeading.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        stack.Children.Add(privacyHeading);
 
         var sharing = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
         ConfigureGrevDadButton(_grevDadSharePresenceButton, "Presence", 170, (_, _) => ToggleGrevDadPrivacy(value => value with { SharePresence = !value.SharePresence }));
@@ -170,7 +161,7 @@ public partial class ProfileEditView
         stack.Children.Add(visibility);
 
         _grevDadStatusText.Margin = new Thickness(0, 8, 0, 0);
-        _grevDadStatusText.Foreground = (Brush)FindResource("MutedBrush");
+        _grevDadStatusText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         _grevDadStatusText.TextWrapping = TextWrapping.Wrap;
         stack.Children.Add(_grevDadStatusText);
 

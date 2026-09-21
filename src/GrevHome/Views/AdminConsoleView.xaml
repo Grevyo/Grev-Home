@@ -9,7 +9,7 @@
                     <TextBlock Text="Admin Console" FontSize="40" FontWeight="SemiBold" />
                     <TextBlock Text="Machine-wide Global App health, repair, update and uninstall. Normal GrevID libraries never remove Windows software for everyone."
                                Margin="0,6,0,0"
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{DynamicResource MutedBrush}"
                                FontSize="16"
                                TextWrapping="Wrap" />
                 </StackPanel>
@@ -25,15 +25,15 @@
 
             <Border Padding="20"
                     Margin="0,0,0,18"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="14">
                 <StackPanel>
-                    <TextBlock Text="GLOBAL APPS" FontSize="13" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                    <TextBlock Text="GLOBAL APPS" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
                     <TextBlock Text="Each card shows machine install state, runtime state, package health and which local GrevIDs currently include the app in their library. Trusted package capabilities determine which Admin actions are available."
                                Margin="0,8,0,0"
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{DynamicResource MutedBrush}"
                                TextWrapping="Wrap" />
                 </StackPanel>
             </Border>
@@ -43,12 +43,12 @@
             <Border Padding="18"
                     Margin="0,6,0,0"
                     Background="#0B0E15"
-                    BorderBrush="#343D51"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
                 <TextBlock x:Name="StatusText"
                            Text="Select a Global App to manage its machine installation."
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
             </Border>
         </StackPanel>

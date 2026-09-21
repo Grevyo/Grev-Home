@@ -5,10 +5,10 @@ Grev Home system shortcuts are configuration, not hard-coded controller combinat
 The runtime reads:
 
 ```text
-C:\GrevHome\Data\Input\controller-shortcuts.json
+C:\GrevCo\GrevHome\Data\Input\controller-shortcuts.json
 ```
 
-`GREV_HOME_ROOT` can redirect the entire Grev Home data root for development/testing. Normal Grev Home operation uses `C:\GrevHome`, which is created automatically on first run.
+`GREV_HOME_ROOT` can redirect the entire Grev Home data root for development/testing. Normal Grev Home operation uses `C:\GrevCo\GrevHome`, which is created automatically on first run.
 
 ## Default configuration
 

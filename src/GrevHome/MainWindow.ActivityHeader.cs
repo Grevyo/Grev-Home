@@ -91,28 +91,34 @@ public partial class MainWindow
             return;
         }
 
+        // This whole flyout is built once for the app's lifetime (the guard above never lets it
+        // rebuild), and it stays part of the persistent header chrome - visible on every route,
+        // Theme Creator included. FindResource alone would leave it frozen on whatever theme was
+        // active the first time this ran; SetResourceReference keeps it live for as long as the
+        // shell runs.
         _activityVolumeFlyout = new Border
         {
             Width = 360,
             Padding = new Thickness(20),
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 70, 95)),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(15),
             Visibility = Visibility.Collapsed
         };
+        _activityVolumeFlyout.SetResourceReference(Border.BackgroundProperty, "CardBackgroundBrush");
+        _activityVolumeFlyout.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         Panel.SetZIndex(_activityVolumeFlyout, 120);
 
         var content = new StackPanel();
-        content.Children.Add(new TextBlock
+        var volumeLabel = new TextBlock
         {
             Text = "VOLUME",
             FontSize = 12,
-            FontWeight = FontWeights.Bold,
-            Foreground = (Brush)FindResource("AccentBrush")
-        });
+            FontWeight = FontWeights.Bold
+        };
+        volumeLabel.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        content.Children.Add(volumeLabel);
 
         _activityVolumeValueText = new TextBlock
         {
@@ -135,9 +141,9 @@ public partial class MainWindow
         _activityVolumeOutputText = new TextBlock
         {
             Margin = new Thickness(0, 8, 0, 14),
-            Foreground = (Brush)FindResource("MutedBrush"),
             TextWrapping = TextWrapping.Wrap
         };
+        _activityVolumeOutputText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         content.Children.Add(_activityVolumeOutputText);
 
         var controls = new UniformGrid { Columns = 3 };

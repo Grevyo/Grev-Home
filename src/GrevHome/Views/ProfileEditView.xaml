@@ -5,7 +5,7 @@
              Focusable="False">
     <UserControl.Resources>
         <Style x:Key="EditSectionCard" TargetType="Border">
-            <Setter Property="Background" Value="#11151E" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="#252D3B" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="0" />
@@ -14,11 +14,11 @@
         <Style x:Key="EditEyebrow" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="{StaticResource AccentBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
         </Style>
         <Style x:Key="EditHint" TargetType="TextBlock">
             <Setter Property="FontSize" Value="12" />
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
             <Setter Property="TextWrapping" Value="Wrap" />
         </Style>
     </UserControl.Resources>
@@ -26,13 +26,13 @@
     <Grid>
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="54,26,54,48" MaxWidth="1120">
-                <TextBlock Text="EDIT PROFILE" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
+                <TextBlock Text="EDIT PROFILE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
                 <TextBlock Text="Make this profile yours" Margin="0,3,0,0" FontSize="30" FontWeight="SemiBold" />
-                <TextBlock x:Name="IdentityText" Margin="0,6,0,18" FontSize="13" Foreground="{StaticResource MutedBrush}" />
+                <TextBlock x:Name="IdentityText" Margin="0,6,0,18" FontSize="13" Foreground="{DynamicResource MutedBrush}" />
 
                 <Border x:Name="ProfileEditCard"
                         Background="Transparent"
-                        BorderBrush="{StaticResource GuestRoleBrush}"
+                        BorderBrush="{DynamicResource GuestRoleBrush}"
                         BorderThickness="0"
                         CornerRadius="0">
                     <StackPanel>
@@ -48,7 +48,7 @@
                                         Height="132"
                                         CornerRadius="0"
                                         Background="#1F283A"
-                                        BorderBrush="{StaticResource GuestRoleBrush}"
+                                        BorderBrush="{DynamicResource GuestRoleBrush}"
                                         BorderThickness="4"
                                         Margin="0,0,24,0"
                                         ClipToBounds="True">
@@ -223,9 +223,9 @@
                                     <TextBlock Text="ACCOUNT ROLE" Style="{StaticResource EditEyebrow}" />
                                     <TextBlock x:Name="RoleDescriptionText" Margin="0,6,0,10" Style="{StaticResource EditHint}" />
                                     <WrapPanel>
-                                        <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource AdminRoleBrush}" Click="Role_Click" />
-                                        <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource StandardRoleBrush}" Click="Role_Click" />
-                                        <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" BorderBrush="{StaticResource GuestRoleBrush}" Click="Role_Click" />
+                                        <Button x:Name="AdminRoleButton" Content="Admin" Tag="Admin" Width="150" Height="50" Margin="3" BorderBrush="{DynamicResource AdminRoleBrush}" Click="Role_Click" />
+                                        <Button x:Name="StandardRoleButton" Content="Standard" Tag="Standard" Width="150" Height="50" Margin="3" BorderBrush="{DynamicResource StandardRoleBrush}" Click="Role_Click" />
+                                        <Button x:Name="GuestRoleButton" Content="Guest" Tag="Guest" Width="150" Height="50" Margin="3" BorderBrush="{DynamicResource GuestRoleBrush}" Click="Role_Click" />
                                     </WrapPanel>
                                 </StackPanel>
 

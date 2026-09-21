@@ -50,7 +50,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
 
     string ITrustedPackageInstaller.InstallerId => InstallerId;
 
-    public Task<PackageHealthSnapshot> InspectAsync(
+    public async Task<PackageHealthSnapshot> InspectAsync(
         PackageOperationContext context,
         CancellationToken cancellationToken = default)
     {
@@ -62,48 +62,48 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         var executable = Path.Combine(binaryRoot, "pcsx2-qt.exe");
         if (!Directory.Exists(binaryRoot) || !File.Exists(executable))
         {
-            return Task.FromResult(new PackageHealthSnapshot(
+            return new PackageHealthSnapshot(
                 PackageHealthState.RepairRecommended,
                 "The PCSX2 registration exists but its profile-owned executable is missing.",
-                SupportedVersion));
+                SupportedVersion);
         }
 
         if (!_visualCppRuntime.IsInstalled(out var runtimeVersion))
         {
-            return Task.FromResult(new PackageHealthSnapshot(
+            return new PackageHealthSnapshot(
                 PackageHealthState.RepairRecommended,
                 "PCSX2 requires the Microsoft Visual C++ x64 runtime, but Grev Home could not detect it. Repair can install the prerequisite and validate PCSX2 startup.",
-                SupportedVersion));
+                SupportedVersion);
         }
 
         var dataRoot = _paths.GetProfileAppDataRoot(grevId, context.Package.App.AppId);
-        var biosRoot = Path.Combine(dataRoot, "bios");
-        if (!Directory.Exists(dataRoot) || !Directory.Exists(biosRoot))
+        if (!Directory.Exists(dataRoot))
         {
-            return Task.FromResult(new PackageHealthSnapshot(
+            return new PackageHealthSnapshot(
                 PackageHealthState.RepairRecommended,
-                "PCSX2 binaries exist but the GrevID-owned data/BIOS folder is missing. Repair can recreate the folder structure without deleting user data.",
-                SupportedVersion));
+                "PCSX2 binaries exist but the GrevID-owned data folder is missing. Repair can recreate the folder structure without deleting user data.",
+                SupportedVersion);
         }
 
         if (!PortableDataRedirectMatches(binaryRoot, dataRoot))
         {
-            return Task.FromResult(new PackageHealthSnapshot(
+            return new PackageHealthSnapshot(
                 PackageHealthState.RepairRecommended,
                 "PCSX2's portable data redirect is missing or points somewhere other than this GrevID's AppData. Repair can recreate it without deleting profile data.",
-                SupportedVersion));
+                SupportedVersion);
         }
 
         var runtimeSuffix = string.IsNullOrWhiteSpace(runtimeVersion)
             ? string.Empty
             : $" Visual C++ runtime {runtimeVersion} is present.";
-        var hasBiosFiles = Directory.EnumerateFiles(biosRoot, "*", SearchOption.TopDirectoryOnly).Any();
-        return Task.FromResult(new PackageHealthSnapshot(
+        var biosRoot = await _machineDefaults.GetBiosRootAsync(cancellationToken);
+        var hasBiosFiles = Directory.Exists(biosRoot) && Directory.EnumerateFiles(biosRoot, "*", SearchOption.TopDirectoryOnly).Any();
+        return new PackageHealthSnapshot(
             PackageHealthState.Healthy,
             hasBiosFiles
-                ? $"PCSX2 binaries, portable GrevID data redirect and BIOS/data folder are present.{runtimeSuffix}"
-                : $"PCSX2 is installed and its portable GrevID data redirect is healthy.{runtimeSuffix} A BIOS dumped from a PlayStation 2 you own still needs to be placed in the BIOS folder and selected in PCSX2.",
-            SupportedVersion));
+                ? $"PCSX2 binaries, portable GrevID data redirect and selected machine BIOS folder are present.{runtimeSuffix}"
+                : $"PCSX2 is installed and its portable GrevID data redirect is healthy.{runtimeSuffix} A BIOS dumped from a PlayStation 2 you own still needs to be placed in {biosRoot} and selected in PCSX2.",
+            SupportedVersion);
     }
 
     Task ITrustedPackageInstaller.InstallAsync(
@@ -166,6 +166,9 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
 
             progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test before registration…", 96));
             await SmokeTestAsync(targetRoot, cancellationToken);
+
+            progress?.Report(new PackageInstallProgress("Configure", "Applying controller-first PCSX2 defaults…", 98));
+            await ConfigureControllerFirstDefaultsAsync(grevId, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Register", "Registering the validated PCSX2 installation with Grev Home…", 99));
             await _installedApps.RegisterInstalledAsync(
@@ -280,10 +283,15 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             }
 
             Directory.Move(extractedRoot, targetRoot);
+            var configExisted = File.Exists(Path.Combine(_paths.GetProfileAppDataRoot(grevId, "pcsx2"), "PCSX2.ini"));
             await ConfigurePortableProfileAsync(targetRoot, grevId, cancellationToken);
 
             progress?.Report(new PackageInstallProgress("Validate", "Starting PCSX2's configuration self-test…", 96));
             await SmokeTestAsync(targetRoot, cancellationToken);
+            if (!configExisted)
+            {
+                await ConfigureControllerFirstDefaultsAsync(grevId, cancellationToken);
+            }
 
             await _installedApps.RegisterInstalledAsync(
                 package.App,
@@ -365,8 +373,6 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
     {
         var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
         Directory.CreateDirectory(dataRoot);
-        Directory.CreateDirectory(Path.Combine(dataRoot, "bios"));
-        Directory.CreateDirectory(Path.Combine(dataRoot, "games"));
     }
 
     private async Task ConfigurePortableProfileAsync(string binaryRoot, string grevId, CancellationToken cancellationToken)
@@ -392,32 +398,92 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             relativeDataRoot,
             new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 
-        await SeedSharedBiosFolderAsync(dataRoot, cancellationToken);
     }
 
     /// <summary>
-    /// Points a fresh portable profile's BIOS folder at the machine-wide shared BIOS location
-    /// chosen during first-run setup, so a BIOS dumped once is available to every profile's PCSX2.
-    /// Only the [Folders] Bios= key is pre-seeded here, and only when PCSX2.ini does not already
-    /// exist for this GrevID - PCSX2 creates the rest of the file with its own defaults on first
-    /// launch and preserves whatever keys are already present. Grev Home deliberately does not
-    /// pre-seed the game-library search paths ([GameList] section): that format is not something
-    /// Grev Home can currently verify with confidence, so a shared Games folder still needs adding
-    /// once from inside PCSX2's own Game List settings after install.
+    /// Applies settings only after PCSX2's own -testconfig pass has generated a complete,
+    /// version-correct configuration. The key names and repeated-value list format are PCSX2's
+    /// native settings contract: Folders/Bios, GameList/RecursivePaths and the UI startup flags.
+    /// Existing profiles are not overwritten during update/repair.
     /// </summary>
-    private async Task SeedSharedBiosFolderAsync(string dataRoot, CancellationToken cancellationToken)
+    private async Task ConfigureControllerFirstDefaultsAsync(string grevId, CancellationToken cancellationToken)
     {
+        var dataRoot = _paths.GetProfileAppDataRoot(grevId, "pcsx2");
         var iniPath = Path.Combine(dataRoot, "PCSX2.ini");
-        if (File.Exists(iniPath))
+        if (!File.Exists(iniPath))
         {
-            return;
+            throw new InvalidDataException("PCSX2 completed its self-test without creating PCSX2.ini.");
         }
 
         var biosRoot = await _machineDefaults.GetBiosRootAsync(cancellationToken);
+        var gamesRoot = await _machineDefaults.GetGamesRootAsync(cancellationToken);
         Directory.CreateDirectory(biosRoot);
+        Directory.CreateDirectory(gamesRoot);
 
-        var ini = $"[Folders]{Environment.NewLine}Bios={biosRoot}{Environment.NewLine}";
-        await File.WriteAllTextAsync(iniPath, ini, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+        var lines = (await File.ReadAllLinesAsync(iniPath, cancellationToken)).ToList();
+        UpsertIniValue(lines, "Folders", "Bios", biosRoot);
+        AddIniListValue(lines, "GameList", "RecursivePaths", gamesRoot);
+        UpsertIniValue(lines, "UI", "SetupWizardIncomplete", "false");
+        UpsertIniValue(lines, "UI", "StartBigPictureMode", "true");
+        UpsertIniValue(lines, "UI", "StartFullscreen", "true");
+        await File.WriteAllLinesAsync(iniPath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+    }
+
+    internal static void UpsertIniValue(List<string> lines, string section, string key, string value)
+    {
+        var (start, end) = FindIniSection(lines, section);
+        if (start < 0)
+        {
+            if (lines.Count > 0 && lines[^1].Length > 0) lines.Add(string.Empty);
+            lines.Add($"[{section}]");
+            lines.Add($"{key}={value}");
+            return;
+        }
+
+        for (var index = start + 1; index < end; index++)
+        {
+            var separator = lines[index].IndexOf('=');
+            if (separator < 0 || !string.Equals(lines[index][..separator].Trim(), key, StringComparison.OrdinalIgnoreCase)) continue;
+            lines[index] = $"{key}={value}";
+            return;
+        }
+
+        lines.Insert(end, $"{key}={value}");
+    }
+
+    internal static void AddIniListValue(List<string> lines, string section, string key, string value)
+    {
+        var (start, end) = FindIniSection(lines, section);
+        if (start < 0)
+        {
+            if (lines.Count > 0 && lines[^1].Length > 0) lines.Add(string.Empty);
+            lines.Add($"[{section}]");
+            lines.Add($"{key}={value}");
+            return;
+        }
+
+        for (var index = start + 1; index < end; index++)
+        {
+            var separator = lines[index].IndexOf('=');
+            if (separator < 0 || !string.Equals(lines[index][..separator].Trim(), key, StringComparison.OrdinalIgnoreCase)) continue;
+            if (TrustedInstallerSupport.PathsEqual(lines[index][(separator + 1)..].Trim(), value)) return;
+        }
+
+        lines.Insert(end, $"{key}={value}");
+    }
+
+    private static (int Start, int End) FindIniSection(IReadOnlyList<string> lines, string section)
+    {
+        var header = $"[{section}]";
+        for (var index = 0; index < lines.Count; index++)
+        {
+            if (!string.Equals(lines[index].Trim(), header, StringComparison.OrdinalIgnoreCase)) continue;
+            var end = index + 1;
+            while (end < lines.Count && !lines[end].TrimStart().StartsWith('[')) end++;
+            return (index, end);
+        }
+
+        return (-1, -1);
     }
 
     private static bool PortableDataRedirectMatches(string binaryRoot, string dataRoot)

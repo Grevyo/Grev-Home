@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using GrevHome.Online;
+using GrevHome.Presentation;
 using GrevHome.Profiles;
 
 namespace GrevHome.Views;
@@ -172,6 +173,7 @@ public partial class FriendsView : UserControl
             Style = style,
             Content = content
         };
+        ShellTileMotion.Attach(button);
         button.Click += (_, _) => selected(friend);
         return button;
     }

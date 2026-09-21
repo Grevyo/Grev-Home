@@ -246,6 +246,7 @@ public partial class InstalledLibraryView : UserControl
                 VerticalContentAlignment = VerticalAlignment.Stretch,
                 Content = AppArtworkFactory.CreateTile(displayName, icon, tileColor)
             };
+            ShellTileMotion.Attach(launchButton);
             launchButton.Click += App_Click;
             launchButton.PreviewMouseRightButtonUp += App_RightClick;
             AppsPanel.Children.Add(launchButton);

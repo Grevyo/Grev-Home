@@ -72,7 +72,7 @@ public sealed class GrevHomeUpdateService
                 throw new InvalidDataException("The downloaded installer did not match the release checksum.");
         }
         File.Move(temporaryPath, installerPath, true);
-        using var process = Process.Start(new ProcessStartInfo(installerPath, "/SP- /CLOSEAPPLICATIONS /RESTARTAPPLICATIONS") { UseShellExecute = true });
+        using var process = Process.Start(new ProcessStartInfo(installerPath, "--update") { UseShellExecute = true });
         if (process is null) throw new IOException("Windows could not start the installer.");
     }
 

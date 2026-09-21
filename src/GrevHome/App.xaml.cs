@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
+using GrevHome.Presentation;
 using GrevHome.Storage;
 
 namespace GrevHome;
@@ -73,6 +74,7 @@ public partial class App : Application
         WriteLifecycleLog(
             $"Shell starting. {BuildDiagnosticContext()} EffectiveRoot={_paths.Root}; GREV_HOME_ROOT={Environment.GetEnvironmentVariable("GREV_HOME_ROOT") ?? "<unset>"}");
         RecordShellStart();
+        ApplyStartupTheme();
 
         base.OnStartup(e);
 
@@ -120,6 +122,28 @@ public partial class App : Application
         _singleInstanceMutex?.Dispose();
         TaskScheduler.UnobservedTaskException -= HandleUnobservedTaskException;
         base.OnExit(e);
+    }
+
+    /// <summary>
+    /// Applies the machine's saved active theme before MainWindow (or anything else) is
+    /// constructed, so nothing ever briefly renders with the fallback "Grev Default" colors
+    /// baked into App.xaml and then flips to the real theme. A failure here falls back to the
+    /// shipped default rather than blocking startup - a broken/corrupt theme file must never
+    /// prevent the shell itself from opening.
+    /// </summary>
+    private void ApplyStartupTheme()
+    {
+        try
+        {
+            var themeService = new ThemeService(_paths);
+            var state = Task.Run(() => themeService.LoadAsync()).GetAwaiter().GetResult();
+            ThemeApplier.Apply(themeService.ResolveActive(state));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            WriteLifecycleLog($"Could not apply the saved theme; using Grev Default. {ex.Message}");
+            ThemeApplier.Apply(ThemeCatalog.Default);
+        }
     }
 
     private void StartActivationListener()

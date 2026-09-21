@@ -7,7 +7,7 @@ Milestone 0.9 makes Grev Home's managed external-app runtime survive Grev Home i
 Grev Home persists active managed sessions to:
 
 ```text
-C:\GrevHome\Data\Runtime\sessions.json
+C:\GrevCo\GrevHome\Data\Runtime\sessions.json
 ```
 
 The file is written atomically through `sessions.json.tmp` and replaced only after serialization completes.

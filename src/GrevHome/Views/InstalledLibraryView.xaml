@@ -24,7 +24,7 @@
                 <TextBlock x:Name="ContextText"
                            Margin="0,6,0,0"
                            FontSize="15"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
             </StackPanel>
             <Button Content="Back"
@@ -58,32 +58,32 @@
                 <StackPanel x:Name="GamesSection" Margin="0,0,0,18">
                     <Grid Margin="8,0,8,8">
                         <StackPanel>
-                            <TextBlock Text="GAMES" FontSize="11" FontWeight="Bold" Foreground="{StaticResource AccentBrush}" />
-                            <TextBlock Text="Games added to this player's Grev Home library" Margin="0,3,0,0" FontSize="14" Foreground="{StaticResource MutedBrush}" />
+                            <TextBlock Text="GAMES" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                            <TextBlock Text="Games added to this player's Grev Home library" Margin="0,3,0,0" FontSize="14" Foreground="{DynamicResource MutedBrush}" />
                         </StackPanel>
                         <TextBlock x:Name="GamesCountText"
                                    HorizontalAlignment="Right"
                                    VerticalAlignment="Center"
                                    FontSize="12"
-                                   Foreground="{StaticResource MutedBrush}" />
+                                   Foreground="{DynamicResource MutedBrush}" />
                     </Grid>
                     <TextBlock x:Name="NoGamesText"
                                Text="No individual games added yet. Use Add Game to add a PlayStation 2 game."
                                Margin="8,10,0,10"
                                FontSize="15"
-                               Foreground="{StaticResource MutedBrush}"
+                               Foreground="{DynamicResource MutedBrush}"
                                TextWrapping="Wrap" />
                     <WrapPanel x:Name="GamesPanel" />
                 </StackPanel>
 
-                <Border Height="1" Margin="8,0,8,18" Background="#2B3344" />
+                <Border Height="1" Margin="8,0,8,18" Background="{DynamicResource CardBorderBrush}" />
 
                 <TextBlock x:Name="EmptyText"
                            Text="Nothing is installed yet. Install supported packages from Grev Store."
                            Margin="0,28,0,0"
                            HorizontalAlignment="Center"
                            FontSize="18"
-                           Foreground="{StaticResource MutedBrush}"
+                           Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap"
                            TextAlignment="Center" />
                 <WrapPanel x:Name="AppsPanel" />
@@ -93,13 +93,13 @@
         <Border Grid.Row="3"
                 Margin="0,18,0,0"
                 Padding="18"
-                Background="#11151E"
-                BorderBrush="#2B3344"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
             <TextBlock x:Name="StatusText"
                        Text="Select an app or game to open it. Hold A or right-click an app tile for more actions."
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{DynamicResource MutedBrush}"
                        TextWrapping="Wrap" />
         </Border>
 
@@ -123,7 +123,7 @@
                     <StackPanel Grid.Row="0" Margin="0,0,0,16">
                         <TextBlock Text="APP ACTIONS" Style="{StaticResource ShellModalEyebrowStyle}" />
                         <TextBlock x:Name="AppActionTitleText" Margin="0,5,0,0" FontSize="28" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock x:Name="AppActionStateText" Margin="0,5,0,0" FontSize="13" Foreground="{StaticResource MutedBrush}" TextWrapping="Wrap" />
+                        <TextBlock x:Name="AppActionStateText" Margin="0,5,0,0" FontSize="13" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
                     </StackPanel>
 
                     <ScrollViewer Grid.Row="1" MaxHeight="430" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -140,7 +140,7 @@
                         </WrapPanel>
                     </ScrollViewer>
 
-                    <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="#2B3344" BorderThickness="0,1,0,0">
+                    <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0">
                         <Button x:Name="AppActionCancelButton"
                                 Content="Cancel"
                                 MinWidth="190"

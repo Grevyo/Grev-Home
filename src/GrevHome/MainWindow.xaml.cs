@@ -17,6 +17,7 @@ using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Storage;
 using GrevHome.Store;
+using GrevHome.Store.Installers;
 using GrevHome.Views;
 
 namespace GrevHome;
@@ -76,6 +77,7 @@ public partial class MainWindow : Window
         _overlayWindow = new GrevOverlayWindow();
         _overlayWindow.ConfigurePresentation(_shellMotionSettings);
         InitializePresentationEffects();
+        EnsureActivityInfrastructure();
 
         _grevDad = new GrevDadCoordinator(
             _paths,
@@ -93,7 +95,8 @@ public partial class MainWindow : Window
             GetProfileTarget,
             RefreshLoginProfileDetailsAsync,
             LoadProfileStatsAsync,
-            ReturnToLogin);
+            ReturnToLogin,
+            (severity, source, title, message, grevId) => PublishActivityNotificationAsync(severity, source, title, message, grevId));
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
@@ -117,6 +120,9 @@ public partial class MainWindow : Window
         _dashboardView.AppKillerRequested += (_, _) => OpenAppKiller();
         _dashboardView.SettingsRequested += (_, _) => OpenSettings();
         _dashboardView.SettingsPageRequested += OpenSettings;
+        _dashboardView.MyProfileRequested += (_, _) => OpenPrimaryUserProfile();
+        _dashboardView.UsersControllersRequested += (_, _) => OpenSessionLobby();
+        _dashboardView.AddGameRequested += (_, _) => AddGameFromDashboard();
         _dashboardView.LogoutRequested += (_, _) => Logout();
         _dashboardView.BackgroundPreviewRequested += ShowDashboardBackground;
 
@@ -660,6 +666,21 @@ public partial class MainWindow : Window
 
     private void HandleRuntimeSessionEnded(LaunchSessionSnapshot snapshot)
     {
+        var package = _grevStoreCatalog.Find(snapshot.AppId);
+        if (package is not null)
+        {
+            try
+            {
+                // Some native apps can recreate their Run entry while open. Re-assert Grev Home's
+                // opt-in launch policy whenever a managed session finishes.
+                WindowsAppStartupPolicy.DisableFor(package);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not remove {package.App.AppId} Windows startup entry: {ex.Message}");
+            }
+        }
+
         UpdateRuntimeSurfaces();
 
         if (_foregroundLaunchSessionId != snapshot.LaunchSessionId)
@@ -670,6 +691,38 @@ public partial class MainWindow : Window
         _foregroundLaunchSessionId = null;
         _overlayWindow.Dismiss();
         RestoreWindowWithoutChangingRoute();
+    }
+
+    /// <summary>
+    /// Home's My Profile tile. Guests have no permanent GrevID and therefore no profile page, so
+    /// the tile reports that on Home instead of navigating to an empty route.
+    /// </summary>
+    /// <summary>
+    /// Home's Add a Game tile. OpenGameAdd reports its own refusal on the library page, which is
+    /// not where the user is standing when they start from Home, so the guard is repeated here to
+    /// put the message on the surface that was actually used.
+    /// </summary>
+    private void AddGameFromDashboard()
+    {
+        if (_session.PrimaryUser?.GrevId is null)
+        {
+            _dashboardView.ShowStatus("A persistent Primary GrevID is required to add individual games.");
+            return;
+        }
+
+        OpenGameAdd();
+    }
+
+    private void OpenPrimaryUserProfile()
+    {
+        var primary = _session.PrimaryUser;
+        if (primary?.GrevId is null)
+        {
+            _dashboardView.ShowStatus("Sign in with a permanent Grev Home account to open a profile.");
+            return;
+        }
+
+        OpenProfileView(primary.SessionId);
     }
 
     private void OpenSessionLobby()

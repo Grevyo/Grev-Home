@@ -13,7 +13,7 @@ The Home surface discovers available locations at runtime:
 - Grev Home machine data root
 - every Windows drive that is currently ready, including fixed and removable media
 
-The first time Files Home is opened, Grev Home creates `C:\GrevHome\TestArea` with disposable sample folders and text files. If the whole TestArea folder is later removed, Grev Home can recreate a fresh sandbox when Files Home is opened again.
+The first time Files Home is opened, Grev Home creates `C:\GrevCo\GrevHome\TestArea` with disposable sample folders and text files. If the whole TestArea folder is later removed, Grev Home can recreate a fresh sandbox when Files Home is opened again.
 
 Drive cards show label/type and free/total capacity where Windows reports it.
 

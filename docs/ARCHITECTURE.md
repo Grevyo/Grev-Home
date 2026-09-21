@@ -17,7 +17,7 @@
 13. **System shortcuts are configuration, not code** — Return Home, Overlay and future global controller actions are named actions whose physical button combinations come from validated configuration.
 14. **Settings have owners** — GrevID-owned settings stay with the account; machine-wide settings live with the machine/runtime. Do not create one giant undifferentiated settings file.
 15. **Backbone before ecosystem/presentation** — system controls, files/storage, runtime recovery, account management and boot/recovery must work before package installers, Grev Store or visual theming are treated as priorities.
-16. **Runtime root is explicit** — normal Grev Home operation stores its machine/runtime data beneath `C:\GrevHome`, which Grev Home creates on first run. `GREV_HOME_ROOT` is a development/test override only.
+16. **Runtime root is explicit** — normal Grev Home operation stores its machine/runtime data beneath `C:\GrevCo\GrevHome`, which Grev Home creates on first run. `GREV_HOME_ROOT` is a development/test override only.
 
 ## GrevID contract
 
@@ -97,7 +97,7 @@ This remains a last-resort migration rather than a rename.
 
 ## Runtime storage contract
 
-The default data root is `C:\GrevHome`. Grev Home creates this folder and its standard machine layout automatically on first run. `GREV_HOME_ROOT` may override it for development/testing only.
+The default data root is `C:\GrevCo\GrevHome`. Grev Home creates this folder and its standard machine layout automatically on first run. `GREV_HOME_ROOT` may override it for development/testing only.
 
 A persistent local GrevID owns:
 
@@ -228,16 +228,25 @@ The future system will **generalise package metadata and reusable infrastructure
 
 Package manifests must never become unrestricted arbitrary PowerShell/CMD execution documents.
 
-## Theme contract — intentionally late
+## Theme contract
 
-Themes remain a product goal, but Theme Engine/Theme Studio work is intentionally deferred until the behavioral/system backbone is stable.
-
-When eventually implemented:
+Theme Engine/Theme Studio work was originally deferred until the behavioral/system backbone was
+stable. A minimal, real theme engine (`docs/THEMES.md`) now exists ahead of that milestone at
+explicit product-owner request, on the understanding that it holds to the contract below rather
+than becoming a second architecture:
 
 - themes affect presentation/layout only;
 - themes never own navigation/business/process logic;
-- the built-in default theme is always recoverable;
-- theme data should be exportable/importable and eventually shareable.
+- the built-in default theme (`grev-default`) is always recoverable and can never be edited or
+  deleted, and any corrupt or missing custom theme falls back to it rather than the shell failing
+  to start;
+- Admin-owned machine themes live under the machine's `Themes` folder; private GrevID themes and
+  their optional active override live under `Profiles/<GrevID>/Themes`, inheriting the machine
+  theme when no profile override is selected.
+
+Deeper theme surfaces remain deferred until the backbone milestone: per-app/per-GrevID visual
+overrides beyond dashboard tile presentation, layout-level theme packs, and a shareable theme
+marketplace/format all still belong to that later phase.
 
 No current backbone milestone should be blocked on theme abstractions or theme packaging.
 

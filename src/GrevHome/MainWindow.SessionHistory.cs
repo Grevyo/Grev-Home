@@ -21,5 +21,6 @@ public partial class MainWindow
         // completed session after both the idempotent playtime aggregate and immutable local
         // history have committed and the pending completion envelope has been cleared.
         _runtimeSessions.SessionHistoryCommitted += _grevDad.QueueSyncAfterLocalHistory;
+        _runtimeSessions.SessionHistoryCommitted += _grevDad.QueueSaveSyncAfterLocalHistory;
     }
 }

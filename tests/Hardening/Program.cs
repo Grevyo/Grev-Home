@@ -4,11 +4,13 @@ using System.Windows.Input;
 using GrevHome.Input;
 using GrevHome.Profiles;
 using GrevHome.Storage;
+using GrevHome.Store;
 using GrevHome.Store.Installers;
 using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Presentation;
 using GrevHome.Games;
+using GrevHome.Online;
 
 var root = Path.Combine(Path.GetTempPath(), "GrevHomeHardening-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -121,7 +123,234 @@ try
             Path.Combine(ps2Root, "Road Trip.iso"), DateTimeOffset.UtcNow)
     });
     Check(rescan.AlreadyInLibrary == 1, "A rescan must not duplicate an existing game path");
-    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection.");
+
+    var pcsx2Ini = new List<string>
+    {
+        "[UI]",
+        "SetupWizardIncomplete=true",
+        "StartFullscreen=false",
+        "",
+        "[GameList]",
+        @"RecursivePaths=D:\Existing Games"
+    };
+    PCSX2InstallerService.UpsertIniValue(pcsx2Ini, "UI", "SetupWizardIncomplete", "false");
+    PCSX2InstallerService.UpsertIniValue(pcsx2Ini, "UI", "StartBigPictureMode", "true");
+    PCSX2InstallerService.UpsertIniValue(pcsx2Ini, "UI", "StartFullscreen", "true");
+    PCSX2InstallerService.UpsertIniValue(pcsx2Ini, "Folders", "Bios", @"D:\BIOS");
+    PCSX2InstallerService.AddIniListValue(pcsx2Ini, "GameList", "RecursivePaths", @"D:\Games");
+    PCSX2InstallerService.AddIniListValue(pcsx2Ini, "GameList", "RecursivePaths", @"D:\Games");
+    Check(pcsx2Ini.Count(line => line == "SetupWizardIncomplete=false") == 1,
+        "PCSX2 setup wizard must be marked complete for controller-first installs");
+    Check(pcsx2Ini.Count(line => line == "StartBigPictureMode=true") == 1 &&
+          pcsx2Ini.Count(line => line == "StartFullscreen=true") == 1,
+        "PCSX2 must start in its controller-first fullscreen interface");
+    Check(pcsx2Ini.Count(line => line == @"RecursivePaths=D:\Games") == 1 &&
+          pcsx2Ini.Contains(@"RecursivePaths=D:\Existing Games"),
+        "PCSX2 game folders must be added without duplicates or destroying existing locations");
+    Check(pcsx2Ini.Contains(@"Bios=D:\BIOS"),
+        "PCSX2 must use the machine BIOS folder selected in Grev Home");
+
+    var startupIdentifiers = new[] { "steam", "steam.exe" };
+    Check(WindowsAppStartupPolicy.IsMatchingStartupEntry(
+            "Steam", @"""C:\Program Files (x86)\Steam\steam.exe"" -silent", startupIdentifiers),
+        "Store startup policy must recognise a managed vendor Run entry");
+    Check(!WindowsAppStartupPolicy.IsMatchingStartupEntry(
+            "OneDrive", @"""C:\Program Files\Microsoft OneDrive\OneDrive.exe"" /background", startupIdentifiers),
+        "Store startup policy must leave unrelated Windows startup entries intact");
+    Check(!WindowsAppStartupPolicy.IsMatchingStartupEntry(
+            "SteamDeckTools", @"""C:\Tools\SteamDeckTools.exe""", startupIdentifiers),
+        "Store startup policy must not remove a different app whose name merely contains a managed app name");
+
+    var standaloneIds = StandaloneEmulatorCatalog.Packages.Select(package => package.PackageId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    Check(standaloneIds.SetEquals(new[] { "dolphin", "azahar", "rpcs3", "cemu", "xenia", "xemu", "vita3k" }),
+        "The standalone emulator catalogue must contain exactly the approved seven packages");
+    Check(!standaloneIds.Contains("duckstation") && !standaloneIds.Contains("ppsspp"),
+        "PS1 and PSP must remain routed through RetroArch without duplicate Store packages");
+    Check(StandaloneEmulatorCatalog.Specs.All(spec => spec.Sha256.Length == 64 &&
+          spec.Sha256.All(Uri.IsHexDigit)), "Every standalone emulator archive must have a pinned SHA-256");
+    Check(GameLibraryService.GetSupportedExtensions(GamePlatform.WiiU).Contains(".wua") &&
+          GameLibraryService.GetSupportedExtensions(GamePlatform.Xbox360).Contains(".xex"),
+        "New standalone platforms must expose their native game formats to scanning");
+    var systemSetupIds = StandaloneEmulatorCatalog.Packages
+        .Where(package => package.ControllerProfile?.Enabled == true)
+        .Select(package => package.PackageId)
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    Check(systemSetupIds.SetEquals(new[] { "rpcs3", "xemu", "vita3k" }),
+        "Only emulators with unavoidable system-file screens should enable temporary Grev setup controls");
+    Check(StandaloneEmulatorCatalog.Packages
+            .Where(package => systemSetupIds.Contains(package.PackageId))
+            .All(package => package.Supports(AppPackageCapability.ControllerGuide) && package.Onboarding is not null),
+        "Every temporary emulator setup profile must have a controller-first disable guide");
+    var dolphinSpec = StandaloneEmulatorCatalog.Specs.Single(spec => spec.AppId == "dolphin");
+    var dolphinBinary = Path.Combine(root, "dolphin-binary");
+    var dolphinData = Path.Combine(root, "dolphin-data");
+    dolphinSpec.Configure(dolphinBinary, dolphinData, Path.Combine(root, "games"), Path.Combine(root, "bios"));
+    var dolphinPadConfig = Path.Combine(dolphinData, "Config", "GCPadNew.ini");
+    Check(File.Exists(dolphinPadConfig) && File.ReadAllText(dolphinPadConfig).Contains("XInput/0/Gamepad", StringComparison.Ordinal),
+        "Dolphin silent setup must create a per-GrevID Player 1 XInput profile");
+    var readinessRoot = Path.Combine(root, "readiness");
+    var readinessData = Path.Combine(root, "readiness-data");
+    Directory.CreateDirectory(readinessRoot);
+    Directory.CreateDirectory(readinessData);
+    Check(!StandaloneEmulatorReadiness.Inspect("rpcs3", readinessRoot, readinessData).IsReady,
+        "RPCS3 must report setup required before official firmware is installed");
+    Directory.CreateDirectory(Path.Combine(readinessRoot, "dev_flash", "vsh"));
+    Check(StandaloneEmulatorReadiness.Inspect("rpcs3", readinessRoot, readinessData).IsReady,
+        "RPCS3 must become ready after its firmware structure exists");
+    var xemuRoot = Path.Combine(root, "xemu-readiness");
+    Directory.CreateDirectory(xemuRoot);
+    File.WriteAllText(Path.Combine(xemuRoot, "xemu.toml"),
+        "[sys.files]\nbootrom_path = 'mcpx.bin'\nflashrom_path = 'flash.bin'\nhard_disk_path = 'xbox_hdd.qcow2'\n");
+    Check(StandaloneEmulatorReadiness.Inspect("xemu", xemuRoot, readinessData).IsReady,
+        "xemu must become ready only after all three system-file values are configured");
+    var themeService = new ThemeService(paths);
+    var initialState = await themeService.LoadAsync();
+    Check(initialState.ActiveThemeId == ThemeCatalog.DefaultThemeId, "A new machine must start on the shipped default theme");
+    Check(initialState.CustomThemes.Count == 0, "A new machine must start with no custom themes");
+    Check(themeService.ResolveActive(initialState) == ThemeCatalog.Default, "The default theme must resolve to the shipped Grev Default definition");
+
+    await ExpectAsync<InvalidOperationException>(() => themeService.SaveCustomThemeAsync(ThemeCatalog.Default with { Name = "Hijacked" }));
+    Check((await themeService.LoadAsync()).CustomThemes.Count == 0, "Attempting to overwrite a built-in theme must not create or alter any file");
+
+    var draft = new ThemeDefinition("custom-test", "My Theme", "#101010", "#151515", "#333333", "#202020", "#303030", "#FF8800", "#AAAAAA", "#D8B65A", "#D94B55", "#747B88");
+    await ExpectAsync<InvalidOperationException>(() => themeService.SaveCustomThemeAsync(draft with { Accent = "not-a-color" }));
+    var saved = await themeService.SaveCustomThemeAsync(draft);
+    Check(!saved.IsBuiltIn, "A saved custom theme must never be marked as built-in");
+    await themeService.SetActiveThemeAsync(saved.Id);
+
+    var reloaded = await themeService.LoadAsync();
+    Check(reloaded.ActiveThemeId == "custom-test", "The active theme id must survive a reload");
+    Check(reloaded.CustomThemes.Any(theme => theme.Id == "custom-test" && theme.Accent == "#FF8800"), "A saved custom theme must survive a reload with its exact colors");
+    Check(themeService.ResolveActive(reloaded).Name == "My Theme", "ResolveActive must return the saved custom theme once it is active");
+
+    await themeService.DeleteCustomThemeAsync("custom-test");
+    var afterDelete = await themeService.LoadAsync();
+    Check(afterDelete.CustomThemes.Count == 0, "A deleted custom theme must no longer be listed");
+    Check(themeService.ResolveActive(afterDelete) == ThemeCatalog.Default, "Deleting the active custom theme must fall back to the shipped default rather than crashing");
+
+    await ExpectAsync<InvalidOperationException>(() => themeService.DeleteCustomThemeAsync(ThemeCatalog.DefaultThemeId));
+
+    foreach (var builtIn in ThemeCatalog.BuiltIn)
+        Check(builtIn.GetContrastWarnings().Count == 0, $"Shipped theme '{builtIn.Name}' must clear its own contrast checks");
+    var lowContrastTheme = new ThemeDefinition("low-contrast-test", "Low Contrast", "#101010", "#101010", "#333333", "#101010", "#111111", "#7EA6FF", "#121212", "#D8B65A", "#D94B55", "#747B88");
+    Check(lowContrastTheme.GetContrastWarnings().Count > 0, "A theme whose muted text nearly matches its background must be flagged");
+    Check(new ThemeDefinition("readable", "Readable", "#090C12", "#11151E", "#3A465F", "#151923", "#20283A", "#7EA6FF", "#97A0B3", "#D8B65A", "#D94B55", "#747B88").GetContrastWarnings().Count == 0,
+        "A theme matching Grev Default's own contrast must not be flagged");
+
+    var exportRoot = Path.Combine(root, "Downloads");
+    var exportedTheme = new ThemeDefinition("export-test", "My Export/Import Test", "#101010", "#151515", "#333333", "#202020", "#303030", "#FF8800", "#AAAAAA", "#D8B65A", "#D94B55", "#747B88");
+    var exportedPath = await themeService.ExportThemeAsync(exportedTheme, exportRoot);
+    Check(File.Exists(exportedPath), "Exporting a theme must produce a readable file");
+    Check(exportedPath.EndsWith(".theme.json", StringComparison.Ordinal), "An exported theme file must be clearly named as a theme export");
+
+    var reimported = await themeService.ImportThemeAsync(exportedPath);
+    Check(reimported.Name == exportedTheme.Name && reimported.Accent == exportedTheme.Accent, "Importing an exported theme must reproduce its exact name and colors");
+    Check(!reimported.IsBuiltIn, "An imported theme must never be marked as built-in, even if the source file claimed to be");
+    Check((await themeService.LoadAsync()).CustomThemes.Count == 0, "Importing a theme must not save or activate it by itself");
+
+    var secondExportPath = await themeService.ExportThemeAsync(exportedTheme, exportRoot);
+    Check(secondExportPath != exportedPath, "Exporting the same theme twice must not silently overwrite the first export");
+
+    var corruptPath = Path.Combine(exportRoot, "corrupt.theme.json");
+    await File.WriteAllTextAsync(corruptPath, "not valid json");
+    await ExpectAsync<InvalidOperationException>(() => themeService.ImportThemeAsync(corruptPath));
+
+    var missingPath = Path.Combine(exportRoot, "does-not-exist.theme.json");
+    await ExpectAsync<FileNotFoundException>(() => themeService.ImportThemeAsync(missingPath));
+
+    var profileThemeGrevId = "GThemeProfileOne123";
+    var otherThemeGrevId = "GThemeProfileTwo123";
+    var machineTheme = await themeService.SaveCustomThemeAsync(draft with { Id = "machine-theme", Name = "Machine Theme" });
+    await themeService.SetActiveThemeAsync(machineTheme.Id);
+    var machineThemeState = await themeService.LoadAsync();
+    var inheritedProfileState = await themeService.LoadForProfileAsync(profileThemeGrevId);
+    Check(inheritedProfileState.ActiveThemeId is null,
+        "A GrevID without an override must inherit the Admin-owned machine theme");
+    Check(themeService.ResolveForProfile(inheritedProfileState, machineThemeState).Id == machineTheme.Id,
+        "The effective profile theme must resolve to the machine default before an override is chosen");
+
+    var privateTheme = await themeService.SaveCustomThemeAsync(
+        draft with { Id = "private-theme", Name = "Private Theme", Accent = "#4DD0E1" }, profileThemeGrevId);
+    await themeService.SetActiveThemeAsync(privateTheme.Id, profileThemeGrevId);
+    var overriddenProfileState = await themeService.LoadForProfileAsync(profileThemeGrevId);
+    Check(themeService.ResolveForProfile(overriddenProfileState, machineThemeState).Id == privateTheme.Id,
+        "A GrevID theme override must take precedence over the machine default");
+    var otherProfileState = await themeService.LoadForProfileAsync(otherThemeGrevId);
+    Check(themeService.ResolveForProfile(otherProfileState, machineThemeState).Id == machineTheme.Id,
+        "One GrevID's private theme must not affect another GrevID");
+    Check(!otherProfileState.CustomThemes.Any(theme => theme.Id == privateTheme.Id),
+        "Private custom themes must not leak into another GrevID's theme library");
+    await themeService.ClearProfileOverrideAsync(profileThemeGrevId);
+    Check(themeService.ResolveForProfile(await themeService.LoadForProfileAsync(profileThemeGrevId), machineThemeState).Id == machineTheme.Id,
+        "Clearing a profile override must immediately restore machine-theme inheritance");
+
+    // Cloud saves: only the deterministic, network-free parts are covered here. Upload/Download
+    // need a live Grev.dad server and are exercised by hand against a real one; everything that
+    // decides *whether* to call the network - enable state, status without a link, the local
+    // content hash - has no such dependency and is covered like any other local service.
+    var saveGrevId = "GTestSaveSyncTest123";
+    using (var accounts = new GrevDadAccountService(paths))
+    using (var saveSync = new GrevDadSaveSyncService(paths, accounts))
+    {
+        Check(!await saveSync.IsEnabledAsync(saveGrevId, "test.app"), "Cloud saves must default to off for an app that was never configured");
+        var disabledStatus = await saveSync.GetStatusAsync(saveGrevId, "test.app");
+        Check(disabledStatus.Status == CloudSaveStatus.Disabled, "An app with cloud saves off must report Disabled without needing a Grev.dad link");
+
+        await saveSync.SetEnabledAsync(saveGrevId, "test.app", true);
+        Check(await saveSync.IsEnabledAsync(saveGrevId, "test.app"), "Enabling cloud saves for one app must persist");
+        Check(!await saveSync.IsEnabledAsync(saveGrevId, "other.app"), "Enabling cloud saves for one app must not enable it for another app on the same GrevID");
+
+        var unlinkedStatus = await saveSync.GetStatusAsync(saveGrevId, "test.app");
+        Check(unlinkedStatus.Status == CloudSaveStatus.NotLinked, "An enabled app on an unlinked GrevID must report NotLinked rather than attempting a sync");
+
+        await saveSync.SetEnabledAsync(saveGrevId, "test.app", false);
+        Check((await saveSync.GetStatusAsync(saveGrevId, "test.app")).Status == CloudSaveStatus.Disabled, "Turning cloud saves back off must be reflected immediately");
+
+        await saveSync.SetEnabledAsync(saveGrevId, "test.app", true);
+        await saveSync.SetEnabledAsync(saveGrevId, "second.app", true);
+        await saveSync.SetEnabledAsync(saveGrevId, "third.app", false);
+        var enabledApps = await saveSync.GetEnabledAppsAsync(saveGrevId);
+        Check(enabledApps.Contains("test.app") && enabledApps.Contains("second.app") && !enabledApps.Contains("third.app"),
+            "GetEnabledAppsAsync must list only the apps currently opted in for this GrevID");
+
+        // CheckRemoteAsync short-circuits before any network call for disabled/unlinked apps, the
+        // same as GetStatusAsync - a real conflict check against a live Grev.dad server is exercised
+        // by hand, not here.
+        var remoteUnlinked = await saveSync.CheckRemoteAsync(saveGrevId, "test.app");
+        Check(remoteUnlinked.Status == CloudSaveStatus.NotLinked, "CheckRemoteAsync on an unlinked GrevID must report NotLinked without attempting a network call");
+        var remoteDisabled = await saveSync.CheckRemoteAsync(saveGrevId, "third.app");
+        Check(remoteDisabled.Status == CloudSaveStatus.Disabled, "CheckRemoteAsync must report Disabled for an app that is opted out, without attempting a network call");
+    }
+
+    var hashRoot = Path.Combine(root, "SaveHashTest");
+    Directory.CreateDirectory(hashRoot);
+    var emptyHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    await File.WriteAllTextAsync(Path.Combine(hashRoot, "save.dat"), "progress-1");
+    var firstHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    Check(firstHash != emptyHash, "Adding a save file must change the content hash");
+    var repeatHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    Check(firstHash == repeatHash, "Hashing the same unchanged save folder twice must produce the same hash");
+    await File.WriteAllTextAsync(Path.Combine(hashRoot, "save.dat"), "progress-2");
+    var changedHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    Check(changedHash != firstHash, "Changing a save file's content must change the hash");
+    Check(GrevDadSaveSyncService.ComputeLocalHash(Path.Combine(root, "NeverCreated")) == emptyHash, "A missing save folder must hash the same as an empty one, not throw");
+
+    var unsafeArchive = Path.Combine(root, "unsafe-save.zip");
+    using (var archive = System.IO.Compression.ZipFile.Open(unsafeArchive, System.IO.Compression.ZipArchiveMode.Create))
+    {
+        using var writer = new StreamWriter(archive.CreateEntry("../escape.dat").Open());
+        writer.Write("must not escape");
+    }
+    await ExpectAsync<InvalidDataException>(() => Task.Run(() => GrevDadSaveSyncService.ValidateArchive(unsafeArchive)));
+
+    var mediaPackages = MediaCenterCatalog.Packages.ToDictionary(package => package.PackageId);
+    Check(mediaPackages["kodi"].IsProfileInstall && mediaPackages["kodi"].App.DataStrategy == DataStrategy.GrevId,
+        "Kodi must isolate its local library, settings and watched state per GrevID");
+    Check(!mediaPackages["plex-htpc"].IsProfileInstall &&
+          mediaPackages["plex-htpc"].App.DataStrategy == DataStrategy.NativeAccount &&
+          mediaPackages["plex-htpc"].Supports(AppPackageCapability.LibraryMembership),
+        "Plex HTPC must be a Global App whose account state remains owned by Plex");
+    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, machine/profile theme isolation, theme export/import, cloud save safety, emulator setup and media package isolation.");
 }
 finally { Directory.Delete(root, recursive: true); }
 

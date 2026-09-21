@@ -24,7 +24,7 @@ Home exposes one **Your Games** navigation tile rather than rendering the comple
 as a permanent dashboard section. Selecting it opens Installed Apps with the Games filter already
 active, where the complete per-GrevID library and its controller action menus remain available.
 
-Grev Home stores the location only. It does not copy disc images into `C:\GrevHome`, and it never
+Grev Home stores the location only. It does not copy disc images into `C:\GrevCo\GrevHome`, and it never
 shares one profile's library tiles with another Primary GrevID.
 
 ## First supported platform

@@ -7,7 +7,7 @@
         WindowStyle="None"
         ResizeMode="NoResize"
         WindowState="Maximized"
-        Background="#090C12"
+        Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="White"
         Loaded="Window_HeaderNavigationLoaded"
         PreviewKeyDown="Window_PreviewKeyDown"
@@ -16,7 +16,7 @@
         <Grid.Background>
             <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
                 <GradientStop Color="#182137" Offset="0" />
-                <GradientStop Color="#090C12" Offset="1" />
+                <GradientStop Color="{DynamicResource WindowBackgroundColor}" Offset="1" />
             </RadialGradientBrush>
         </Grid.Background>
 
@@ -137,12 +137,12 @@
                 <TextBlock Text="A / Enter  Select     B / Esc  Back"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
                 <TextBlock Text="Hold LB + RB + View to return to Grev Home"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Center"
                            FontSize="12"
-                           Foreground="{StaticResource MutedBrush}" />
+                           Foreground="{DynamicResource MutedBrush}" />
             </Grid>
         </Grid>
 
@@ -157,8 +157,8 @@
                         Padding="22"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Top"
-                        Background="#11151E"
-                        BorderBrush="#3A465F"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="16">
                     <Border.Resources>
@@ -186,14 +186,14 @@
                         <TextBlock Text="POWER &amp; SYSTEM"
                                    FontSize="13"
                                    FontWeight="Bold"
-                                   Foreground="{StaticResource AccentBrush}"
+                                   Foreground="{DynamicResource AccentBrush}"
                                    Margin="0,0,0,14" />
                         <TextBlock x:Name="PowerMenuStatusText"
                                    Text=""
                                    Visibility="Collapsed"
                                    Margin="0,0,0,14"
                                    FontSize="12"
-                                   Foreground="{StaticResource MutedBrush}"
+                                   Foreground="{DynamicResource MutedBrush}"
                                    TextWrapping="Wrap" />
 
                         <Button x:Name="PowerAppKillerButton"
@@ -207,7 +207,7 @@
                                 Style="{StaticResource PowerMenuButtonStyle}"
                                 Click="PowerRunningApps_Click" />
 
-                        <Border Height="1" Background="#2B3344" Margin="0,0,0,14" />
+                        <Border Height="1" Background="{DynamicResource CardBorderBrush}" Margin="0,0,0,14" />
 
                         <Button x:Name="PowerSleepButton"
                                 Content="Sleep"
@@ -245,8 +245,8 @@
                         HorizontalAlignment="Right"
                         VerticalAlignment="Stretch"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#3A465F"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="16">
                     <views:ProfileQuickMenuView x:Name="ProfileQuickMenu" />
@@ -291,7 +291,7 @@
                                                Text="Preparing"
                                                FontSize="14"
                                                FontWeight="Bold"
-                                               Foreground="{StaticResource AccentBrush}"
+                                               Foreground="{DynamicResource AccentBrush}"
                                                HorizontalAlignment="Center" />
                                     <ProgressBar x:Name="StoreProgressBar"
                                                  Height="24"
@@ -315,7 +315,7 @@
                                     <TextBlock Text="Grev Home is locked until this operation finishes. Do not close the app or interrupt the process."
                                                Margin="0,16,0,0"
                                                FontSize="13"
-                                               Foreground="{StaticResource MutedBrush}"
+                                               Foreground="{DynamicResource MutedBrush}"
                                                TextWrapping="Wrap"
                                                TextAlignment="Center" />
                                 </StackPanel>
@@ -335,7 +335,7 @@
                                     <TextBlock Text="Grev Home preserves profile-owned data where this package supports it, but a backup is the only safe guarantee."
                                                Margin="0,14,0,0"
                                                FontSize="14"
-                                               Foreground="{StaticResource MutedBrush}"
+                                               Foreground="{DynamicResource MutedBrush}"
                                                TextWrapping="Wrap"
                                                TextAlignment="Center" />
                                 </StackPanel>
@@ -345,7 +345,7 @@
                         <Border Grid.Row="2"
                                 Margin="0,20,0,0"
                                 Padding="0,14,0,0"
-                                BorderBrush="#2B3344"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
                                 BorderThickness="0,1,0,0"
                                 Visibility="{Binding Visibility, ElementName=StoreWarningPanel}">
                             <WrapPanel HorizontalAlignment="Center">
@@ -411,7 +411,7 @@
                             Height="2"
                             Margin="0,14,0,0"
                             HorizontalAlignment="Center"
-                            Background="#7EA6FF" />
+                            Background="{DynamicResource AccentBrush}" />
                     <TextBlock x:Name="IntroTaglineText"
                                Text="YOUR PC. YOUR WAY."
                                Margin="0,13,0,0"

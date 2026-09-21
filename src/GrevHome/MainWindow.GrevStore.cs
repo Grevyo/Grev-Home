@@ -23,6 +23,9 @@ public partial class MainWindow
     private PCSX2InstallerService? _pcsx2Installer;
     private SteamInstallerService? _steamInstaller;
     private DiscordInstallerService? _discordInstaller;
+    private KodiInstallerService? _kodiInstaller;
+    private PlexHtpcInstallerService? _plexHtpcInstaller;
+    private IReadOnlyList<StandaloneEmulatorInstallerService> _standaloneEmulatorInstallers = [];
     private TrustedPackageInstallerRegistry? _packageInstallers;
     private AppLifecycleService? _appLifecycle;
     private StoreRouteTransition _storeRouteTransition;
@@ -40,12 +43,26 @@ public partial class MainWindow
         _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps, _machineDefaults);
         _steamInstaller = new SteamInstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
+        _kodiInstaller = new KodiInstallerService(_paths, _installedApps);
+        _plexHtpcInstaller = new PlexHtpcInstallerService(_paths, _installedApps);
+        _standaloneEmulatorInstallers = StandaloneEmulatorCatalog.Specs
+            .Select(spec => new StandaloneEmulatorInstallerService(_paths, _installedApps, _machineDefaults, spec))
+            .ToArray();
+        var packageDownloads = GetTrustedPackageDownloadService();
+        _retroArchInstaller.ConfigureDownloadService(packageDownloads);
+        _pcsx2Installer.ConfigureDownloadService(packageDownloads);
+        _kodiInstaller.ConfigureDownloadService(packageDownloads);
+        _plexHtpcInstaller.ConfigureDownloadService(packageDownloads);
+        foreach (var installer in _standaloneEmulatorInstallers) installer.ConfigureDownloadService(packageDownloads);
         _packageInstallers = new TrustedPackageInstallerRegistry(
         [
             _retroArchInstaller,
             _pcsx2Installer,
             _steamInstaller,
-            _discordInstaller
+            _discordInstaller,
+            _kodiInstaller,
+            _plexHtpcInstaller,
+            .. _standaloneEmulatorInstallers
         ]);
         _appLifecycle = new AppLifecycleService(_installedApps, _packageInstallers, _runtimeSessions);
 
@@ -212,7 +229,9 @@ public partial class MainWindow
             _ => "App managed"
         };
 
-        _grevStoreAppView.SetPackage(package, primary, lifecycle, installLocation, dataLocation);
+        var gamesLocation = await _machineDefaults.GetGamesRootAsync();
+        var biosLocation = await _machineDefaults.GetBiosRootAsync();
+        _grevStoreAppView.SetPackage(package, primary, lifecycle, installLocation, dataLocation, gamesLocation, biosLocation);
     }
 
     private async Task BeginStoreDownloadAsync(GrevStorePackageDefinition package)
@@ -424,6 +443,7 @@ public partial class MainWindow
             var progress = CreateStoreProgress(package);
             var context = new PackageOperationContext(package, _session.PrimaryUser?.GrevId);
             await operation(installer, context, progress);
+            WindowsAppStartupPolicy.DisableFor(package);
             return true;
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException or UnauthorizedAccessException or

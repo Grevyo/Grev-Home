@@ -102,6 +102,7 @@ public partial class InstalledLibraryView
                     ? $"Open {game.DisplayName} through {GameLibraryService.GetPlatformDisplayName(game.Platform)} emulation."
                     : $"The saved game file is unavailable: {game.SourcePath}"
             };
+            ShellTileMotion.Attach(button);
             button.Click += Game_Click;
             button.PreviewMouseRightButtonUp += Game_RightClick;
             GamesPanel.Children.Add(button);

@@ -412,7 +412,7 @@ public partial class GrevOverlayWindow : Window
         {
             Margin = new Thickness(0, 0, 0, 14),
             Padding = new Thickness(18),
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            Background = (Brush)FindResource("CardBackgroundBrush"),
             BorderBrush = foreground
                 ? (Brush)FindResource("AccentBrush")
                 : new SolidColorBrush(Color.FromRgb(49, 59, 78)),

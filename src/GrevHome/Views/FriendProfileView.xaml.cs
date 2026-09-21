@@ -132,8 +132,8 @@ public partial class FriendProfileView : UserControl
         {
             Padding = new Thickness(12, 10, 12, 10),
             Margin = new Thickness(0, 4, 0, 0),
-            Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             Child = new StackPanel
             {

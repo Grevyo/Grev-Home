@@ -84,6 +84,7 @@ public enum PackageHealthState
 {
     Unknown,
     Healthy,
+    SetupRequired,
     RepairRecommended
 }
 

@@ -9,7 +9,7 @@
 
 #define MyAppName "Grev Home"
 #define MyAppDirName "GrevHome"
-#define MyAppVersion "0.16.3"
+#define MyAppVersion "0.18.0"
 #define MyAppPublisher "Grev Home"
 #define MyAppExeName "GrevHome.exe"
 #ifndef MyPublishDir
@@ -94,6 +94,11 @@ end;
 function ParamIsEnabled(Name: String; DefaultValue: String): Boolean;
 begin
   Result := CompareText(ExpandConstant('{param:' + Name + '|' + DefaultValue + '}'), '1') = 0;
+end;
+
+function IsUpdateMode(): Boolean;
+begin
+  Result := ParamIsEnabled('UPDATE', '0');
 end;
 
 function ConsoleWasSelected(ConsoleName: String): Boolean;
@@ -235,6 +240,9 @@ var
   BiosFolder: String;
 begin
   if CurStep <> ssPostInstall then Exit;
+  { An in-app update must not replace the user's original first-run folder and
+    emulator choices with the update launcher's defaults. }
+  if IsUpdateMode() then Exit;
   ForceDirectories(GamesFolderPage.Values[0]);
   if EmulatorSetupSelected() and AnyConsoleSelected() then
   begin

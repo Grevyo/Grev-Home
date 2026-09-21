@@ -3,6 +3,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using GrevHome.Apps;
 using GrevHome.Input;
+using GrevHome.Online;
 using GrevHome.Sessions;
 using GrevHome.Store;
 
@@ -22,6 +23,8 @@ public partial class AppSettingsView : UserControl
     private bool _generalSectionExpanded;
     private bool _presentationSectionExpanded;
     private bool _controllerSectionExpanded;
+    private bool _cloudSavesSectionExpanded;
+    private bool _cloudSavesEnabled;
     private string _controllerProfileDisplayName = "Controller Profile";
 
     public event Action<AppControllerProfileDraft>? SaveRequested;
@@ -30,6 +33,10 @@ public partial class AppSettingsView : UserControl
     public event EventHandler? ResetPresentationRequested;
     public event EventHandler? ChooseDashboardBackgroundRequested;
     public event EventHandler? BackRequested;
+    public event Action<bool>? CloudSavesEnabledChangeRequested;
+    public event EventHandler? CloudSavesSyncNowRequested;
+    public event EventHandler? CloudSavesRestoreRequested;
+    public event Action<bool>? CloudSavesResolveConflictRequested;
 
     public AppSettingsView()
     {
@@ -145,8 +152,8 @@ public partial class AppSettingsView : UserControl
                 Padding = new Thickness(12, 9, 12, 9),
                 Margin = new Thickness(0, 0, 0, 6),
                 MinHeight = 58,
-                Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+                Background = (Brush)FindResource("WindowBackgroundBrush"),
+                BorderBrush = (Brush)FindResource("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(9)
             };
@@ -248,9 +255,72 @@ public partial class AppSettingsView : UserControl
         GeneralSectionPanel.Visibility = _generalSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
         PresentationSectionPanel.Visibility = _presentationSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
         ControllerSectionPanel.Visibility = _controllerSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
+        CloudSavesSectionPanel.Visibility = _cloudSavesSectionExpanded ? Visibility.Visible : Visibility.Collapsed;
         GeneralSectionToggleButton.Content = _generalSectionExpanded ? "GENERAL  ▴" : "GENERAL  ▾";
         PresentationSectionToggleButton.Content = _presentationSectionExpanded ? "PRESENTATION  ▴" : "PRESENTATION  ▾";
         ControllerSectionToggleButton.Content = _controllerSectionExpanded ? "CONTROLLER PROFILE  ▴" : "CONTROLLER PROFILE  ▾";
+        CloudSavesSectionToggleButton.Content = _cloudSavesSectionExpanded ? "CLOUD SAVES  ▴" : "CLOUD SAVES  ▾";
+    }
+
+    private void CloudSavesSectionToggle_Click(object sender, RoutedEventArgs e)
+    {
+        _cloudSavesSectionExpanded = !_cloudSavesSectionExpanded;
+        UpdateSectionPresentation();
+    }
+
+    private void CloudSavesEnabled_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesEnabledChangeRequested?.Invoke(!_cloudSavesEnabled);
+
+    private void CloudSavesSyncNow_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesSyncNowRequested?.Invoke(this, EventArgs.Empty);
+
+    private void CloudSavesRestore_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesRestoreRequested?.Invoke(this, EventArgs.Empty);
+
+    private void CloudSavesKeepLocal_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesResolveConflictRequested?.Invoke(true);
+
+    private void CloudSavesUseCloud_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesResolveConflictRequested?.Invoke(false);
+
+    /// <summary>
+    /// Renders the Cloud Saves section from a freshly resolved <see cref="CloudSaveState"/>. The
+    /// host (MainWindow.AppSettings.cs) owns every actual GrevDadSaveSyncService call; this view
+    /// only ever displays whatever state it is given and raises intent events, the same separation
+    /// every other section in this page already keeps.
+    /// </summary>
+    public void SetCloudSaveState(bool enabled, CloudSaveState state)
+    {
+        _cloudSavesEnabled = enabled;
+        CloudSavesEnabledButton.Content = enabled ? "Cloud saves: On" : "Cloud saves: Off";
+        var canAct = enabled && state.Status is not (CloudSaveStatus.NotLinked or CloudSaveStatus.Disabled);
+        CloudSavesSyncNowButton.IsEnabled = canAct;
+        CloudSavesRestoreButton.IsEnabled = canAct && state.Status != CloudSaveStatus.NeverSynced;
+        CloudSavesConflictPanel.Visibility = enabled && state.Status == CloudSaveStatus.Conflict
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        CloudSavesStatusText.Text = BuildCloudSaveStatusText(state);
+    }
+
+    private static string BuildCloudSaveStatusText(CloudSaveState state)
+    {
+        var summary = state.Status switch
+        {
+            CloudSaveStatus.NotLinked => state.Message ?? "Link this GrevID to Grev.dad in Profile to use cloud saves.",
+            CloudSaveStatus.Disabled => "Cloud saves are off for this app.",
+            CloudSaveStatus.NeverSynced => "Not synced yet.",
+            CloudSaveStatus.UpToDate => "Up to date with Grev.dad.",
+            CloudSaveStatus.LocalChangesPending => "Local save data has changed since the last sync.",
+            CloudSaveStatus.RemoteChangesAvailable => "A newer save is available on Grev.dad. Restore it below when you're ready.",
+            CloudSaveStatus.Conflict => "This save changed on this device and on another device since the last sync.",
+            CloudSaveStatus.Syncing => "Syncing…",
+            CloudSaveStatus.Offline => "Grev.dad could not be reached. Local play is unaffected.",
+            CloudSaveStatus.Error => state.Message ?? "Cloud save sync failed.",
+            _ => string.Empty
+        };
+        var lastUploaded = state.LastUploadedAtUtc is { } uploaded ? $" • Last uploaded {uploaded.ToLocalTime():g}" : string.Empty;
+        var lastDownloaded = state.LastDownloadedAtUtc is { } downloaded ? $" • Last restored {downloaded.ToLocalTime():g}" : string.Empty;
+        return summary + lastUploaded + lastDownloaded;
     }
 
     private void ControllerProfileToggle_Click(object sender, RoutedEventArgs e)
@@ -310,7 +380,7 @@ public partial class AppSettingsView : UserControl
             : $"{_controllerProfileDisplayName}: Disabled";
         ControllerProfileToggleButton.BorderBrush = _enabled
             ? (Brush)FindResource("AccentBrush")
-            : new SolidColorBrush(Color.FromRgb(52, 61, 81));
+            : (Brush)FindResource("CardBorderBrush");
     }
 
     private AppControllerProfileDraft CaptureDraft() => new(

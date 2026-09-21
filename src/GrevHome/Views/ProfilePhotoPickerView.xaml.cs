@@ -2,6 +2,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Controls;
 using GrevHome.Files;
+using GrevHome.Presentation;
 
 namespace GrevHome.Views;
 
@@ -100,6 +101,7 @@ public partial class ProfilePhotoPickerView : UserControl
                 }
             }
         };
+        ShellTileMotion.Attach(button);
         button.Click += Item_Click;
         EntriesPanel.Children.Add(button);
     }

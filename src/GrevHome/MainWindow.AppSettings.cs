@@ -4,6 +4,7 @@ using System.Windows.Threading;
 using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Navigation;
+using GrevHome.Online;
 using GrevHome.Store;
 using GrevHome.Views;
 
@@ -82,6 +83,10 @@ public partial class MainWindow
         _appSettingsView.ResetPresentationRequested += (_, _) => _ = ResetAppPresentationAsync();
         _appSettingsView.ChooseDashboardBackgroundRequested += (_, _) => OpenAppDashboardBackgroundPicker();
         _appSettingsView.BackRequested += (_, _) => _navigation.GoBack();
+        _appSettingsView.CloudSavesEnabledChangeRequested += enabled => _ = SetCloudSavesEnabledAsync(enabled);
+        _appSettingsView.CloudSavesSyncNowRequested += (_, _) => _ = RunCloudSaveActionAsync(upload: true);
+        _appSettingsView.CloudSavesRestoreRequested += (_, _) => _ = RunCloudSaveActionAsync(upload: false);
+        _appSettingsView.CloudSavesResolveConflictRequested += keepLocal => _ = ResolveCloudSaveConflictAsync(keepLocal);
         _appArtworkPickerView.HomeRequested += (_, _) => ShowAppArtworkHome();
         _appArtworkPickerView.UpRequested += (_, _) => NavigateAppArtworkUp();
         _appArtworkPickerView.CancelRequested += (_, _) => _navigation.GoBack();
@@ -347,6 +352,110 @@ public partial class MainWindow
             controllerProfile,
             presentation,
             canSave: !string.IsNullOrWhiteSpace(grevId));
+
+        await RefreshCloudSaveStatusAsync(grevId, entry.Manifest.Definition.AppId);
+    }
+
+    private async Task RefreshCloudSaveStatusAsync(string? grevId, string appId)
+    {
+        var sync = _grevDad.SaveSyncService;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId))
+        {
+            _appSettingsView.SetCloudSaveState(false, new CloudSaveState(
+                CloudSaveStatus.NotLinked, null, null, "A persistent local Primary GrevID is required for cloud saves."));
+            return;
+        }
+
+        var enabled = await sync.IsEnabledAsync(grevId, appId);
+        // CheckRemoteAsync makes a network call GetStatusAsync deliberately avoids, so a real
+        // conflict (changed both here and on another device) can be told apart from an ordinary
+        // one-sided change; a failure here just falls back to the network-free local status rather
+        // than blocking or failing this page.
+        CloudSaveState state;
+        try
+        {
+            state = await sync.CheckRemoteAsync(grevId, appId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            state = await sync.GetStatusAsync(grevId, appId);
+        }
+
+        if (_navigation.Current == Route.AppSettings && _appSettingsEntry?.Manifest.Definition.AppId == appId)
+        {
+            _appSettingsView.SetCloudSaveState(enabled, state);
+        }
+    }
+
+    private async Task ResolveCloudSaveConflictAsync(bool keepLocal)
+    {
+        var sync = _grevDad.SaveSyncService;
+        var grevId = _session.PrimaryUser?.GrevId;
+        var appId = _appSettingsEntry?.Manifest.Definition.AppId;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId) || appId is null) return;
+
+        _appSettingsView.ShowStatus(keepLocal ? "Uploading this device's save…" : "Downloading the cloud save…");
+        var state = await sync.ResolveConflictAsync(grevId, appId, keepLocal);
+        if (_navigation.Current == Route.AppSettings && _appSettingsEntry?.Manifest.Definition.AppId == appId)
+        {
+            _appSettingsView.SetCloudSaveState(await sync.IsEnabledAsync(grevId, appId), state);
+        }
+
+        _appSettingsView.ShowStatus(state.Status switch
+        {
+            CloudSaveStatus.UpToDate => keepLocal ? "This device's save was uploaded to Grev.dad." : "The cloud save was restored to this device.",
+            CloudSaveStatus.Offline => "Grev.dad could not be reached. Local play is unaffected.",
+            CloudSaveStatus.Error => state.Message ?? "Could not resolve the conflict.",
+            _ => string.Empty
+        });
+    }
+
+    private async Task SetCloudSavesEnabledAsync(bool enabled)
+    {
+        var sync = _grevDad.SaveSyncService;
+        var grevId = _session.PrimaryUser?.GrevId;
+        var appId = _appSettingsEntry?.Manifest.Definition.AppId;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId) || appId is null) return;
+
+        await sync.SetEnabledAsync(grevId, appId, enabled);
+        await RefreshCloudSaveStatusAsync(grevId, appId);
+        _appSettingsView.ShowStatus(enabled
+            ? "Cloud saves turned on for this app. Choose Sync Now to upload your current save, or Restore from Cloud to pull an existing one down."
+            : "Cloud saves turned off for this app. Existing local save data is unaffected.");
+    }
+
+    /// <summary>
+    /// Runs a Sync Now (upload) or Restore from Cloud (download) from Settings. Both directions
+    /// share one path here since GrevDadSaveSyncService already returns a fully-formed
+    /// CloudSaveState for either outcome rather than throwing for the failure modes users can
+    /// actually hit (offline, unlinked, nothing to sync yet).
+    /// </summary>
+    private async Task RunCloudSaveActionAsync(bool upload)
+    {
+        var sync = _grevDad.SaveSyncService;
+        var grevId = _session.PrimaryUser?.GrevId;
+        var appId = _appSettingsEntry?.Manifest.Definition.AppId;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId) || appId is null) return;
+
+        _appSettingsView.ShowStatus(upload ? "Uploading save data…" : "Downloading cloud save…");
+        var state = upload
+            ? await sync.UploadAsync(grevId, appId)
+            : await sync.DownloadAsync(grevId, appId);
+
+        if (_navigation.Current == Route.AppSettings && _appSettingsEntry?.Manifest.Definition.AppId == appId)
+        {
+            _appSettingsView.SetCloudSaveState(await sync.IsEnabledAsync(grevId, appId), state);
+        }
+
+        _appSettingsView.ShowStatus(state.Status switch
+        {
+            CloudSaveStatus.UpToDate => upload ? "Save data uploaded to Grev.dad." : "Save data restored from Grev.dad.",
+            CloudSaveStatus.Offline => "Grev.dad could not be reached. Local play is unaffected.",
+            CloudSaveStatus.NeverSynced => state.Message ?? "Nothing to sync yet.",
+            CloudSaveStatus.NotLinked => state.Message ?? "Link this GrevID to Grev.dad in Profile to use cloud saves.",
+            CloudSaveStatus.Error => state.Message ?? "Cloud save sync failed.",
+            _ => string.Empty
+        });
     }
 
     private static ResolvedAppPresentation ResolvePackagePresentationDefaults(

@@ -44,11 +44,11 @@
             <TextBlock Text="WHO'S PLAYING"
                        FontSize="13"
                        FontWeight="Bold"
-                       Foreground="{StaticResource AccentBrush}" />
+                       Foreground="{DynamicResource AccentBrush}" />
             <TextBlock x:Name="SummaryText"
                        Margin="0,5,0,0"
                        FontSize="15"
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{DynamicResource MutedBrush}"
                        TextWrapping="Wrap" />
         </StackPanel>
 
@@ -63,7 +63,7 @@
         <Border Grid.Row="2"
                 Margin="0,14,0,0"
                 Padding="0,14,0,0"
-                BorderBrush="#2B3344"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="0,1,0,0">
             <WrapPanel>
                 <Button x:Name="AddPlayerButton"

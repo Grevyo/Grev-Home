@@ -31,6 +31,9 @@ public partial class DashboardView : UserControl
     public event Action<string>? ActivityAppRequested;
     public event Action<string>? TileSettingsRequested;
     public event EventHandler? FriendsRequested;
+    public event EventHandler? MyProfileRequested;
+    public event EventHandler? UsersControllersRequested;
+    public event EventHandler? AddGameRequested;
     public event Action<string?>? BackgroundPreviewRequested;
     private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations = new Dictionary<string, ResolvedDashboardTile>();
     private Button? _pendingTileButton;
@@ -159,6 +162,7 @@ public partial class DashboardView : UserControl
             ContinueButton.Tag = continueApp.AppId;
             ContinueButton.Padding = new Thickness(0, 0, 0, 0);
             ContinueButton.Content = CreateActivityTile(continueApp);
+            ShellTileMotion.Attach(ContinueButton);
             _backgroundByButton[ContinueButton] = GetDashboardBackground(continueApp);
         }
         else
@@ -178,9 +182,12 @@ public partial class DashboardView : UserControl
         foreach (var item in recentItems)
         {
             var button = CreateRecentAppButton(item);
+            ShellTileMotion.Attach(button);
             _backgroundByButton[button] = GetDashboardBackground(item);
             RecentAppsPanel.Children.Add(button);
         }
+
+        ShellTileMotion.PlayReveal(RecentAppsPanel.Children.OfType<FrameworkElement>());
 
         ActivitySection.Visibility = snapshot.AppsPlayed > 0
             ? Visibility.Visible
@@ -241,6 +248,7 @@ public partial class DashboardView : UserControl
             ToolTip = $"Open friends, requests and friend code • {friends.Count} total"
         };
         allFriendsButton.Click += Friends_Click;
+        ShellTileMotion.Attach(allFriendsButton);
         FriendsPanel.Children.Add(allFriendsButton);
 
         foreach (var friend in friends
@@ -248,9 +256,12 @@ public partial class DashboardView : UserControl
                      .ThenByDescending(item => item.Presence.UpdatedAtUtc ?? DateTimeOffset.MinValue)
                      .ThenBy(item => item.DisplayName))
         {
+            // CreateFriendCard already attaches ShellTileMotion.
             var friendButton = FriendsView.CreateFriendCard(friend, this, selected => FriendProfileRequested?.Invoke(selected));
             FriendsPanel.Children.Add(friendButton);
         }
+
+        ShellTileMotion.PlayReveal(FriendsPanel.Children.OfType<FrameworkElement>());
     }
 
     public bool BeginControllerTilePress()
@@ -287,7 +298,10 @@ public partial class DashboardView : UserControl
 
     private void RenderDashboardTiles()
     {
+        RenderDashboardTile(MyProfileButton, "my-profile", DashboardTileCatalog.Get("my-profile").Detail);
+        RenderDashboardTile(UsersControllersButton, "users-controllers", DashboardTileCatalog.Get("users-controllers").Detail);
         RenderDashboardTile(YourGamesButton, "your-games", GamesSummaryText.Text);
+        RenderDashboardTile(AddGameButton, "add-game", DashboardTileCatalog.Get("add-game").Detail);
         RenderDashboardTile(InstalledAppsButton, "installed-apps", DashboardTileCatalog.Get("installed-apps").Detail);
         RenderDashboardTile(StoreButton, "grev-store", DashboardTileCatalog.Get("grev-store").Detail);
         RenderDashboardTile(FilesButton, "files", DashboardTileCatalog.Get("files").Detail);
@@ -303,13 +317,28 @@ public partial class DashboardView : UserControl
         RenderDashboardTile(SettingsDisplayButton, "settings-display", DashboardTileCatalog.Get("settings-display").Detail);
         RenderDashboardTile(SettingsConnectionsButton, "settings-connections", DashboardTileCatalog.Get("settings-connections").Detail);
         RenderDashboardTile(SettingsSystemButton, "settings-system", DashboardTileCatalog.Get("settings-system").Detail);
+        RenderDashboardTile(SettingsGameScanButton, "settings-game-scan", DashboardTileCatalog.Get("settings-game-scan").Detail);
         RenderDashboardTile(SettingsThemeButton, "settings-theme", DashboardTileCatalog.Get("settings-theme").Detail);
         RenderDashboardTile(SettingsPowerButton, "settings-power", DashboardTileCatalog.Get("settings-power").Detail);
         RenderDashboardTile(AdminConsoleButton, "admin-console", DashboardTileCatalog.Get("admin-console").Detail);
     }
 
+    /// <summary>
+    /// Replays the carousel reveal when Home becomes the active route. Tiles themselves are not
+    /// rebuilt, so this is presentation only: with the reveal setting off it simply leaves every
+    /// tile fully visible.
+    /// </summary>
+    public void PlayEntranceAnimation()
+    {
+        ShellTileMotion.PlayReveal(AccountCarouselPanel.Children.OfType<FrameworkElement>()
+            .Concat(AppsCarouselPanel.Children.OfType<FrameworkElement>())
+            .Concat(SystemCarouselPanel.Children.OfType<FrameworkElement>())
+            .Where(tile => tile.Visibility == Visibility.Visible));
+    }
+
     private void RenderDashboardTile(Button button, string id, string detail)
     {
+        ShellTileMotion.Attach(button);
         var definition = DashboardTileCatalog.Get(id);
         var tile = _tilePresentations.TryGetValue(id, out var resolved) ? resolved : new ResolvedDashboardTile(id, definition.Name, detail, definition.Color, null, definition.IconAsset, false);
         button.Padding = new Thickness(0);
@@ -474,20 +503,18 @@ public partial class DashboardView : UserControl
     private void SettingsPage_Click(object sender, RoutedEventArgs e)
     {
         if (SuppressPendingTileClick(sender) || sender is not Button { Tag: string id }) return;
-        var page = id switch
-        {
-            "settings-account" => SettingsPage.Account,
-            "settings-controller" => SettingsPage.ControllerShortcuts,
-            "settings-audio" => SettingsPage.Audio,
-            "settings-display" => SettingsPage.Display,
-            "settings-connections" => SettingsPage.Connections,
-            "settings-system" => SettingsPage.SystemInformation,
-            "settings-theme" => SettingsPage.ThemeAndMotion,
-            "settings-power" => SettingsPage.Power,
-            _ => (SettingsPage?)null
-        };
+        var page = SettingsView.ResolveSettingsPage(id);
         if (page.HasValue) SettingsPageRequested?.Invoke(page.Value);
     }
+
+    private void MyProfile_Click(object sender, RoutedEventArgs e) =>
+        InvokeUnlessPending(sender, MyProfileRequested);
+
+    private void UsersControllers_Click(object sender, RoutedEventArgs e) =>
+        InvokeUnlessPending(sender, UsersControllersRequested);
+
+    private void AddGame_Click(object sender, RoutedEventArgs e) =>
+        InvokeUnlessPending(sender, AddGameRequested);
 
     private void AdminConsole_Click(object sender, RoutedEventArgs e) =>
         InvokeUnlessPending(sender, AdminConsoleRequested);

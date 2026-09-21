@@ -42,6 +42,7 @@ public partial class SettingsView : UserControl
     private ShellMotionSettings _motionSettings = new();
 
     public event EventHandler? BackRequested;
+    public event EventHandler? ManageThemesRequested;
     public event Action<string>? SaveDisplayNameRequested;
     public event Action<ShortcutRecordRequest>? RecordShortcutRequested;
     public event Action<string>? RemoveShortcutRequested;
@@ -77,6 +78,7 @@ public partial class SettingsView : UserControl
                  })
         {
             if (button.Tag is not string id) continue;
+            ShellTileMotion.Attach(button);
             var definition = DashboardTileCatalog.Get(id);
             var tile = _tilePresentations.TryGetValue(id, out var resolved)
                 ? resolved
@@ -97,6 +99,8 @@ public partial class SettingsView : UserControl
         OverlayTransitionsButton.Content = $"Overlay transitions: {(settings.OverlayTransitionsEnabled ? "On" : "Off")}";
         ReturnHomeTransitionButton.Content = $"Return Home transition: {(settings.ReturnHomeTransitionEnabled ? "On" : "Off")}";
         TileFocusAnimationButton.Content = $"Tile focus animation: {(settings.TileFocusAnimationEnabled ? "On" : "Off")}";
+        TileHoverEffectsButton.Content = $"Tile hover effects: {(settings.TileHoverEffectsEnabled ? "On" : "Off")}";
+        TileRevealAnimationButton.Content = $"Tile reveal animation: {(settings.TileRevealAnimationEnabled ? "On" : "Off")}";
         ModalTransitionsButton.Content = $"Modal transitions: {(settings.ModalTransitionsEnabled ? "On" : "Off")}";
         AmbientBackgroundButton.Content = $"Ambient background: {(settings.AmbientBackgroundEnabled ? "On" : "Off")}";
         DashboardBackgroundsButton.Content = $"Selected app backgrounds: {(settings.DashboardBackgroundsEnabled ? "On" : "Off")}";
@@ -128,6 +132,9 @@ public partial class SettingsView : UserControl
     private void OverlayTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { OverlayTransitionsEnabled = !_motionSettings.OverlayTransitionsEnabled });
     private void ReturnHomeTransition_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ReturnHomeTransitionEnabled = !_motionSettings.ReturnHomeTransitionEnabled });
     private void TileFocusAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileFocusAnimationEnabled = !_motionSettings.TileFocusAnimationEnabled });
+    private void ManageThemes_Click(object sender, RoutedEventArgs e) => ManageThemesRequested?.Invoke(this, EventArgs.Empty);
+    private void TileHoverEffects_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileHoverEffectsEnabled = !_motionSettings.TileHoverEffectsEnabled });
+    private void TileRevealAnimation_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { TileRevealAnimationEnabled = !_motionSettings.TileRevealAnimationEnabled });
     private void ModalTransitions_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { ModalTransitionsEnabled = !_motionSettings.ModalTransitionsEnabled });
     private void AmbientBackground_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { AmbientBackgroundEnabled = !_motionSettings.AmbientBackgroundEnabled });
     private void DashboardBackgrounds_Click(object sender, RoutedEventArgs e) => ChangeMotion(_motionSettings with { DashboardBackgroundsEnabled = !_motionSettings.DashboardBackgroundsEnabled });
@@ -282,7 +289,7 @@ public partial class SettingsView : UserControl
         var details = new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 14, 21)),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(52, 61, 81)),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(14),
@@ -411,7 +418,7 @@ public partial class SettingsView : UserControl
         return new Border
         {
             Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 14, 21)),
-            BorderBrush = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(52, 61, 81)),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
             Padding = new Thickness(14),

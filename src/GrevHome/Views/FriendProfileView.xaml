@@ -4,7 +4,7 @@
              Focusable="False">
     <UserControl.Resources>
         <Style x:Key="FriendProfileSectionCard" TargetType="Border">
-            <Setter Property="Background" Value="#11151E" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="#252D3B" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="0" />
@@ -14,7 +14,7 @@
         <Style x:Key="FriendProfileEyebrow" TargetType="TextBlock">
             <Setter Property="FontSize" Value="11" />
             <Setter Property="FontWeight" Value="Bold" />
-            <Setter Property="Foreground" Value="{StaticResource MutedBrush}" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedBrush}" />
         </Style>
     </UserControl.Resources>
 
@@ -55,7 +55,7 @@
                                        VerticalAlignment="Center"
                                        FontSize="11"
                                        FontWeight="Bold"
-                                       Foreground="{StaticResource AccentBrush}"
+                                       Foreground="{DynamicResource AccentBrush}"
                                        Visibility="Collapsed" />
                         </StackPanel>
                         <TextBlock x:Name="PreviewText"
@@ -63,12 +63,12 @@
                                    Margin="0,4,0,0"
                                    FontSize="10"
                                    FontWeight="Bold"
-                                   Foreground="{StaticResource AccentBrush}"
+                                   Foreground="{DynamicResource AccentBrush}"
                                    Visibility="Collapsed" />
                         <TextBlock x:Name="UsernameText"
                                    Margin="0,6,0,0"
                                    FontSize="16"
-                                   Foreground="{StaticResource MutedBrush}" />
+                                   Foreground="{DynamicResource MutedBrush}" />
                         <TextBlock x:Name="StatusText"
                                    Margin="0,10,0,0"
                                    FontSize="14"
@@ -105,11 +105,11 @@
                 </Border>
             </UniformGrid>
 
-            <TextBlock x:Name="ActivityHeadingText" Text="RECENT ACTIVITY" Margin="0,22,0,8" FontSize="12" FontWeight="Bold" Foreground="{StaticResource MutedBrush}" />
+            <TextBlock x:Name="ActivityHeadingText" Text="RECENT ACTIVITY" Margin="0,22,0,8" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
             <StackPanel x:Name="ActivityPanel" />
             <TextBlock x:Name="NoActivityText"
                        Text="No recent shared activity from this friend."
-                       Foreground="{StaticResource MutedBrush}"
+                       Foreground="{DynamicResource MutedBrush}"
                        Margin="8,4,8,0" />
         </StackPanel>
     </ScrollViewer>

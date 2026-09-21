@@ -60,8 +60,8 @@ public partial class AdminConsoleView : UserControl
             {
                 Padding = new Thickness(20),
                 Margin = new Thickness(0, 0, 0, 12),
-                Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+                Background = (Brush)FindResource("CardBackgroundBrush"),
+                BorderBrush = (Brush)FindResource("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(14),
                 Child = new TextBlock
@@ -88,8 +88,8 @@ public partial class AdminConsoleView : UserControl
         {
             Padding = new Thickness(20),
             Margin = new Thickness(0, 0, 0, 12),
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+            Background = (Brush)FindResource("CardBackgroundBrush"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(14)
         };
@@ -283,6 +283,7 @@ public partial class AdminConsoleView : UserControl
     private static string FormatHealth(PackageHealthState state) => state switch
     {
         PackageHealthState.Healthy => "Healthy",
+        PackageHealthState.SetupRequired => "Setup required",
         PackageHealthState.RepairRecommended => "Repair recommended",
         _ => "Unknown"
     };
