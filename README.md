@@ -136,6 +136,13 @@ A minimal Theme Engine and in-app Theme Creator recolor the shell's shared chrom
 tiles, cards and role badges - live, with four built-in themes and unlimited saved custom themes.
 See [`docs/THEMES.md`](docs/THEMES.md).
 
+## Cloud saves
+
+An optional, per-app opt-in bridge uploads a linked GrevID's save data to Grev.dad after a
+completed play session and can restore it on another Grev Home machine, the same local-first
+guarantee as every other Grev.dad feature: local save data stays authoritative, and Grev.dad being
+unreachable never blocks or interrupts playing. See [`docs/CLOUD_SAVES.md`](docs/CLOUD_SAVES.md).
+
 ## Runtime data layout
 
 By default Grev Home creates and uses:

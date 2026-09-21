@@ -97,6 +97,7 @@ public sealed partial class GrevDadCoordinator
         InitializeGrevDadIntegration();
         InitializeGrevDadMaintenanceIntegration();
         InitializeGrevDadProfileSyncIntegration();
+        InitializeGrevDadSaveSyncIntegration();
         InitializeGrevDadSettingsIntegration();
         InitializeGrevDadPrivacySettingsUiIntegration();
     }
@@ -121,6 +122,7 @@ public sealed partial class GrevDadCoordinator
         _grevDadSyncRetryTimer.Stop();
         _grevDadSyncRetries.Clear();
         _grevDadProfileSync?.Dispose();
+        _grevDadSaveSync?.Dispose();
 
         _grevDadLinkPollTimer.Stop();
     }
@@ -668,6 +670,57 @@ public sealed partial class GrevDadCoordinator
             ScheduleGrevDadSyncRetry(grevId);
         }
     }
+
+    private GrevDadSaveSyncService? _grevDadSaveSync;
+    private bool _grevDadSaveSyncReady;
+
+    private void InitializeGrevDadSaveSyncIntegration()
+    {
+        if (_grevDadSaveSyncReady)
+        {
+            return;
+        }
+
+        _grevDadSaveSyncReady = true;
+        _grevDadSaveSync = new GrevDadSaveSyncService(_paths, RequireGrevDadAccountService());
+    }
+
+    /// <summary>
+    /// Cloud saves are opt-in per app per GrevID (see GrevDadSaveSyncService.SetEnabledAsync), so
+    /// this only actually uploads for apps a user chose in Settings; for every other app it is a
+    /// cheap local check with no network call. Uploads are best-effort: a failure here does not
+    /// retry on a timer the way progression sync does - the next completed session, or a manual
+    /// "Sync Now" in Settings, tries again. Never awaited by anything that could block returning
+    /// to Home after a session ends.
+    /// </summary>
+    public void QueueSaveSyncAfterLocalHistory(LaunchSessionSnapshot snapshot)
+    {
+        var sync = _grevDadSaveSync;
+        var grevId = snapshot.PrimaryGrevId;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId))
+        {
+            return;
+        }
+
+        _ = UploadSaveIfEnabledSafeAsync(sync, grevId, snapshot.AppId);
+    }
+
+    private static async Task UploadSaveIfEnabledSafeAsync(GrevDadSaveSyncService sync, string grevId, string appId)
+    {
+        try
+        {
+            if (!await sync.IsEnabledAsync(grevId, appId)) return;
+            await sync.UploadAsync(grevId, appId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            // Cloud saves are best-effort background transport over locally-authoritative save
+            // data; a failure here must never surface as a crash or interrupt returning to Home.
+        }
+    }
+
+    /// <summary>Everything AppSettingsView needs to show and drive the Cloud Saves section.</summary>
+    public GrevDadSaveSyncService? SaveSyncService => _grevDadSaveSync;
 
     private void ScheduleGrevDadSyncContinuation(string grevId)
     {

@@ -73,6 +73,9 @@ public sealed class AppPaths
     public string GetProfileSaves(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Saves");
 
+    public string GetProfileAppSaves(string grevId, string appId) =>
+        Path.Combine(GetProfileSaves(grevId), AppIdentity.ValidateAppId(appId));
+
     public string GetProfileStats(string grevId) =>
         Path.Combine(GetProfileRoot(grevId), "Stats");
 

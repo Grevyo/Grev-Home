@@ -9,6 +9,7 @@ using GrevHome.Runtime;
 using GrevHome.Sessions;
 using GrevHome.Presentation;
 using GrevHome.Games;
+using GrevHome.Online;
 
 var root = Path.Combine(Path.GetTempPath(), "GrevHomeHardening-" + Guid.NewGuid().ToString("N"));
 Directory.CreateDirectory(root);
@@ -177,7 +178,43 @@ try
     var missingPath = Path.Combine(exportRoot, "does-not-exist.theme.json");
     await ExpectAsync<FileNotFoundException>(() => themeService.ImportThemeAsync(missingPath));
 
-    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip, theme export/import round-trip.");
+    // Cloud saves: only the deterministic, network-free parts are covered here. Upload/Download
+    // need a live Grev.dad server and are exercised by hand against a real one; everything that
+    // decides *whether* to call the network - enable state, status without a link, the local
+    // content hash - has no such dependency and is covered like any other local service.
+    var saveGrevId = "GTestSaveSyncTest123";
+    using (var accounts = new GrevDadAccountService(paths))
+    using (var saveSync = new GrevDadSaveSyncService(paths, accounts))
+    {
+        Check(!await saveSync.IsEnabledAsync(saveGrevId, "test.app"), "Cloud saves must default to off for an app that was never configured");
+        var disabledStatus = await saveSync.GetStatusAsync(saveGrevId, "test.app");
+        Check(disabledStatus.Status == CloudSaveStatus.Disabled, "An app with cloud saves off must report Disabled without needing a Grev.dad link");
+
+        await saveSync.SetEnabledAsync(saveGrevId, "test.app", true);
+        Check(await saveSync.IsEnabledAsync(saveGrevId, "test.app"), "Enabling cloud saves for one app must persist");
+        Check(!await saveSync.IsEnabledAsync(saveGrevId, "other.app"), "Enabling cloud saves for one app must not enable it for another app on the same GrevID");
+
+        var unlinkedStatus = await saveSync.GetStatusAsync(saveGrevId, "test.app");
+        Check(unlinkedStatus.Status == CloudSaveStatus.NotLinked, "An enabled app on an unlinked GrevID must report NotLinked rather than attempting a sync");
+
+        await saveSync.SetEnabledAsync(saveGrevId, "test.app", false);
+        Check((await saveSync.GetStatusAsync(saveGrevId, "test.app")).Status == CloudSaveStatus.Disabled, "Turning cloud saves back off must be reflected immediately");
+    }
+
+    var hashRoot = Path.Combine(root, "SaveHashTest");
+    Directory.CreateDirectory(hashRoot);
+    var emptyHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    await File.WriteAllTextAsync(Path.Combine(hashRoot, "save.dat"), "progress-1");
+    var firstHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    Check(firstHash != emptyHash, "Adding a save file must change the content hash");
+    var repeatHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    Check(firstHash == repeatHash, "Hashing the same unchanged save folder twice must produce the same hash");
+    await File.WriteAllTextAsync(Path.Combine(hashRoot, "save.dat"), "progress-2");
+    var changedHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
+    Check(changedHash != firstHash, "Changing a save file's content must change the hash");
+    Check(GrevDadSaveSyncService.ComputeLocalHash(Path.Combine(root, "NeverCreated")) == emptyHash, "A missing save folder must hash the same as an empty one, not throw");
+
+    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip, theme export/import round-trip, cloud save local state and content hashing.");
 }
 finally { Directory.Delete(root, recursive: true); }
 
