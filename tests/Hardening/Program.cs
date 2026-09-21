@@ -351,6 +351,15 @@ try
           mediaPackages["plex-htpc"].App.DataStrategy == DataStrategy.NativeAccount &&
           mediaPackages["plex-htpc"].Supports(AppPackageCapability.LibraryMembership),
         "Plex HTPC must be a Global App whose account state remains owned by Plex");
+    Check(mediaPackages.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase)
+            .SetEquals(new[] { "kodi", "plex-htpc", "jellyfin-media-player", "stremio" }),
+        "The media catalogue must contain exactly the approved native-controller clients");
+    Check(MediaCenterCatalog.ControllerMediaSpecs.All(spec => spec.Sha256.Length == 64 && spec.Sha256.All(Uri.IsHexDigit)),
+        "Every controller media installer must have a pinned SHA-256");
+    Check(MediaCenterCatalog.ControllerMediaSpecs.All(spec =>
+            mediaPackages[spec.AppId].App.DataStrategy == DataStrategy.NativeAccount &&
+            mediaPackages[spec.AppId].Supports(AppPackageCapability.LibraryMembership)),
+        "Account-owning controller media clients must remain global with per-GrevID library membership");
     Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, machine/profile theme isolation, theme export/import, cloud save safety, emulator setup and media package isolation.");
 }
 finally { Directory.Delete(root, recursive: true); }
