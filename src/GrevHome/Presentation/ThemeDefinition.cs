@@ -51,6 +51,57 @@ public sealed record ThemeDefinition(
         if (!HexPattern.IsMatch(value ?? string.Empty))
             throw new InvalidOperationException($"{field} must be a 6-digit hex color, like #7EA6FF.");
     }
+
+    /// <summary>
+    /// Checks the color pairs that actually carry text or a focus ring in the shell, using the
+    /// same WCAG relative-luminance contrast ratio browsers use for accessibility checks. This is
+    /// advisory, not a save-blocking rule: a theme with low contrast is still a valid theme, and a
+    /// deliberately low-contrast/moody look is a legitimate choice. The Theme Creator surfaces
+    /// these as a warning so a choice that will actually be hard to read - the two colors turning
+    /// out identical, or a light accent on a light surface - isn't discovered by accident.
+    /// </summary>
+    public IReadOnlyList<string> GetContrastWarnings()
+    {
+        var warnings = new List<string>();
+        void Check(string label, string foreground, string background)
+        {
+            var ratio = ContrastRatio(foreground, background);
+            if (ratio < MinimumReadableContrast)
+                warnings.Add($"{label} is hard to read: contrast ratio {ratio:0.0}:1 (aim for at least {MinimumReadableContrast:0.0}:1).");
+        }
+
+        // Every button's own label is a fixed white, set once in the base Button style rather
+        // than themed, so it is Surface/SurfaceHover - not the theme's own text color - that must
+        // stay readable against it.
+        Check("Button text on Surface", "#FFFFFF", Surface);
+        Check("Button text on Surface Hover", "#FFFFFF", SurfaceHover);
+        Check("Muted text on Window Background", Muted, WindowBackground);
+        Check("Muted text on Card Background", Muted, CardBackground);
+        Check("Accent on Card Background", Accent, CardBackground);
+        return warnings;
+    }
+
+    private const double MinimumReadableContrast = 3.0;
+
+    private static double ContrastRatio(string foreground, string background)
+    {
+        var l1 = RelativeLuminance(foreground);
+        var l2 = RelativeLuminance(background);
+        var (lighter, darker) = l1 >= l2 ? (l1, l2) : (l2, l1);
+        return (lighter + 0.05) / (darker + 0.05);
+    }
+
+    private static double RelativeLuminance(string hex)
+    {
+        if (!HexPattern.IsMatch(hex ?? string.Empty)) return 0;
+        var r = Linearize(Convert.ToInt32(hex.Substring(1, 2), 16) / 255.0);
+        var g = Linearize(Convert.ToInt32(hex.Substring(3, 2), 16) / 255.0);
+        var b = Linearize(Convert.ToInt32(hex.Substring(5, 2), 16) / 255.0);
+        return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    }
+
+    private static double Linearize(double channel) =>
+        channel <= 0.03928 ? channel / 12.92 : Math.Pow((channel + 0.055) / 1.055, 2.4);
 }
 
 /// <summary>

@@ -79,3 +79,30 @@ game tile colors and profile presets elsewhere in the app - so building a theme 
 knowing a hex code, while an "Enter Hex" button on every field still reaches exact colors through
 the existing controller-first `ControllerQwertyKeyboard` overlay (also used for the theme name).
 No separate color-picker input surface was introduced.
+
+## Contrast warnings
+
+`ThemeDefinition.GetContrastWarnings()` checks the color pairs that actually carry text or a
+focus ring - button text (a fixed white) against Surface/Surface Hover, Muted text against Window
+Background/Card Background, and Accent against Card Background - using the same WCAG relative-
+luminance contrast ratio browsers use for accessibility checks. All four built-in themes clear it
+comfortably (lowest ratio ~6.5:1 against a 3.0:1 floor).
+
+This is advisory, never a save-blocking rule: a deliberately low-contrast, moody theme is a
+legitimate choice, so a low ratio never prevents a save. It shows live as the color fields are
+edited (so a problem is visible before you commit to it) and again in the status line after
+saving, so it can't be missed by looking away from the warning text at the exact moment of saving.
+
+## Export and import
+
+"Export This Theme" writes whatever is currently being edited - saved or not - to a standalone
+`<name>.theme.json` file under the machine's `Downloads` folder (re-exporting the same theme names
+a fresh timestamped file rather than silently overwriting the previous export). "Import Theme"
+opens a controller-first file browser (`Route.ThemeFilePicker`, mirroring the existing game/photo
+file pickers) filtered to `.json` files, defaulting to Downloads; the selected file is validated
+and loaded into the editor as a new, unsaved draft - exactly like "New Theme" - so an import can
+never silently overwrite an existing saved theme or become active without an explicit Save.
+
+This is theme sharing the same way custom theme storage already was: each theme is one JSON file
+copyable between machines by hand. Export/Import just removes needing a file manager to do that
+copy.

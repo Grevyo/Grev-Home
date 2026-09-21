@@ -109,6 +109,53 @@ public sealed class ThemeService
         }
     }
 
+    /// <summary>
+    /// Writes a theme to a standalone JSON file for sharing - copy it to another Grev Home
+    /// machine's Themes folder, or hand it to <see cref="ImportThemeAsync"/> there. Exports the
+    /// exact colors currently being edited, saved or not: exporting is read-only and never
+    /// requires the theme to exist as a saved custom theme first.
+    /// </summary>
+    public async Task<string> ExportThemeAsync(ThemeDefinition theme, string targetDirectory, CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(theme);
+        theme.Validate();
+        Directory.CreateDirectory(targetDirectory);
+        var path = Path.Combine(targetDirectory, $"{SanitizeFileName(theme.Name)}.theme.json");
+        // Exported files never collide with each other or overwrite a previous export of the same
+        // theme silently: each export gets its own timestamped name.
+        if (File.Exists(path))
+            path = Path.Combine(targetDirectory, $"{SanitizeFileName(theme.Name)}-{DateTime.Now:yyyyMMdd-HHmmss}.theme.json");
+        await WriteJsonAsync(path, theme with { IsBuiltIn = false }, cancellationToken);
+        return path;
+    }
+
+    /// <summary>
+    /// Reads and validates a theme file exported by <see cref="ExportThemeAsync"/> (or any hand-
+    /// written file in the same shape). Never writes anything and never touches the active theme
+    /// or the saved custom theme list - the caller decides whether to save it, exactly like a
+    /// freshly created "New Theme" draft. A colliding Id with an existing saved theme is resolved
+    /// by the caller when it saves, not silently here.
+    /// </summary>
+    public async Task<ThemeDefinition> ImportThemeAsync(string sourcePath, CancellationToken cancellationToken = default)
+    {
+        if (!File.Exists(sourcePath)) throw new FileNotFoundException("That theme file no longer exists.", sourcePath);
+        ThemeDefinition? theme;
+        try
+        {
+            await using var stream = File.OpenRead(sourcePath);
+            theme = await JsonSerializer.DeserializeAsync<ThemeDefinition>(stream, _json, cancellationToken);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidOperationException("That file is not a valid Grev Home theme.", ex);
+        }
+
+        if (theme is null) throw new InvalidOperationException("That file is not a valid Grev Home theme.");
+        theme = theme with { IsBuiltIn = false };
+        theme.Validate();
+        return theme;
+    }
+
     private async Task<string> LoadActiveIdAsync(CancellationToken cancellationToken)
     {
         try

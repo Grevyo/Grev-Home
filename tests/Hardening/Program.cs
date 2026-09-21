@@ -149,7 +149,35 @@ try
 
     await ExpectAsync<InvalidOperationException>(() => themeService.DeleteCustomThemeAsync(ThemeCatalog.DefaultThemeId));
 
-    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip.");
+    foreach (var builtIn in ThemeCatalog.BuiltIn)
+        Check(builtIn.GetContrastWarnings().Count == 0, $"Shipped theme '{builtIn.Name}' must clear its own contrast checks");
+    var lowContrastTheme = new ThemeDefinition("low-contrast-test", "Low Contrast", "#101010", "#101010", "#333333", "#101010", "#111111", "#7EA6FF", "#121212", "#D8B65A", "#D94B55", "#747B88");
+    Check(lowContrastTheme.GetContrastWarnings().Count > 0, "A theme whose muted text nearly matches its background must be flagged");
+    Check(new ThemeDefinition("readable", "Readable", "#090C12", "#11151E", "#3A465F", "#151923", "#20283A", "#7EA6FF", "#97A0B3", "#D8B65A", "#D94B55", "#747B88").GetContrastWarnings().Count == 0,
+        "A theme matching Grev Default's own contrast must not be flagged");
+
+    var exportRoot = Path.Combine(root, "Downloads");
+    var exportedTheme = new ThemeDefinition("export-test", "My Export/Import Test", "#101010", "#151515", "#333333", "#202020", "#303030", "#FF8800", "#AAAAAA", "#D8B65A", "#D94B55", "#747B88");
+    var exportedPath = await themeService.ExportThemeAsync(exportedTheme, exportRoot);
+    Check(File.Exists(exportedPath), "Exporting a theme must produce a readable file");
+    Check(exportedPath.EndsWith(".theme.json", StringComparison.Ordinal), "An exported theme file must be clearly named as a theme export");
+
+    var reimported = await themeService.ImportThemeAsync(exportedPath);
+    Check(reimported.Name == exportedTheme.Name && reimported.Accent == exportedTheme.Accent, "Importing an exported theme must reproduce its exact name and colors");
+    Check(!reimported.IsBuiltIn, "An imported theme must never be marked as built-in, even if the source file claimed to be");
+    Check((await themeService.LoadAsync()).CustomThemes.Count == 0, "Importing a theme must not save or activate it by itself");
+
+    var secondExportPath = await themeService.ExportThemeAsync(exportedTheme, exportRoot);
+    Check(secondExportPath != exportedPath, "Exporting the same theme twice must not silently overwrite the first export");
+
+    var corruptPath = Path.Combine(exportRoot, "corrupt.theme.json");
+    await File.WriteAllTextAsync(corruptPath, "not valid json");
+    await ExpectAsync<InvalidOperationException>(() => themeService.ImportThemeAsync(corruptPath));
+
+    var missingPath = Path.Combine(exportRoot, "does-not-exist.theme.json");
+    await ExpectAsync<FileNotFoundException>(() => themeService.ImportThemeAsync(missingPath));
+
+    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip, theme export/import round-trip.");
 }
 finally { Directory.Delete(root, recursive: true); }
 

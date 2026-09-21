@@ -40,6 +40,8 @@ public partial class ThemeCreatorView : UserControl
     public event Action<ThemeDefinition, bool>? SaveRequested;
     public event Action<string>? DeleteRequested;
     public event EventHandler? NewThemeRequested;
+    public event Action<ThemeDefinition>? ExportRequested;
+    public event EventHandler? ImportRequested;
 
     private ThemeDefinition _editing = ThemeCatalog.Default;
     private string? _pendingField;
@@ -152,6 +154,10 @@ public partial class ThemeCreatorView : UserControl
             controls.HexText.Text = hex.ToUpperInvariant();
         }
         ThemeApplier.Apply(theme);
+
+        var warnings = theme.GetContrastWarnings();
+        ContrastWarningText.Text = warnings.Count == 0 ? string.Empty : string.Join(" ", warnings);
+        ContrastWarningText.Visibility = warnings.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
     }
 
     public void SetGallery(IReadOnlyList<ThemeDefinition> themes, string activeThemeId, string editingThemeId)
@@ -268,6 +274,8 @@ public partial class ThemeCreatorView : UserControl
     private void NewTheme_Click(object sender, RoutedEventArgs e) => NewThemeRequested?.Invoke(this, EventArgs.Empty);
     private void SaveTheme_Click(object sender, RoutedEventArgs e) => SaveRequested?.Invoke(_editing, false);
     private void SaveAsNewTheme_Click(object sender, RoutedEventArgs e) => SaveRequested?.Invoke(_editing, true);
+    private void ExportTheme_Click(object sender, RoutedEventArgs e) => ExportRequested?.Invoke(_editing);
+    private void ImportTheme_Click(object sender, RoutedEventArgs e) => ImportRequested?.Invoke(this, EventArgs.Empty);
 
     // Deliberate two-step confirm, the same shape App Killer's Force Close uses: a single
     // accidental press on a destructive action must never delete a saved theme outright.

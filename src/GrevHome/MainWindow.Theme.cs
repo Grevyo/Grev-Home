@@ -8,11 +8,13 @@ namespace GrevHome;
 public partial class MainWindow
 {
     private readonly ThemeCreatorView _themeCreatorView = new();
+    private readonly ThemeFilePickerView _themeFilePickerView = new();
     private ThemeService? _themeService;
     private ThemeState _themeState = ThemeState.Default;
     private ThemeDefinition _themeEditingDraft = ThemeCatalog.Default;
     private bool _themeEditingDraftIsSaved;
     private bool _themeCreatorReady;
+    private string? _themeImportPath;
 
     private void InitializeThemeCreatorIntegration()
     {
@@ -25,11 +27,20 @@ public partial class MainWindow
         _themeCreatorView.NewThemeRequested += (_, _) => BeginNewThemeDraft();
         _themeCreatorView.SaveRequested += (theme, asNew) => _ = SaveThemeAsync(theme, asNew);
         _themeCreatorView.DeleteRequested += themeId => _ = DeleteThemeAsync(themeId);
+        _themeCreatorView.ExportRequested += theme => _ = ExportThemeAsync(theme);
+        _themeCreatorView.ImportRequested += (_, _) => OpenThemeFilePicker();
         _settingsView.ManageThemesRequested += (_, _) => OpenThemeCreator();
+
+        _themeFilePickerView.HomeRequested += (_, _) => ShowThemeFilePickerHome();
+        _themeFilePickerView.UpRequested += (_, _) => NavigateThemeFilePickerUp();
+        _themeFilePickerView.CancelRequested += (_, _) => _navigation.GoBack();
+        _themeFilePickerView.NavigateRequested += NavigateThemeFilePicker;
+        _themeFilePickerView.FileSelected += path => _ = ImportThemeAsync(path);
 
         _navigation.RouteChanged += route =>
         {
             if (route == Route.ThemeCreator) { RouteHost.Content = _themeCreatorView; _ = OpenThemeCreatorAsync(); }
+            else if (route == Route.ThemeFilePicker) RouteHost.Content = _themeFilePickerView;
         };
     }
 
@@ -118,7 +129,13 @@ public partial class MainWindow
             _themeEditingDraft = saved;
             _themeEditingDraftIsSaved = true;
             RenderThemeCreator();
-            _themeCreatorView.ShowStatus($"{saved.Name} saved and set as the active theme.");
+            // A contrast warning never blocks the save - a deliberately low-contrast look is a
+            // legitimate choice - but it must not be silently swallowed by the ordinary success
+            // status either, so it replaces that status instead of sitting alongside it.
+            var warnings = saved.GetContrastWarnings();
+            _themeCreatorView.ShowStatus(warnings.Count == 0
+                ? $"{saved.Name} saved and set as the active theme."
+                : $"{saved.Name} saved and set as the active theme. {warnings[0]}");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {
@@ -158,6 +175,76 @@ public partial class MainWindow
             canOverwrite: !_themeEditingDraft.IsBuiltIn && _themeEditingDraftIsSaved,
             canDelete: !_themeEditingDraft.IsBuiltIn && _themeEditingDraftIsSaved);
         // SetEditing above already applies the draft live; nothing further to do here.
+    }
+
+    private async Task ExportThemeAsync(ThemeDefinition theme)
+    {
+        var service = _themeService;
+        if (service is null) return;
+        try
+        {
+            var path = await service.ExportThemeAsync(theme, _paths.Downloads);
+            _themeCreatorView.ShowStatus($"Exported to {path}. Copy this file to share the theme or import it on another Grev Home machine.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _themeCreatorView.ShowStatus($"Could not export this theme: {ex.Message}");
+        }
+    }
+
+    private void OpenThemeFilePicker()
+    {
+        _themeImportPath = null;
+        ShowThemeFilePickerHome();
+        _navigation.Navigate(Route.ThemeFilePicker);
+    }
+
+    private void ShowThemeFilePickerHome()
+    {
+        _themeImportPath = null;
+        _themeFilePickerView.ShowHome(_fileSystem.GetHomeLocations(_paths.Root).Where(location => location.Name is not "Test Area" and not "Grev Home Data").ToArray());
+    }
+
+    private void NavigateThemeFilePicker(string path)
+    {
+        try
+        {
+            _themeImportPath = Path.GetFullPath(path);
+            _themeFilePickerView.ShowDirectory(_themeImportPath, _fileSystem.GetEntries(_themeImportPath), Directory.GetParent(_themeImportPath) is not null);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _themeFilePickerView.ShowError(ex.Message);
+        }
+    }
+
+    private void NavigateThemeFilePickerUp()
+    {
+        if (_themeImportPath is null) return;
+        var parent = Directory.GetParent(_themeImportPath);
+        if (parent is null) ShowThemeFilePickerHome(); else NavigateThemeFilePicker(parent.FullName);
+    }
+
+    private async Task ImportThemeAsync(string path)
+    {
+        var service = _themeService;
+        if (service is null) return;
+        try
+        {
+            var imported = await service.ImportThemeAsync(path);
+            // A colliding Id with a theme already saved on this machine is left to Save/Save as
+            // New to resolve, the same as any other draft - importing never overwrites anything
+            // by itself.
+            _themeEditingDraft = imported;
+            _themeEditingDraftIsSaved = false;
+            if (_navigation.Current == Route.ThemeFilePicker) _navigation.GoBack();
+            RenderThemeCreator();
+            _themeCreatorView.ShowStatus($"Imported \"{imported.Name}\". Save it to keep it, or keep editing first.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _themeFilePickerView.ShowError($"Could not import that file: {ex.Message}");
+        }
     }
 
     private static string GenerateThemeId(string name)

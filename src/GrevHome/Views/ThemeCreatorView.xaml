@@ -46,9 +46,17 @@
                             </WrapPanel>
                         </Border>
 
+                        <TextBlock x:Name="ContrastWarningText"
+                                   Margin="0,10,0,0"
+                                   Foreground="#F2C94C"
+                                   FontSize="12"
+                                   TextWrapping="Wrap"
+                                   Visibility="Collapsed" />
+
                         <WrapPanel Margin="0,20,0,0">
                             <Button x:Name="SaveThemeButton" Content="Save Theme" MinWidth="200" Margin="0,0,10,10" Click="SaveTheme_Click" />
                             <Button Content="Save as New Theme" MinWidth="200" Margin="0,0,10,10" Click="SaveAsNewTheme_Click" />
+                            <Button Content="Export This Theme" MinWidth="200" Margin="0,0,10,10" Click="ExportTheme_Click" />
                             <Button x:Name="DeleteThemeButton" Content="Delete This Theme" Style="{StaticResource ShellModalDangerActionButtonStyle}" MinWidth="200" Margin="0,0,10,10" Click="DeleteTheme_Click" />
                         </WrapPanel>
                     </StackPanel>
@@ -56,6 +64,7 @@
 
                 <WrapPanel Margin="0,18,0,0">
                     <Button Content="New Theme" MinWidth="150" Margin="0,0,10,10" Click="NewTheme_Click" />
+                    <Button Content="Import Theme" MinWidth="150" Margin="0,0,10,10" Click="ImportTheme_Click" />
                     <Button Content="Back" MinWidth="130" Margin="0,0,10,10" Click="Back_Click" />
                 </WrapPanel>
                 <TextBlock x:Name="StatusText" Margin="0,8,0,0" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
