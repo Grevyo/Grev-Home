@@ -25,7 +25,8 @@ public sealed record CloudSaveState(
     CloudSaveStatus Status,
     DateTimeOffset? LastUploadedAtUtc,
     DateTimeOffset? LastDownloadedAtUtc,
-    string? Message);
+    string? Message,
+    string? CoverageWarning = null);
 
 internal sealed record CloudSaveManifest(
     int SchemaVersion,
@@ -57,6 +58,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
     // since a save GET's body is the archive itself, as a response header on GET/HEAD so a conflict
     // check can learn the remote's timestamp without downloading the whole archive.
     private const string RemoteUpdatedAtHeader = "X-Grev-Updated-At";
+    private const string ContentHashHeader = "X-Grev-Content-SHA256";
     // A generous but finite ceiling: this guards against archiving a save folder someone pointed
     // at something enormous by mistake (a whole emulator BIOS/ROM tree, say), not a real save.
     private const long MaxArchiveBytes = 300L * 1024 * 1024;
@@ -67,6 +69,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
     private readonly GrevDadAccountService _accounts;
     private readonly WindowsCredentialSecretStore _secrets = new();
     private readonly HttpClient _http;
+    private readonly EmulatorCloudSaveAdapter _emulatorSaves;
     private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.OrdinalIgnoreCase);
     private bool _disposed;
@@ -75,6 +78,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
     {
         _paths = paths;
         _accounts = accounts;
+        _emulatorSaves = new EmulatorCloudSaveAdapter(paths);
         // Save archives are larger and slower than the JSON calls the other Grev.dad services
         // make, so this gets its own longer timeout rather than sharing one tuned for small payloads.
         _http = GrevDadNetworkSupport.CreateHttpClient(
@@ -132,15 +136,16 @@ public sealed class GrevDadSaveSyncService : IDisposable
 
         try
         {
+            await _emulatorSaves.CaptureAsync(grevId, appId, cancellationToken);
             var currentHash = ComputeLocalHash(_paths.GetProfileAppSaves(grevId, appId));
             var status = string.Equals(currentHash, manifest.LastUploadedHash, StringComparison.Ordinal)
                 ? CloudSaveStatus.UpToDate
                 : CloudSaveStatus.LocalChangesPending;
-            return new CloudSaveState(status, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
+            return WithCoverage(appId, new CloudSaveState(status, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return new CloudSaveState(CloudSaveStatus.Error, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, ex.Message);
+            return WithCoverage(appId, new CloudSaveState(CloudSaveStatus.Error, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, ex.Message));
         }
     }
 
@@ -179,6 +184,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
                 return new CloudSaveState(CloudSaveStatus.NotLinked, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
             }
 
+            await _emulatorSaves.CaptureAsync(grevId, appId, cancellationToken);
             var saveRoot = _paths.GetProfileAppSaves(grevId, appId);
             if (!Directory.Exists(saveRoot) || !Directory.EnumerateFileSystemEntries(saveRoot).Any())
             {
@@ -191,6 +197,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
             try
             {
                 ZipFile.CreateFromDirectory(saveRoot, archivePath, CompressionLevel.Optimal, includeBaseDirectory: false);
+                ValidateArchive(archivePath);
                 var archiveInfo = new FileInfo(archivePath);
                 if (archiveInfo.Length > MaxArchiveBytes)
                 {
@@ -203,6 +210,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
 
                 using var request = new HttpRequestMessage(HttpMethod.Put, $"api/grev-home/saves/{appId}");
                 request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                request.Headers.TryAddWithoutValidation(ContentHashHeader, ComputeFileHash(archivePath));
                 await using (var archiveStream = File.OpenRead(archivePath))
                 {
                     using var content = new StreamContent(archiveStream);
@@ -239,7 +247,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
                     LastKnownRemoteUpdatedAtUtc = remoteUpdatedAt ?? uploadedAt
                 },
                 cancellationToken);
-            return new CloudSaveState(CloudSaveStatus.UpToDate, uploadedAt, manifest.LastDownloadedAtUtc, null);
+            return WithCoverage(appId, new CloudSaveState(CloudSaveStatus.UpToDate, uploadedAt, manifest.LastDownloadedAtUtc, null));
         }
         catch (Exception ex) when (IsNetworkFailure(ex))
         {
@@ -293,6 +301,10 @@ public sealed class GrevDadSaveSyncService : IDisposable
                 return new CloudSaveState(CloudSaveStatus.NotLinked, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
             }
 
+            // This also refuses the restore while the emulator is running. Downloading over live
+            // files would otherwise risk a valid cloud archive being applied only partially.
+            await _emulatorSaves.CaptureAsync(grevId, appId, cancellationToken);
+
             using var request = new HttpRequestMessage(HttpMethod.Get, $"api/grev-home/saves/{appId}");
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
@@ -327,6 +339,17 @@ public sealed class GrevDadSaveSyncService : IDisposable
                 await using (var archiveFile = File.Create(archivePath))
                 {
                     await CopyWithLimitAsync(response.Content, archiveFile, MaxArchiveBytes, cancellationToken);
+                }
+
+                if (response.Headers.TryGetValues(ContentHashHeader, out var expectedHashes))
+                {
+                    var expectedHash = expectedHashes.FirstOrDefault();
+                    var actualHash = ComputeFileHash(archivePath);
+                    if (!string.IsNullOrWhiteSpace(expectedHash) &&
+                        !string.Equals(expectedHash.Trim(), actualHash, StringComparison.OrdinalIgnoreCase))
+                    {
+                        throw new InvalidDataException("The downloaded cloud-save checksum did not match. Nothing was restored.");
+                    }
                 }
 
                 ValidateArchive(archivePath);
@@ -365,6 +388,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
             var downloadedAt = DateTimeOffset.UtcNow;
             var hash = ComputeLocalHash(_paths.GetProfileAppSaves(grevId, appId));
             var remoteUpdatedAt = TryReadRemoteUpdatedAtHeader(response);
+            await _emulatorSaves.ApplyRestoreAsync(grevId, appId, cancellationToken);
             await WriteManifestAsync(
                 grevId,
                 appId,
@@ -375,7 +399,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
                     LastKnownRemoteUpdatedAtUtc = remoteUpdatedAt ?? downloadedAt
                 },
                 cancellationToken);
-            return new CloudSaveState(CloudSaveStatus.UpToDate, manifest.LastUploadedAtUtc, downloadedAt, null);
+            return WithCoverage(appId, new CloudSaveState(CloudSaveStatus.UpToDate, manifest.LastUploadedAtUtc, downloadedAt, null));
         }
         catch (Exception ex) when (IsNetworkFailure(ex))
         {
@@ -458,6 +482,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
             string currentHash;
             try
             {
+                await _emulatorSaves.CaptureAsync(grevId, appId, cancellationToken);
                 currentHash = ComputeLocalHash(_paths.GetProfileAppSaves(grevId, appId));
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -505,7 +530,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
                 _ => CloudSaveStatus.UpToDate
             };
 
-            return new CloudSaveState(status, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
+            return WithCoverage(appId, new CloudSaveState(status, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null));
         }
         catch (Exception ex) when (IsNetworkFailure(ex))
         {
@@ -527,6 +552,15 @@ public sealed class GrevDadSaveSyncService : IDisposable
         DateTimeOffset.TryParse(values.FirstOrDefault(), out var parsed)
             ? parsed
             : null;
+
+    private CloudSaveState WithCoverage(string appId, CloudSaveState state) =>
+        state with { CoverageWarning = _emulatorSaves.GetCoverage(appId).Warning };
+
+    private static string ComputeFileHash(string path)
+    {
+        using var stream = File.OpenRead(path);
+        return Convert.ToHexString(SHA256.HashData(stream));
+    }
 
     /// <summary>
     /// A stable, order-independent hash of a save folder's exact contents (relative path and

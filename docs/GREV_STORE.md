@@ -1,5 +1,10 @@
 # Grev Store & App Presentation
 
+Every catalogued package ships with a transparent PNG logo under `Assets/Apps/<App>/icon.png` and a
+brand-matched default tile colour. Store, Installed Apps, app details and profile presentation all
+resolve that same packaged resource, so artwork is present before installation and never depends on
+an emulator's install directory. Per-profile presentation overrides can still replace either value.
+
 Grev Store is the discovery and management surface for every application that Grev Home officially supports through a trusted package definition.
 
 The wider lifecycle/capability/runtime contract is documented in `docs/APP_PLATFORM.md`. This document concentrates on Store discovery, product-page behavior and presentation.

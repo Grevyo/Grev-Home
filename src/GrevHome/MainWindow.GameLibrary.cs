@@ -502,6 +502,10 @@ public partial class MainWindow
         {
             var installedApps = await _installedApps.GetInstalledForUserAsync(primary.GrevId);
             var runtimeEntry = _gameLaunchResolver.Resolve(game, installedApps, primary.GrevId);
+            await PrepareCloudSaveForLaunchAsync(
+                primary.GrevId,
+                runtimeEntry.Manifest.Definition.AppId,
+                runtimeEntry.Manifest.Definition.Name);
             // A directly launched game owns the console surface for its complete emulator
             // lifetime. Emulator setup/file dialogs can temporarily hide their main window;
             // that must never be mistaken for the game ending or minimizing to the tray.

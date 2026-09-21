@@ -323,6 +323,26 @@ try
         Check(remoteDisabled.Status == CloudSaveStatus.Disabled, "CheckRemoteAsync must report Disabled for an app that is opted out, without attempting a network call");
     }
 
+    // Emulator adapters must capture the real emulator-owned save location and apply a restore
+    // back to it. This is the contract that prevents a successful cloud request containing an
+    // empty placeholder folder while the real memory card remains elsewhere.
+    var adapterGrevId = "GCloudAdapterTest123";
+    paths.EnsureProfileLayout(adapterGrevId);
+    var pcsx2MemoryCards = Path.Combine(paths.GetProfileAppDataRoot(adapterGrevId, "pcsx2"), "memcards");
+    Directory.CreateDirectory(pcsx2MemoryCards);
+    await File.WriteAllTextAsync(Path.Combine(pcsx2MemoryCards, "Mcd001.ps2"), "local-progress");
+    var adapter = new EmulatorCloudSaveAdapter(paths);
+    await adapter.CaptureAsync(adapterGrevId, "pcsx2");
+    var capturedCard = Path.Combine(paths.GetProfileAppSaves(adapterGrevId, "pcsx2"), "MemoryCards", "Mcd001.ps2");
+    Check(File.Exists(capturedCard) && await File.ReadAllTextAsync(capturedCard) == "local-progress",
+        "PCSX2 cloud capture must include the real profile-owned memory card");
+    await File.WriteAllTextAsync(capturedCard, "cloud-progress");
+    await adapter.ApplyRestoreAsync(adapterGrevId, "pcsx2");
+    Check(await File.ReadAllTextAsync(Path.Combine(pcsx2MemoryCards, "Mcd001.ps2")) == "cloud-progress",
+        "PCSX2 cloud restore must atomically apply the downloaded memory card to PCSX2's live profile");
+    Check(adapter.GetCoverage("xemu").Warning is not null,
+        "xemu must explicitly warn that HDD-image saves cannot be completely synchronised");
+
     var hashRoot = Path.Combine(root, "SaveHashTest");
     Directory.CreateDirectory(hashRoot);
     var emptyHash = GrevDadSaveSyncService.ComputeLocalHash(hashRoot);
@@ -360,6 +380,12 @@ try
             mediaPackages[spec.AppId].App.DataStrategy == DataStrategy.NativeAccount &&
             mediaPackages[spec.AppId].Supports(AppPackageCapability.LibraryMembership)),
         "Account-owning controller media clients must remain global with per-GrevID library membership");
+    var brandedPackages = new GrevStoreCatalogService().GetAll();
+    Check(brandedPackages.All(package =>
+            package.Presentation.IconAsset is { } icon &&
+            icon.StartsWith("pack://application:,,,/Assets/Apps/", StringComparison.Ordinal) &&
+            icon.EndsWith("/icon.png", StringComparison.OrdinalIgnoreCase)),
+        "Every Grev Store app must use a packaged transparent PNG logo");
     Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, machine/profile theme isolation, theme export/import, cloud save safety, emulator setup and media package isolation.");
 }
 finally { Directory.Delete(root, recursive: true); }

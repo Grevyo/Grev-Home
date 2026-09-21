@@ -8,11 +8,16 @@ or interrupts launching or playing that app.
 
 ## Scope
 
-Cloud saves cover whatever a package already writes into its GrevID-owned save folder - for
-example, RetroArch and PCSX2 already redirect SaveRAM/save states there (see `docs/RETROARCH.md`,
-`docs/PCSX2.md`). This is transport only: it does not know anything about save file formats, does
-not merge saves, and does not attempt automatic conflict resolution beyond reporting that local
-content has changed since the last sync.
+Cloud saves use a canonical GrevID-owned save folder for transport. RetroArch writes there directly.
+`EmulatorCloudSaveAdapter` transactionally captures the real profile-owned save locations used by
+PCSX2, Dolphin, Azahar, RPCS3, Cemu, Xenia, xemu and Vita3K before hashing/upload, and applies a
+downloaded copy back only while the emulator is closed. A locked or unreadable file fails the whole
+operation; Grev Home never calls a partial capture successful.
+
+xemu is the deliberate partial-coverage case: saves stored inside its full virtual hard-disk image
+cannot be separated safely without uploading that entire disk. Grev Home syncs its EEPROM and
+separate memory-unit data and permanently shows this limitation in App Settings. Xenia's combined
+content folder is covered, but installed content can exceed the 300 MB limit; that is also explicit.
 
 ## `GrevDadSaveSyncService`
 
@@ -56,11 +61,20 @@ local data after that authority confirms the device link.
   is not guaranteed to share a drive with `%TEMP%`.
 - Archives over 300 MB are rejected before upload rather than silently accepted, as a guard against
   a save folder pointed at something that isn't really a save.
+- Uploads advertise an archive SHA-256 in `X-Grev-Content-SHA256`; downloads verify that header when
+  Grev.dad returns it. A mismatch aborts before extraction and leaves live saves alone.
+- Emulator restore targets are independently staged and swapped with timestamped backups. Capture
+  and restore refuse to run while the corresponding emulator process is open.
 - The local content hash (`GrevDadSaveSyncService.ComputeLocalHash`, internal but exposed for
   testing) is order-independent over every file's relative path and bytes; it is used only to
   answer "has anything changed since the last sync" locally and is never itself sent anywhere.
 
-## Automatic upload, manual restore
+## Steam-like launch/download and automatic upload
+
+Before an enabled app or emulated game launches, Grev Home performs the lightweight remote check.
+A one-sided newer cloud copy is downloaded and safely applied before starting. A genuine two-sided
+conflict blocks launch and directs the player to Keep This Device / Use Cloud. Offline or unlinked
+state never blocks local play.
 
 `GrevDadCoordinator.QueueSaveSyncAfterLocalHistory` is subscribed to the same
 `RuntimeSessionManager.SessionHistoryCommitted` event `QueueSyncAfterLocalHistory` already uses for
@@ -70,13 +84,12 @@ same lightweight `CheckRemoteAsync` conflict check Settings uses. If it comes ba
 save data uploads in the background, same as before; if it detects a genuine conflict (the save also
 changed on another device since the last sync), the upload is skipped and a Warning notification is
 published instead - a conflict is never silently resolved by whichever device happens to close the
-app last. A failure here does not retry on a timer the way progression sync does - the next
-completed session, or a manual Sync Now, tries again.
+app last. A failed upload remains locally detectable as pending, produces an Activity Center
+warning, and is retried after the next completed session or at the next sign-in. Manual Sync Now
+remains available.
 
-Downloading is always manual (Settings > this app > Cloud Saves > Restore from Cloud, or the
-conflict panel's Keep/Use Cloud choice). Grev Home does not download and silently apply a cloud save
-before launch: the player decides when a restore happens, and Restore from Cloud is disabled until
-there is something to restore.
+Manual Restore from Cloud remains available in Settings. Automatic pre-launch download only occurs
+for an unambiguous one-sided remote update; conflicts always require the player's choice.
 
 ## Sign-in sweep
 

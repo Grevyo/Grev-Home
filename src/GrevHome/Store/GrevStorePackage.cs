@@ -66,7 +66,7 @@ public sealed class GrevStoreCatalogService
             Presentation: new AppPresentationDefaults(
                 DisplayName: "RetroArch",
                 TileColor: "#000000",
-                IconAsset: DefaultAppArtwork.RetroArchIconAssetUri),
+                IconAsset: PackageBrandingAssets.RetroArch),
             Capabilities:
                 AppPackageCapability.Install |
                 AppPackageCapability.Update |
@@ -117,7 +117,7 @@ public sealed class GrevStoreCatalogService
             Presentation: new AppPresentationDefaults(
                 DisplayName: "PCSX2",
                 TileColor: "#0F2F6E",
-                IconAsset: PackageBrandingAssets.PCSX2IconAssetUri),
+                IconAsset: PackageBrandingAssets.PCSX2),
             Capabilities:
                 AppPackageCapability.Install |
                 AppPackageCapability.Update |
@@ -203,7 +203,7 @@ public sealed class GrevStoreCatalogService
             Presentation: new AppPresentationDefaults(
                 DisplayName: "Steam",
                 TileColor: "#1B2838",
-                IconAsset: "builtin://steam"),
+                IconAsset: PackageBrandingAssets.Steam),
             Capabilities:
                 AppPackageCapability.Install |
                 AppPackageCapability.Repair |
@@ -283,7 +283,7 @@ public sealed class GrevStoreCatalogService
             Presentation: new AppPresentationDefaults(
                 DisplayName: "Discord",
                 TileColor: "#5865F2",
-                IconAsset: DefaultAppArtwork.DiscordIconAssetUri),
+                IconAsset: PackageBrandingAssets.Discord),
             Capabilities:
                 AppPackageCapability.Install |
                 AppPackageCapability.Repair |

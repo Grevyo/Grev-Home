@@ -320,7 +320,10 @@ public partial class AppSettingsView : UserControl
         };
         var lastUploaded = state.LastUploadedAtUtc is { } uploaded ? $" • Last uploaded {uploaded.ToLocalTime():g}" : string.Empty;
         var lastDownloaded = state.LastDownloadedAtUtc is { } downloaded ? $" • Last restored {downloaded.ToLocalTime():g}" : string.Empty;
-        return summary + lastUploaded + lastDownloaded;
+        var coverageWarning = string.IsNullOrWhiteSpace(state.CoverageWarning)
+            ? string.Empty
+            : $"\n⚠ {state.CoverageWarning}";
+        return summary + lastUploaded + lastDownloaded + coverageWarning;
     }
 
     private void ControllerProfileToggle_Click(object sender, RoutedEventArgs e)

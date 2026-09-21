@@ -1,6 +1,7 @@
 using System.Text;
 using GrevHome.Apps;
 using GrevHome.Input;
+using GrevHome.Presentation;
 using GrevHome.Store.Installers;
 
 namespace GrevHome.Store;
@@ -54,7 +55,10 @@ public static class StandaloneEmulatorCatalog
                 new AppLaunchDefinition(spec.ExecutableName, spec.BaseArguments, "{BinaryRoot}",
                     Path.GetFileNameWithoutExtension(spec.ExecutableName)), true,
                 $"Profile-isolated {spec.DisplayName} emulator managed by Grev Home."),
-            Presentation: new AppPresentationDefaults(spec.DisplayName, ColorFor(spec.AppId)),
+            Presentation: new AppPresentationDefaults(
+                spec.DisplayName,
+                ColorFor(spec.AppId),
+                PackageBrandingAssets.ForApp(spec.AppId)),
             Capabilities: AppPackageCapability.Install | AppPackageCapability.Update | AppPackageCapability.Repair |
                           AppPackageCapability.ProfileUninstall | AppPackageCapability.AppSettings |
                           AppPackageCapability.PresentationOverrides |

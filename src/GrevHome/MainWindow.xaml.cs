@@ -624,6 +624,9 @@ public partial class MainWindow : Window
     {
         try
         {
+            var grevId = _session.PrimaryUser?.GrevId;
+            if (!string.IsNullOrWhiteSpace(grevId))
+                await PrepareCloudSaveForLaunchAsync(grevId, entry.Manifest.Definition.AppId, entry.Manifest.Definition.Name);
             var package = _grevStoreCatalog.Find(entry.Manifest.Definition.AppId);
             var keepShellHidden = package?.EffectiveRuntimePolicy.ReturnBehavior ==
                                   AppWindowReturnBehavior.KeepShellHidden;

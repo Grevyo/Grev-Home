@@ -769,7 +769,16 @@ public sealed partial class GrevDadCoordinator
                 return;
             }
 
-            await sync.UploadAsync(grevId, appId);
+            var uploaded = await sync.UploadAsync(grevId, appId);
+            if (uploaded.Status is CloudSaveStatus.Offline or CloudSaveStatus.Error)
+            {
+                await _publishNotificationAsync(
+                    NotificationSeverity.Warning,
+                    "Cloud Saves",
+                    $"{appName} save upload is incomplete",
+                    uploaded.Message ?? $"{appName}'s local save is safe, but it has not reached Grev.dad. Grev Home will try again after the next session, or you can use Sync Now in App Settings.",
+                    grevId);
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -798,6 +807,7 @@ public sealed partial class GrevDadCoordinator
             var apps = await sync.GetEnabledAppsAsync(grevId);
             var conflicts = 0;
             var remoteChanges = 0;
+            var incompleteUploads = 0;
             foreach (var appId in apps)
             {
                 CloudSaveState state;
@@ -812,6 +822,13 @@ public sealed partial class GrevDadCoordinator
 
                 if (state.Status == CloudSaveStatus.Conflict) conflicts++;
                 else if (state.Status == CloudSaveStatus.RemoteChangesAvailable) remoteChanges++;
+                else if (state.Status == CloudSaveStatus.LocalChangesPending)
+                {
+                    // A previous post-session upload may have been interrupted by shutdown or an
+                    // outage. Retry once on the next sign-in, after the same remote conflict check.
+                    var retried = await sync.UploadAsync(grevId, appId);
+                    if (retried.Status != CloudSaveStatus.UpToDate) incompleteUploads++;
+                }
             }
 
             if (conflicts > 0)
@@ -830,6 +847,15 @@ public sealed partial class GrevDadCoordinator
                     "Cloud Saves",
                     remoteChanges == 1 ? "A newer cloud save is available" : $"{remoteChanges} newer cloud saves are available",
                     "A save on Grev.dad is newer than the local copy for at least one app. Restore it from App Settings > Cloud Saves when you're ready.",
+                    grevId);
+            }
+            else if (incompleteUploads > 0)
+            {
+                await _publishNotificationAsync(
+                    NotificationSeverity.Warning,
+                    "Cloud Saves",
+                    incompleteUploads == 1 ? "A save upload is still incomplete" : $"{incompleteUploads} save uploads are still incomplete",
+                    "Local saves are safe. Grev Home could not finish sending them to Grev.dad and will try again after the next completed session or sign-in.",
                     grevId);
             }
         }

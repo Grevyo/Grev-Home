@@ -1,4 +1,5 @@
 using GrevHome.Apps;
+using GrevHome.Presentation;
 using GrevHome.Store.Installers;
 
 namespace GrevHome.Store;
@@ -31,7 +32,7 @@ public static class MediaCenterCatalog
                 DataStrategy.GrevId,
                 new AppLaunchDefinition("kodi.exe", "-p -fs", "{BinaryRoot}", "kodi"),
                 true, "Profile-isolated ten-foot media centre for local and network media."),
-            Presentation: new AppPresentationDefaults("Kodi", "#17B2E7"),
+            Presentation: new AppPresentationDefaults("Kodi", "#17B2E7", PackageBrandingAssets.Kodi),
             Capabilities: AppPackageCapability.Install | AppPackageCapability.Update |
                           AppPackageCapability.Repair | AppPackageCapability.ProfileUninstall |
                           AppPackageCapability.AppSettings | AppPackageCapability.PresentationOverrides,
@@ -54,7 +55,7 @@ public static class MediaCenterCatalog
                 DataStrategy.NativeAccount,
                 new AppLaunchDefinition("Plex HTPC.exe", "", null, "Plex HTPC"),
                 true, "Plex's native television interface for a Windows PC connected to a TV."),
-            Presentation: new AppPresentationDefaults("Plex HTPC", "#E5A00D"),
+            Presentation: new AppPresentationDefaults("Plex HTPC", "#E5A00D", PackageBrandingAssets.Plex),
             Capabilities: AppPackageCapability.Install | AppPackageCapability.Repair |
                           AppPackageCapability.LibraryMembership | AppPackageCapability.AppSettings |
                           AppPackageCapability.PresentationOverrides | AppPackageCapability.AdminManagement,
@@ -79,7 +80,7 @@ public static class MediaCenterCatalog
                 InstallStrategy.SystemInstalled, DataStrategy.NativeAccount,
                 new AppLaunchDefinition("JellyfinMediaPlayer.exe", "--fullscreen", null, "JellyfinMediaPlayer"),
                 true, "Controller-ready Jellyfin client for media hosted on your own Jellyfin server."),
-            Presentation: new AppPresentationDefaults("Jellyfin", "#AA5CC3"),
+            Presentation: new AppPresentationDefaults("Jellyfin", "#5B2C83", PackageBrandingAssets.Jellyfin),
             Capabilities: AppPackageCapability.Install | AppPackageCapability.Repair |
                           AppPackageCapability.LibraryMembership | AppPackageCapability.AppSettings |
                           AppPackageCapability.PresentationOverrides | AppPackageCapability.AdminManagement,
@@ -101,7 +102,7 @@ public static class MediaCenterCatalog
             App: new AppDefinition("stremio", "Stremio", AppKind.Media, InstallStrategy.SystemInstalled,
                 DataStrategy.NativeAccount, new AppLaunchDefinition("stremio.exe", "", null, "stremio"),
                 true, "Streaming media organiser with native gamepad navigation."),
-            Presentation: new AppPresentationDefaults("Stremio", "#7B5BF2"),
+            Presentation: new AppPresentationDefaults("Stremio", "#4A3A78", PackageBrandingAssets.Stremio),
             Capabilities: AppPackageCapability.Install | AppPackageCapability.Repair |
                           AppPackageCapability.LibraryMembership | AppPackageCapability.AppSettings |
                           AppPackageCapability.PresentationOverrides | AppPackageCapability.AdminManagement,
