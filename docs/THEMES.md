@@ -73,5 +73,9 @@ unsaved draft from the current edit; "Save Theme" overwrites the custom theme be
 place; "Save as New Theme" always mints a new theme; "Delete This Theme" requires pressing twice
 (the same two-step shape as App Killer's Force Close) and is hidden for built-ins.
 
-All hex entry, including the theme name, goes through the existing controller-first
-`ControllerQwertyKeyboard` overlay - no separate color-picker input surface was introduced.
+Each of the six editable fields also shows a row of ten quick-pick preset swatches - the same
+"click a swatch instead of typing a hex code" convention already used by Dashboard tile artwork,
+game tile colors and profile presets elsewhere in the app - so building a theme never requires
+knowing a hex code, while an "Enter Hex" button on every field still reaches exact colors through
+the existing controller-first `ControllerQwertyKeyboard` overlay (also used for the theme name).
+No separate color-picker input surface was introduced.

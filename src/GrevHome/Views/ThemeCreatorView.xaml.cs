@@ -23,6 +23,18 @@ public partial class ThemeCreatorView : UserControl
         ("muted", "Muted Text", theme => theme.Muted, (theme, value) => theme with { Muted = value })
     ];
 
+    /// <summary>
+    /// A generic quick-pick palette shown under every field, the same "click a swatch instead of
+    /// typing a hex code" convention already used by Dashboard tile artwork, game tile colors and
+    /// profile presets elsewhere in the app. Exact colors remain reachable through Enter Hex.
+    /// </summary>
+    private static readonly (string Name, string Hex)[] PresetSwatches =
+    [
+        ("Blue", "#7EA6FF"), ("Violet", "#B18CFF"), ("Pink", "#E85D75"), ("Orange", "#FF9A5A"),
+        ("Yellow", "#F2C94C"), ("Green", "#6FD6A0"), ("Teal", "#4DD0E1"),
+        ("Charcoal", "#151923"), ("Near Black", "#0B0A14"), ("White", "#F5F5F5")
+    ];
+
     public event EventHandler? BackRequested;
     public event Action<string>? ActivateRequested;
     public event Action<ThemeDefinition, bool>? SaveRequested;
@@ -46,29 +58,79 @@ public partial class ThemeCreatorView : UserControl
     {
         ColorFieldsPanel.Children.Clear();
         _fieldControls.Clear();
+        var cardBorderBrush = (Brush)FindResource("CardBorderBrush");
+        var mutedBrush = (Brush)FindResource("MutedBrush");
         foreach (var field in ColorFields)
         {
-            var swatch = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 10, 0), BorderBrush = (Brush)FindResource("CardBorderBrush"), BorderThickness = new Thickness(1) };
+            var swatch = new Border { Width = 34, Height = 34, CornerRadius = new CornerRadius(6), Margin = new Thickness(0, 0, 10, 0), BorderBrush = cardBorderBrush, BorderThickness = new Thickness(1) };
             var hexText = new TextBlock { VerticalAlignment = VerticalAlignment.Center, FontFamily = new FontFamily("Consolas"), FontSize = 14 };
-            var button = new Button
+
+            var enterHexButton = new Button { Tag = field.Key, Content = "Enter Hex", MinHeight = 38, MinWidth = 96, Margin = new Thickness(10, 0, 0, 0), FontSize = 12 };
+            enterHexButton.Click += ColorField_Click;
+            ShellTileMotion.Attach(enterHexButton);
+
+            var presetsPanel = new WrapPanel { Margin = new Thickness(0, 10, 0, 0) };
+            foreach (var preset in PresetSwatches)
             {
-                Tag = field.Key,
-                MinHeight = 54,
+                // The swatch color lives on an inner Border, the same convention
+                // AppArtworkFactory uses for every tile in the app: the shared Button style's
+                // IsMouseOver trigger sets the button's own Background, and that trigger is
+                // inherited by every style based on it (SharpTileButtonStyle included), so a
+                // color set directly on the button itself would go gray the moment it's hovered
+                // - exactly the moment a color swatch most needs to still show its color.
+                var presetButton = new Button
+                {
+                    Style = (Style)FindResource("SharpTileButtonStyle"),
+                    Tag = (field.Key, preset.Hex),
+                    Width = 24,
+                    Height = 24,
+                    Margin = new Thickness(0, 0, 6, 6),
+                    Padding = new Thickness(0),
+                    ToolTip = $"{preset.Name} ({preset.Hex})",
+                    Content = new Border
+                    {
+                        // Explicit size rather than relying on Stretch: the base Button style
+                        // centers content instead of stretching it, so an unsized Border here
+                        // would collapse to nothing and the swatch would be invisible.
+                        Width = 22,
+                        Height = 22,
+                        CornerRadius = new CornerRadius(3),
+                        Background = new SolidColorBrush((Color)ColorConverter.ConvertFromString(preset.Hex)!),
+                        BorderBrush = cardBorderBrush,
+                        BorderThickness = new Thickness(1)
+                    }
+                };
+                presetButton.Click += ColorPreset_Click;
+                ShellTileMotion.Attach(presetButton);
+                presetsPanel.Children.Add(presetButton);
+            }
+
+            var block = new Border
+            {
+                Width = 230,
                 Margin = new Thickness(0, 0, 12, 12),
-                Padding = new Thickness(10, 6, 14, 6),
-                Content = new StackPanel
+                Padding = new Thickness(14),
+                BorderBrush = cardBorderBrush,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(10),
+                Child = new StackPanel
                 {
                     Children =
                     {
-                        new TextBlock { Text = field.Label, FontSize = 12, Foreground = (Brush)FindResource("MutedBrush") },
-                        new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 4, 0, 0), Children = { swatch, hexText } }
+                        new TextBlock { Text = field.Label, FontSize = 12, Foreground = mutedBrush },
+                        new StackPanel
+                        {
+                            Orientation = Orientation.Horizontal,
+                            Margin = new Thickness(0, 6, 0, 0),
+                            Children = { swatch, hexText, enterHexButton }
+                        },
+                        presetsPanel
                     }
                 }
             };
-            button.Click += ColorField_Click;
-            ShellTileMotion.Attach(button);
+
             _fieldControls[field.Key] = (swatch, hexText);
-            ColorFieldsPanel.Children.Add(button);
+            ColorFieldsPanel.Children.Add(block);
         }
     }
 
@@ -165,6 +227,13 @@ public partial class ThemeCreatorView : UserControl
         var field = ColorFields.First(candidate => candidate.Key == key);
         _pendingField = key;
         KeyboardOverlay.Open($"Enter {field.Label} hex (without #)", field.Get(_editing).TrimStart('#'), 6);
+    }
+
+    private void ColorPreset_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: (string key, string hex) }) return;
+        var field = ColorFields.First(candidate => candidate.Key == key);
+        SetEditing(field.With(_editing, hex));
     }
 
     private void RenameTheme_Click(object sender, RoutedEventArgs e)
