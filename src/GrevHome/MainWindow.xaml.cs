@@ -95,7 +95,7 @@ public partial class MainWindow : Window
             RefreshLoginProfileDetailsAsync,
             LoadProfileStatsAsync,
             ReturnToLogin,
-            PublishActivityNotificationAsync);
+            (severity, source, title, message, grevId) => PublishActivityNotificationAsync(severity, source, title, message, grevId));
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);
