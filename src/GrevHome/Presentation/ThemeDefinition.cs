@@ -93,7 +93,7 @@ public sealed record ThemeDefinition(
 
     private static double RelativeLuminance(string hex)
     {
-        if (!HexPattern.IsMatch(hex ?? string.Empty)) return 0;
+        if (hex is null || !HexPattern.IsMatch(hex)) return 0;
         var r = Linearize(Convert.ToInt32(hex.Substring(1, 2), 16) / 255.0);
         var g = Linearize(Convert.ToInt32(hex.Substring(3, 2), 16) / 255.0);
         var b = Linearize(Convert.ToInt32(hex.Substring(5, 2), 16) / 255.0);

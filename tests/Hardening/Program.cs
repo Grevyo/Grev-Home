@@ -1,6 +1,7 @@
 using System.IO;
 using System.Net.Http;
 using System.Windows.Input;
+using GrevHome.Apps;
 using GrevHome.Input;
 using GrevHome.Profiles;
 using GrevHome.Storage;
