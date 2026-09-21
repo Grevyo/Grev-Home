@@ -199,6 +199,21 @@ try
 
         await saveSync.SetEnabledAsync(saveGrevId, "test.app", false);
         Check((await saveSync.GetStatusAsync(saveGrevId, "test.app")).Status == CloudSaveStatus.Disabled, "Turning cloud saves back off must be reflected immediately");
+
+        await saveSync.SetEnabledAsync(saveGrevId, "test.app", true);
+        await saveSync.SetEnabledAsync(saveGrevId, "second.app", true);
+        await saveSync.SetEnabledAsync(saveGrevId, "third.app", false);
+        var enabledApps = await saveSync.GetEnabledAppsAsync(saveGrevId);
+        Check(enabledApps.Contains("test.app") && enabledApps.Contains("second.app") && !enabledApps.Contains("third.app"),
+            "GetEnabledAppsAsync must list only the apps currently opted in for this GrevID");
+
+        // CheckRemoteAsync short-circuits before any network call for disabled/unlinked apps, the
+        // same as GetStatusAsync - a real conflict check against a live Grev.dad server is exercised
+        // by hand, not here.
+        var remoteUnlinked = await saveSync.CheckRemoteAsync(saveGrevId, "test.app");
+        Check(remoteUnlinked.Status == CloudSaveStatus.NotLinked, "CheckRemoteAsync on an unlinked GrevID must report NotLinked without attempting a network call");
+        var remoteDisabled = await saveSync.CheckRemoteAsync(saveGrevId, "third.app");
+        Check(remoteDisabled.Status == CloudSaveStatus.Disabled, "CheckRemoteAsync must report Disabled for an app that is opted out, without attempting a network call");
     }
 
     var hashRoot = Path.Combine(root, "SaveHashTest");
@@ -214,7 +229,7 @@ try
     Check(changedHash != firstHash, "Changing a save file's content must change the hash");
     Check(GrevDadSaveSyncService.ComputeLocalHash(Path.Combine(root, "NeverCreated")) == emptyHash, "A missing save folder must hash the same as an empty one, not throw");
 
-    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip, theme export/import round-trip, cloud save local state and content hashing.");
+    Console.WriteLine("Hardening tests passed: guest migration, concurrent writes, cancellation, remote mapping, unsigned installer rejection, theme save/activate/delete round-trip, theme export/import round-trip, cloud save local state, enabled-app listing and content hashing.");
 }
 finally { Directory.Delete(root, recursive: true); }
 

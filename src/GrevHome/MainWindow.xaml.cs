@@ -76,6 +76,7 @@ public partial class MainWindow : Window
         _overlayWindow = new GrevOverlayWindow();
         _overlayWindow.ConfigurePresentation(_shellMotionSettings);
         InitializePresentationEffects();
+        EnsureActivityInfrastructure();
 
         _grevDad = new GrevDadCoordinator(
             _paths,
@@ -93,7 +94,8 @@ public partial class MainWindow : Window
             GetProfileTarget,
             RefreshLoginProfileDetailsAsync,
             LoadProfileStatsAsync,
-            ReturnToLogin);
+            ReturnToLogin,
+            PublishActivityNotificationAsync);
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
         _session.Changed += (_, _) => Dispatcher.Invoke(RefreshSessionSurfaces);

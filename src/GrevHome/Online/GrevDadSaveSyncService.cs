@@ -14,6 +14,8 @@ public enum CloudSaveStatus
     NeverSynced,
     UpToDate,
     LocalChangesPending,
+    RemoteChangesAvailable,
+    Conflict,
     Syncing,
     Offline,
     Error
@@ -30,9 +32,10 @@ internal sealed record CloudSaveManifest(
     bool Enabled,
     string? LastUploadedHash,
     DateTimeOffset? LastUploadedAtUtc,
-    DateTimeOffset? LastDownloadedAtUtc)
+    DateTimeOffset? LastDownloadedAtUtc,
+    DateTimeOffset? LastKnownRemoteUpdatedAtUtc = null)
 {
-    public static CloudSaveManifest Empty { get; } = new(1, false, null, null, null);
+    public static CloudSaveManifest Empty { get; } = new(1, false, null, null, null, null);
 }
 
 internal sealed record GrevDadSaveApiResponse(bool Ok, string? Message, int ApiVersion, bool Exists, long? SizeBytes, DateTimeOffset? UpdatedAtUtc);
@@ -50,6 +53,10 @@ public sealed class GrevDadSaveSyncService : IDisposable
 {
     private const int SchemaVersion = 1;
     private const string AccessCredentialSlot = "access";
+    // Sent by Grev.dad on both the upload response body (GrevDadSaveApiResponse.UpdatedAtUtc) and,
+    // since a save GET's body is the archive itself, as a response header on GET/HEAD so a conflict
+    // check can learn the remote's timestamp without downloading the whole archive.
+    private const string RemoteUpdatedAtHeader = "X-Grev-Updated-At";
     // A generous but finite ceiling: this guards against archiving a save folder someone pointed
     // at something enormous by mistake (a whole emulator BIOS/ROM tree, say), not a real save.
     private const long MaxArchiveBytes = 300L * 1024 * 1024;
@@ -178,6 +185,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
 
             var hash = ComputeLocalHash(saveRoot);
             var archivePath = Path.Combine(Path.GetTempPath(), $"GrevHomeSave-{Guid.NewGuid():N}.zip");
+            DateTimeOffset? remoteUpdatedAt = null;
             try
             {
                 ZipFile.CreateFromDirectory(saveRoot, archivePath, CompressionLevel.Optimal, includeBaseDirectory: false);
@@ -210,6 +218,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
 
                     var result = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadSaveApiResponse>(response, _json, cancellationToken);
                     EnsureApiVersion(result.ApiVersion);
+                    remoteUpdatedAt = result.UpdatedAtUtc;
                 }
             }
             finally
@@ -218,7 +227,16 @@ public sealed class GrevDadSaveSyncService : IDisposable
             }
 
             var uploadedAt = DateTimeOffset.UtcNow;
-            await WriteManifestAsync(grevId, appId, manifest with { LastUploadedHash = hash, LastUploadedAtUtc = uploadedAt }, cancellationToken);
+            await WriteManifestAsync(
+                grevId,
+                appId,
+                manifest with
+                {
+                    LastUploadedHash = hash,
+                    LastUploadedAtUtc = uploadedAt,
+                    LastKnownRemoteUpdatedAtUtc = remoteUpdatedAt ?? uploadedAt
+                },
+                cancellationToken);
             return new CloudSaveState(CloudSaveStatus.UpToDate, uploadedAt, manifest.LastDownloadedAtUtc, null);
         }
         catch (Exception ex) when (IsNetworkFailure(ex))
@@ -323,7 +341,17 @@ public sealed class GrevDadSaveSyncService : IDisposable
 
             var downloadedAt = DateTimeOffset.UtcNow;
             var hash = ComputeLocalHash(_paths.GetProfileAppSaves(grevId, appId));
-            await WriteManifestAsync(grevId, appId, manifest with { LastUploadedHash = hash, LastDownloadedAtUtc = downloadedAt }, cancellationToken);
+            var remoteUpdatedAt = TryReadRemoteUpdatedAtHeader(response);
+            await WriteManifestAsync(
+                grevId,
+                appId,
+                manifest with
+                {
+                    LastUploadedHash = hash,
+                    LastDownloadedAtUtc = downloadedAt,
+                    LastKnownRemoteUpdatedAtUtc = remoteUpdatedAt ?? downloadedAt
+                },
+                cancellationToken);
             return new CloudSaveState(CloudSaveStatus.UpToDate, manifest.LastUploadedAtUtc, downloadedAt, null);
         }
         catch (Exception ex) when (IsNetworkFailure(ex))
@@ -341,6 +369,140 @@ public sealed class GrevDadSaveSyncService : IDisposable
             gate.Release();
         }
     }
+
+    /// <summary>
+    /// Every app under this GrevID that currently has cloud saves turned on. Manifests are kept as
+    /// one file per app with no separate index, so this lists the per-GrevID manifest directory and
+    /// reads each one; a login-time conflict sweep is the only caller and already tolerates the
+    /// small extra I/O this costs over an index it would otherwise have to keep in sync.
+    /// </summary>
+    public async Task<IReadOnlyList<string>> GetEnabledAppsAsync(string grevId, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var directory = Path.Combine(_paths.GetProfileConnections(grevId), "GrevDad", "cloud-saves");
+        if (!Directory.Exists(directory))
+        {
+            return Array.Empty<string>();
+        }
+
+        var enabled = new List<string>();
+        foreach (var file in Directory.EnumerateFiles(directory, "*.json"))
+        {
+            var appId = Path.GetFileNameWithoutExtension(file);
+            if (await IsEnabledAsync(grevId, appId, cancellationToken))
+            {
+                enabled.Add(appId);
+            }
+        }
+
+        return enabled;
+    }
+
+    /// <summary>
+    /// A lightweight (no archive download) network check for whether local and/or remote save data
+    /// has changed since Grev Home last touched this app's cloud save, so a real conflict (both
+    /// sides changed independently) can be told apart from an ordinary one-sided change. Unlike
+    /// <see cref="GetStatusAsync"/> this does make a network call - callers (login sync, the
+    /// pre-upload check after a session ends) treat it as best-effort and fall back to the local-only
+    /// status on failure rather than blocking on it.
+    /// </summary>
+    public async Task<CloudSaveState> CheckRemoteAsync(string grevId, string appId, CancellationToken cancellationToken = default)
+    {
+        ThrowIfDisposed();
+        var manifest = await ReadManifestAsync(grevId, appId, cancellationToken);
+        if (!manifest.Enabled)
+        {
+            return new CloudSaveState(CloudSaveStatus.Disabled, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
+        }
+
+        if (_accounts.GetLastSnapshot(grevId).State != GrevDadConnectionState.Linked)
+        {
+            return new CloudSaveState(
+                CloudSaveStatus.NotLinked,
+                manifest.LastUploadedAtUtc,
+                manifest.LastDownloadedAtUtc,
+                "Link this GrevID to Grev.dad in Profile to use cloud saves.");
+        }
+
+        if (manifest.LastUploadedHash is null)
+        {
+            return new CloudSaveState(CloudSaveStatus.NeverSynced, null, manifest.LastDownloadedAtUtc, null);
+        }
+
+        var token = _secrets.Read(grevId, AccessCredentialSlot);
+        if (string.IsNullOrWhiteSpace(token))
+        {
+            return new CloudSaveState(CloudSaveStatus.NotLinked, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
+        }
+
+        try
+        {
+            string currentHash;
+            try
+            {
+                currentHash = ComputeLocalHash(_paths.GetProfileAppSaves(grevId, appId));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                return new CloudSaveState(CloudSaveStatus.Error, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, ex.Message);
+            }
+            var localChanged = !string.Equals(currentHash, manifest.LastUploadedHash, StringComparison.Ordinal);
+
+            using var request = new HttpRequestMessage(HttpMethod.Head, $"api/grev-home/saves/{appId}");
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var response = await _http.SendAsync(request, cancellationToken);
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return new CloudSaveState(
+                    localChanged ? CloudSaveStatus.LocalChangesPending : CloudSaveStatus.UpToDate,
+                    manifest.LastUploadedAtUtc,
+                    manifest.LastDownloadedAtUtc,
+                    null);
+            }
+            if (!response.IsSuccessStatusCode)
+            {
+                return new CloudSaveState(
+                    localChanged ? CloudSaveStatus.LocalChangesPending : CloudSaveStatus.UpToDate,
+                    manifest.LastUploadedAtUtc,
+                    manifest.LastDownloadedAtUtc,
+                    $"Could not check for remote changes ({(int)response.StatusCode}). Showing local state only.");
+            }
+
+            var remoteUpdatedAt = TryReadRemoteUpdatedAtHeader(response);
+            var remoteChanged = remoteUpdatedAt is not null &&
+                                 manifest.LastKnownRemoteUpdatedAtUtc is not null &&
+                                 remoteUpdatedAt.Value > manifest.LastKnownRemoteUpdatedAtUtc.Value;
+
+            var status = (localChanged, remoteChanged) switch
+            {
+                (true, true) => CloudSaveStatus.Conflict,
+                (false, true) => CloudSaveStatus.RemoteChangesAvailable,
+                (true, false) => CloudSaveStatus.LocalChangesPending,
+                _ => CloudSaveStatus.UpToDate
+            };
+
+            return new CloudSaveState(status, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, null);
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex))
+        {
+            return new CloudSaveState(CloudSaveStatus.Offline, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, "Grev.dad could not be reached.");
+        }
+    }
+
+    /// <summary>
+    /// Resolves a detected conflict by explicit user choice: <paramref name="keepLocal"/> pushes the
+    /// local save over the remote one (an ordinary upload); otherwise the remote save replaces the
+    /// local one (an ordinary download, with the same non-destructive backup-before-replace safety).
+    /// There is no automatic merge - cloud saves are transport only and never inspect save content.
+    /// </summary>
+    public Task<CloudSaveState> ResolveConflictAsync(string grevId, string appId, bool keepLocal, CancellationToken cancellationToken = default) =>
+        keepLocal ? UploadAsync(grevId, appId, cancellationToken) : DownloadAsync(grevId, appId, cancellationToken);
+
+    private static DateTimeOffset? TryReadRemoteUpdatedAtHeader(HttpResponseMessage response) =>
+        response.Headers.TryGetValues(RemoteUpdatedAtHeader, out var values) &&
+        DateTimeOffset.TryParse(values.FirstOrDefault(), out var parsed)
+            ? parsed
+            : null;
 
     /// <summary>
     /// A stable, order-independent hash of a save folder's exact contents (relative path and

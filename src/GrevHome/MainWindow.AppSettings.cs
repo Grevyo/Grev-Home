@@ -86,6 +86,7 @@ public partial class MainWindow
         _appSettingsView.CloudSavesEnabledChangeRequested += enabled => _ = SetCloudSavesEnabledAsync(enabled);
         _appSettingsView.CloudSavesSyncNowRequested += (_, _) => _ = RunCloudSaveActionAsync(upload: true);
         _appSettingsView.CloudSavesRestoreRequested += (_, _) => _ = RunCloudSaveActionAsync(upload: false);
+        _appSettingsView.CloudSavesResolveConflictRequested += keepLocal => _ = ResolveCloudSaveConflictAsync(keepLocal);
         _appArtworkPickerView.HomeRequested += (_, _) => ShowAppArtworkHome();
         _appArtworkPickerView.UpRequested += (_, _) => NavigateAppArtworkUp();
         _appArtworkPickerView.CancelRequested += (_, _) => _navigation.GoBack();
@@ -366,11 +367,47 @@ public partial class MainWindow
         }
 
         var enabled = await sync.IsEnabledAsync(grevId, appId);
-        var state = await sync.GetStatusAsync(grevId, appId);
+        // CheckRemoteAsync makes a network call GetStatusAsync deliberately avoids, so a real
+        // conflict (changed both here and on another device) can be told apart from an ordinary
+        // one-sided change; a failure here just falls back to the network-free local status rather
+        // than blocking or failing this page.
+        CloudSaveState state;
+        try
+        {
+            state = await sync.CheckRemoteAsync(grevId, appId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
+        {
+            state = await sync.GetStatusAsync(grevId, appId);
+        }
+
         if (_navigation.Current == Route.AppSettings && _appSettingsEntry?.Manifest.Definition.AppId == appId)
         {
             _appSettingsView.SetCloudSaveState(enabled, state);
         }
+    }
+
+    private async Task ResolveCloudSaveConflictAsync(bool keepLocal)
+    {
+        var sync = _grevDad.SaveSyncService;
+        var grevId = _session.PrimaryUser?.GrevId;
+        var appId = _appSettingsEntry?.Manifest.Definition.AppId;
+        if (sync is null || string.IsNullOrWhiteSpace(grevId) || appId is null) return;
+
+        _appSettingsView.ShowStatus(keepLocal ? "Uploading this device's save…" : "Downloading the cloud save…");
+        var state = await sync.ResolveConflictAsync(grevId, appId, keepLocal);
+        if (_navigation.Current == Route.AppSettings && _appSettingsEntry?.Manifest.Definition.AppId == appId)
+        {
+            _appSettingsView.SetCloudSaveState(await sync.IsEnabledAsync(grevId, appId), state);
+        }
+
+        _appSettingsView.ShowStatus(state.Status switch
+        {
+            CloudSaveStatus.UpToDate => keepLocal ? "This device's save was uploaded to Grev.dad." : "The cloud save was restored to this device.",
+            CloudSaveStatus.Offline => "Grev.dad could not be reached. Local play is unaffected.",
+            CloudSaveStatus.Error => state.Message ?? "Could not resolve the conflict.",
+            _ => string.Empty
+        });
     }
 
     private async Task SetCloudSavesEnabledAsync(bool enabled)

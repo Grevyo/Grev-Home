@@ -29,6 +29,20 @@ local data after that authority confirms the device link.
   formed `CloudSaveState` rather than throwing for expected outcomes (disabled, not linked,
   offline, nothing to sync yet); only a genuinely unexpected failure surfaces as
   `CloudSaveStatus.Error`.
+- `CheckRemoteAsync` - a lightweight network call (`HEAD`, no archive download) that tells a real
+  conflict apart from an ordinary one-sided change: it compares the local content hash against the
+  hash as of the last upload/download, and the remote's `X-Grev-Updated-At` timestamp against the
+  remote timestamp Grev Home last knew about, and reports `CloudSaveStatus.Conflict` only when
+  *both* sides changed since that last sync. Only local changed keeps reporting
+  `LocalChangesPending`; only remote changed reports `RemoteChangesAvailable`. Best-effort by
+  design - every caller falls back to the network-free `GetStatusAsync` on failure rather than
+  blocking on it.
+- `ResolveConflictAsync(grevId, appId, keepLocal)` - the explicit choice a conflict needs: `true`
+  pushes this device's save over the remote one (an ordinary upload), `false` pulls the remote save
+  down over this device's (an ordinary download, with the same non-destructive backup-before-replace
+  safety). There is no merge - cloud saves are transport only and never inspect save content.
+- `GetEnabledAppsAsync` - every app under a GrevID that currently has cloud saves turned on, read
+  from the per-app manifest files since there is no separate index. Used by the sign-in sweep below.
 
 ### Safety
 
@@ -51,13 +65,40 @@ local data after that authority confirms the device link.
 `GrevDadCoordinator.QueueSaveSyncAfterLocalHistory` is subscribed to the same
 `RuntimeSessionManager.SessionHistoryCommitted` event `QueueSyncAfterLocalHistory` already uses for
 progression sync (`MainWindow.SessionHistory.cs`): after a completed session's local history
-commits, if that app has cloud saves enabled for its primary participant, the current save data
-uploads in the background. A failure here does not retry on a timer the way progression sync
-does - the next completed session, or a manual Sync Now, tries again.
+commits, if that app has cloud saves enabled for its primary participant, Grev Home first runs the
+same lightweight `CheckRemoteAsync` conflict check Settings uses. If it comes back clean the current
+save data uploads in the background, same as before; if it detects a genuine conflict (the save also
+changed on another device since the last sync), the upload is skipped and a Warning notification is
+published instead - a conflict is never silently resolved by whichever device happens to close the
+app last. A failure here does not retry on a timer the way progression sync does - the next
+completed session, or a manual Sync Now, tries again.
 
-Downloading is always manual (Settings > this app > Cloud Saves > Restore from Cloud). Grev Home
-does not download and silently apply a cloud save before launch: the player decides when a restore
-happens, and Restore from Cloud is disabled until there is something to restore.
+Downloading is always manual (Settings > this app > Cloud Saves > Restore from Cloud, or the
+conflict panel's Keep/Use Cloud choice). Grev Home does not download and silently apply a cloud save
+before launch: the player decides when a restore happens, and Restore from Cloud is disabled until
+there is something to restore.
+
+## Sign-in sweep
+
+`GrevDadCoordinator` also runs a one-time check the first time each GrevID appears in
+`SessionContext.SignedInUsers` during a Grev Home run (mirroring the sign-in edge
+`GrevDadProfileSyncService` already reacts to via `_session.Changed`): for every app
+`GetEnabledAppsAsync` reports as opted in, it calls `CheckRemoteAsync` and publishes one summary
+notification through the existing Activity Center `NotificationService` - a Warning if any app has a
+genuine conflict, otherwise an Info if any app has a newer cloud save waiting. Nothing downloads or
+uploads automatically from this sweep; it only surfaces what needs the player's attention in
+Settings. Like every other Grev.dad call, a failure or timeout here is swallowed rather than
+delaying or blocking sign-in.
+
+## Conflict resolution
+
+A conflict only exists when *both* sides changed since Grev Home's last known-common state for that
+app - an ordinary one-sided change (only local, or only remote) is not a conflict and is handled by
+the existing Sync Now / Restore from Cloud actions. When App Settings > Cloud Saves shows a conflict,
+it presents two explicit choices instead of a status line: **Keep This Device's Save** (upload,
+overwriting the remote copy) or **Use Cloud Save** (download, overwriting the local copy with the
+same backup-before-replace safety every restore already has). Neither Grev Home nor Grev.dad ever
+merges the two - cloud saves are transport only and have no save-format awareness to merge with.
 
 ## Settings surface
 

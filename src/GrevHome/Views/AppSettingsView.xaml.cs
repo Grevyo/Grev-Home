@@ -36,6 +36,7 @@ public partial class AppSettingsView : UserControl
     public event Action<bool>? CloudSavesEnabledChangeRequested;
     public event EventHandler? CloudSavesSyncNowRequested;
     public event EventHandler? CloudSavesRestoreRequested;
+    public event Action<bool>? CloudSavesResolveConflictRequested;
 
     public AppSettingsView()
     {
@@ -276,6 +277,12 @@ public partial class AppSettingsView : UserControl
     private void CloudSavesRestore_Click(object sender, RoutedEventArgs e) =>
         CloudSavesRestoreRequested?.Invoke(this, EventArgs.Empty);
 
+    private void CloudSavesKeepLocal_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesResolveConflictRequested?.Invoke(true);
+
+    private void CloudSavesUseCloud_Click(object sender, RoutedEventArgs e) =>
+        CloudSavesResolveConflictRequested?.Invoke(false);
+
     /// <summary>
     /// Renders the Cloud Saves section from a freshly resolved <see cref="CloudSaveState"/>. The
     /// host (MainWindow.AppSettings.cs) owns every actual GrevDadSaveSyncService call; this view
@@ -289,6 +296,9 @@ public partial class AppSettingsView : UserControl
         var canAct = enabled && state.Status is not (CloudSaveStatus.NotLinked or CloudSaveStatus.Disabled);
         CloudSavesSyncNowButton.IsEnabled = canAct;
         CloudSavesRestoreButton.IsEnabled = canAct && state.Status != CloudSaveStatus.NeverSynced;
+        CloudSavesConflictPanel.Visibility = enabled && state.Status == CloudSaveStatus.Conflict
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         CloudSavesStatusText.Text = BuildCloudSaveStatusText(state);
     }
 
@@ -301,6 +311,8 @@ public partial class AppSettingsView : UserControl
             CloudSaveStatus.NeverSynced => "Not synced yet.",
             CloudSaveStatus.UpToDate => "Up to date with Grev.dad.",
             CloudSaveStatus.LocalChangesPending => "Local save data has changed since the last sync.",
+            CloudSaveStatus.RemoteChangesAvailable => "A newer save is available on Grev.dad. Restore it below when you're ready.",
+            CloudSaveStatus.Conflict => "This save changed on this device and on another device since the last sync.",
             CloudSaveStatus.Syncing => "Syncing…",
             CloudSaveStatus.Offline => "Grev.dad could not be reached. Local play is unaffected.",
             CloudSaveStatus.Error => state.Message ?? "Cloud save sync failed.",
