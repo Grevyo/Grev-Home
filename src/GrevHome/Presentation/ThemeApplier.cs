@@ -14,6 +14,7 @@ namespace GrevHome.Presentation;
 public static class ThemeApplier
 {
     public const string WindowBackgroundKey = "WindowBackgroundBrush";
+    public const string WindowBackgroundColorKey = "WindowBackgroundColor";
     public const string CardBackgroundKey = "CardBackgroundBrush";
     public const string CardBorderKey = "CardBorderBrush";
     public const string SurfaceKey = "SurfaceBrush";
@@ -32,6 +33,9 @@ public static class ThemeApplier
         if (resources is null) return;
 
         resources[WindowBackgroundKey] = Brush(theme.WindowBackground);
+        // Kept alongside the brush for the one spot - the window's own ambient background
+        // gradient - that needs a raw Color rather than a Brush.
+        resources[WindowBackgroundColorKey] = ParseColor(theme.WindowBackground);
         resources[CardBackgroundKey] = Brush(theme.CardBackground);
         resources[CardBorderKey] = Brush(theme.CardBorder);
         resources[SurfaceKey] = Brush(theme.Surface);

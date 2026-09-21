@@ -202,10 +202,10 @@ public partial class AppKillerView : UserControl
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 0, 0, 14),
             Padding = new Thickness(22),
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            Background = (Brush)FindResource("CardBackgroundBrush"),
             BorderBrush = preferred
                 ? (Brush)FindResource("AccentBrush")
-                : new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+                : (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(preferred ? 2 : 1),
             CornerRadius = new CornerRadius(14),
             Child = content

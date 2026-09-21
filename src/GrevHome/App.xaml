@@ -9,6 +9,10 @@
              colors here are the "Grev Default" theme and only matter as a fallback for the brief
              moment before App.OnStartup applies the saved active theme. -->
         <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#090C12" />
+        <!-- A raw Color counterpart to WindowBackgroundBrush, for the one spot (the window's own
+             ambient background gradient) that needs a Color rather than a Brush: a GradientStop
+             cannot take a Brush-typed resource. ThemeApplier keeps both in sync. -->
+        <Color x:Key="WindowBackgroundColor">#090C12</Color>
         <SolidColorBrush x:Key="CardBackgroundBrush" Color="#11151E" />
         <SolidColorBrush x:Key="CardBorderBrush" Color="#3A465F" />
         <SolidColorBrush x:Key="SurfaceBrush" Color="#151923" />

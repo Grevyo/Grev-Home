@@ -136,10 +136,8 @@ public partial class RunningAppsView : UserControl
                 MinHeight = 220,
                 Margin = new Thickness(8),
                 Padding = new Thickness(18),
-                Background = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(17, 21, 30)),
-                BorderBrush = new System.Windows.Media.SolidColorBrush(
-                    System.Windows.Media.Color.FromRgb(43, 51, 68)),
+                Background = (System.Windows.Media.Brush)FindResource("CardBackgroundBrush"),
+                BorderBrush = (System.Windows.Media.Brush)FindResource("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(12),
                 Child = content

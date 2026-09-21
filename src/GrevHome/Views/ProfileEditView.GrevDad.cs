@@ -51,8 +51,8 @@ public partial class ProfileEditView
         _grevDadEditorBuilt = true;
         _grevDadEditorCard.Margin = new Thickness(0, 22, 0, 0);
         _grevDadEditorCard.Padding = new Thickness(20);
-        _grevDadEditorCard.Background = new SolidColorBrush(Color.FromRgb(9, 12, 18));
-        _grevDadEditorCard.BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68));
+        _grevDadEditorCard.Background = (Brush)FindResource("WindowBackgroundBrush");
+        _grevDadEditorCard.BorderBrush = (Brush)FindResource("CardBorderBrush");
         _grevDadEditorCard.BorderThickness = new Thickness(1);
         _grevDadEditorCard.CornerRadius = new CornerRadius(0);
 
@@ -135,7 +135,7 @@ public partial class ProfileEditView
         {
             Height = 1,
             Margin = new Thickness(0, 14, 0, 14),
-            Background = new SolidColorBrush(Color.FromRgb(43, 51, 68))
+            Background = (Brush)FindResource("CardBorderBrush")
         });
         stack.Children.Add(new TextBlock
         {

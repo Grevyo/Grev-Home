@@ -106,7 +106,7 @@ public partial class ProfilePlayersView : UserControl
         var roleBrush = GetRoleBrush(user.Role);
         var card = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
+            Background = (Brush)FindResource("CardBackgroundBrush"),
             BorderBrush = roleBrush,
             BorderThickness = new Thickness(2),
             CornerRadius = new CornerRadius(14),

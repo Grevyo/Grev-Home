@@ -51,13 +51,20 @@ jobs:
       - name: Verify no theme colors are hardcoded outside the theme engine
         shell: pwsh
         run: |
-          $themeColorFiles = 'src\GrevHome\App.xaml','src\GrevHome\Presentation\ThemeDefinition.cs'
+          # Covers both spellings a color literal can take in this codebase: a XAML/string hex
+          # code, and the equivalent decimal Color.FromRgb(r, g, b) used in C# object initializers.
+          # The FromRgb form is how this exact duplication got past the first version of this
+          # guard: same color, different syntax, so the hex-only pattern below missed it entirely.
+          # ThemeCreatorView's own quick-pick swatch palette legitimately contains #7EA6FF as one
+          # offered color among ten, the same way DashboardTileSettingsView's presets do - not a
+          # chrome duplicate.
+          $themeColorFiles = 'src\GrevHome\App.xaml','src\GrevHome\Presentation\ThemeDefinition.cs','src\GrevHome\Presentation\AppArtworkFactory.cs','src\GrevHome\Profiles\ProfilePresentationSettings.cs','src\GrevHome\Views\ThemeCreatorView.xaml.cs'
           $strayThemeColors = Get-ChildItem .\src -Recurse -File -Include *.cs,*.xaml |
             Where-Object { $themeColorFiles -notcontains $_.FullName.Substring((Resolve-Path .).Path.Length + 1) } |
-            Select-String -Pattern '#11151E|#2B3344|#343D51|#3A465F'
+            Select-String -Pattern '#090C12|#11151E|#2B3344|#343D51|#3A465F|#7EA6FF|FromRgb\(9, ?12, ?18\)|FromRgb\(17, ?21, ?30\)|FromRgb\(43, ?51, ?68\)|FromRgb\(52, ?61, ?81\)|FromRgb\(58, ?70, ?95\)|FromRgb\(126, ?166, ?255\)|FromRgb\(151, ?160, ?179\)'
           if ($strayThemeColors) {
             $strayThemeColors | ForEach-Object { Write-Host "Stray theme color literal: $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
-            throw 'A shell card/border color is hardcoded outside App.xaml/ThemeDefinition.cs. Use CardBackgroundBrush/CardBorderBrush (DynamicResource) instead so themes actually reach it.'
+            throw 'A shell chrome color is hardcoded outside the theme engine, as a hex string or a decimal Color.FromRgb. Use the matching theme brush (DynamicResource in XAML, (Brush)FindResource in code-behind) instead so themes actually reach it.'
           }
 
       - name: Verify official installer publishers without executing installers

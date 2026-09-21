@@ -107,7 +107,7 @@ public partial class GrevStoreAppView : UserControl
                 Margin = new Thickness(0, 5, 0, 0),
                 Padding = new Thickness(12, 10, 12, 10),
                 CornerRadius = new CornerRadius(9),
-                Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(9, 12, 18)),
+                Background = (System.Windows.Media.Brush)FindResource("WindowBackgroundBrush"),
                 Child = new TextBlock
                 {
                     Text = $"•  {integration}",

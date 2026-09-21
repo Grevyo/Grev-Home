@@ -125,8 +125,8 @@ public partial class MainWindow
             Padding = new Thickness(20),
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = new SolidColorBrush(Color.FromRgb(17, 21, 30)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(58, 70, 95)),
+            Background = (Brush)FindResource("CardBackgroundBrush"),
+            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(15),
             Visibility = Visibility.Collapsed

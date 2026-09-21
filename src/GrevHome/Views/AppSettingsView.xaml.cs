@@ -145,8 +145,8 @@ public partial class AppSettingsView : UserControl
                 Padding = new Thickness(12, 9, 12, 9),
                 Margin = new Thickness(0, 0, 0, 6),
                 MinHeight = 58,
-                Background = new SolidColorBrush(Color.FromRgb(9, 12, 18)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(43, 51, 68)),
+                Background = (Brush)FindResource("WindowBackgroundBrush"),
+                BorderBrush = (Brush)FindResource("CardBorderBrush"),
                 BorderThickness = new Thickness(1),
                 CornerRadius = new CornerRadius(9)
             };
@@ -310,7 +310,7 @@ public partial class AppSettingsView : UserControl
             : $"{_controllerProfileDisplayName}: Disabled";
         ControllerProfileToggleButton.BorderBrush = _enabled
             ? (Brush)FindResource("AccentBrush")
-            : new SolidColorBrush(Color.FromRgb(52, 61, 81));
+            : (Brush)FindResource("CardBorderBrush");
     }
 
     private AppControllerProfileDraft CaptureDraft() => new(

@@ -16,7 +16,7 @@
         <Grid.Background>
             <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
                 <GradientStop Color="#182137" Offset="0" />
-                <GradientStop Color="#090C12" Offset="1" />
+                <GradientStop Color="{DynamicResource WindowBackgroundColor}" Offset="1" />
             </RadialGradientBrush>
         </Grid.Background>
 
@@ -411,7 +411,7 @@
                             Height="2"
                             Margin="0,14,0,0"
                             HorizontalAlignment="Center"
-                            Background="#7EA6FF" />
+                            Background="{DynamicResource AccentBrush}" />
                     <TextBlock x:Name="IntroTaglineText"
                                Text="YOUR PC. YOUR WAY."
                                Margin="0,13,0,0"
