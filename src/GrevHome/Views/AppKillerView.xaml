@@ -59,8 +59,8 @@
 
             <Border Padding="18"
                     Margin="0,0,0,18"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="14">
                 <Grid>
@@ -108,8 +108,8 @@
 
             <Border Margin="0,20,0,0"
                     Padding="20"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
                 <TextBlock x:Name="StatusText"

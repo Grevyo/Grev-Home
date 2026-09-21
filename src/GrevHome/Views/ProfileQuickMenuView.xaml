@@ -63,7 +63,7 @@
         <Border Grid.Row="2"
                 Margin="0,14,0,0"
                 Padding="0,14,0,0"
-                BorderBrush="#2B3344"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="0,1,0,0">
             <WrapPanel>
                 <Button x:Name="AddPlayerButton"

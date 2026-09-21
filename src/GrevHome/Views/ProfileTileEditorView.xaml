@@ -19,7 +19,7 @@
    </StackPanel>
   </StackPanel>
 
-  <Border Grid.Row="1" Margin="40,10" Padding="18" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16">
+  <Border Grid.Row="1" Margin="40,10" Padding="18" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="16">
    <ScrollViewer x:Name="GridScroller" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
     <Canvas x:Name="GridCanvas" Background="Transparent" />
    </ScrollViewer>
@@ -32,7 +32,7 @@
     <TextBlock Text="TILE SETTINGS" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}"/>
     <TextBlock x:Name="SettingsHeadingText" Margin="0,7,0,0" FontSize="24" FontWeight="SemiBold" TextWrapping="Wrap"/>
     <TextBlock x:Name="SettingsPositionText" Margin="0,4,0,14" FontSize="12" Foreground="{DynamicResource MutedBrush}"/>
-    <Border Padding="14" Background="#151B25" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="8">
+    <Border Padding="14" Background="#151B25" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="8">
      <StackPanel>
       <TextBlock x:Name="SettingsFieldText" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}"/>
       <TextBlock x:Name="SettingsValueText" Margin="0,7,0,0" FontSize="20" FontWeight="SemiBold" TextWrapping="Wrap"/>

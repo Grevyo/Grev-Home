@@ -25,12 +25,16 @@ element using them re-color immediately, whether it is already on screen or draw
 `ThemeApplier` never mutates an existing brush's `Color`; each call swaps in a fresh
 `SolidColorBrush`, which sidesteps any question of whether a previous brush was frozen.
 
-A handful of colors declared directly in code-behind (`FindResource(...)` used once to set a
+Every XAML-declared occurrence of the shell's card/section surface (`#11151E` background,
+paired with either `#2B3344` or `#3A465F` border - previously two near-duplicate borders, now
+both `CardBorderBrush`) and the base button's resting border (`#343D51`) has been swept to these
+same `DynamicResource` keys across every view, not just the shared styles - that duplication was
+itself a consistency gap independent of theming, and fixing it made both problems disappear
+together. Colors declared directly in code-behind (`FindResource(...)` used once to set a
 `Background`/`Foreground` at construction time, rather than a live `DynamicResource` binding) do
-not re-color until that surface is next rebuilt or reopened. This is a known, deliberate scope
-limit of the current pass, not a bug: the shell-wide chrome (the seven original hardcoded colors,
-now ten) is fully live; a handful of hardcoded one-off colors scattered through individual views
-are a separate, later sweep.
+not re-color until that surface is next rebuilt or reopened. This remaining limit is scoped to
+control-level code-behind assignments; there are no more XAML-declared literal duplicates of the
+ten theme colors left in the shell's shared chrome.
 
 ## Built-in themes
 

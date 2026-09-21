@@ -22,7 +22,7 @@
         <Style TargetType="Button">
             <Setter Property="Foreground" Value="White" />
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
-            <Setter Property="BorderBrush" Value="#343D51" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
             <Setter Property="BorderThickness" Value="2" />
             <Setter Property="Padding" Value="14,10" />
             <Setter Property="FontSize" Value="16" />

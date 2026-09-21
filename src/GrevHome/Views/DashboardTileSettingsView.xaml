@@ -5,7 +5,7 @@
    <StackPanel Margin="72,38" MaxWidth="900">
     <TextBlock Text="Home Button Settings" FontSize="40" FontWeight="SemiBold" />
     <TextBlock x:Name="IdentityText" Margin="0,6,0,22" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
-    <Border Padding="24" Background="#11151E" BorderBrush="#2B3344" BorderThickness="1" CornerRadius="16">
+    <Border Padding="24" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="16">
      <StackPanel>
       <TextBlock Text="BUTTON PRESENTATION" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
       <TextBlock Text="Button name" Margin="0,18,0,6" Foreground="{DynamicResource MutedBrush}" />

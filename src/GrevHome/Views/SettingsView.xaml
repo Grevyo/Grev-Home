@@ -93,8 +93,8 @@
                 <Border Margin="8,22,8,0"
                         Padding="24,20"
                         MinHeight="154"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         CornerRadius="12">
                     <StackPanel>
@@ -116,7 +116,7 @@
                                     <Border Margin="0,0,10,10"
                                             Padding="12,7"
                                             Background="#1A2130"
-                                            BorderBrush="#343D51"
+                                            BorderBrush="{DynamicResource CardBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="8">
                                         <TextBlock Text="{Binding}" FontSize="14" />
@@ -136,8 +136,8 @@
             <StackPanel x:Name="AccountSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="AccountSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -167,7 +167,7 @@
                                 Margin="0,20,0,0"
                                 Padding="18"
                                 Background="#0B0E15"
-                                BorderBrush="#343D51"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="12">
                             <StackPanel>
@@ -199,8 +199,8 @@
             <StackPanel x:Name="ControllerShortcutsSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="ControllerShortcutsSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -270,8 +270,8 @@
             <StackPanel x:Name="AudioSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="AudioSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -299,8 +299,8 @@
             <StackPanel x:Name="DisplaySection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="DisplaySectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -326,8 +326,8 @@
             <StackPanel x:Name="ConnectionsSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="ConnectionsSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -358,8 +358,8 @@
             <StackPanel x:Name="SystemStatusSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="SystemStatusSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -401,8 +401,8 @@
             <StackPanel x:Name="GameScanSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="GameScanSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -437,8 +437,8 @@
             <StackPanel x:Name="ThemeMotionSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="ThemeMotionSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">
@@ -505,8 +505,8 @@
             <StackPanel x:Name="PowerSection" Margin="0,0,0,16" Visibility="Collapsed">
                 <Border x:Name="PowerSectionContent"
                         Visibility="Collapsed"
-                        Background="#11151E"
-                        BorderBrush="#2B3344"
+                        Background="{DynamicResource CardBackgroundBrush}"
+                        BorderBrush="{DynamicResource CardBorderBrush}"
                         BorderThickness="1"
                         Padding="22"
                         CornerRadius="0,0,14,14">

@@ -76,7 +76,7 @@
                     <WrapPanel x:Name="GamesPanel" />
                 </StackPanel>
 
-                <Border Height="1" Margin="8,0,8,18" Background="#2B3344" />
+                <Border Height="1" Margin="8,0,8,18" Background="{DynamicResource CardBorderBrush}" />
 
                 <TextBlock x:Name="EmptyText"
                            Text="Nothing is installed yet. Install supported packages from Grev Store."
@@ -93,8 +93,8 @@
         <Border Grid.Row="3"
                 Margin="0,18,0,0"
                 Padding="18"
-                Background="#11151E"
-                BorderBrush="#2B3344"
+                Background="{DynamicResource CardBackgroundBrush}"
+                BorderBrush="{DynamicResource CardBorderBrush}"
                 BorderThickness="1"
                 CornerRadius="12">
             <TextBlock x:Name="StatusText"
@@ -140,7 +140,7 @@
                         </WrapPanel>
                     </ScrollViewer>
 
-                    <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="#2B3344" BorderThickness="0,1,0,0">
+                    <Border Grid.Row="2" Margin="0,16,0,0" Padding="0,14,0,0" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0">
                         <Button x:Name="AppActionCancelButton"
                                 Content="Cancel"
                                 MinWidth="190"

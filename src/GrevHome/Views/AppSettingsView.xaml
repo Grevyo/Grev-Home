@@ -54,8 +54,8 @@
                        TextWrapping="Wrap" />
 
             <Border Padding="12"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="16">
                 <StackPanel>
@@ -79,7 +79,7 @@
                                 Margin="0,18,0,0"
                                 Padding="16"
                                 Background="#0B0E15"
-                                BorderBrush="#343D51"
+                                BorderBrush="{DynamicResource CardBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="10">
                             <StackPanel>
@@ -107,8 +107,8 @@
 
             <Border Margin="0,16,0,0"
                     Padding="12"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="16">
                 <StackPanel>
@@ -155,8 +155,8 @@
 
             <Border Margin="0,16,0,0"
                     Padding="12"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="16">
                 <StackPanel>
@@ -246,8 +246,8 @@
 
             <Border Margin="0,4,0,0"
                     Padding="18"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">
                 <TextBlock x:Name="StatusText"

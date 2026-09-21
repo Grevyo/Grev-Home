@@ -67,7 +67,7 @@
                 <TextBlock Text="Optional • connect this local account to your Grev.dad account to share and restore XP, levels and achievements."
                            HorizontalAlignment="Center" TextAlignment="Center" Margin="0,8,0,24" FontSize="16"
                            Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
-                <Border Padding="22" Background="#090C12" BorderBrush="#2B3344" BorderThickness="1">
+                <Border Padding="22" Background="#090C12" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1">
                     <StackPanel>
                         <TextBlock Text="1 • Open Grev.dad and sign in to the account you want to connect." FontSize="18" TextWrapping="Wrap" />
                         <Button x:Name="OpenGrevDadButton" Content="Open Grev.dad • sign in" MinWidth="270" Height="56" Margin="0,14,0,22" HorizontalAlignment="Left" Click="OpenGrevDad_Click" />

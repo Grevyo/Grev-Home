@@ -4,7 +4,7 @@
              Focusable="False">
     <UserControl.Resources>
         <Style x:Key="ProfileSectionCard" TargetType="Border">
-            <Setter Property="Background" Value="#11151E" />
+            <Setter Property="Background" Value="{DynamicResource CardBackgroundBrush}" />
             <Setter Property="BorderBrush" Value="#252D3B" />
             <Setter Property="BorderThickness" Value="1" />
             <Setter Property="CornerRadius" Value="0" />

@@ -27,8 +27,8 @@
 
             <Border Margin="0,0,0,18"
                     Padding="22"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="0">
                 <StackPanel>
@@ -47,8 +47,8 @@
             </Border>
 
             <Border Padding="22"
-                    Background="#11151E"
-                    BorderBrush="#2B3344"
+                    Background="{DynamicResource CardBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="0">
                 <StackPanel>
@@ -69,7 +69,7 @@
                     <StackPanel x:Name="PlatformChoicesPanel" Visibility="Collapsed" Margin="0,6,0,0">
                     </StackPanel>
 
-                    <Border Margin="0,22,0,20" BorderBrush="#2B3344" BorderThickness="0,1,0,0" />
+                    <Border Margin="0,22,0,20" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="0,1,0,0" />
 
                     <TextBlock Text="GAME FILE" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
                     <TextBlock x:Name="PlatformHelpText"

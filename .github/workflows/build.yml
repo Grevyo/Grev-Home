@@ -48,6 +48,18 @@ jobs:
             throw 'Production source still contains the legacy C:\GrevHome root.'
           }
 
+      - name: Verify no theme colors are hardcoded outside the theme engine
+        shell: pwsh
+        run: |
+          $themeColorFiles = 'src\GrevHome\App.xaml','src\GrevHome\Presentation\ThemeDefinition.cs'
+          $strayThemeColors = Get-ChildItem .\src -Recurse -File -Include *.cs,*.xaml |
+            Where-Object { $themeColorFiles -notcontains $_.FullName.Substring((Resolve-Path .).Path.Length + 1) } |
+            Select-String -Pattern '#11151E|#2B3344|#343D51|#3A465F'
+          if ($strayThemeColors) {
+            $strayThemeColors | ForEach-Object { Write-Host "Stray theme color literal: $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
+            throw 'A shell card/border color is hardcoded outside App.xaml/ThemeDefinition.cs. Use CardBackgroundBrush/CardBorderBrush (DynamicResource) instead so themes actually reach it.'
+          }
+
       - name: Verify official installer publishers without executing installers
         run: dotnet run --project .\tests\Hardening\Hardening.csproj --configuration Release -- --official-installers
 
