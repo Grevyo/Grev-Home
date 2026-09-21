@@ -347,7 +347,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
     /// bytes of every file). Used only to answer "has anything local changed since the last
     /// upload/download" without a network round trip - it is never sent anywhere.
     /// </summary>
-    internal static string ComputeLocalHash(string root)
+    public static string ComputeLocalHash(string root)
     {
         using var sha = SHA256.Create();
         if (!Directory.Exists(root)) return Convert.ToHexString(sha.ComputeHash([]));
