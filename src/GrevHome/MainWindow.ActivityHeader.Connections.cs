@@ -52,14 +52,9 @@ public partial class MainWindow
         actions.Children.Add(_activityWifiDisconnectButton);
         content.Children.Add(actions);
 
-        content.Children.Add(new TextBlock
-        {
-            Text = "AVAILABLE NETWORKS",
-            Margin = new Thickness(0, 8, 0, 4),
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = (Brush)FindResource("MutedBrush")
-        });
+        var networksHeading = new TextBlock { Text = "AVAILABLE NETWORKS", Margin = new Thickness(0, 8, 0, 4), FontSize = 11, FontWeight = FontWeights.Bold };
+        networksHeading.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        content.Children.Add(networksHeading);
 
         _activityWifiNetworksPanel = new StackPanel();
         content.Children.Add(new ScrollViewer
@@ -95,14 +90,9 @@ public partial class MainWindow
         actions.Children.Add(_activityBluetoothRefreshButton);
         content.Children.Add(actions);
 
-        content.Children.Add(new TextBlock
-        {
-            Text = "DEVICES",
-            Margin = new Thickness(0, 8, 0, 4),
-            FontSize = 11,
-            FontWeight = FontWeights.Bold,
-            Foreground = (Brush)FindResource("MutedBrush")
-        });
+        var devicesHeading = new TextBlock { Text = "DEVICES", Margin = new Thickness(0, 8, 0, 4), FontSize = 11, FontWeight = FontWeights.Bold };
+        devicesHeading.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        content.Children.Add(devicesHeading);
 
         _activityBluetoothDevicesPanel = new StackPanel();
         content.Children.Add(new ScrollViewer
@@ -117,6 +107,10 @@ public partial class MainWindow
         overlayGrid.Children.Add(_activityBluetoothFlyout);
     }
 
+    // Both quick-control flyouts are built once for the app's lifetime (BuildWifiQuickControl and
+    // BuildBluetoothQuickControl each guard against rebuilding) and stay part of the persistent
+    // header chrome, so their colors are kept live with SetResourceReference rather than a
+    // one-shot FindResource that would freeze on whatever theme was active the first time this ran.
     private Border CreateConnectionFlyout(double width)
     {
         var flyout = new Border
@@ -125,23 +119,22 @@ public partial class MainWindow
             Padding = new Thickness(20),
             HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Top,
-            Background = (Brush)FindResource("CardBackgroundBrush"),
-            BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(15),
             Visibility = Visibility.Collapsed
         };
+        flyout.SetResourceReference(Border.BackgroundProperty, "CardBackgroundBrush");
+        flyout.SetResourceReference(Border.BorderBrushProperty, "CardBorderBrush");
         Panel.SetZIndex(flyout, 120);
         return flyout;
     }
 
-    private TextBlock CreateQuickHeading(string text) => new()
+    private TextBlock CreateQuickHeading(string text)
     {
-        Text = text,
-        FontSize = 12,
-        FontWeight = FontWeights.Bold,
-        Foreground = (Brush)FindResource("AccentBrush")
-    };
+        var heading = new TextBlock { Text = text, FontSize = 12, FontWeight = FontWeights.Bold };
+        heading.SetResourceReference(TextBlock.ForegroundProperty, "AccentBrush");
+        return heading;
+    }
 
     private TextBlock CreateQuickStatusText() => new()
     {

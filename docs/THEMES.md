@@ -30,11 +30,19 @@ paired with either `#2B3344` or `#3A465F` border - previously two near-duplicate
 both `CardBorderBrush`) and the base button's resting border (`#343D51`) has been swept to these
 same `DynamicResource` keys across every view, not just the shared styles - that duplication was
 itself a consistency gap independent of theming, and fixing it made both problems disappear
-together. Colors declared directly in code-behind (`FindResource(...)` used once to set a
+together. The same duplication turned up again in a second, invisible-to-the-first-guard spelling
+- `Color.FromRgb(r, g, b)` instead of a hex string - across another 27 sites; those are unified
+too, with the CI guard extended to catch both spellings.
+
+Colors declared directly in code-behind (`FindResource(...)` used once to set a
 `Background`/`Foreground` at construction time, rather than a live `DynamicResource` binding) do
-not re-color until that surface is next rebuilt or reopened. This remaining limit is scoped to
-control-level code-behind assignments; there are no more XAML-declared literal duplicates of the
-ten theme colors left in the shell's shared chrome.
+not re-color until that surface is next rebuilt. For most surfaces (per-item cards in lists like
+Friends, Running Apps, Admin Console, the Grev Overlay's own render methods) that rebuild
+constantly during normal use, so this is a non-issue in practice. It does matter for chrome built
+once and kept for the app's whole lifetime - the volume/Wi-Fi/Bluetooth quick-control flyouts in
+the persistent header, and the Grev.dad account panel on the Profile Edit page - and those now use
+`SetResourceReference` instead, which is the code-behind equivalent of `DynamicResource`: it keeps
+the property live for as long as the element exists rather than reading the resource once.
 
 ## Built-in themes
 
