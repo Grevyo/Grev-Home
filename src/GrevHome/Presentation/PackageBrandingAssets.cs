@@ -9,6 +9,7 @@ public static class PackageBrandingAssets
     public const string PCSX2 = Root + "PCSX2/icon.png";
     public const string Steam = Root + "Steam/icon.png";
     public const string Discord = Root + "Discord/icon.png";
+    public const string GrevReader = Root + "GrevReader/icon.png";
     public const string Dolphin = Root + "Dolphin/icon.png";
     public const string Azahar = Root + "Azahar/icon.png";
     public const string RPCS3 = Root + "RPCS3/icon.png";
@@ -27,6 +28,7 @@ public static class PackageBrandingAssets
         "pcsx2" => PCSX2,
         "steam" => Steam,
         "discord" => Discord,
+        "grevreader" => GrevReader,
         "dolphin" => Dolphin,
         "azahar" => Azahar,
         "rpcs3" => RPCS3,

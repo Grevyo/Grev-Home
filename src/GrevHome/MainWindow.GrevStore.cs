@@ -23,6 +23,7 @@ public partial class MainWindow
     private PCSX2InstallerService? _pcsx2Installer;
     private SteamInstallerService? _steamInstaller;
     private DiscordInstallerService? _discordInstaller;
+    private GrevReaderInstallerService? _grevReaderInstaller;
     private KodiInstallerService? _kodiInstaller;
     private PlexHtpcInstallerService? _plexHtpcInstaller;
     private IReadOnlyList<ControllerMediaInstallerService> _controllerMediaInstallers = [];
@@ -44,6 +45,7 @@ public partial class MainWindow
         _pcsx2Installer = new PCSX2InstallerService(_paths, _installedApps, _machineDefaults);
         _steamInstaller = new SteamInstallerService(_paths, _installedApps);
         _discordInstaller = new DiscordInstallerService(_paths, _installedApps);
+        _grevReaderInstaller = new GrevReaderInstallerService(_paths, _installedApps);
         _kodiInstaller = new KodiInstallerService(_paths, _installedApps);
         _plexHtpcInstaller = new PlexHtpcInstallerService(_paths, _installedApps);
         _controllerMediaInstallers = MediaCenterCatalog.ControllerMediaSpecs
@@ -65,6 +67,7 @@ public partial class MainWindow
             _pcsx2Installer,
             _steamInstaller,
             _discordInstaller,
+            _grevReaderInstaller,
             _kodiInstaller,
             _plexHtpcInstaller,
             .. _controllerMediaInstallers,

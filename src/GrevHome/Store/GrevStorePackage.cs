@@ -337,7 +337,8 @@ public sealed class GrevStoreCatalogService
                 "Grev Desktop controls: right stick moves the pointer, RT left-clicks, LT right-clicks, left stick scrolls, X opens the keyboard and B sends Escape.",
                 "Launch maximized through the Grev Home runtime for Return Home, Overlay, Running Apps and App Killer; playtime counts only while Discord is the foreground app, not while it sits in the tray."
             ])
-    }.Concat(StandaloneEmulatorCatalog.Packages)
+    }.Concat(GrevReaderCatalog.Packages)
+        .Concat(StandaloneEmulatorCatalog.Packages)
         .Concat(MediaCenterCatalog.Packages)
         .ToArray();
 
