@@ -100,17 +100,17 @@ public partial class MainWindow
         };
     }
 
-    private bool HandleProfileTileInput(InputAction action, int? controllerIndex)
+    // Unlike most InputAction consumers in this file, the return value here was never actually
+    // read by its only caller - every branch ended in "return true" regardless of what happened,
+    // which reads as meaningful but is not. This is deliberately void: the two things that matter
+    // (the editor handling its own input; an unconsumed Back leaving the route) both already act
+    // through their own side effects, so there is nothing left for a caller to branch on.
+    private void HandleProfileTileInput(InputAction action, int? controllerIndex)
     {
-        if (_navigation.Current != Route.ProfileTiles) return false;
+        if (_navigation.Current != Route.ProfileTiles) return;
         _profileTileEditorView.IsControllerActive = controllerIndex.HasValue;
-        if (_profileTileEditorView.HandleInput(action)) return true;
-        if (action == InputAction.Back)
-        {
-            _navigation.GoBack();
-            return true;
-        }
-        return true;
+        if (_profileTileEditorView.HandleInput(action)) return;
+        if (action == InputAction.Back) _navigation.GoBack();
     }
 
     private async Task OpenProfileTilesAsync()
@@ -153,6 +153,7 @@ public partial class MainWindow
         try
         {
             await service.SaveAsync(profile.GrevId, tiles);
+            _profileTileEditorView.MarkSaved();
             var synced = string.Equals(actor.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase) &&
                          await _grevDad.SyncProfileTilesNowAsync(profile.GrevId);
             _profileTileEditorView.ShowStatus(synced

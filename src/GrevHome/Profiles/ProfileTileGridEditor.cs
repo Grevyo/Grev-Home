@@ -27,15 +27,27 @@ public sealed class ProfileTileGridEditor
 {
     private List<ProfileTile> _tiles;
 
+    private List<ProfileTile> _originalTiles;
+
     public ProfileTileGridEditor(IReadOnlyList<ProfileTile> tiles)
     {
         _tiles = tiles.ToList();
+        _originalTiles = tiles.ToList();
         var first = _tiles.FirstOrDefault();
         CursorX = first?.X ?? 0;
         CursorY = first?.Y ?? 0;
     }
 
     public IReadOnlyList<ProfileTile> Tiles => _tiles;
+
+    /// <summary>True once the layout differs from what Load() started with - order-independent, so
+    /// picking a tile up and dropping it back exactly where it was does not count as a change. The
+    /// host uses this to warn before discarding unsaved work on Back, the same way leaving Edit
+    /// Profile without saving already prompts elsewhere in the app.</summary>
+    public bool IsDirty =>
+        _tiles.Count != _originalTiles.Count ||
+        !_tiles.OrderBy(tile => tile.TileId, StringComparer.Ordinal)
+            .SequenceEqual(_originalTiles.OrderBy(tile => tile.TileId, StringComparer.Ordinal));
     public ProfileTileEditorMode Mode { get; private set; } = ProfileTileEditorMode.Browsing;
     public int CursorX { get; private set; }
     public int CursorY { get; private set; }
@@ -46,6 +58,12 @@ public sealed class ProfileTileGridEditor
 
     public ProfileTile? TileAt(int x, int y) =>
         _tiles.FirstOrDefault(tile => x >= tile.X && x < tile.X + tile.Width && y >= tile.Y && y < tile.Y + tile.Height);
+
+    /// <summary>Rebases IsDirty's baseline onto the current layout, without discarding cursor/mode
+    /// state the way reconstructing a new editor from Load() would. Call after a successful
+    /// ProfileTileService.SaveAsync so Back right after Save does not still warn about "unsaved"
+    /// changes that were, in fact, just saved.</summary>
+    public void MarkSaved() => _originalTiles = _tiles.ToList();
 
     /// <summary>Feed one InputAction from the controller (or an equivalent keyboard binding) in.
     /// Returns true if the input was consumed by the editor and should not also move page focus.</summary>
@@ -188,6 +206,31 @@ public sealed class ProfileTileGridEditor
         _activeTileOrigin = null;
         Mode = ProfileTileEditorMode.Browsing;
         return true;
+    }
+
+    /// <summary>Copies the currently-held tile's content and style into a new tile placed at the
+    /// first free cell (same size, everything else - text, colours, media reference, font -
+    /// carried over), and immediately holds the copy so it can be positioned without a second
+    /// Accept. The original tile is left exactly where it was. Only valid while Holding, matching
+    /// where Remove/BeginResize are valid - a duplicate needs a specific tile selected, not just a
+    /// cursor position. Returns null - and changes nothing - when there is no free cell for the
+    /// copy or the profile is already at MaxTiles.</summary>
+    public ProfileTile? DuplicateActiveTile()
+    {
+        if (Mode != ProfileTileEditorMode.Holding || ActiveTile is null) return null;
+        if (_tiles.Count >= ProfileTileGrid.MaxTiles) return null;
+
+        var source = ActiveTile;
+        var placement = ProfileTileGrid.FindFreePlacement(_tiles, source.Kind, source.Width, source.Height, Guid.NewGuid().ToString());
+        if (placement is null) return null;
+
+        var duplicate = source with { TileId = placement.TileId, X = placement.X, Y = placement.Y };
+        _tiles.Add(duplicate);
+        CursorX = duplicate.X;
+        CursorY = duplicate.Y;
+        ActiveTile = duplicate;
+        _activeTileOrigin = duplicate;
+        return duplicate;
     }
 
     private void MoveCursor(InputAction direction)

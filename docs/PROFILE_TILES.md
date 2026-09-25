@@ -51,12 +51,27 @@ same 1.4 MB limit `ProfileTileService.SaveAsync` already checks), and `ReadAsDat
 local file for push, reusing `ProfileMediaDataUrl.TryReadFile` - the same helper (now split out of
 `TryRead`) already used to share a Grev Home avatar/banner as a data URL elsewhere.
 
-`SyncProfileTilesAsync` is a method Grev Home can call, not a job that runs itself - nothing wires
-a call site to it yet (e.g. after the tile editor closes, or alongside `SyncAsync`'s own
-progression sync). It also has no automated test: exercising it needs a mocked `HttpClient` and
+`SyncProfileTilesAsync` is wired to session start, opening the tile editor, and saving it
+(`MainWindow.ProfileTiles.cs`). It has no automated test of its own: exercising it needs a mocked `HttpClient` and
 the Windows credential store `WindowsCredentialSecretStore` reads from, which `tests/ProfileTiles`
 does not attempt - only `ProfileTileGrid`/`ProfileTileGridEditor`/`ProfileTileService` are covered
 there.
+
+### Account isolation on unlink/relink
+
+Unlinking a profile (`GrevDadAccountService.UnlinkAsync`) clears its access credential and link
+metadata, but deliberately leaves the local tile layout file alone - there's nothing wrong with the
+tiles themselves. If a *different* grev.dad account is then linked to the same local GrevID, that
+local layout's `UpdatedAtUtc` belongs to the old account and must never be trusted against the new
+one: without a check, a locally-newer-looking stale layout could get pushed and silently overwrite
+the new account's real profile tiles with the previous account's leftover content.
+
+`ProfileTileLayout.SyncedAccountUserId` closes this: `SyncProfileTilesAsync` stamps it on every
+successful pull or push, and treats a local layout stamped for a *different* account as having no
+comparable state at all (as if it were a fresh install) rather than letting its timestamp win.
+`ProfileTileService.SaveAsync` preserves it across ordinary local edits (the tile editor's own Save
+has no opinion on which account a layout belongs to) and only changes it when a caller explicitly
+asks to (`setSyncedAccountUserId: true`), which is currently only `SyncProfileTilesAsync` itself.
 
 ## Controller-first editing
 

@@ -25,12 +25,20 @@ public partial class ProfileTileEditorView : UserControl
     private int _settingsIndex;
     private TileSettingsField? _pendingKeyboardField;
     private string? _mediaRoot;
+    private bool _pendingDiscardConfirm;
 
     public event EventHandler? BackRequested;
     public event Action<IReadOnlyList<ProfileTile>>? SaveRequested;
     public event EventHandler? ChooseMediaRequested;
 
     public bool IsControllerActive { get; set; } = true;
+
+    /// <summary>True when the layout differs from what Load() last started with.</summary>
+    public bool IsDirty => _editor?.IsDirty ?? false;
+
+    /// <summary>Call after the host successfully persists the current tiles, so a later Back does
+    /// not warn about changes that were, in fact, just saved.</summary>
+    public void MarkSaved() => _editor?.MarkSaved();
 
     public ProfileTileEditorView()
     {
@@ -46,6 +54,7 @@ public partial class ProfileTileEditorView : UserControl
         _editingSettings = false;
         _settingsIndex = 0;
         _pendingKeyboardField = null;
+        _pendingDiscardConfirm = false;
         _mediaRoot = mediaRoot;
         _editor = new ProfileTileGridEditor(tiles);
         Render();
@@ -54,6 +63,7 @@ public partial class ProfileTileEditorView : UserControl
     public bool HandleInput(InputAction action)
     {
         if (_editor is null) return false;
+        if (action != InputAction.Back) _pendingDiscardConfirm = false;
         if (_editingSettings) return HandleSettingsInput(action);
 
         if (_choosingAddKind)
@@ -96,6 +106,18 @@ public partial class ProfileTileEditorView : UserControl
             return true;
         }
 
+        // Back reaches here only while just Browsing (Holding/Resizing/the add-kind picker all
+        // consume their own Back above) - this is "leave the whole tile editor". Require a second
+        // Back press when there are unsaved changes rather than silently discarding them; any other
+        // input in between resets the confirmation (see the top of this method) so it can't be
+        // triggered by an unrelated later Back press.
+        if (action == InputAction.Back && _editor.IsDirty && !_pendingDiscardConfirm)
+        {
+            _pendingDiscardConfirm = true;
+            PromptText.Text = "Unsaved changes - press Back again to discard them, or Save first.";
+            return true;
+        }
+
         return false;
     }
 
@@ -128,6 +150,9 @@ public partial class ProfileTileEditorView : UserControl
                 return true;
             case AppControllerControl.View:
                 RemoveActiveTile();
+                return true;
+            case AppControllerControl.RightShoulder:
+                DuplicateActiveTile();
                 return true;
             default:
                 return false;
@@ -449,6 +474,26 @@ public partial class ProfileTileEditorView : UserControl
         Render();
     }
 
+    private void DuplicateTile_Click(object sender, RoutedEventArgs e) => DuplicateActiveTile();
+
+    private void DuplicateActiveTile()
+    {
+        if (_editor is null) return;
+        if (_editor.Mode != ProfileTileEditorMode.Holding)
+        {
+            PromptText.Text = "Pick up a tile first, then duplicate it.";
+            return;
+        }
+        if (_editor.DuplicateActiveTile() is null)
+        {
+            PromptText.Text = _editor.Tiles.Count >= ProfileTileGrid.MaxTiles
+                ? $"A profile can have up to {ProfileTileGrid.MaxTiles} tiles."
+                : "There is no free space left for a copy of this tile.";
+            return;
+        }
+        Render();
+    }
+
     private void SettingsPrevious_Click(object sender, RoutedEventArgs e) => HandleSettingsInput(InputAction.Up);
     private void SettingsNext_Click(object sender, RoutedEventArgs e) => HandleSettingsInput(InputAction.Down);
     private void SettingsActivate_Click(object sender, RoutedEventArgs e) => HandleSettingsInput(InputAction.Accept);
@@ -462,7 +507,20 @@ public partial class ProfileTileEditorView : UserControl
     }
 
     private void Save_Click(object sender, RoutedEventArgs e) => SaveRequested?.Invoke(_editor?.Tiles ?? []);
-    private void Back_Click(object sender, RoutedEventArgs e) => BackRequested?.Invoke(this, EventArgs.Empty);
+
+    private void Back_Click(object sender, RoutedEventArgs e)
+    {
+        // Same confirm-on-second-press rule as the controller/keyboard Back path in HandleInput,
+        // so a stray mouse click can't discard unsaved work any more easily than a stray B press.
+        if (_editor?.IsDirty == true && !_pendingDiscardConfirm)
+        {
+            _pendingDiscardConfirm = true;
+            PromptText.Text = "Unsaved changes - select Back again to discard them, or Save first.";
+            return;
+        }
+        _pendingDiscardConfirm = false;
+        BackRequested?.Invoke(this, EventArgs.Empty);
+    }
 
     private void Render()
     {
@@ -493,7 +551,7 @@ public partial class ProfileTileEditorView : UserControl
         {
             HintText.Text = _editor.Mode switch
             {
-                ProfileTileEditorMode.Holding => "Move the tile. X resizes, Y edits every tile setting, View removes it, A drops it and B cancels.",
+                ProfileTileEditorMode.Holding => "Move the tile. X resizes, Y edits every tile setting, RB duplicates it, View removes it, A drops it and B cancels.",
                 ProfileTileEditorMode.Resizing => "Resize with the D-Pad. A confirms and B reverts.",
                 _ => "Move the cursor. A picks up a tile; A on an empty cell adds a new one."
             };
@@ -525,7 +583,7 @@ public partial class ProfileTileEditorView : UserControl
         var back = IsControllerActive ? "B" : "Esc";
         return _editor?.Mode switch
         {
-            ProfileTileEditorMode.Holding when IsControllerActive => $"{accept} Drop    {back} Cancel    X Resize    Y Edit    View Remove",
+            ProfileTileEditorMode.Holding when IsControllerActive => $"{accept} Drop    {back} Cancel    X Resize    Y Edit    RB Duplicate    View Remove",
             ProfileTileEditorMode.Holding => $"{accept} Drop    {back} Cancel",
             ProfileTileEditorMode.Resizing => $"{accept} Confirm    {back} Revert",
             _ => $"{accept} Pick up / add"
