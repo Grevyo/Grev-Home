@@ -84,6 +84,9 @@ jobs:
       - name: Verify profile tile grid contract and controller-first editing
         run: dotnet run --project .\tests\ProfileTiles\ProfileTiles.csproj --configuration Release
 
+      - name: Verify emulator controller defaults and first-run prompts
+        run: dotnet run --project .\tests\EmulatorSetup\EmulatorSetup.csproj --configuration Release
+
       - name: Install Inno Setup
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
         run: |

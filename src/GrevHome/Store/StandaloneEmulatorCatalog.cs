@@ -106,7 +106,7 @@ public static class StandaloneEmulatorCatalog
                 var dolphinConfig = Path.Combine(dataRoot, "Config");
                 Directory.CreateDirectory(dolphinConfig);
                 WriteIfMissing(Path.Combine(dolphinConfig, "Dolphin.ini"),
-                    $"[General]{Environment.NewLine}ISOPaths = 2{Environment.NewLine}ISOPath0 = {appGamesRoot}{Environment.NewLine}ISOPath1 = {Path.Combine(gamesRoot, "Wii")}{Environment.NewLine}RecursiveISOPaths = True{Environment.NewLine}AnalyticsPermissionAsked = True{Environment.NewLine}[Display]{Environment.NewLine}Fullscreen = True{Environment.NewLine}");
+                    $"[General]{Environment.NewLine}ISOPaths = 2{Environment.NewLine}ISOPath0 = {appGamesRoot}{Environment.NewLine}ISOPath1 = {Path.Combine(gamesRoot, "Wii")}{Environment.NewLine}RecursiveISOPaths = True{Environment.NewLine}AnalyticsPermissionAsked = True{Environment.NewLine}[Display]{Environment.NewLine}Fullscreen = True{Environment.NewLine}[AutoUpdate]{Environment.NewLine}UpdateTrack = {Environment.NewLine}");
                 Directory.CreateDirectory(Path.Combine(gamesRoot, "Wii"));
                 WriteIfMissing(Path.Combine(dolphinConfig, "GCPadNew.ini"),
                     "[GCPad1]" + Environment.NewLine +
@@ -140,8 +140,14 @@ public static class StandaloneEmulatorCatalog
                 break;
             case "cemu":
                 WriteIfMissing(Path.Combine(binaryRoot, "settings.xml"),
-                    $"<?xml version=\"1.0\" encoding=\"utf-8\"?>{Environment.NewLine}<content><fullscreen>true</fullscreen><GamePaths><Entry>{System.Security.SecurityElement.Escape(appGamesRoot)}</Entry></GamePaths></content>{Environment.NewLine}");
+                    $"<?xml version=\"1.0\" encoding=\"utf-8\"?>{Environment.NewLine}<content><fullscreen>true</fullscreen><check_update>false</check_update><GamePaths><Entry>{System.Security.SecurityElement.Escape(appGamesRoot)}</Entry></GamePaths></content>{Environment.NewLine}");
                 Directory.CreateDirectory(Path.Combine(binaryRoot, "mlc01"));
+                break;
+            case "rpcs3":
+                // No welcome box or update prompt: game launches use --no-gui and must not stop
+                // behind a mouse-only dialog. Grev Store owns RPCS3 updates.
+                WriteIfMissing(Path.Combine(binaryRoot, "GuiConfigs", "CurrentSettings.ini"),
+                    $"[main_window]{Environment.NewLine}infoBoxEnabledWelcome=false{Environment.NewLine}[Meta]{Environment.NewLine}checkUpdateStart=false{Environment.NewLine}");
                 break;
             case "xenia":
                 WriteIfMissing(Path.Combine(binaryRoot, "portable.txt"), string.Empty);
@@ -152,6 +158,8 @@ public static class StandaloneEmulatorCatalog
                 WriteIfMissing(Path.Combine(binaryRoot, "xemu.toml"), string.Empty);
                 break;
         }
+
+        EmulatorControllerDefaults.Apply(appId, binaryRoot, dataRoot);
     }
 
     private static void WriteIfMissing(string path, string content)
