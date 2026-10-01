@@ -58,7 +58,68 @@ try
     await File.WriteAllTextAsync(Path.Combine(paths.GetProfileThemes(grevId), "broken.json"), "{ not json");
     Check((await service.LoadForProfileAsync(grevId)).CustomThemes.Count == 1, "A broken theme file must be skipped");
 
-    Console.WriteLine("Theme tests passed: machine default, shared machine themes, override fallback, private profile themes, import/export and built-in protection.");
+    // Layouts: every console-style preset is valid and readable.
+    foreach (var builtIn in ThemeCatalog.BuiltIn)
+    {
+        builtIn.Validate();
+        Check(builtIn.GetContrastWarnings().Count == 0, $"{builtIn.Name} must pass the contrast checks: {string.Join(" ", builtIn.GetContrastWarnings())}");
+    }
+    foreach (var id in new[] { "ps5-style", "ps4-style", "xbox360-blades", "xbox360-tabs", "xbox-one-style", "wii-style", "switch-style" })
+        Check(ThemeCatalog.FindBuiltIn(id)?.Layout is not null, $"Missing console-style preset {id}");
+
+    // Classic reproduces the original Home exactly, and a theme saved before layouts existed uses it.
+    Check(ThemeLayout.Classic.TileSize == (285, 145) && ThemeLayout.Classic.TileSpacing == 8 && ThemeLayout.Classic.EffectiveCornerRadius == 0,
+        "Classic layout must keep the original 285 x 145 tiles");
+    var legacyPath = Path.Combine(paths.GetProfileThemes(grevId), "legacy.json");
+    await File.WriteAllTextAsync(legacyPath, """
+        {"Id":"custom-legacy","Name":"Legacy","WindowBackground":"#090C12","CardBackground":"#11151E","CardBorder":"#3A465F",
+         "Surface":"#151923","SurfaceHover":"#20283A","Accent":"#7EA6FF","Muted":"#97A0B3","AdminRole":"#D8B65A",
+         "StandardRole":"#D94B55","GuestRole":"#747B88","IsBuiltIn":false}
+        """);
+    var legacy = (await service.LoadForProfileAsync(grevId)).CustomThemes.Single(theme => theme.Id == "custom-legacy");
+    Check(legacy.Layout is null && legacy.EffectiveLayout == ThemeLayout.Classic && legacy.EffectiveText == "#FFFFFF",
+        "A theme saved before layouts existed must load with the classic layout and white text");
+
+    // A customised layout on top of a preset survives save and reload.
+    var basedOnSwitch = ThemeCatalog.FindBuiltIn("switch-style")! with
+    {
+        Id = "custom-my-switch",
+        Name = "My Switch",
+        IsBuiltIn = false,
+        Layout = ThemeCatalog.FindBuiltIn("switch-style")!.Layout! with { TileShape = HomeTileShape.Circle, TileScalePercent = 120, FontFamily = "Bahnschrift" }
+    };
+    await service.SaveCustomThemeAsync(basedOnSwitch, grevId);
+    var reloaded = (await service.LoadForProfileAsync(grevId)).CustomThemes.Single(theme => theme.Id == "custom-my-switch");
+    Check(reloaded.Layout == basedOnSwitch.Layout, "A custom layout must round-trip through save and load");
+    Check(reloaded.EffectiveLayout.EffectiveCornerRadius == reloaded.EffectiveLayout.TileSize.Width / 2, "Circle tiles must be fully round");
+
+    // Out-of-range layouts are refused when imported.
+    var broken = basedOnSwitch with { Layout = basedOnSwitch.Layout! with { TileScalePercent = 500 } };
+    await Expect<InvalidOperationException>(async () => broken.Validate(), "An out-of-range tile size must be rejected");
+    await Expect<InvalidOperationException>(async () => (basedOnSwitch with { Layout = basedOnSwitch.Layout! with { FontFamily = "Comic Sans MS" } }).Validate(),
+        "Unsupported fonts must be rejected");
+
+    // Every Theme Creator option, from every preset, produces a valid layout and stays in range.
+    foreach (var preset in ThemeCatalog.BuiltIn)
+    {
+        foreach (var option in ThemeLayoutOptions.All)
+        {
+            var layout = preset.EffectiveLayout;
+            for (var step = 0; step < 20; step++)
+            {
+                layout = option.Next(layout);
+                layout.Validate();
+                if (option.Previous is not null) option.Previous(layout).Validate();
+                Check(!string.IsNullOrWhiteSpace(option.Describe(layout)), $"Option {option.Key} needs a label");
+            }
+        }
+    }
+    var sections = ThemeLayoutOptions.All.Single(option => option.Key == "sections");
+    var cycled = ThemeLayout.Classic;
+    for (var step = 0; step < 4; step++) cycled = sections.Next(cycled);
+    Check(cycled.SectionMode == HomeSectionMode.Stacked, "Section modes must cycle back to the start");
+
+    Console.WriteLine("Theme tests passed: machine default, shared machine themes, override fallback, private profile themes, import/export, built-in protection, console-style presets and layouts.");
 }
 finally
 {

@@ -7,20 +7,22 @@ namespace GrevHome.Views;
 
 public partial class ThemeCreatorView : UserControl
 {
-    /// <summary>
-    /// The editable color fields exposed by the creator. Card border and the three role colors
-    /// are intentionally not exposed here: they carry over unchanged from whichever theme editing
-    /// started from, keeping the editor to the handful of colors that actually define a theme's
-    /// character while still producing a fully valid ThemeDefinition.
-    /// </summary>
+    /// <summary>Every colour a theme has, all editable.</summary>
     private static readonly (string Key, string Label, Func<ThemeDefinition, string> Get, Func<ThemeDefinition, string, ThemeDefinition> With)[] ColorFields =
     [
-        ("accent", "Accent", theme => theme.Accent, (theme, value) => theme with { Accent = value }),
-        ("surface", "Surface", theme => theme.Surface, (theme, value) => theme with { Surface = value }),
-        ("surfaceHover", "Surface Hover", theme => theme.SurfaceHover, (theme, value) => theme with { SurfaceHover = value }),
+        ("accent", "Accent / Focus", theme => theme.Accent, (theme, value) => theme with { Accent = value }),
         ("windowBackground", "Window Background", theme => theme.WindowBackground, (theme, value) => theme with { WindowBackground = value }),
+        ("backgroundGlow", "Background Glow", theme => theme.EffectiveLayout.BackgroundGlow, (theme, value) => theme with { Layout = theme.EffectiveLayout with { BackgroundGlow = value } }),
+        ("text", "Text", theme => theme.EffectiveText, (theme, value) => theme with { Text = value }),
+        ("muted", "Muted Text", theme => theme.Muted, (theme, value) => theme with { Muted = value }),
+        ("surface", "Button", theme => theme.Surface, (theme, value) => theme with { Surface = value }),
+        ("surfaceHover", "Button Hover", theme => theme.SurfaceHover, (theme, value) => theme with { SurfaceHover = value }),
+        ("buttonText", "Button Text", theme => theme.EffectiveButtonText, (theme, value) => theme with { ButtonText = value }),
         ("cardBackground", "Card Background", theme => theme.CardBackground, (theme, value) => theme with { CardBackground = value }),
-        ("muted", "Muted Text", theme => theme.Muted, (theme, value) => theme with { Muted = value })
+        ("cardBorder", "Card Border", theme => theme.CardBorder, (theme, value) => theme with { CardBorder = value }),
+        ("adminRole", "Admin Badge", theme => theme.AdminRole, (theme, value) => theme with { AdminRole = value }),
+        ("standardRole", "Standard Badge", theme => theme.StandardRole, (theme, value) => theme with { StandardRole = value }),
+        ("guestRole", "Guest Badge", theme => theme.GuestRole, (theme, value) => theme with { GuestRole = value })
     ];
 
     /// <summary>
@@ -34,6 +36,8 @@ public partial class ThemeCreatorView : UserControl
         ("Yellow", "#F2C94C"), ("Green", "#6FD6A0"), ("Teal", "#4DD0E1"),
         ("Charcoal", "#151923"), ("Near Black", "#0B0A14"), ("White", "#F5F5F5")
     ];
+
+    private readonly Dictionary<string, Button> _layoutButtons = new();
 
     public event EventHandler? BackRequested;
     public event Action<string>? ActivateRequested;
@@ -56,6 +60,7 @@ public partial class ThemeCreatorView : UserControl
         KeyboardOverlay.Completed += OnKeyboardCompleted;
         KeyboardOverlay.Cancelled += (_, _) => _pendingField = null;
         BuildColorFields();
+        BuildLayoutOptions();
     }
 
     private void BuildColorFields()
@@ -156,6 +161,8 @@ public partial class ThemeCreatorView : UserControl
             controls.HexText.Text = hex.ToUpperInvariant();
         }
         ThemeApplier.Apply(theme);
+        RefreshLayoutOptions();
+        LayoutPreviewHost.Child = ThemeLayoutPreview.Create(theme, LayoutPreviewHost.Width, LayoutPreviewHost.Height);
 
         var warnings = theme.GetContrastWarnings();
         ContrastWarningText.Text = warnings.Count == 0 ? string.Empty : string.Join(" ", warnings);
@@ -198,7 +205,7 @@ public partial class ThemeCreatorView : UserControl
                         new TextBlock { Text = theme.Name, FontWeight = FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap },
                         new TextBlock
                         {
-                            Text = isActive ? "Active" : theme.IsBuiltIn ? "Built-in" : "Custom",
+                            Text = (isActive ? "Active" : theme.IsBuiltIn ? "Built-in" : "Custom") + " • " + ThemeLayoutOptions.Describe(theme.EffectiveLayout.SectionMode),
                             FontSize = 11,
                             Margin = new Thickness(0, 2, 0, 0),
                             Foreground = isActive ? (Brush)FindResource("AccentBrush") : (Brush)FindResource("MutedBrush")
@@ -239,6 +246,48 @@ public partial class ThemeCreatorView : UserControl
         SwitchScopeButton.Content = machineScope ? "Manage My Profile Theme" : "Manage Machine Default";
         UseMachineDefaultButton.Visibility = machineScope ? Visibility.Collapsed : Visibility.Visible;
         UseMachineDefaultButton.IsEnabled = !inheritsMachine;
+    }
+
+    private void BuildLayoutOptions()
+    {
+        LayoutOptionsPanel.Children.Clear();
+        _layoutButtons.Clear();
+        foreach (var option in ThemeLayoutOptions.All)
+        {
+            var row = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 10, 10) };
+            if (option.Previous is not null)
+            {
+                var less = new Button { Content = "−", Width = 44, Height = 44, Tag = option.Key, FontSize = 18 };
+                less.Click += (_, _) => SetEditing(_editing with { Layout = option.Previous(_editing.EffectiveLayout) });
+                ShellTileMotion.Attach(less);
+                row.Children.Add(less);
+            }
+            var main = new Button { MinWidth = 220, Height = 44, Margin = new Thickness(4, 0, 4, 0), FontSize = 14, Tag = option.Key };
+            main.Click += (_, _) => SetEditing(_editing with { Layout = option.Next(_editing.EffectiveLayout) });
+            ShellTileMotion.Attach(main);
+            row.Children.Add(main);
+            if (option.Previous is not null)
+            {
+                var more = new Button { Content = "+", Width = 44, Height = 44, Tag = option.Key, FontSize = 18 };
+                more.Click += (_, _) => SetEditing(_editing with { Layout = option.Next(_editing.EffectiveLayout) });
+                ShellTileMotion.Attach(more);
+                row.Children.Add(more);
+                main.IsHitTestVisible = false;
+                main.Focusable = false;
+            }
+            _layoutButtons[option.Key] = main;
+            LayoutOptionsPanel.Children.Add(row);
+        }
+        RefreshLayoutOptions();
+    }
+
+    private void RefreshLayoutOptions()
+    {
+        var layout = _editing.EffectiveLayout;
+        foreach (var option in ThemeLayoutOptions.All)
+        {
+            if (_layoutButtons.TryGetValue(option.Key, out var button)) button.Content = option.Describe(layout);
+        }
     }
 
     private void ThemeTile_Click(object sender, RoutedEventArgs e)

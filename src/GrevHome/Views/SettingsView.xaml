@@ -34,7 +34,7 @@
                         <TextBlock Text="{Binding}"
                                    FontSize="17"
                                    FontWeight="SemiBold"
-                                   Foreground="White"
+                                   Foreground="{DynamicResource ButtonTextBrush}"
                                    TextWrapping="Wrap"
                                    TextAlignment="Left"
                                    HorizontalAlignment="Stretch"

@@ -1,6 +1,7 @@
 # Grev Home themes
 
-A theme is the shell's chrome palette: ten colors that the shared styles already draw from
+A theme is the whole look of Grev Home: its colours, font, window background and the layout of
+Home (see "Home layouts" below). The colour part is the shell's chrome palette: ten colors that the shared styles already draw from
 everywhere in the app - the base `Button` style, `SharpTileButtonStyle` (every tile),
 `ShellModalCardStyle` (every modal card), role badges (Admin/Standard/Guest) and the window
 background. A theme does not touch per-app or per-GrevID dashboard tile artwork/colors; those
@@ -44,9 +45,56 @@ the persistent header, and the Grev.dad account panel on the Profile Edit page -
 `SetResourceReference` instead, which is the code-behind equivalent of `DynamicResource`: it keeps
 the property live for as long as the element exists rather than reading the resource once.
 
+## Home layouts
+
+`ThemeDefinition.Layout` (a `ThemeLayout`, in `Presentation/ThemeLayout.cs`) controls how Home is
+arranged. It is optional: a theme without one, including every theme saved before layouts
+existed, uses `ThemeLayout.Classic`, which is the original Home exactly (stacked rows of
+285 × 145 tiles, 8 px spacing, square corners).
+
+| Setting | Values |
+| --- | --- |
+| Sections | Stacked rows · One row (every section joined) · Tabs across the top · Blades down the side |
+| Tiles flow | Scrolling row · Wrapping grid |
+| Shape | Wide · Square · Channel (4:3) · Circle |
+| Size / corners / spacing | 60–160 % · 0–60 px · 0–40 px |
+| Position | Top · Centre · Bottom (row layouts that do not scroll vertically) |
+| Focus | Lift & glow · Grow · Outline only (also used by every other tile in the shell) |
+| Toggles | Tile labels, section headings, welcome, focused-title line, System dock, clock |
+| Font | Segoe UI, Segoe UI Light/Semibold, Bahnschrift, Trebuchet MS, Verdana, Georgia |
+| Background | Solid · Glow · Gradient, with its own glow colour |
+
+Turning tile labels off shows tiles as icons and always shows the focused tile's name as a large
+title, so nothing becomes anonymous. The System dock moves the System tiles into a bottom bar as
+small round buttons; the dock shows the focused one's name. Themes also carry `Text` and
+`ButtonText` colours (white by default) so light themes stay readable, and the persistent header
+uses the card colour.
+
+`DashboardView.Layout.cs` applies a layout without changing any tile, handler or data: it moves
+sections between a vertical stack, one horizontal row, tabs or blades, swaps carousels between
+scrolling and wrapping, resizes tiles and re-renders their artwork for the new size. It listens to
+`ThemeApplier.LayoutApplied`, so the Theme Creator's live preview and a saved theme behave the same.
+
+### Console-style starting points
+
+Seven built-in themes evoke familiar console homes (layout and colours only; no console maker's
+artwork, logos or sounds): **PS5 Style** and **PS4 Style** (one row of square icons, focused title,
+grow on focus), **Xbox 360 Blades** (side blades, grid), **Xbox 360 Tabs** (tabs across the top,
+light, grid), **Xbox One Style** (square tile grid), **Wii Style** (light rounded channels, dock
+and clock) and **Switch Style** (large centred row, outline focus, dock and clock). Like every
+built-in they can't be overwritten: pick one, change anything, and **Save as New Theme** to make it
+your own. All of them pass the contrast checks (`tests/Themes`).
+
+## Theme Creator layout editor
+
+The Theme Creator has a **Home Layout** panel of controller-friendly buttons (A cycles a setting,
+− / + step numbers) next to a live miniature of Home (`ThemeLayoutPreview`), and a **Colours**
+panel with every colour: accent, window background, background glow, text, muted text, button,
+button hover, button text, card background, card border and the three role badges.
+
 ## Built-in themes
 
-`ThemeCatalog.BuiltIn` ships four: **Grev Default** (the shell's original hardcoded palette,
+`ThemeCatalog.BuiltIn` ships the four colour themes below plus the seven console-style themes above: **Grev Default** (the shell's original hardcoded palette,
 exactly reproduced so installing this feature changes nothing for a machine that never opens the
 Theme Creator), **Twilight Violet**, **Ember** and **Forest**. Built-in themes can never be edited
 or deleted; `ThemeService.SaveCustomThemeAsync`/`DeleteCustomThemeAsync` refuse a built-in id
