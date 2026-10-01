@@ -728,7 +728,26 @@ public sealed partial class GrevDadCoordinator
             return;
         }
 
-        _ = UploadSaveIfEnabledSafeAsync(sync, grevId, snapshot.AppId, snapshot.AppName);
+        _ = UploadSaveAfterSessionAsync(sync, grevId, snapshot.AppId, snapshot.AppName);
+    }
+
+    /// <summary>
+    /// Maps a session's AppId to the app whose save folder it wrote to. Games launched from the
+    /// library run under their own GameId but save through their emulator. Set by MainWindow.
+    /// </summary>
+    public Func<string, string, Task<string>>? ResolveSaveAppIdAsync { get; set; }
+
+    private async Task UploadSaveAfterSessionAsync(GrevDadSaveSyncService sync, string grevId, string appId, string appName)
+    {
+        var saveAppId = appId;
+        if (ResolveSaveAppIdAsync is { } resolve)
+        {
+            saveAppId = await resolve(grevId, appId);
+        }
+        var label = string.Equals(saveAppId, appId, StringComparison.OrdinalIgnoreCase)
+            ? appName
+            : $"{appName} ({saveAppId})";
+        await UploadSaveIfEnabledSafeAsync(sync, grevId, saveAppId, label);
     }
 
     private async Task UploadSaveIfEnabledSafeAsync(GrevDadSaveSyncService sync, string grevId, string appId, string appName)

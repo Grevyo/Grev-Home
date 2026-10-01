@@ -34,6 +34,7 @@ public partial class MainWindow
 
         _gameLibraryIntegrationReady = true;
         _gameLibraryService = new GameLibraryService(_paths);
+        _grevDad.ResolveSaveAppIdAsync = ResolveSaveAppIdAsync;
         _installedLibraryView.InitializeGameLibraryUi();
 
         _installedLibraryView.AddGameRequested += (_, _) => OpenGameAdd();
@@ -502,10 +503,12 @@ public partial class MainWindow
         {
             var installedApps = await _installedApps.GetInstalledForUserAsync(primary.GrevId);
             var runtimeEntry = _gameLaunchResolver.Resolve(game, installedApps, primary.GrevId);
-            await PrepareCloudSaveForLaunchAsync(
-                primary.GrevId,
-                runtimeEntry.Manifest.Definition.AppId,
-                runtimeEntry.Manifest.Definition.Name);
+            // The game runs under its own GameId, but its saves live in the emulator's folders,
+            // so the cloud-save gate uses the emulator's setting.
+            var hostAppId = GameLaunchResolver.GetHostAppId(game.Platform);
+            var hostName = installedApps.FirstOrDefault(entry =>
+                string.Equals(entry.Manifest.Definition.AppId, hostAppId, StringComparison.OrdinalIgnoreCase))?.Manifest.Definition.Name ?? hostAppId;
+            await PrepareCloudSaveForLaunchAsync(primary.GrevId, hostAppId, hostName);
             // A directly launched game owns the console surface for its complete emulator
             // lifetime. Emulator setup/file dialogs can temporarily hide their main window;
             // that must never be mistaken for the game ending or minimizing to the tray.
@@ -534,6 +537,25 @@ public partial class MainWindow
         else
         {
             _installedLibraryView.ShowLaunchError(message);
+        }
+    }
+
+    /// <summary>
+    /// Maps a finished session's AppId to the app that owns its save data: a library game maps to
+    /// its emulator, anything else is already an app.
+    /// </summary>
+    private async Task<string> ResolveSaveAppIdAsync(string grevId, string appId)
+    {
+        if (_gameLibraryService is not { } library) return appId;
+        try
+        {
+            var game = (await library.GetForProfileAsync(grevId))
+                .FirstOrDefault(entry => string.Equals(entry.GameId, appId, StringComparison.OrdinalIgnoreCase));
+            return game is null ? appId : GameLaunchResolver.GetHostAppId(game.Platform);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            return appId;
         }
     }
 }

@@ -18,18 +18,39 @@ public sealed class GameLaunchResolver
             throw new FileNotFoundException("The game file is missing or the drive is unavailable.", game.SourcePath);
         }
 
-        return game.Platform switch
+        var hostAppId = GetHostAppId(game.Platform);
+        return hostAppId switch
         {
-            GamePlatform.PlayStation2 => ResolvePlayStation2(game, installedApps, grevId),
-            GamePlatform.GameCube or GamePlatform.Wii => ResolveStandalone(game, installedApps, grevId, "dolphin", "-b -e"),
-            GamePlatform.Nintendo3DS => ResolveStandalone(game, installedApps, grevId, "azahar", ""),
-            GamePlatform.PlayStation3 => ResolveStandalone(game, installedApps, grevId, "rpcs3", "--no-gui"),
-            GamePlatform.WiiU => ResolveStandalone(game, installedApps, grevId, "cemu", "-f -g"),
-            GamePlatform.Xbox360 => ResolveStandalone(game, installedApps, grevId, "xenia", ""),
-            GamePlatform.Xbox => ResolveStandalone(game, installedApps, grevId, "xemu", "-dvd_path"),
-            _ => ResolveRetroArch(game, installedApps, grevId)
+            "pcsx2" => ResolvePlayStation2(game, installedApps, grevId),
+            "retroarch" => ResolveRetroArch(game, installedApps, grevId),
+            _ => ResolveStandalone(game, installedApps, grevId, hostAppId, GetStandaloneGameArguments(game.Platform))
         };
     }
+
+    /// <summary>
+    /// The emulator app that runs games of this platform. A launched game is tracked under its own
+    /// GameId, but its save data (and therefore its cloud-save setting) belongs to this emulator.
+    /// </summary>
+    public static string GetHostAppId(GamePlatform platform) => platform switch
+    {
+        GamePlatform.PlayStation2 => "pcsx2",
+        GamePlatform.GameCube or GamePlatform.Wii => "dolphin",
+        GamePlatform.Nintendo3DS => "azahar",
+        GamePlatform.PlayStation3 => "rpcs3",
+        GamePlatform.WiiU => "cemu",
+        GamePlatform.Xbox360 => "xenia",
+        GamePlatform.Xbox => "xemu",
+        _ => "retroarch"
+    };
+
+    private static string GetStandaloneGameArguments(GamePlatform platform) => platform switch
+    {
+        GamePlatform.GameCube or GamePlatform.Wii => "-b -e",
+        GamePlatform.PlayStation3 => "--no-gui",
+        GamePlatform.WiiU => "-f -g",
+        GamePlatform.Xbox => "-dvd_path",
+        _ => ""
+    };
 
     private static InstalledAppEntry ResolveStandalone(GameLibraryEntry game,
         IReadOnlyList<InstalledAppEntry> installedApps, string grevId, string emulatorAppId, string gameArgumentPrefix)

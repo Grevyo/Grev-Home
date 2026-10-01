@@ -90,7 +90,18 @@ try
         webJson)!;
     Check(olderServer.CloudSaves is null, "Account data from a server without cloud saves must still parse");
 
-    Console.WriteLine("Account restore tests passed: source merge, offline delta, replay, empty local data, account isolation and cloud save listing.");
+    // Library games run under their own GameId but save through their emulator. Every platform
+    // must map to RetroArch (canonical save folder) or an emulator with a known save layout.
+    var saveAdapter = new EmulatorCloudSaveAdapter(paths);
+    var genericCoverage = saveAdapter.GetCoverage("not-an-emulator").Summary;
+    foreach (var platform in Enum.GetValues<GrevHome.Games.GamePlatform>())
+    {
+        var host = GrevHome.Games.GameLaunchResolver.GetHostAppId(platform);
+        Check(host == "retroarch" || saveAdapter.GetCoverage(host).Summary != genericCoverage,
+            $"{platform} games launch through {host}, which has no cloud save layout");
+    }
+
+    Console.WriteLine("Account restore tests passed: source merge, offline delta, replay, empty local data, account isolation, cloud save listing and game save mapping.");
 }
 finally { Directory.Delete(root,true); }
 

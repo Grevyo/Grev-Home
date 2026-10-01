@@ -137,6 +137,26 @@ separation the page's other sections already keep.
   GrevID linked to that account (another PC, a reinstall) sees the same save. The server side is
   documented in the grev-dad-site repo at `docs/grev-home-cloud-saves.md`.
 
+## Library games
+
+A game launched from the library runs under its own GameId, but writes its saves through its
+emulator. `GameLaunchResolver.GetHostAppId(platform)` is the single platform → emulator map used
+both to launch the game and to pick its cloud-save setting, so the pre-launch download and the
+post-session upload use the emulator's setting (for example, every PS2 game uses PCSX2's).
+Turning cloud saves on for an emulator therefore covers every game played through it.
+
+| Emulator | Synced | Not synced |
+| --- | --- | --- |
+| RetroArch (all cores) | SaveRAM and save states | – |
+| PCSX2 | Memory cards and save states | – |
+| Dolphin | GameCube cards, Wii NAND saves, save states | – |
+| Azahar | NAND, SD data and save states | Large installed titles can exceed the size limit |
+| RPCS3 | `dev_hdd0/home` (saves, trophies, user data) | Installed games in `dev_hdd0/game` |
+| Cemu | `mlc01/usr/save` | – |
+| Xenia Canary | `content` folder | Large installed updates/DLC can exceed the size limit |
+| Vita3K | `ux0/user` | – |
+| xemu | EEPROM and memory units | **Game saves** (inside the virtual hard disk) |
+
 ## Restoring on a new PC
 
 When a profile is linked (during account creation or later from Edit Profile), Grev Home syncs,
