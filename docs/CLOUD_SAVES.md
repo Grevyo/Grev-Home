@@ -60,7 +60,12 @@ local data after that authority confirms the device link.
   the system temp directory - `Directory.Move` fails across drives on Windows, and Grev Home's root
   is not guaranteed to share a drive with `%TEMP%`.
 - Archives over 300 MB are rejected before upload rather than silently accepted, as a guard against
-  a save folder pointed at something that isn't really a save.
+  a save folder pointed at something that isn't really a save. Grev.dad advertises its own lower
+  limit (`limits.cloudSaveMaxBytes`, 95 MB, because Cloudflare refuses larger request bodies) and
+  Grev Home uses whichever is smaller.
+- `capabilities.cloudSaves` says whether the server stores saves at all. When it is `false`, or a
+  save call answers 503, Grev Home explains that cloud saves are not enabled on that server and
+  leaves local saves untouched.
 - Uploads advertise an archive SHA-256 in `X-Grev-Content-SHA256`; downloads verify that header when
   Grev.dad returns it. A mismatch aborts before extraction and leaves live saves alone.
 - Emulator restore targets are independently staged and swapped with timestamped backups. Capture
@@ -127,5 +132,15 @@ separation the page's other sections already keep.
   JSON file per app under `Profiles/<GrevID>/Connections/GrevDad/cloud-saves/<AppId>.json`,
   matching where `GrevDadProfileSyncService` already keeps its own sync cursor
   (`Connections/GrevDad/sync.json`).
-- Remote: `PUT`/`GET api/grev-home/saves/{appId}`, bearer-authenticated with the same per-GrevID
-  device credential every other Grev.dad call uses.
+- Remote: `HEAD`/`GET`/`PUT api/grev-home/saves/{appId}`, bearer-authenticated with the same per-GrevID
+  device credential every other Grev.dad call uses. Saves belong to the Grev.dad account, so every
+  GrevID linked to that account (another PC, a reinstall) sees the same save. The server side is
+  documented in the grev-dad-site repo at `docs/grev-home-cloud-saves.md`.
+
+## Restoring on a new PC
+
+When a profile is linked (during account creation or later from Edit Profile), Grev Home syncs,
+downloads `account-data`, and turns cloud saves on for every app listed in its `cloudSaves` where
+this profile has no local save data yet. The normal pre-launch check then sees a one-sided newer
+cloud copy and applies it before the app starts. Apps that already have local saves are left
+alone, so linking never creates a conflict by itself.

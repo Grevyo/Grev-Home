@@ -95,7 +95,6 @@ public partial class MainWindow : Window
             GetProfileTarget,
             RefreshLoginProfileDetailsAsync,
             LoadProfileStatsAsync,
-            ReturnToLogin,
             (severity, source, title, message, grevId) => PublishActivityNotificationAsync(severity, source, title, message, grevId));
 
         _navigation.RouteChanged += route => Dispatcher.Invoke(() => ShowRoute(route));
@@ -109,9 +108,9 @@ public partial class MainWindow : Window
         _loginView.CreateProfileRequested += (_, _) => OpenCreateProfile();
         _loginView.ManageProfilesRequested += (_, _) => BeginProfileManagementSignIn();
 
-        _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request);
-        _createProfileView.OnboardingFinished += (_,_)=>ReturnToLogin();
-        _createProfileView.OnboardingSkipped += profile=>_ = _grevDad.SkipOnboardingAsync(profile);
+        _createProfileView.CreateRequested += request => _ = CreateProfileAsync(request, _loginView.ActivationControllerIndex);
+        _createProfileView.OnboardingFinished += profile => FinishOnboarding(profile, _loginView.ActivationControllerIndex);
+        _createProfileView.OnboardingSkipped += profile => _ = SkipGrevDadOnboardingAsync(profile, _loginView.ActivationControllerIndex);
         _createProfileView.CancelRequested += (_, _) => ReturnToLogin();
         _dashboardView.ManageUsersRequested += (_, _) => OpenSessionLobby();
         _dashboardView.InstalledAppsRequested += (_, _) => _ = OpenInstalledLibraryAsync();
@@ -245,6 +244,11 @@ public partial class MainWindow : Window
 
         _navigation.Reset(Route.Login);
         await RefreshLoginProfileDetailsAsync();
+        if (!HasPersistentProfiles)
+        {
+            // Setup flows straight into creating the first account; Cancel still lands on Login.
+            OpenCreateProfile();
+        }
     }
 
     private void SignInLocal(ProfileSignInRequest request)
@@ -744,9 +748,11 @@ public partial class MainWindow : Window
         }
     }
 
+    private bool HasPersistentProfiles => _profiles.Any(profile => !profile.IsBuiltInGuest);
+
     private void OpenCreateProfile()
     {
-        _createProfileView.Reset();
+        _createProfileView.Reset(firstProfile: !HasPersistentProfiles);
         _navigation.Navigate(Route.CreateProfile);
     }
 
@@ -756,18 +762,54 @@ public partial class MainWindow : Window
         _loginView.BeginAdminManagementSignIn();
     }
 
-    private async Task CreateProfileAsync(CreateProfileRequest request)
+    private async Task CreateProfileAsync(CreateProfileRequest request, int? controllerIndex)
     {
+        LocalProfile created;
         try
         {
-            var created = await _profileService.CreateAsync(request.Username, request.Role);
+            created = await _profileService.CreateAsync(request.Username, request.Role);
             _profiles = await _profileService.GetProfilesAsync();
             RefreshSessionSurfaces();
-            _createProfileView.ShowGrevDadStep(created);
         }
         catch (Exception ex) when (ex is InvalidOperationException or IOException or UnauthorizedAccessException)
         {
             _createProfileView.ShowError(ex.Message);
+            return;
+        }
+
+        if (request.LinkGrevDad)
+        {
+            _createProfileView.ShowGrevDadStep(created, startLinking: true);
+        }
+        else
+        {
+            FinishOnboarding(created, controllerIndex);
+        }
+    }
+
+    private async Task SkipGrevDadOnboardingAsync(LocalProfile profile, int? controllerIndex)
+    {
+        await _grevDad.CancelOnboardingLinkAsync(profile);
+        FinishOnboarding(profile, controllerIndex);
+    }
+
+    /// <summary>
+    /// Ends account creation. The very first account on a PC is signed straight in (on the
+    /// controller that finished setup) because there is nobody else to choose; any later account
+    /// returns to Who's Playing, where the existing sign-in, password and player rules apply.
+    /// </summary>
+    private void FinishOnboarding(LocalProfile profile, int? controllerIndex)
+    {
+        var current = _profiles.FirstOrDefault(item => string.Equals(item.GrevId, profile.GrevId, StringComparison.OrdinalIgnoreCase)) ?? profile;
+        var onlyAccount = _profiles.Count(item => !item.IsBuiltInGuest) == 1;
+        ReturnToLogin();
+        if (onlyAccount && !_session.HasSignedInUsers && !_profileManagementSignInPending && !current.HasControllerPassword)
+        {
+            SignInLocal(new ProfileSignInRequest(current, controllerIndex));
+        }
+        else
+        {
+            _loginView.ShowStatus($"{current.DisplayName} is ready. Choose it to sign in.");
         }
     }
 

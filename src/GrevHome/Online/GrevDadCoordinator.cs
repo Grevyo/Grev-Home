@@ -47,7 +47,6 @@ public sealed partial class GrevDadCoordinator
     private readonly Func<LocalProfile?> _getProfileTarget;
     private readonly Func<Task> _refreshLoginProfileDetailsAsync;
     private readonly Func<string, Task> _loadProfileStatsAsync;
-    private readonly Action _returnToLogin;
     private readonly Func<NotificationSeverity, string, string, string, string?, Task> _publishNotificationAsync;
 
     public GrevDadCoordinator(
@@ -66,7 +65,6 @@ public sealed partial class GrevDadCoordinator
         Func<LocalProfile?> getProfileTarget,
         Func<Task> refreshLoginProfileDetailsAsync,
         Func<string, Task> loadProfileStatsAsync,
-        Action returnToLogin,
         Func<NotificationSeverity, string, string, string, string?, Task> publishNotificationAsync)
     {
         _paths = paths;
@@ -84,7 +82,6 @@ public sealed partial class GrevDadCoordinator
         _getProfileTarget = getProfileTarget;
         _refreshLoginProfileDetailsAsync = refreshLoginProfileDetailsAsync;
         _loadProfileStatsAsync = loadProfileStatsAsync;
-        _returnToLogin = returnToLogin;
         _publishNotificationAsync = publishNotificationAsync;
     }
 
@@ -989,10 +986,9 @@ public sealed partial class GrevDadCoordinator
         _profileEditView.UnlinkGrevDadRequested += (_, _) => _ = UnlinkGrevDadFromProfileAsync();
         _profileEditView.OpenGrevDadApprovalRequested += OpenGrevDadApprovalPage;
         _profileEditView.OpenGrevDadWebsiteRequested += (_,_)=>OpenGrevDadWebsite(new Uri(RequireGrevDadAccountService().BaseUri,"link-grev-home"));
-        _createProfileView.OpenGrevDadRequested += profile=>OpenGrevDadWebsite(profile,new Uri(RequireGrevDadAccountService().BaseUri,"login?next=%2Flink-grev-home"));
+        _grevDadOnboardingPollTimer.Tick += (_, _) => _ = PollOnboardingLinkAsync();
         _createProfileView.GenerateGrevDadCodeRequested += profile=>_ = BeginGrevDadLinkFromOnboardingAsync(profile);
         _createProfileView.OpenGrevDadApprovalRequested += (profile,link)=>OpenGrevDadWebsite(profile,link.VerificationUri);
-        _createProfileView.CheckGrevDadApprovalRequested += profile=>_ = CheckGrevDadLinkFromOnboardingAsync(profile);
 
         var service = RequireGrevDadAccountService();
         service.SnapshotChanged += (grevId, snapshot) => _dispatcher.BeginInvoke(new Action(() =>
@@ -1158,80 +1154,196 @@ public sealed partial class GrevDadCoordinator
         }
     }
 
+    // Onboarding (Create account -> Connect Grev.dad). The approval code is requested
+    // automatically and approval is polled in the background, including while the Grev Home
+    // browser is open on the approval page, so the person only has to approve once.
+    private readonly DispatcherTimer _grevDadOnboardingPollTimer = new();
+    private LocalProfile? _grevDadOnboardingProfile;
+    private bool _grevDadOnboardingPollInFlight;
+    // Bumped whenever a request starts or stops, so a poll that was already in flight for an
+    // older code can never act on (or cancel) the newer one.
+    private int _grevDadOnboardingGeneration;
+
     private async Task BeginGrevDadLinkFromOnboardingAsync(LocalProfile profile)
     {
         if (_navigation.Current != Route.CreateProfile) return;
+        StopOnboardingLinkPolling();
+        var generation = _grevDadOnboardingGeneration;
         var service = RequireGrevDadAccountService();
-        if (_grevDadMaintenance is null)
-        {
-            _createProfileView.ShowGrevDadOnboardingStatus("Grev.dad integration is still initializing. Try again in a moment.");
-            return;
-        }
         try
         {
-            _createProfileView.ShowGrevDadOnboardingStatus("Checking the live Grev.dad connection…");
-            var capabilities = await _grevDadMaintenance.GetCapabilitiesAsync(forceRefresh:true);
-            if (!capabilities.Capabilities.Linking || !capabilities.Capabilities.DeviceTokens)
+            _createProfileView.ShowGrevDadWorking($"Connecting to {service.BaseUri.Host}…");
+            if (_grevDadMaintenance is { } maintenance)
             {
-                _createProfileView.ShowGrevDadOnboardingStatus("Grev.dad is online but linking is not currently available. You can skip and link later.");
+                var capabilities = await maintenance.GetCapabilitiesAsync(forceRefresh:true);
+                if (generation != _grevDadOnboardingGeneration) return;
+                if (!capabilities.Capabilities.Linking || !capabilities.Capabilities.DeviceTokens)
+                {
+                    _createProfileView.ShowGrevDadRetry(
+                        "Grev.dad is online but is not accepting new links right now. Continue offline and link later from Edit Profile.",
+                        "Try again");
+                    return;
+                }
+            }
+
+            var link = await service.BeginLinkAsync(profile,Environment.MachineName);
+            if (generation != _grevDadOnboardingGeneration || !_createProfileView.IsOnboardingLinkFor(profile.GrevId) ||
+                _navigation.Current != Route.CreateProfile)
+            {
+                // The person continued offline (or left) while the code was being requested.
+                await CancelPendingLinkQuietlyAsync(profile.GrevId);
                 return;
             }
-            var link = await service.BeginLinkAsync(profile,Environment.MachineName);
             _activeGrevDadLinks[profile.GrevId] = link;
-            _createProfileView.ShowGrevDadCode(link);
+            _createProfileView.ShowGrevDadCode(link, service.BaseUri.Host);
+            _grevDadOnboardingProfile = profile;
+            _grevDadOnboardingPollTimer.Interval = TimeSpan.FromSeconds(Math.Clamp(link.PollIntervalSeconds, 2, 30));
+            _grevDadOnboardingPollTimer.Start();
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex) || ex is ArgumentException)
         {
-            _createProfileView.ShowGrevDadOnboardingStatus($"Could not generate a link code: {ex.Message} You can skip and link later.");
+            if (generation != _grevDadOnboardingGeneration) return;
+            _createProfileView.ShowGrevDadRetry(
+                $"Grev.dad could not be reached ({ex.Message}). Your account works offline – continue now and link later from Edit Profile, or try again.",
+                "Try again");
         }
     }
 
-    private async Task CheckGrevDadLinkFromOnboardingAsync(LocalProfile profile)
+    private async Task PollOnboardingLinkAsync()
     {
-        if (_navigation.Current != Route.CreateProfile) return;
+        var profile = _grevDadOnboardingProfile;
+        if (profile is null || !_createProfileView.IsOnboardingLinkFor(profile.GrevId) ||
+            _navigation.Current is not (Route.CreateProfile or Route.GrevDadWeb))
+        {
+            StopOnboardingLinkPolling();
+            return;
+        }
+        if (_grevDadOnboardingPollInFlight) return;
+
+        _grevDadOnboardingPollInFlight = true;
+        var generation = _grevDadOnboardingGeneration;
         try
         {
             var result = await RequireGrevDadAccountService().PollLinkAsync(profile.GrevId);
+            if (generation != _grevDadOnboardingGeneration) return;
             switch (result.State)
             {
                 case GrevDadLinkPollState.Pending:
-                    _createProfileView.ShowGrevDadOnboardingStatus("Still waiting for approval on Grev.dad. Approve the request there, then check again.");
                     return;
                 case GrevDadLinkPollState.Approved:
+                    StopOnboardingLinkPolling();
                     _activeGrevDadLinks.Remove(profile.GrevId);
+                    if (_navigation.Current == Route.GrevDadWeb) _navigation.GoBack();
                     _createProfileView.ShowGrevDadLinked($"@{result.Account?.Username}");
-                    await SyncGrevDadProfileSafeAsync(profile.GrevId);
+                    var summary = await RestoreAfterGrevDadLinkAsync(profile.GrevId);
+                    if (_createProfileView.IsOnboardingLinkFor(profile.GrevId))
+                        _createProfileView.ShowGrevDadOnboardingStatus(summary);
                     return;
                 case GrevDadLinkPollState.Denied:
-                    _createProfileView.ShowGrevDadOnboardingStatus("The request was denied on Grev.dad. You can skip and link later from Edit Profile.");
+                    EndOnboardingLink(profile, "The request was denied on Grev.dad.");
                     return;
                 case GrevDadLinkPollState.Expired:
-                case GrevDadLinkPollState.Revoked:
-                    _activeGrevDadLinks.Remove(profile.GrevId);
-                    _createProfileView.ShowGrevDadOnboardingStatus("That request is no longer valid. Skip for now and link later from Edit Profile.");
+                    EndOnboardingLink(profile, "That code expired before it was approved.");
+                    return;
+                default:
+                    EndOnboardingLink(profile, "That code is no longer valid.");
                     return;
             }
         }
         catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
         {
-            _createProfileView.ShowGrevDadOnboardingStatus($"Could not check approval: {ex.Message} Your local account is safe and you can skip for now.");
+            if (generation != _grevDadOnboardingGeneration) return;
+            // Keep polling: a dropped connection while someone is approving on their phone should
+            // not throw away a code that is still valid.
+            _createProfileView.ShowGrevDadOnboardingStatus($"Lost contact with Grev.dad ({ex.Message}). Still waiting for approval…");
+        }
+        finally
+        {
+            _grevDadOnboardingPollInFlight = false;
         }
     }
 
-    /// <summary>Formerly SkipGrevDadOnboardingAsync. Subscribed by MainWindow to CreateProfileView.OnboardingSkipped.</summary>
-    public async Task SkipOnboardingAsync(LocalProfile profile)
+    private void EndOnboardingLink(LocalProfile profile, string reason)
     {
-        try
+        StopOnboardingLinkPolling();
+        _activeGrevDadLinks.Remove(profile.GrevId);
+        _ = CancelPendingLinkQuietlyAsync(profile.GrevId);
+        _createProfileView.ShowGrevDadRetry($"{reason} Get a new code to try again, or continue offline.");
+    }
+
+    private void StopOnboardingLinkPolling()
+    {
+        _grevDadOnboardingGeneration++;
+        _grevDadOnboardingPollTimer.Stop();
+        _grevDadOnboardingProfile = null;
+    }
+
+    private async Task CancelPendingLinkQuietlyAsync(string grevId)
+    {
+        try { await RequireGrevDadAccountService().CancelPendingLinkAsync(grevId); }
+        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex)) { }
+    }
+
+    /// <summary>
+    /// Leaves onboarding without linking. Navigation is the caller's job; this only drops any
+    /// pending request so it cannot complete later behind the person's back.
+    /// </summary>
+    public async Task CancelOnboardingLinkAsync(LocalProfile profile)
+    {
+        StopOnboardingLinkPolling();
+        if (_activeGrevDadLinks.Remove(profile.GrevId))
+            await CancelPendingLinkQuietlyAsync(profile.GrevId);
+    }
+
+    /// <summary>
+    /// Everything a fresh link should pull down: progression/statistics restore through the normal
+    /// sync, then cloud saves. Cloud saves are switched on for each app the account has one for,
+    /// but only where this profile has no local save data, so the existing "newer cloud copy is
+    /// applied before launch" path restores them and nothing local is ever put into conflict.
+    /// Returns a one-line summary for the UI.
+    /// </summary>
+    private async Task<string> RestoreAfterGrevDadLinkAsync(string grevId)
+    {
+        await SyncGrevDadProfileSafeAsync(grevId);
+        var data = await GrevDadAccountDataStore.ReadAsync(_paths, grevId);
+        if (data is null)
         {
-            if (_activeGrevDadLinks.Remove(profile.GrevId))
-                await RequireGrevDadAccountService().CancelPendingLinkAsync(profile.GrevId);
+            return "Linked. Your Grev.dad level, achievements and statistics will finish downloading in the background.";
         }
-        catch (Exception ex) when (IsExpectedGrevDadBackgroundFailure(ex))
+
+        var restored = await EnableRestorableCloudSavesAsync(grevId, data);
+        var saves = restored switch
         {
-            // The local account is complete regardless. Expired server requests cannot link
-            // without explicit approval and are cleaned up by the normal request lifecycle.
+            0 => string.Empty,
+            1 => " 1 cloud save will download the first time you launch that app.",
+            _ => $" {restored} cloud saves will download the first time you launch those apps."
+        };
+        return $"Restored your Grev.dad level, achievements and statistics.{saves}";
+    }
+
+    private async Task<int> EnableRestorableCloudSavesAsync(string grevId, GrevDadAccountData data)
+    {
+        var sync = _grevDadSaveSync;
+        if (sync is null || data.CloudSaves is not { Length: > 0 } saves) return 0;
+
+        var enabled = 0;
+        foreach (var save in saves)
+        {
+            try
+            {
+                if (await sync.IsEnabledAsync(grevId, save.AppId)) continue;
+                var root = _paths.GetProfileAppSaves(grevId, save.AppId);
+                if (Directory.Exists(root) && Directory.EnumerateFileSystemEntries(root).Any()) continue;
+                await sync.SetEnabledAsync(grevId, save.AppId, true);
+                enabled++;
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or InvalidDataException)
+            {
+                // One unusable entry (an app ID this build does not accept, a locked folder) never
+                // stops the rest of the restore.
+            }
         }
-        finally { _returnToLogin(); }
+        return enabled;
     }
 
     private async Task PollActiveGrevDadLinkAsync(bool forceCurrentTarget = false)
@@ -1267,9 +1379,12 @@ public sealed partial class GrevDadCoordinator
                     StopGrevDadLinkPolling();
                     var approved = service.GetLastSnapshot(grevId);
                     _profileEditView.SetGrevDadState(approved);
-                    _profileEditView.ShowGrevDadStatus($"Linked @{result.Account?.Username} to this GrevID profile.");
-                    _ = SyncGrevDadProfileSafeAsync(grevId);
+                    _profileEditView.ShowGrevDadStatus($"Linked @{result.Account?.Username} to this GrevID profile. Restoring Grev.dad data…");
                     await RefreshGrevDadPresenceForAsync(grevId);
+                    var restoreSummary = await RestoreAfterGrevDadLinkAsync(grevId);
+                    if (_navigation.Current == Route.ProfileEdit &&
+                        string.Equals(_getProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+                        _profileEditView.ShowGrevDadStatus(restoreSummary);
                     return;
                 case GrevDadLinkPollState.Denied:
                     _profileEditView.ShowGrevDadStatus("The Grev.dad link request was denied.");

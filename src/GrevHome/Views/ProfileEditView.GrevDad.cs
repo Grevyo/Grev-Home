@@ -93,7 +93,7 @@ public partial class ProfileEditView
 
         var grevDadInstructionsText = new TextBlock
         {
-            Text = "First open Grev.dad and sign in to the account you want to link. Return here to generate a code, approve it on the website, then choose Check approval.",
+            Text = "Choose Link Grev.dad to get an approval code, then approve it in the Grev Home browser or at grev.dad/link-grev-home on any device. Grev Home notices the approval automatically and restores your Grev.dad data.",
             Margin = new Thickness(0, 14, 0, 10),
             TextWrapping = TextWrapping.Wrap
         };
@@ -211,7 +211,7 @@ public partial class ProfileEditView
         if (snapshot.State == GrevDadConnectionState.Linking && _grevDadLinkStart is { } link)
         {
             _grevDadCodeText.Text = $"Approval code: {link.UserCode}";
-            _grevDadApprovalText.Text = $"Paste this code on your Grev.dad profile, or choose Open approval page to fill it automatically. After approving on the website, choose Check approval here. Expires {link.ExpiresAtUtc.ToLocalTime():t}.";
+            _grevDadApprovalText.Text = $"Choose Open approval page to approve it here, or enter the code at {link.VerificationUri.Host}/link-grev-home on any device. Linking finishes automatically once approved. Expires {link.ExpiresAtUtc.ToLocalTime():t}.";
         }
         else
         {

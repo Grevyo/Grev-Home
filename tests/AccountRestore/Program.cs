@@ -68,7 +68,29 @@ try
     Check(!(await statsService.GetAsync(grevId,[])).Milestones.Any(m=>m.MilestoneId=="site:test"),"Another account must not inherit shared achievements");
     File.Delete(Path.Combine(connection,"link.json"));
     Check((await playtime.GetForGrevIdAsync(grevId)).Apps.Count==0,"Unlinked profile must not read cloud cache");
-    Console.WriteLine("Account restore tests passed: source merge, offline delta, replay, empty local data and account isolation.");
+    // Exact shape grev.dad's GET /api/grev-home/account-data returns (src/grev-home-sync.ts),
+    // including the cloud save list a newly linked PC uses to offer restores.
+    const string serverAccountData = """
+        {"ok":true,"apiVersion":1,"userId":"account-a","username":"Joe","displayName":"Joe","accountCreatedAt":100,
+         "downloadedAt":1000,"sharedProgression":{"totalXp":1143,"level":3,"xpPerLevel":500,"homeTotalXp":143},
+         "achievements":[{"id":"site:test","name":"Website award","description":"Earned","source":"Website","awardedAt":1000}],
+         "sources":[{"grevId":"GTESTLOCAL","profileCreatedAt":200,"totalSeconds":60,"completedSessions":1,"uniqueApps":1,
+           "apps":[{"appId":"pcsx2","appName":"PCSX2","totalSeconds":60,"sessionCount":1,"lastPlayedAt":900}],"updatedAt":1000}],
+         "cloudSaves":[{"appId":"pcsx2","sizeBytes":2048,"updatedAtUtc":"2026-10-01T12:00:00.123Z"}]}
+        """;
+    var webJson = new JsonSerializerOptions(JsonSerializerDefaults.Web);
+    var parsed = JsonSerializer.Deserialize<GrevDadAccountData>(serverAccountData, webJson)!;
+    Check(parsed.CloudSaves is [{ AppId: "pcsx2", SizeBytes: 2048 }], "Cloud save summaries must parse from account-data");
+    Check(parsed.CloudSaves![0].UpdatedAtUtc == DateTimeOffset.Parse("2026-10-01T12:00:00.123Z"), "Cloud save timestamps must keep millisecond precision");
+    await File.WriteAllTextAsync(Path.Combine(connection,"link.json"),"{\"account\":{\"userId\":\"account-a\"}}");
+    await GrevDadAccountDataStore.SaveAsync(paths, grevId, parsed, default);
+    Check((await GrevDadAccountDataStore.ReadAsync(paths, grevId))?.CloudSaves?.Length == 1, "Cloud save summaries must survive the local account-data cache");
+    var olderServer = JsonSerializer.Deserialize<GrevDadAccountData>(
+        """{"ok":true,"apiVersion":1,"userId":"account-a","username":"Joe","displayName":"Joe","accountCreatedAt":100,"downloadedAt":1000,"sources":[]}""",
+        webJson)!;
+    Check(olderServer.CloudSaves is null, "Account data from a server without cloud saves must still parse");
+
+    Console.WriteLine("Account restore tests passed: source merge, offline delta, replay, empty local data, account isolation and cloud save listing.");
 }
 finally { Directory.Delete(root,true); }
 

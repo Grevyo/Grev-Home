@@ -108,6 +108,26 @@ Each persistent local Grev Home account can independently link its own Grev.dad 
 
 Guest is local/shared temporary usage and does not become a persistent Grev.dad-linked identity.
 
+## Creating and linking accounts
+
+Account creation offers two equal choices after the username and role:
+
+- **Create offline account** – the account is created and, if it is the first account on the PC,
+  signed straight in on the controller that pressed the button. Nothing touches the network.
+- **Create + link Grev.dad** – the account is created locally first (so it always exists, whatever
+  happens online), then an approval code is requested automatically. The person approves it either
+  in the Grev Home browser (signing in to Grev.dad if asked) or at `grev.dad/link-grev-home` on a
+  phone. Grev Home polls in the background, returns from the browser by itself once approved, and
+  restores the account's level, achievements, statistics and cloud saves (see `CLOUD_SAVES.md`).
+  Expired or denied codes offer a new code; an unreachable server offers *Try again* or *Continue
+  offline*. Guest-role accounts only get the offline choice.
+
+Right after first-run setup on a PC with no accounts, Grev Home goes straight to account creation
+(Cancel still returns to Login). Later launches always start at Login.
+
+Edit Profile uses the same link request and automatic approval check for accounts that were
+created offline.
+
 ## Unlinking
 
 Unlinking Grev.dad only removes/disables the online connection and its credentials.

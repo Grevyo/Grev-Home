@@ -39,6 +39,10 @@ internal sealed record CloudSaveManifest(
     public static CloudSaveManifest Empty { get; } = new(1, false, null, null, null, null);
 }
 
+internal sealed record GrevDadSaveCapabilitiesProbe(bool Ok, int ApiVersion, GrevDadSaveCapabilityFlags? Capabilities, GrevDadSaveCapabilityLimits? Limits);
+internal sealed record GrevDadSaveCapabilityFlags(bool CloudSaves = false);
+internal sealed record GrevDadSaveCapabilityLimits(long CloudSaveMaxBytes = 0);
+
 internal sealed record GrevDadSaveApiResponse(bool Ok, string? Message, int ApiVersion, bool Exists, long? SizeBytes, DateTimeOffset? UpdatedAtUtc);
 
 /// <summary>
@@ -72,7 +76,11 @@ public sealed class GrevDadSaveSyncService : IDisposable
     private readonly EmulatorCloudSaveAdapter _emulatorSaves;
     private readonly JsonSerializerOptions _json = JsonDefaults.IndentedWeb;
     private readonly ConcurrentDictionary<string, SemaphoreSlim> _gates = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly TimeSpan ServerSupportCacheLifetime = TimeSpan.FromHours(6);
+    private (bool Supported, long MaxBytes, DateTimeOffset CheckedAtUtc)? _serverSupport;
     private bool _disposed;
+    private const string ServerWithoutCloudSavesMessage =
+        "Cloud saves are not enabled on this Grev.dad server yet. Your local saves are unaffected.";
 
     public GrevDadSaveSyncService(AppPaths paths, GrevDadAccountService accounts, Uri? baseUri = null)
     {
@@ -191,6 +199,13 @@ public sealed class GrevDadSaveSyncService : IDisposable
                 return new CloudSaveState(CloudSaveStatus.NeverSynced, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, "There is no local save data for this app yet.");
             }
 
+            var (serverSupportsSaves, serverMaxBytes) = await GetServerSupportAsync(cancellationToken);
+            if (!serverSupportsSaves)
+            {
+                return new CloudSaveState(CloudSaveStatus.Error, manifest.LastUploadedAtUtc, manifest.LastDownloadedAtUtc, ServerWithoutCloudSavesMessage);
+            }
+            var uploadLimit = serverMaxBytes > 0 ? Math.Min(serverMaxBytes, MaxArchiveBytes) : MaxArchiveBytes;
+
             var hash = ComputeLocalHash(saveRoot);
             var archivePath = Path.Combine(Path.GetTempPath(), $"GrevHomeSave-{Guid.NewGuid():N}.zip");
             DateTimeOffset? remoteUpdatedAt = null;
@@ -199,13 +214,13 @@ public sealed class GrevDadSaveSyncService : IDisposable
                 ZipFile.CreateFromDirectory(saveRoot, archivePath, CompressionLevel.Optimal, includeBaseDirectory: false);
                 ValidateArchive(archivePath);
                 var archiveInfo = new FileInfo(archivePath);
-                if (archiveInfo.Length > MaxArchiveBytes)
+                if (archiveInfo.Length > uploadLimit)
                 {
                     return new CloudSaveState(
                         CloudSaveStatus.Error,
                         manifest.LastUploadedAtUtc,
                         manifest.LastDownloadedAtUtc,
-                        $"This save folder is {archiveInfo.Length / (1024 * 1024):N0} MB, over the {MaxArchiveBytes / (1024 * 1024):N0} MB cloud save limit.");
+                        $"This save folder is {archiveInfo.Length / (1024 * 1024):N0} MB, over the {uploadLimit / (1024 * 1024):N0} MB cloud save limit.");
                 }
 
                 using var request = new HttpRequestMessage(HttpMethod.Put, $"api/grev-home/saves/{appId}");
@@ -223,7 +238,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
                             CloudSaveStatus.Error,
                             manifest.LastUploadedAtUtc,
                             manifest.LastDownloadedAtUtc,
-                            $"Grev.dad rejected the upload ({(int)response.StatusCode}).");
+                            await DescribeFailureAsync(response, "Grev.dad rejected the upload", cancellationToken));
                     }
 
                     var result = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadSaveApiResponse>(response, _json, cancellationToken);
@@ -318,7 +333,7 @@ public sealed class GrevDadSaveSyncService : IDisposable
                     CloudSaveStatus.Error,
                     manifest.LastUploadedAtUtc,
                     manifest.LastDownloadedAtUtc,
-                    $"Grev.dad could not return the cloud save ({(int)response.StatusCode}).");
+                    await DescribeFailureAsync(response, "Grev.dad could not return the cloud save", cancellationToken));
             }
 
             if (response.Content.Headers.ContentLength is > MaxArchiveBytes)
@@ -512,7 +527,9 @@ public sealed class GrevDadSaveSyncService : IDisposable
                     localChanged ? CloudSaveStatus.LocalChangesPending : CloudSaveStatus.UpToDate,
                     manifest.LastUploadedAtUtc,
                     manifest.LastDownloadedAtUtc,
-                    $"Could not check for remote changes ({(int)response.StatusCode}). Showing local state only.");
+                    response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable
+                        ? ServerWithoutCloudSavesMessage
+                        : $"Could not check for remote changes ({(int)response.StatusCode}). Showing local state only.");
             }
 
             var remoteUpdatedAt = TryReadRemoteUpdatedAtHeader(response);
@@ -546,6 +563,60 @@ public sealed class GrevDadSaveSyncService : IDisposable
     /// </summary>
     public Task<CloudSaveState> ResolveConflictAsync(string grevId, string appId, bool keepLocal, CancellationToken cancellationToken = default) =>
         keepLocal ? UploadAsync(grevId, appId, cancellationToken) : DownloadAsync(grevId, appId, cancellationToken);
+
+    /// <summary>
+    /// Asks the public capabilities endpoint whether this Grev.dad server stores cloud saves and
+    /// how large an archive it accepts. Cached, and deliberately optimistic when the answer is
+    /// unknown (offline, older server): the save request itself then reports the real outcome.
+    /// </summary>
+    private async Task<(bool Supported, long MaxBytes)> GetServerSupportAsync(CancellationToken cancellationToken)
+    {
+        var cached = _serverSupport;
+        if (cached is { } known && DateTimeOffset.UtcNow - known.CheckedAtUtc < ServerSupportCacheLifetime)
+        {
+            return (known.Supported, known.MaxBytes);
+        }
+
+        try
+        {
+            using var response = await _http.GetAsync("api/grev-home/capabilities", cancellationToken);
+            if (!response.IsSuccessStatusCode) return (true, 0);
+            var probe = await GrevDadNetworkSupport.ReadJsonAsync<GrevDadSaveCapabilitiesProbe>(response, _json, cancellationToken);
+            if (!probe.Ok || probe.ApiVersion != GrevDadAccountService.SupportedApiVersion) return (true, 0);
+            var result = (probe.Capabilities?.CloudSaves ?? false, probe.Limits?.CloudSaveMaxBytes ?? 0);
+            _serverSupport = (result.Item1, result.Item2, DateTimeOffset.UtcNow);
+            return result;
+        }
+        catch (Exception ex) when (IsNetworkFailure(ex) || ex is InvalidDataException)
+        {
+            return (true, 0);
+        }
+    }
+
+    private static async Task<string> DescribeFailureAsync(HttpResponseMessage response, string prefix, CancellationToken cancellationToken)
+    {
+        if (response.StatusCode == System.Net.HttpStatusCode.ServiceUnavailable)
+        {
+            return ServerWithoutCloudSavesMessage;
+        }
+
+        try
+        {
+            var text = await response.Content.ReadAsStringAsync(cancellationToken);
+            using var document = JsonDocument.Parse(text);
+            if (document.RootElement.TryGetProperty("message", out var message) &&
+                message.ValueKind == JsonValueKind.String &&
+                !string.IsNullOrWhiteSpace(message.GetString()))
+            {
+                return message.GetString()!;
+            }
+        }
+        catch (Exception ex) when (ex is JsonException or HttpRequestException or IOException)
+        {
+        }
+
+        return $"{prefix} ({(int)response.StatusCode}).";
+    }
 
     private static DateTimeOffset? TryReadRemoteUpdatedAtHeader(HttpResponseMessage response) =>
         response.Headers.TryGetValues(RemoteUpdatedAtHeader, out var values) &&
