@@ -40,6 +40,9 @@ public partial class SettingsView : UserControl
     private IReadOnlyDictionary<string, ResolvedDashboardTile> _tilePresentations =
         new Dictionary<string, ResolvedDashboardTile>(StringComparer.OrdinalIgnoreCase);
     private ShellMotionSettings _motionSettings = new();
+    // Clears an armed power action when its confirmation window ends, so the button never keeps
+    // saying CONFIRM after a second press would only re-arm it.
+    private readonly System.Windows.Threading.DispatcherTimer _powerConfirmationTimer = new() { Interval = TimeSpan.FromSeconds(8) };
 
     public event EventHandler? BackRequested;
     public event EventHandler? ManageThemesRequested;
@@ -56,8 +59,10 @@ public partial class SettingsView : UserControl
     public SettingsView()
     {
         InitializeComponent();
-        BuildDisplayNameKeyboard();
+        DisplayNameKeyboardOverlay.Completed += value => SaveDisplayNameRequested?.Invoke(value);
+        DisplayNameKeyboardOverlay.Closed += (_, _) => Dispatcher.BeginInvoke(new Action(() => EditDisplayNameButton.Focus()));
         RenderSettingsHubTiles();
+        _powerConfirmationTimer.Tick += (_, _) => ResetPowerConfirmation();
         AddHandler(Keyboard.GotKeyboardFocusEvent,new KeyboardFocusChangedEventHandler(Settings_GotKeyboardFocus),true);
         ShowSettingsHub();
     }
@@ -197,7 +202,7 @@ public partial class SettingsView : UserControl
             UsernameText.Text = "No editable local Username in this session";
             GrevIdText.Text = "Local account settings require a local Primary User";
             EditDisplayNameButton.IsEnabled = false;
-            DisplayNameEditor.Visibility = Visibility.Collapsed;
+            if (DisplayNameKeyboardOverlay.IsOpen) DisplayNameKeyboardOverlay.Cancel();
             AccountStatusText.Text = "Switch Primary User to a local account to edit its Display Name.";
         }
         else
@@ -221,23 +226,12 @@ public partial class SettingsView : UserControl
             return;
         }
 
-        DisplayNameTextBox.Text = _profile.DisplayName;
-        DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-        DisplayNameEditor.Visibility = Visibility.Visible;
-        Dispatcher.BeginInvoke(new Action(() =>
-        {
-            var firstKey = DisplayNameKeyboard.Children.OfType<Button>().FirstOrDefault();
-            firstKey?.Focus();
-        }));
+        DisplayNameKeyboardOverlay.Open("Display Name", _profile.DisplayName, 50);
     }
 
     public void ShowAccountStatus(string message, bool closeEditor = false)
     {
         AccountStatusText.Text = message;
-        if (closeEditor)
-        {
-            DisplayNameEditor.Visibility = Visibility.Collapsed;
-        }
     }
 
     public void ShowShortcutStatus(string message)
@@ -288,7 +282,7 @@ public partial class SettingsView : UserControl
 
         var details = new Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 14, 21)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
             BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
@@ -417,7 +411,7 @@ public partial class SettingsView : UserControl
     {
         return new Border
         {
-            Background = new System.Windows.Media.SolidColorBrush(System.Windows.Media.Color.FromRgb(11, 14, 21)),
+            Background = (Brush)FindResource("WindowBackgroundBrush"),
             BorderBrush = (Brush)FindResource("CardBorderBrush"),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(9),
@@ -453,7 +447,9 @@ public partial class SettingsView : UserControl
             _pendingPowerAction = action;
             _pendingPowerExpiresAt = now.AddSeconds(8);
             UpdatePowerButtons();
-            PowerStatusText.Text = string.Empty;
+            PowerStatusText.Text = $"Press {FormatPowerAction(action)} again within 8 seconds to confirm.";
+            _powerConfirmationTimer.Stop();
+            _powerConfirmationTimer.Start();
             return;
         }
 
@@ -471,6 +467,7 @@ public partial class SettingsView : UserControl
 
     private void ResetPowerConfirmation()
     {
+        _powerConfirmationTimer.Stop();
         _pendingPowerAction = null;
         _pendingPowerExpiresAt = DateTimeOffset.MinValue;
         UpdatePowerButtons();
@@ -515,60 +512,7 @@ public partial class SettingsView : UserControl
         _ => action.ToString()
     };
 
-    private void BuildDisplayNameKeyboard()
-    {
-        const string keys = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890";
-        foreach (var key in keys)
-        {
-            var button = new Button
-            {
-                Content = key.ToString(),
-                Tag = key,
-                Height = 48,
-                Margin = new Thickness(3),
-                FontSize = 17
-            };
-            button.Click += DisplayNameKey_Click;
-            DisplayNameKeyboard.Children.Add(button);
-        }
-    }
-
     private void EditDisplayName_Click(object sender, RoutedEventArgs e) => OpenProfileEditor();
-
-    private void DisplayNameKey_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is Button { Tag: char key } && DisplayNameTextBox.Text.Length < DisplayNameTextBox.MaxLength)
-        {
-            DisplayNameTextBox.Text += key;
-            DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-        }
-    }
-
-    private void DisplayNameSpace_Click(object sender, RoutedEventArgs e)
-    {
-        if (DisplayNameTextBox.Text.Length < DisplayNameTextBox.MaxLength)
-        {
-            DisplayNameTextBox.Text += " ";
-            DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-        }
-    }
-
-    private void DisplayNameBackspace_Click(object sender, RoutedEventArgs e)
-    {
-        if (DisplayNameTextBox.Text.Length == 0)
-        {
-            return;
-        }
-
-        DisplayNameTextBox.Text = DisplayNameTextBox.Text[..^1];
-        DisplayNameTextBox.CaretIndex = DisplayNameTextBox.Text.Length;
-    }
-
-    private void SaveDisplayName_Click(object sender, RoutedEventArgs e) =>
-        SaveDisplayNameRequested?.Invoke(DisplayNameTextBox.Text);
-
-    private void CancelDisplayName_Click(object sender, RoutedEventArgs e) =>
-        DisplayNameEditor.Visibility = Visibility.Collapsed;
 
     private void AddReturnHome_Click(object sender, RoutedEventArgs e) =>
         RecordShortcutRequested?.Invoke(new ShortcutRecordRequest(ControllerShortcutAction.ReturnHome, null));

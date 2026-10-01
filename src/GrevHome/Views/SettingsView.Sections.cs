@@ -141,6 +141,7 @@ public partial class SettingsView
 
     public bool TryReturnToSettingsHub()
     {
+        if(DisplayNameKeyboardOverlay.IsOpen){DisplayNameKeyboardOverlay.Cancel();return true;}
         if(SettingsHub.Visibility==Visibility.Visible)return false;
         ShowSettingsHub();
         return true;

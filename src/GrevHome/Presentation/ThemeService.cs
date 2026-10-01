@@ -57,10 +57,31 @@ public sealed class ThemeService
         ResolveAll(state).FirstOrDefault(theme => string.Equals(theme.Id, state.ActiveThemeId, StringComparison.OrdinalIgnoreCase))
         ?? ThemeCatalog.Default;
 
-    public ThemeDefinition ResolveForProfile(ThemeState profileState, ThemeState machineState) =>
-        profileState.ActiveThemeId is null
-            ? ResolveActive(machineState)
-            : ResolveActive(profileState);
+    /// <summary>
+    /// Every theme a GrevID can choose: built-ins, the Admin's machine custom themes, then the
+    /// profile's own custom themes. Machine themes are shared for selection only; a profile never
+    /// edits or deletes them.
+    /// </summary>
+    public IReadOnlyList<ThemeDefinition> ResolveAllForProfile(ThemeState profileState, ThemeState machineState) =>
+    [
+        .. ThemeCatalog.BuiltIn,
+        .. machineState.CustomThemes,
+        .. profileState.CustomThemes.Where(theme => !machineState.CustomThemes.Any(machine =>
+            string.Equals(machine.Id, theme.Id, StringComparison.OrdinalIgnoreCase)))
+    ];
+
+    /// <summary>
+    /// The theme a GrevID sees. No override follows the machine default; an override whose theme
+    /// no longer exists (deleted by its owner) also falls back to the machine default rather than
+    /// jumping to Grev Default.
+    /// </summary>
+    public ThemeDefinition ResolveForProfile(ThemeState profileState, ThemeState machineState)
+    {
+        if (profileState.ActiveThemeId is null) return ResolveActive(machineState);
+        return ResolveAllForProfile(profileState, machineState).FirstOrDefault(theme =>
+                   string.Equals(theme.Id, profileState.ActiveThemeId, StringComparison.OrdinalIgnoreCase))
+               ?? ResolveActive(machineState);
+    }
 
     public async Task SetActiveThemeAsync(string themeId, string? grevId = null, CancellationToken cancellationToken = default)
     {

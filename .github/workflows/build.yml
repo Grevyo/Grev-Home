@@ -66,7 +66,7 @@ jobs:
           $themeColorFiles = 'src\GrevHome\App.xaml','src\GrevHome\Presentation\ThemeDefinition.cs','src\GrevHome\Presentation\AppArtworkFactory.cs','src\GrevHome\Profiles\ProfilePresentationSettings.cs','src\GrevHome\Views\ThemeCreatorView.xaml.cs'
           $strayThemeColors = Get-ChildItem .\src -Recurse -File -Include *.cs,*.xaml |
             Where-Object { $themeColorFiles -notcontains $_.FullName.Substring((Resolve-Path .).Path.Length + 1) } |
-            Select-String -Pattern '#090C12|#11151E|#2B3344|#343D51|#3A465F|#7EA6FF|FromRgb\(9, ?12, ?18\)|FromRgb\(17, ?21, ?30\)|FromRgb\(43, ?51, ?68\)|FromRgb\(52, ?61, ?81\)|FromRgb\(58, ?70, ?95\)|FromRgb\(126, ?166, ?255\)|FromRgb\(151, ?160, ?179\)'
+            Select-String -Pattern '#090C12|#0B0E15|#11151E|#1A2130|#2B3344|#343D51|#3A465F|#7EA6FF|FromRgb\(11, ?14, ?21\)|FromRgb\(9, ?12, ?18\)|FromRgb\(17, ?21, ?30\)|FromRgb\(43, ?51, ?68\)|FromRgb\(52, ?61, ?81\)|FromRgb\(58, ?70, ?95\)|FromRgb\(126, ?166, ?255\)|FromRgb\(151, ?160, ?179\)'
           if ($strayThemeColors) {
             $strayThemeColors | ForEach-Object { Write-Host "Stray theme color literal: $($_.Path):$($_.LineNumber): $($_.Line.Trim())" }
             throw 'A shell chrome color is hardcoded outside the theme engine, as a hex string or a decimal Color.FromRgb. Use the matching theme brush (DynamicResource in XAML, (Brush)FindResource in code-behind) instead so themes actually reach it.'
@@ -86,6 +86,9 @@ jobs:
 
       - name: Verify emulator controller defaults and first-run prompts
         run: dotnet run --project .\tests\EmulatorSetup\EmulatorSetup.csproj --configuration Release
+
+      - name: Verify theme scopes, sharing and fallback
+        run: dotnet run --project .\tests\Themes\Themes.csproj --configuration Release
 
       - name: Install Inno Setup
         if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))

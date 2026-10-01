@@ -57,7 +57,10 @@ deleted.
 
 Themes have two ownership levels. An Admin controls the machine default, used by Guest and every
 GrevID that has not selected an override. Each GrevID can then choose or create a private profile
-theme without changing another user's shell. The machine active id lives at
+theme without changing another user's shell. A GrevID's gallery also lists the Admin's machine
+custom themes, so a theme made for the household can be picked by anyone; from a profile they can
+be selected but never saved over or deleted. If a profile's chosen theme is later deleted, that
+profile falls back to the machine default (not straight to Grev Default). The machine active id lives at
 `Data/Presentation/active-theme.json`, while a profile override and its private custom themes live
 under `Profiles/<GrevID>/Themes`. Machine custom themes remain under the reserved root `Themes`
 folder. Clearing a profile override immediately returns that user to the current machine default.
@@ -78,7 +81,9 @@ started from, keeping the editor small while every save still produces a fully v
 Editing previews live across the *entire* shell, not just the Theme Creator's own preview panel -
 color fields call `ThemeApplier.Apply` on every change. Nothing is persisted until an explicit
 save: leaving the Theme Creator without saving re-applies whatever was actually active before it
-opened, the same way closing a document without saving discards edits. "New Theme" starts a fresh
+opened, the same way closing a document without saving discards edits. This happens for every
+way out (B, the shell Back button, Return Home), because it is driven by the route change rather
+than by one button. Opening Import and coming back keeps the current draft. "New Theme" starts a fresh
 unsaved draft from the current edit; "Save Theme" overwrites the custom theme being edited in
 place; "Save as New Theme" always mints a new theme; "Delete This Theme" requires pressing twice
 (the same two-step shape as App Killer's Force Close) and is hidden for built-ins.

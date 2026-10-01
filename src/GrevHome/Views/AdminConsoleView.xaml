@@ -42,7 +42,7 @@
 
             <Border Padding="18"
                     Margin="0,6,0,0"
-                    Background="#0B0E15"
+                    Background="{DynamicResource WindowBackgroundBrush}"
                     BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="12">

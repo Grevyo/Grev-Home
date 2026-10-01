@@ -1,6 +1,7 @@
 <UserControl x:Class="GrevHome.Views.SettingsView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GrevHome.Views"
              Focusable="False">
     <UserControl.Resources>
         <Style x:Key="WrappedSettingsButtonStyle"
@@ -53,6 +54,7 @@
         </Style>
     </UserControl.Resources>
 
+    <Grid>
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="64,38,64,46">
             <Grid Margin="0,0,0,24">
@@ -115,7 +117,7 @@
                                 <DataTemplate>
                                     <Border Margin="0,0,10,10"
                                             Padding="12,7"
-                                            Background="#1A2130"
+                                            Background="{DynamicResource SurfaceHoverBrush}"
                                             BorderBrush="{DynamicResource CardBorderBrush}"
                                             BorderThickness="1"
                                             CornerRadius="8">
@@ -162,32 +164,6 @@
                                     Click="EditDisplayName_Click" />
                         </Grid>
 
-                        <Border x:Name="DisplayNameEditor"
-                                Visibility="Collapsed"
-                                Margin="0,20,0,0"
-                                Padding="18"
-                                Background="#0B0E15"
-                                BorderBrush="{DynamicResource CardBorderBrush}"
-                                BorderThickness="1"
-                                CornerRadius="12">
-                            <StackPanel>
-                                <TextBlock Text="Display name" FontSize="14" Foreground="{DynamicResource MutedBrush}" />
-                                <TextBox x:Name="DisplayNameTextBox"
-                                         Height="52"
-                                         Margin="0,7,0,12"
-                                         Padding="13,7"
-                                         FontSize="21"
-                                         MaxLength="50" />
-                                <UniformGrid x:Name="DisplayNameKeyboard" Columns="10" Margin="0,2,0,4" />
-                                <WrapPanel HorizontalAlignment="Center">
-                                    <Button Content="Space" MinWidth="220" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayNameSpace_Click" />
-                                    <Button Content="Backspace" MinWidth="170" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="DisplayNameBackspace_Click" />
-                                    <Button Content="Save" MinWidth="140" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="SaveDisplayName_Click" />
-                                    <Button Content="Cancel" MinWidth="140" Margin="5" Style="{StaticResource WrappedSettingsButtonStyle}" Click="CancelDisplayName_Click" />
-                                </WrapPanel>
-                            </StackPanel>
-                        </Border>
-
                         <TextBlock x:Name="AccountStatusText"
                                    Margin="0,14,0,0"
                                    Foreground="{DynamicResource MutedBrush}"
@@ -231,7 +207,7 @@
                                 Visibility="Collapsed"
                                 Margin="0,22,0,0"
                                 Padding="20"
-                                Background="#0B0E15"
+                                Background="{DynamicResource WindowBackgroundBrush}"
                                 BorderBrush="{DynamicResource AccentBrush}"
                                 BorderThickness="1"
                                 CornerRadius="12">
@@ -532,4 +508,9 @@
             </StackPanel>
         </StackPanel>
     </ScrollViewer>
+
+    <!-- The shared controller-first keyboard, so Display Name accepts the same full character
+         set as account creation and Edit Profile. -->
+    <local:ControllerQwertyKeyboard x:Name="DisplayNameKeyboardOverlay" Panel.ZIndex="100" />
+    </Grid>
 </UserControl>
