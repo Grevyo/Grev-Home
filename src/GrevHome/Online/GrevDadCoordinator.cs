@@ -150,8 +150,10 @@ public sealed partial class GrevDadCoordinator
         if (link.State == GrevDadConnectionState.Linked)
         {
             var profile = (await _profileService.GetProfilesAsync()).FirstOrDefault(item => item.GrevId == grevId);
-            if (profile is not null) card = card with { Bio = profile.Bio, StatusMessage = profile.StatusMessage };
+            if (profile is not null) card = card with { StatusMessage = profile.StatusMessage };
             await accounts.SavePublicCardAsync(grevId, card);
+            // Name, bio, avatar and banner are the shared grev.dad identity.
+            await SyncIdentityQuietlyAsync(grevId);
         }
     }
 
@@ -1324,6 +1326,8 @@ public sealed partial class GrevDadCoordinator
     private async Task<string> RestoreAfterGrevDadLinkAsync(string grevId)
     {
         await SyncGrevDadProfileSafeAsync(grevId);
+        // A grev.dad profile comes over to this install: name, bio, avatar and banner.
+        await SyncIdentityQuietlyAsync(grevId);
         var data = await GrevDadAccountDataStore.ReadAsync(_paths, grevId);
         if (data is null)
         {
@@ -1601,6 +1605,7 @@ public sealed partial class GrevDadCoordinator
         _friendsView.CancelRequestRequested += id => _ = ResolveFriendRequestAsync(id, "cancel");
         _friendsView.FriendSelected += OpenFriendProfile;
         _friendProfileView.BackRequested += (_, _) => _navigation.GoBack();
+        WireFriendProfile();
         InitializeMessages();
         _dashboardView.FriendProfileRequested += OpenFriendProfile;
         _navigation.RouteChanged += route =>
@@ -1629,6 +1634,7 @@ public sealed partial class GrevDadCoordinator
         _friendProfileView.SetActivity(Array.Empty<GrevDadActivityEvent>());
         _navigation.Navigate(Route.FriendProfile);
         _ = LoadFriendActivityAsync(friend);
+        _ = LoadFriendProfileDocumentAsync(friend, friend.UserId == _session.PrimaryUser?.GrevId);
     }
 
     private async Task LoadFriendActivityAsync(GrevDadFriend friend)
@@ -1688,10 +1694,11 @@ public sealed partial class GrevDadCoordinator
             var offline = snapshot.State == GrevDadConnectionState.Offline;
             var requests = offline ? GrevDadFriendRequestsSnapshot.Empty : await service.GetFriendRequestsAsync(primary.GrevId);
             var self = await BuildSelfPreviewCardAsync(primary);
+            if (!offline) await RefreshBestFriendsAsync(primary.GrevId);
             if (primary.GrevId != _session.PrimaryUser?.GrevId) return;
             _shellFriendsButton.Visibility = Visibility.Visible;
             _dashboardView.SetFriends(true, friends, offline);
-            _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline, self);
+            _friendsView.SetFriends(snapshot.Account?.DisplayName ?? primary.DisplayName, snapshot.Account?.FriendCode, friends, requests, offline, self, _bestFriendIds);
             if (!offline)
             {
                 try

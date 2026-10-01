@@ -32,6 +32,15 @@ public partial class ProfileEditView
     private GrevDadLinkStart? _grevDadLinkStart;
     private GrevDadPrivacySettings _grevDadPrivacy = GrevDadPrivacySettings.Default;
     private bool _grevDadEditorBuilt;
+    private readonly Border _retroAchievementsPanel = new();
+    private readonly TextBlock _retroAchievementsText = new();
+    private readonly Button _retroAchievementsLinkButton = new();
+    private readonly Button _retroAchievementsUnlinkButton = new();
+    private string? _retroAchievementsUsername;
+
+    /// <summary>A RetroAchievements username was entered (grev.dad checks it and keeps the key).</summary>
+    public event Action<string>? LinkRetroAchievementsRequested;
+    public event EventHandler? UnlinkRetroAchievementsRequested;
 
     public event EventHandler? LinkGrevDadRequested;
     public event EventHandler? CheckGrevDadLinkRequested;
@@ -160,6 +169,8 @@ public partial class ProfileEditView
         visibility.Children.Add(_grevDadHistoryVisibilityButton);
         stack.Children.Add(visibility);
 
+        BuildRetroAchievementsPanel(stack);
+
         _grevDadStatusText.Margin = new Thickness(0, 8, 0, 0);
         _grevDadStatusText.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
         _grevDadStatusText.TextWrapping = TextWrapping.Wrap;
@@ -170,6 +181,58 @@ public partial class ProfileEditView
         var insertIndex = Math.Max(0, content.Children.Count - 2);
         content.Children.Insert(insertIndex, _grevDadEditorCard);
         RenderGrevDadPrivacy();
+    }
+
+    private void BuildRetroAchievementsPanel(StackPanel stack)
+    {
+        var panel = new StackPanel();
+        var divider = new Border { Height = 1, Margin = new Thickness(0, 14, 0, 14) };
+        divider.SetResourceReference(Border.BackgroundProperty, "CardBorderBrush");
+        panel.Children.Add(divider);
+        var heading = new TextBlock { Text = "RETROACHIEVEMENTS", FontSize = 11, FontWeight = FontWeights.Bold };
+        heading.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        panel.Children.Add(heading);
+        var intro = new TextBlock
+        {
+            Text = "Show your RetroAchievements points, rank and latest unlocks in the RetroAchievements profile widget. Only your username is needed; never enter a RetroAchievements password or API key here.",
+            Margin = new Thickness(0, 6, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        intro.SetResourceReference(TextBlock.ForegroundProperty, "MutedBrush");
+        panel.Children.Add(intro);
+        _retroAchievementsText.Margin = new Thickness(0, 8, 0, 0);
+        _retroAchievementsText.FontWeight = FontWeights.SemiBold;
+        _retroAchievementsText.TextWrapping = TextWrapping.Wrap;
+        panel.Children.Add(_retroAchievementsText);
+        var actions = new WrapPanel { Margin = new Thickness(0, 8, 0, 0) };
+        ConfigureGrevDadButton(_retroAchievementsLinkButton, "Enter RetroAchievements username", 300, (_, _) =>
+        {
+            _keyboardTarget = KeyboardTarget.RetroAchievements;
+            KeyboardOverlay.Open("RetroAchievements username", _retroAchievementsUsername ?? string.Empty, 32);
+        });
+        ConfigureGrevDadButton(_retroAchievementsUnlinkButton, "Unlink RetroAchievements", 240, (_, _) => UnlinkRetroAchievementsRequested?.Invoke(this, EventArgs.Empty));
+        actions.Children.Add(_retroAchievementsLinkButton);
+        actions.Children.Add(_retroAchievementsUnlinkButton);
+        panel.Children.Add(actions);
+        _retroAchievementsPanel.Child = panel;
+        _retroAchievementsPanel.Visibility = Visibility.Collapsed;
+        stack.Children.Add(_retroAchievementsPanel);
+    }
+
+    /// <summary>null hides the section (profile not linked, or not this profile's Primary User).</summary>
+    public void SetRetroAchievementsState(GrevDadRetroAchievements? state, string? message = null)
+    {
+        InitializeGrevDadEditor();
+        _retroAchievementsPanel.Visibility = state is null ? Visibility.Collapsed : Visibility.Visible;
+        if (state is null) return;
+        _retroAchievementsUsername = state.Username;
+        _retroAchievementsUnlinkButton.Visibility = state.Linked ? Visibility.Visible : Visibility.Collapsed;
+        _retroAchievementsLinkButton.Content = state.Linked ? "Change RetroAchievements username" : "Enter RetroAchievements username";
+        _retroAchievementsText.Text = message ?? (!state.Linked
+            ? "Not linked."
+            : state.Summary is not null
+                ? $"Linked as {state.Username} • {state.TotalPoints:N0} points"
+                : $"Linked as {state.Username}{(string.IsNullOrWhiteSpace(state.Error) ? "" : $" • {state.Error}")}{(state.Configured ? "" : " • RetroAchievements is not switched on for grev.dad yet")}");
     }
 
     public void SetGrevDadContext(LocalProfile? profile, bool canManage)

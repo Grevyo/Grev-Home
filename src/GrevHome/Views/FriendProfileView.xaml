@@ -1,6 +1,7 @@
 <UserControl x:Class="GrevHome.Views.FriendProfileView"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:local="clr-namespace:GrevHome.Views"
              Focusable="False">
     <UserControl.Resources>
         <Style x:Key="FriendProfileSectionCard" TargetType="Border">
@@ -21,7 +22,11 @@
     <ScrollViewer VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="54,26,54,48" MaxWidth="980">
             <Button x:Name="BackButton" Content="← Back to Friends" Width="200" Height="46" HorizontalAlignment="Left" Click="Back_Click" />
-            <Button x:Name="MessageButton" Content="Message friend" Width="200" Height="46" HorizontalAlignment="Left" Margin="0,10,0,0" Click="Message_Click" />
+            <WrapPanel Margin="0,10,0,0">
+                <Button x:Name="MessageButton" Content="Message friend" Width="200" Height="46" Margin="0,0,10,0" Click="Message_Click" />
+                <Button x:Name="BestFriendButton" Content="☆ Add to best friends" Width="240" Height="46" Click="BestFriend_Click" Visibility="Collapsed" />
+            </WrapPanel>
+            <TextBlock x:Name="ProfileStatusText" Margin="0,8,0,0" FontSize="13" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" Visibility="Collapsed" />
 
             <Border x:Name="HeaderCard"
                     Margin="0,18,0,0"
@@ -104,6 +109,10 @@
                     </StackPanel>
                 </Border>
             </UniformGrid>
+
+            <TextBlock x:Name="TilesHeadingText" Text="PROFILE SPACE" Margin="0,22,0,4" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
+            <TextBlock x:Name="TilesStatusText" Margin="0,0,0,8" FontSize="13" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+            <local:ProfileTileBoard x:Name="TileBoard" />
 
             <TextBlock x:Name="ActivityHeadingText" Text="RECENT ACTIVITY" Margin="0,22,0,8" FontSize="12" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
             <StackPanel x:Name="ActivityPanel" />

@@ -81,7 +81,12 @@ public sealed record ProfileTile(
     ProfileTileMediaOverlay MediaOverlay = ProfileTileMediaOverlay.Dark,
     string TextColour = "#f4f7fb",
     string BorderColour = "#394657",
-    ProfileTileFontFamily FontFamily = ProfileTileFontFamily.System);
+    ProfileTileFontFamily FontFamily = ProfileTileFontFamily.System,
+    // A live widget drawn in this tile (see ProfileWidgets). Only Text tiles carry one, matching
+    // grev.dad, so a client without widgets still shows the tile's title.
+    ProfileWidgetKind? Widget = null,
+    // Items a list widget shows; null = the widget's default.
+    int? WidgetCount = null);
 
 // UpdatedAtUtc drives GrevDadProfileSyncService.SyncProfileTilesAsync's last-write-wins policy:
 // it is compared against the cloud layout's own updatedAt (MAX(user_profile_tiles.updated_at) in
@@ -201,6 +206,13 @@ public static class ProfileTileGrid
             if (tile.BackgroundType == ProfileTileBackgroundType.Media && string.IsNullOrWhiteSpace(tile.BackgroundMediaFile))
             {
                 return "Every picture/GIF background needs an uploaded picture.";
+            }
+
+            if (tile.Widget is { } widget)
+            {
+                if (tile.Kind != ProfileTileKind.Text || !Enum.IsDefined(widget)) return "Widget tiles must be text tiles.";
+                if (tile.WidgetCount is < ProfileWidgets.MinCount or > ProfileWidgets.MaxCount)
+                    return $"A widget can show between {ProfileWidgets.MinCount} and {ProfileWidgets.MaxCount} items.";
             }
 
             switch (tile.Kind)

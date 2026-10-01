@@ -13,7 +13,8 @@ public sealed class ProfileService
     public const string BuiltInGuestUsername = "__grevhome_builtin_guest__";
     public const int MaxUsernameLength = 50;
     public const int MaxDisplayNameLength = 50;
-    public const int MaxBioLength = 160;
+    // Matches grev.dad's profile bio (src/profile-identity.ts); the bio is shared with the website.
+    public const int MaxBioLength = 800;
     public const int MaxStatusMessageLength = 60;
     public const int MaxGrevIdLength = 58;
     public const long MaxAvatarFileBytes = 10 * 1024 * 1024;
@@ -646,7 +647,9 @@ public sealed class ProfileService
     {
         bio = bio.Trim();
         if (bio.Length > MaxBioLength) throw new InvalidOperationException($"Profile bios must be {MaxBioLength} characters or fewer.");
-        if (bio.Any(char.IsControl)) throw new InvalidOperationException("Profile bios cannot contain control characters.");
+        // Line breaks are allowed: bios written on grev.dad often have paragraphs.
+        bio = bio.Replace("\r\n", "\n");
+        if (bio.Any(character => char.IsControl(character) && character != '\n')) throw new InvalidOperationException("Profile bios cannot contain control characters.");
         return bio;
     }
 

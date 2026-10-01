@@ -11,7 +11,7 @@ namespace GrevHome.Online;
 /// depends on this service: network failures become Offline snapshots and cached remote data.
 /// Views and future social features consume this boundary rather than creating direct HTTP calls.
 /// </summary>
-public sealed class GrevDadAccountService : IDisposable
+public sealed partial class GrevDadAccountService : IDisposable
 {
     public const int SupportedApiVersion = 1;
 
@@ -564,7 +564,23 @@ public sealed class GrevDadAccountService : IDisposable
         GrevDadPublicCard card,
         CancellationToken cancellationToken = default)
     {
-        using var response = await SendAuthorizedAsync(grevId, HttpMethod.Put, "api/grev-home/public-card", new { card }, cancellationToken);
+        // Display options only. Bio, headline, avatar and banner are the shared grev.dad identity
+        // and travel through UpdateIdentityAsync, so saving card options from this PC can never
+        // overwrite a picture or bio that was changed on the website.
+        var options = new Dictionary<string, object?>
+        {
+            ["theme"] = card.Theme,
+            ["frame"] = card.Frame,
+            ["avatarShape"] = card.AvatarShape,
+            ["showUsername"] = card.ShowUsername,
+            ["showLevel"] = card.ShowLevel,
+            ["showXp"] = card.ShowXp,
+            ["showPlaytime"] = card.ShowPlaytime,
+            ["showSessions"] = card.ShowSessions,
+            ["showStatus"] = card.ShowStatus,
+            ["statusMessage"] = card.StatusMessage
+        };
+        using var response = await SendAuthorizedAsync(grevId, HttpMethod.Put, "api/grev-home/public-card", new { card = options }, cancellationToken);
         var payload = await GrevDadNetworkSupport.ReadJsonAsync<PublicCardApiResponse>(response, _json, cancellationToken);
         EnsureSuccessful(response, payload.Ok, payload.Message);
         return payload.Card ?? card;

@@ -1,11 +1,34 @@
 using System.Windows;
 using GrevHome.Online;
+using GrevHome.Profiles;
 
 namespace GrevHome.Views;
 
 public partial class ProfileView
 {
     private bool _cloudLinked;
+
+    /// <summary>Edit Tiles on the profile page (opens the controller tile editor).</summary>
+    public event EventHandler? EditTilesRequested;
+    public event Action<string>? FriendProfileRequested;
+    public event Action<string>? LinkRequested;
+
+    private bool _tileBoardWired;
+
+    /// <summary>Shows the profile's tile grid with live widgets. null clears it.</summary>
+    public void SetProfileSpace(ProfileSpace? space, string? status = null)
+    {
+        if (!_tileBoardWired)
+        {
+            _tileBoardWired = true;
+            TileBoard.FriendRequested += userId => FriendProfileRequested?.Invoke(userId);
+            TileBoard.LinkRequested += url => LinkRequested?.Invoke(url);
+        }
+        TileBoard.SetSpace(space);
+        if (status is not null) ProfileSpaceStatusText.Text = status;
+    }
+
+    private void EditTiles_Click(object sender, RoutedEventArgs e) => EditTilesRequested?.Invoke(this, EventArgs.Empty);
     public void SetCloudAccountData(GrevDadAccountData? data, bool pending)
     {
         CloudAccountText.Visibility = data is null && !_cloudLinked ? Visibility.Collapsed : Visibility.Visible;

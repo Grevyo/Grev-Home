@@ -15,7 +15,8 @@
     <Button Content="Text" Margin="0,0,8,0" Tag="Text" Click="AddTile_Click"/>
     <Button Content="Link" Margin="0,0,8,0" Tag="Link" Click="AddTile_Click"/>
     <Button Content="Picture / GIF" Margin="0,0,8,0" Tag="Media" Click="AddTile_Click"/>
-    <Button Content="Stat" Tag="Stat" Click="AddTile_Click"/>
+    <Button Content="Stat" Margin="0,0,8,0" Tag="Stat" Click="AddTile_Click"/>
+    <Button Content="Live Widget…" Click="AddWidget_Click"/>
    </StackPanel>
   </StackPanel>
 

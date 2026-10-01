@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using GrevHome.Games;
 using GrevHome.Navigation;
+using GrevHome.Profiles;
 using GrevHome.Views;
 
 namespace GrevHome;
@@ -51,6 +52,7 @@ public partial class MainWindow
         _dashboardView.GameRequested += game => _ = LaunchGameAsync(game);
 
         _gameSettingsView.BackRequested += (_, _) => _navigation.GoBack();
+        _gameSettingsView.FavouriteToggleRequested += (_, _) => _ = ToggleGameFavouriteAsync();
         _gameSettingsView.SaveNameRequested += name => _ = SaveGameNameAsync(name);
         _gameSettingsView.ChooseIconRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.Icon);
         _gameSettingsView.ChooseTileRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.TileMedia);
@@ -140,6 +142,44 @@ public partial class MainWindow
             primary.DisplayName,
             primary.GrevId,
             _gameLibraryService?.GetReusableIcons(primary.GrevId) ?? Array.Empty<string>());
+        _gameSettingsView.SetFavourite(false);
+        _ = LoadGameFavouriteAsync(primary.GrevId, _gameSettingsEntry.GameId);
+    }
+
+    private async Task LoadGameFavouriteAsync(string grevId, string gameId)
+    {
+        try
+        {
+            var isFavourite = await _grevDad.FavouriteGames.IsFavouriteAsync(grevId, FavouriteGameService.KeyForLibraryGame(gameId));
+            if (_gameSettingsEntry?.GameId == gameId && _session.PrimaryUser?.GrevId == grevId) _gameSettingsView.SetFavourite(isFavourite);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    /// <summary>Stars or unstars the game for the profile's Favourite games widget (synced with
+    /// grev.dad for a linked profile, kept locally otherwise).</summary>
+    private async Task ToggleGameFavouriteAsync()
+    {
+        var primary = _session.PrimaryUser;
+        var game = _gameSettingsEntry;
+        if (primary?.GrevId is null || game is null) return;
+        try
+        {
+            var favourite = new FavouriteGame(
+                FavouriteGameService.KeyForLibraryGame(game.GameId),
+                game.DisplayName,
+                GameLibraryService.GetPlatformDisplayName(game.Platform),
+                ContentId: game.GameId);
+            var isFavourite = await _grevDad.ToggleFavouriteGameAsync(primary.GrevId, favourite);
+            _gameSettingsView.SetFavourite(isFavourite);
+            _gameSettingsView.ShowStatus(isFavourite ? $"{game.DisplayName} added to your favourite games." : $"{game.DisplayName} removed from your favourite games.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus(ex.Message);
+        }
     }
 
     private async Task SaveGameNameAsync(string displayName)

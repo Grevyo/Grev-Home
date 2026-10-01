@@ -7,7 +7,9 @@
       <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel Margin="72,38" MaxWidth="900">
             <TextBlock Text="App Settings" FontSize="40" FontWeight="SemiBold" />
-            <TextBlock x:Name="IdentityText" Margin="0,6,0,22" FontSize="15" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+            <TextBlock x:Name="IdentityText" Margin="0,6,0,12" FontSize="15" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
+            <Button x:Name="FavouriteButton" Content="☆ Add to favourite games" MinWidth="280" Margin="0,0,0,22" HorizontalAlignment="Left" Click="Favourite_Click"
+                    ToolTip="Favourite games show in the Favourite games widget on your Grev Home and grev.dad profile." />
 
             <Border Padding="24" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="16">
                 <StackPanel>

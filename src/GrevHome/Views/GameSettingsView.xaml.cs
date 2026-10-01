@@ -27,6 +27,13 @@ public partial class GameSettingsView : UserControl
     public event Action<string>? ManualScrapeRequested;
     public event Action<GameArtworkSearchResult>? ScrapeResultRequested;
     public event EventHandler? BackRequested;
+    public event EventHandler? FavouriteToggleRequested;
+
+    /// <summary>Shows whether this game is starred for the profile's Favourite games widget.</summary>
+    public void SetFavourite(bool isFavourite) =>
+        FavouriteButton.Content = isFavourite ? "★ Favourite game" : "☆ Add to favourite games";
+
+    private void Favourite_Click(object sender, RoutedEventArgs e) => FavouriteToggleRequested?.Invoke(this, EventArgs.Empty);
 
     public GameSettingsView()
     {

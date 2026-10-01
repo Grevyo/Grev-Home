@@ -23,6 +23,21 @@ public partial class MainWindow
 
         _profileEditView.InitializeProfileTilesEditorLink();
         _profileEditView.ProfileTilesRequested += (_, _) => _ = OpenProfileTilesAsync();
+        _profileView.EditTilesRequested += (_, _) => _ = OpenProfileTilesAsync(fromProfilePage: true);
+
+        // A sync brought this profile's name, bio, avatar or banner over from grev.dad.
+        _grevDad.LocalIdentityChanged += grevId => Dispatcher.BeginInvoke(new Action(async () =>
+        {
+            _profiles = await _profileService.GetProfilesAsync();
+            if (!string.Equals(GetProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase)) return;
+            if (_navigation.Current == Route.ProfileView)
+            {
+                var presentation = await new ProfilePresentationSettingsService(_paths).GetAsync(grevId);
+                RenderProfileTarget();
+                _profileView.SetPresentation(presentation);
+            }
+            else if (_navigation.Current == Route.ProfileEdit) RenderProfileEditor();
+        }));
         _profileTileEditorView.BackRequested += (_, _) => _navigation.GoBack();
         _profileTileEditorView.SaveRequested += tiles => _ = SaveProfileTilesAsync(tiles);
         _profileTileEditorView.ChooseMediaRequested += (_, _) => OpenProfileTileMediaPicker();
@@ -96,7 +111,11 @@ public partial class MainWindow
         _session.Changed += (_, _) =>
         {
             var grevId = _session.PrimaryUser?.GrevId;
-            if (!string.IsNullOrWhiteSpace(grevId)) _ = _grevDad.SyncProfileTilesNowAsync(grevId);
+            if (!string.IsNullOrWhiteSpace(grevId))
+            {
+                _ = _grevDad.SyncProfileTilesNowAsync(grevId);
+                _ = _grevDad.SyncIdentityQuietlyAsync(grevId);
+            }
         };
     }
 
@@ -113,7 +132,7 @@ public partial class MainWindow
         return true;
     }
 
-    private async Task OpenProfileTilesAsync()
+    private async Task OpenProfileTilesAsync(bool fromProfilePage = false)
     {
         var profile = GetProfileTarget();
         var actor = _session.PrimaryUser;
@@ -121,7 +140,8 @@ public partial class MainWindow
         if (profile is null || actor?.GrevId is null || service is null ||
             !AccountAuthorizationService.CanEditProfile(actor.Role, actor.GrevId, profile.GrevId)) return;
 
-        _profileEditDraftBeforeTiles = _profileEditView.CaptureDraft();
+        // Opened from Edit Profile, its unsaved draft is restored when the editor closes.
+        _profileEditDraftBeforeTiles = fromProfilePage ? null : _profileEditView.CaptureDraft();
 
         // Pull a newer cloud layout before opening. An empty local timestamp loses to a real cloud
         // timestamp, so this is also the fresh-install restore path after relinking Grev Home.
@@ -133,7 +153,13 @@ public partial class MainWindow
         try
         {
             var layout = await service.GetAsync(profile.GrevId);
-            _profileTileEditorView.Load(layout.Tiles, service.GetMediaRoot(profile.GrevId));
+            // grev.dad keeps a 4 x 6 slot for the profile card; tiles placed there would be
+            // refused by the website editor, so the controller editor treats it as occupied.
+            var document = _grevDad.GetCachedProfileDocument(profile.GrevId);
+            var cardSlot = document?.Preferences is { } preferences
+                ? new ProfileSpace([], new Dictionary<string, ProfileWidgetView>(), new Dictionary<string, string>(), null, null, preferences.CardX, preferences.CardY).CardSlot
+                : null;
+            _profileTileEditorView.Load(layout.Tiles, service.GetMediaRoot(profile.GrevId), cardSlot);
             _navigation.Navigate(Route.ProfileTiles);
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or InvalidOperationException)
