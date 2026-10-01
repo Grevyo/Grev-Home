@@ -193,7 +193,7 @@
                         <StackPanel VerticalAlignment="Center" MaxWidth="690"><TextBlock Text="Ready to build your Grev Home." FontSize="37" FontWeight="Bold" TextAlignment="Center"/><TextBlock Text="Your choices are set. The reliable Grev Home setup engine will handle installation and upgrades in the background." Foreground="#9FAAC0" FontSize="14" TextWrapping="Wrap" TextAlignment="Center" LineHeight="22" Margin="35,12,35,26"/>
                             <Border Background="#151B2D" BorderBrush="#2B3651" BorderThickness="1" CornerRadius="17" Padding="22">
                                 <Grid><Grid.ColumnDefinitions><ColumnDefinition/><ColumnDefinition/></Grid.ColumnDefinitions>
-                                    <StackPanel><TextBlock Text="INSTALL LOCATION" Foreground="#6DDFFF" FontSize="10" FontWeight="Bold"/><TextBlock Text="C:\GrevCo\GrevHome" Margin="0,7,0,0"/></StackPanel>
+                                    <StackPanel><TextBlock Text="INSTALL LOCATION" Foreground="#6DDFFF" FontSize="10" FontWeight="Bold"/><TextBlock x:Name="InstallLocationText" Text="C:\GrevCo\GrevHome" Margin="0,7,0,0" TextWrapping="Wrap"/></StackPanel>
                                     <StackPanel Grid.Column="1"><TextBlock Text="SELECTED" Foreground="#6DDFFF" FontSize="10" FontWeight="Bold"/><TextBlock x:Name="ReadySelectionText" Text="PC games · Apps · Emulators" Margin="0,7,0,0" TextWrapping="Wrap"/></StackPanel>
                                 </Grid>
                             </Border>
@@ -210,6 +210,27 @@
                         </StackPanel>
                     </Grid>
                 </Grid>
+
+                <TextBlock x:Name="NoticeText" Grid.Row="1" Margin="58,0,58,6" VerticalAlignment="Bottom" HorizontalAlignment="Center"
+                           Foreground="#FFB7C2" FontSize="13" TextWrapping="Wrap" TextAlignment="Center" Visibility="Collapsed"/>
+
+                <!-- Controller-friendly folder browser: drives, then folders, as focusable buttons. -->
+                <Border x:Name="FolderPicker" Grid.Row="1" Grid.RowSpan="2" Margin="40,6,40,14" Visibility="Collapsed" Panel.ZIndex="20"
+                        Background="#121A2E" BorderBrush="#33415F" BorderThickness="1" CornerRadius="16" Padding="22">
+                    <Grid>
+                        <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/><RowDefinition/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                        <TextBlock x:Name="FolderPickerTitle" Text="Choose a folder" FontSize="24" FontWeight="Bold"/>
+                        <TextBlock x:Name="FolderPickerPath" Grid.Row="1" Foreground="#69DBFF" FontSize="12" TextWrapping="Wrap" Margin="0,6,0,12"/>
+                        <ScrollViewer x:Name="FolderListScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                            <WrapPanel x:Name="FolderList"/>
+                        </ScrollViewer>
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">
+                            <Button x:Name="FolderUpButton" Content="Up a level" Style="{StaticResource QuietButton}" Margin="0,0,10,0" Click="FolderUp_Click"/>
+                            <Button x:Name="FolderCancelButton" Content="Cancel" Style="{StaticResource QuietButton}" Margin="0,0,10,0" Click="FolderCancel_Click"/>
+                            <Button x:Name="FolderUseButton" Content="Use this folder" Style="{StaticResource PrimaryButton}" Click="FolderUse_Click"/>
+                        </StackPanel>
+                    </Grid>
+                </Border>
 
                 <Grid x:Name="NavigationBar" Grid.Row="2" Margin="58,8,58,15">
                     <Button x:Name="BackButton" Content="Back" Style="{StaticResource QuietButton}" HorizontalAlignment="Left" Click="Back_Click" Visibility="Collapsed"/>
