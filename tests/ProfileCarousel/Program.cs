@@ -138,9 +138,12 @@ internal static class Program
         Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");Pump();
 
         var themeTile=(Button)settings.FindName("ThemeMotionSectionButton");
+        // Returning to the hub queues a focus move to the Account tile; let it land before the
+        // theme tile takes focus, so the preview under test is the theme tile's.
+        Pump();Pump();
         themeTile.Focus();Pump();
         themeTile.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice,Environment.TickCount){RoutedEvent=Mouse.MouseMoveEvent});Pump();
-        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count>=9,"Theme tile must preview every presentation control group");
+        Check(previewTitle.Text.Contains("Theme") && previewItems.Items.Count>=9,$"Theme tile must preview every presentation control group (preview showed \"{previewTitle.Text}\" with {previewItems.Items.Count} items, theme tile tag {themeTile.Tag})");
         themeTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("ThemeMotionSection")).IsVisible,"Theme & Motion must have a dedicated controller page");
         ShellMotionSettings? changedMotion=null;
