@@ -286,3 +286,15 @@ begin
             HasWebViewVersion(HKLM32, WebViewClient) or
             HasWebViewVersion(HKLM64, WebViewClient);
 end;
+
+// "Start Grev Home when Windows starts" is a per-user Run entry written by the app itself
+// (Settings → Power, or first-run setup). Remove it on uninstall so Windows does not try to start
+// a program that is gone.
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if CurUninstallStep = usUninstall then
+  begin
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'GrevHome');
+    RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Explorer\StartupApproved\Run', 'GrevHome');
+  end;
+end;

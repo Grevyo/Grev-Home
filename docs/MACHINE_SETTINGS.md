@@ -49,9 +49,37 @@ Implemented:
 - signal quality
 - available-network discovery
 - connect using an existing saved Windows Wi-Fi profile
+- join a new network: open, Enhanced Open (OWE) and WPA/WPA2/WPA3 Personal
 - disconnect
 
-A newly discovered secured network without an existing Windows profile is intentionally shown as `profile required`. Grev Home does not fabricate or persist Wi-Fi credentials yet; a dedicated credential/profile creation flow remains future work.
+### Joining a new network
+
+Choosing a network Windows has no profile for asks for its password on the controller keyboard
+(Settings → Connections, the header's Wi-Fi menu hands off to it, and first-run setup has the same
+step so a fresh PC can get online before any account exists).
+
+- `WifiProfileBuilder` reads the network's advertised authentication and cipher, checks the
+  password (8–63 printable ASCII characters, or a 64-digit hex key) and builds the WLAN profile
+  XML.
+- `WifiService.JoinAsync` saves it with `WlanSetProfile`, connects, and waits up to 25 seconds for
+  Windows to report the connection.
+- If the connection doesn't come up (usually a wrong password), the new profile is deleted again
+  and the keyboard reopens so the password can be retyped.
+- WEP and Enterprise (802.1X, for example eduroam) networks are not set up by Grev Home: they're
+  listed with "use Windows Settings". Once joined there, Grev Home reconnects to them like any
+  saved network.
+- Hidden networks (no broadcast SSID) are not offered yet.
+
+## Start with Windows
+
+Settings → Power → Startup, and the first-run Startup choice, write a per-user Run entry
+(`HKCU\...\Run\GrevHome`) pointing at the installed `GrevHome.exe`
+(`WindowsStartupService`).
+
+- Turning it on also clears a "disabled" choice made in Task Manager's Startup tab.
+- With Windows set to sign in automatically, the PC boots straight into Grev Home.
+- The uninstaller removes the entry.
+- Development runs under `dotnet` can't enable it.
 
 ## Bluetooth
 

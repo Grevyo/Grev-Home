@@ -1,5 +1,29 @@
 # Build a self-contained Windows installer; never package a failed publish.
 $ErrorActionPreference = "Stop"
+
+# Code signing. Set GREVHOME_SIGNING_CERT_BASE64 (a base64-encoded .pfx) and
+# GREVHOME_SIGNING_CERT_PASSWORD (CI secrets of the same names) to sign GrevHome.exe, the
+# installer engine and GrevHomeSetup.exe. Without them the build still succeeds, unsigned, and
+# Windows SmartScreen shows "unknown publisher".
+$script:SigningPfx = $null
+if ($env:GREVHOME_SIGNING_CERT_BASE64) {
+    $script:SigningPfx = Join-Path ([System.IO.Path]::GetTempPath()) ("GrevHome-signing-" + [guid]::NewGuid().ToString("N") + ".pfx")
+    [System.IO.File]::WriteAllBytes($script:SigningPfx, [Convert]::FromBase64String($env:GREVHOME_SIGNING_CERT_BASE64))
+    $script:SignTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue |
+        Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+    if (-not $script:SignTool) { $script:SignTool = (Get-Command signtool.exe -ErrorAction Stop).Source }
+    Write-Host "Code signing enabled."
+} else {
+    Write-Host "Code signing certificate not configured; building unsigned."
+}
+
+function Invoke-CodeSign([string]$Path) {
+    if (-not $script:SigningPfx) { return }
+    & $script:SignTool sign /fd SHA256 /tr "http://timestamp.digicert.com" /td SHA256 /f $script:SigningPfx /p $env:GREVHOME_SIGNING_CERT_PASSWORD /d "Grev Home" $Path
+    if ($LASTEXITCODE -ne 0) { throw "Code signing failed for $Path." }
+    $signature = Get-AuthenticodeSignature -FilePath $Path
+    if ($signature.Status -ne "Valid") { throw "Signature check failed for ${Path}: $($signature.Status)." }
+}
 Push-Location (Join-Path $PSScriptRoot "..")
 try {
     $publishDir = Join-Path ([System.IO.Path]::GetTempPath()) ("GrevHome-publish-" + [guid]::NewGuid().ToString("N"))
@@ -20,6 +44,7 @@ try {
 
     dotnet publish src\GrevHome\GrevHome.csproj -c Release -r win-x64 --self-contained true -o $publishDir
     if ($LASTEXITCODE -ne 0) { throw "Publish failed; installer was not built." }
+    Invoke-CodeSign (Join-Path $publishDir "GrevHome.exe")
     $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     if (-not (Test-Path $iscc)) { $iscc = (Get-Command ISCC.exe -ErrorAction Stop).Source }
     & $iscc "/DMyPublishDir=$publishDir" "/DMyWebViewBootstrapper=$webViewBootstrapper" "/DMyOutputDir=$engineDir" "/DMyOutputBaseFilename=GrevHomeSetupEngine" installer\GrevHome.iss
@@ -27,6 +52,7 @@ try {
 
     $enginePath = Join-Path $engineDir "GrevHomeSetupEngine.exe"
     if (-not (Test-Path $enginePath)) { throw "Installer engine output was not created." }
+    Invoke-CodeSign $enginePath
 
     if ($env:CI -eq "true") {
         $smokeRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("GrevHome-smoke-" + [guid]::NewGuid().ToString("N"))
@@ -88,6 +114,8 @@ try {
 
     New-Item -ItemType Directory -Path dist -Force | Out-Null
     Copy-Item -LiteralPath (Join-Path $launcherDir "GrevHomeSetup.exe") -Destination dist\GrevHomeSetup.exe -Force
+    # Signed before hashing, so the published SHA-256 (which the in-app updater checks) matches.
+    Invoke-CodeSign dist\GrevHomeSetup.exe
     Get-FileHash dist\GrevHomeSetup.exe -Algorithm SHA256 |
         Format-List | Out-File dist\GrevHomeSetup.sha256.txt
 } finally {
@@ -95,6 +123,7 @@ try {
     if ($prerequisiteDir -and (Test-Path $prerequisiteDir)) { Remove-Item -LiteralPath $prerequisiteDir -Recurse -Force }
     if ($engineDir -and (Test-Path $engineDir)) { Remove-Item -LiteralPath $engineDir -Recurse -Force }
     if ($launcherDir -and (Test-Path $launcherDir)) { Remove-Item -LiteralPath $launcherDir -Recurse -Force }
+    if ($script:SigningPfx -and (Test-Path $script:SigningPfx)) { Remove-Item -LiteralPath $script:SigningPfx -Force }
     if ($smokeRoot -and (Test-Path $smokeRoot)) { Remove-Item -LiteralPath $smokeRoot -Recurse -Force -ErrorAction SilentlyContinue }
     Pop-Location
 }

@@ -61,6 +61,7 @@ public partial class SettingsView : UserControl
         InitializeComponent();
         DisplayNameKeyboardOverlay.Completed += value => SaveDisplayNameRequested?.Invoke(value);
         DisplayNameKeyboardOverlay.Closed += (_, _) => Dispatcher.BeginInvoke(new Action(() => EditDisplayNameButton.Focus()));
+        InitializeWifiJoin();
         RenderSettingsHubTiles();
         _powerConfirmationTimer.Tick += (_, _) => ResetPowerConfirmation();
         AddHandler(Keyboard.GotKeyboardFocusEvent,new KeyboardFocusChangedEventHandler(Settings_GotKeyboardFocus),true);

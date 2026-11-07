@@ -4,9 +4,13 @@ This document covers Grev Home's runtime/appliance behaviour during active featu
 
 ## Release boundary
 
-Packaging, installer/updater work, Windows autostart registration, release versioning, code signing and final executable distribution are deliberately **deferred**.
+Release tooling is in place:
 
-Grev Home will return to those tasks only after the application is backbone-ready and feature-ready. Development work should not be shaped around a release installer before the console experience itself is complete and physically validated.
+- **Installer:** the controller-first installer (`docs/CUSTOM_INSTALLER.md`) wraps an embedded Inno Setup engine.
+- **Updates:** the in-app updater (`Updates/GrevHomeUpdateService.cs`).
+- **Versioning:** a release is published when the three-part version in `GrevHome.csproj` and `installer/GrevHome.iss` rises on main.
+- **Start with Windows:** per-user, see `docs/MACHINE_SETTINGS.md`.
+- **Code signing:** CI signs `GrevHome.exe`, the installer engine and `GrevHomeSetup.exe` when the signing certificate secrets are set. See "Code signing" in `docs/INSTALLER.md`.
 
 The project remains a normal WPF application for development and testing. This document is about runtime ownership and recovery, not release packaging.
 

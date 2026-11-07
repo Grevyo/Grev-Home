@@ -79,8 +79,11 @@ public partial class SettingsView
     private void ThemeMotionSectionButton_Click(object sender, RoutedEventArgs e) =>
         OpenSettingsSection(ThemeMotionSection, ThemeMotionSectionContent, "Theme & Motion");
 
-    private void PowerSectionButton_Click(object sender, RoutedEventArgs e) =>
+    private void PowerSectionButton_Click(object sender, RoutedEventArgs e)
+    {
         OpenSettingsSection(PowerSection, PowerSectionContent, "Power");
+        RefreshStartWithWindows();
+    }
 
     public void OpenAudioSection()
     {
@@ -125,6 +128,7 @@ public partial class SettingsView
                 break;
             case SettingsPage.Power:
                 OpenSettingsSection(PowerSection, PowerSectionContent, "Power");
+                RefreshStartWithWindows();
                 break;
         }
     }
@@ -142,6 +146,7 @@ public partial class SettingsView
     public bool TryReturnToSettingsHub()
     {
         if(DisplayNameKeyboardOverlay.IsOpen){DisplayNameKeyboardOverlay.Cancel();return true;}
+        if(WifiPasswordKeyboard.IsOpen){WifiPasswordKeyboard.Cancel();return true;}
         if(SettingsHub.Visibility==Visibility.Visible)return false;
         ShowSettingsHub();
         return true;

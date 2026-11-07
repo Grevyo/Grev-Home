@@ -319,23 +319,94 @@ public partial class SettingsView
 
         foreach (var network in networks.Take(16))
         {
+            var state = network.IsConnected ? "CONNECTED"
+                : network.CanConnect ? "saved"
+                : network.CanJoin ? (network.NeedsPassword ? $"{WifiProfileBuilder.Describe(network.Security)} • password needed" : WifiProfileBuilder.Describe(network.Security))
+                : $"{WifiProfileBuilder.Describe(network.Security)} • use Windows Settings";
             var button = new Button
             {
                 Tag = network,
                 MinHeight = 52,
                 Margin = new Thickness(0, 0, 0, 7),
                 HorizontalContentAlignment = HorizontalAlignment.Left,
-                Content = $"{network.Ssid}  •  {network.SignalQuality}%  •  {(network.IsConnected ? "CONNECTED" : network.CanConnect ? "saved profile" : "profile required")}",
-                IsEnabled = network.CanConnect && !network.IsConnected
+                Content = $"{network.Ssid}  •  {network.SignalQuality}%  •  {state}",
+                // Unsupported networks stay focusable so choosing one explains what to do.
+                IsEnabled = !network.IsConnected && !_wifiJoining
             };
             button.Click += WifiNetwork_Click;
             WifiNetworksPanel.Children.Add(button);
         }
     }
 
+    private WifiNetwork? _wifiJoinTarget;
+    private bool _wifiJoining;
+
+    private void InitializeWifiJoin()
+    {
+        WifiPasswordKeyboard.Completed += password =>
+        {
+            if (_wifiJoinTarget is { } network) _ = JoinWifiAsync(network, password);
+        };
+        WifiPasswordKeyboard.Cancelled += (_, _) =>
+        {
+            if (_wifiJoinTarget is { } network) WifiStatusText.Text = $"Connecting to {network.Ssid} cancelled.";
+            _wifiJoinTarget = null;
+        };
+    }
+
+    private async Task JoinWifiAsync(WifiNetwork network, string? password)
+    {
+        _wifiJoinTarget = null;
+        _wifiJoining = true;
+        WifiStatusText.Text = $"Connecting to {network.Ssid}…";
+        foreach (var child in WifiNetworksPanel.Children.OfType<Button>()) child.IsEnabled = false;
+        try
+        {
+            var result = await _wifiService.JoinAsync(network, password);
+            WifiStatusText.Text = result.Message;
+            if (!result.Connected && network.NeedsPassword && result.Message.Contains("password", StringComparison.OrdinalIgnoreCase))
+            {
+                // Straight back to the keyboard so a typo can be fixed without hunting for the network.
+                _wifiJoining = false;
+                _wifiJoinTarget = network;
+                WifiPasswordKeyboard.Open($"Password for {network.Ssid}", string.Empty, 64, password: true);
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or ExternalException or ArgumentException or NotSupportedException)
+        {
+            WifiStatusText.Text = $"Couldn't connect to {network.Ssid}: {ex.Message}";
+        }
+        finally
+        {
+            _wifiJoining = false;
+        }
+        await RefreshWifiAsync();
+    }
+
     private async void WifiNetwork_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is not Button { Tag: WifiNetwork network } || string.IsNullOrWhiteSpace(network.ProfileName)) return;
+        if (sender is not Button { Tag: WifiNetwork network }) return;
+        if (string.IsNullOrWhiteSpace(network.ProfileName))
+        {
+            if (!network.CanJoin)
+            {
+                WifiStatusText.Text = network.Security == WifiSecurity.Enterprise
+                    ? $"{network.Ssid} is a work or school network. Join it once from Windows Settings; after that Grev Home can reconnect to it."
+                    : $"{network.Ssid} uses {WifiProfileBuilder.Describe(network.Security)} security, which Grev Home can't set up. Use Windows Settings for this network.";
+                return;
+            }
+            if (network.NeedsPassword)
+            {
+                _wifiJoinTarget = network;
+                WifiPasswordKeyboard.Open($"Password for {network.Ssid}", string.Empty, 64, password: true);
+            }
+            else
+            {
+                await JoinWifiAsync(network, null);
+            }
+            return;
+        }
         try
         {
             await Task.Run(() => _wifiService.ConnectSavedProfile(network.ProfileName));

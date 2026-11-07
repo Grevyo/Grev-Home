@@ -241,19 +241,32 @@ public partial class MainWindow
                     ? $"{network.Ssid}   •   Connected   •   {network.SignalQuality}%"
                     : network.CanConnect
                         ? $"{network.Ssid}   •   {network.SignalQuality}%   •   Connect"
-                        : $"{network.Ssid}   •   {network.SignalQuality}%   •   Save in Windows first";
+                        : network.CanJoin
+                            ? $"{network.Ssid}   •   {network.SignalQuality}%   •   Set up"
+                            : $"{network.Ssid}   •   {network.SignalQuality}%   •   Use Windows Settings";
                 var button = new Button
                 {
                     Content = label,
                     MinHeight = 48,
                     Margin = new Thickness(0, 4, 0, 0),
                     HorizontalContentAlignment = HorizontalAlignment.Left,
-                    IsEnabled = !network.IsConnected && network.CanConnect && !string.IsNullOrWhiteSpace(network.ProfileName)
+                    IsEnabled = !network.IsConnected && (network.CanJoin ||
+                        (network.CanConnect && !string.IsNullOrWhiteSpace(network.ProfileName)))
                 };
                 var profileName = network.ProfileName;
-                if (button.IsEnabled && profileName is not null)
+                if (button.IsEnabled && network.CanConnect && profileName is not null)
                 {
                     button.Click += (_, _) => _ = ConnectWifiQuickAsync(profileName);
+                }
+                else if (button.IsEnabled)
+                {
+                    // A new network needs its password typed, which Settings → Connections does
+                    // with the full controller keyboard.
+                    button.Click += (_, _) =>
+                    {
+                        ClosePowerMenu(returnFocusToHeader: false);
+                        OpenSettings(Views.SettingsPage.Connections);
+                    };
                 }
                 _activityWifiNetworksPanel.Children.Add(button);
             }

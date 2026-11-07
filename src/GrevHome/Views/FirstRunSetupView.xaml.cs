@@ -6,7 +6,7 @@ using GrevHome.Storage;
 
 namespace GrevHome.Views;
 
-public sealed record FirstRunSetupResult(string GamesRoot, string BiosRoot, bool ScanGamesFolder);
+public sealed record FirstRunSetupResult(string GamesRoot, string BiosRoot, bool ScanGamesFolder, bool StartWithWindows = true);
 
 /// <summary>
 /// First-run wizard that asks where Grev Home should keep games and BIOS files. Both folders are
@@ -25,15 +25,20 @@ public partial class FirstRunSetupView : UserControl
     private bool _pickingGames;
     private bool _scanGamesFolder = true;
 
-    public bool IsKeyboardOpen => PathKeyboard.IsOpen;
+    public bool IsKeyboardOpen => PathKeyboard.IsOpen || WifiKeyboard.IsOpen;
 
     public FirstRunSetupView()
     {
         InitializeComponent();
         PathKeyboard.Completed += ApplyCustomPath;
+        InitializeNetworkStep();
     }
 
-    public void CancelKeyboard() => PathKeyboard.Cancel();
+    public void CancelKeyboard()
+    {
+        if (WifiKeyboard.IsOpen) WifiKeyboard.Cancel();
+        if (PathKeyboard.IsOpen) PathKeyboard.Cancel();
+    }
 
     /// <summary>Prepares the wizard for display. The passed-in defaults are whatever a fresh
     /// <see cref="GrevHome.Storage.MachineDefaultsService"/> would resolve to before setup has ever run.</summary>
@@ -53,6 +58,7 @@ public partial class FirstRunSetupView : UserControl
         StatusText.Text = string.Empty;
         _scanGamesFolder = true;
         UpdateScanChoice();
+        ResetNetworkStep();
         BuildDriveOptions(GamesDriveOptions, "Games", path =>
         {
             _gamesRoot = path;
@@ -159,7 +165,7 @@ public partial class FirstRunSetupView : UserControl
             return;
         }
 
-        ContinueRequested?.Invoke(new FirstRunSetupResult(_gamesRoot, _biosRoot, _scanGamesFolder));
+        ContinueRequested?.Invoke(new FirstRunSetupResult(_gamesRoot, _biosRoot, _scanGamesFolder, _startWithWindows));
     }
 
     private void ToggleScanChoice_Click(object sender, RoutedEventArgs e)

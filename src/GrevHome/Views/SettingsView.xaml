@@ -313,7 +313,7 @@
                         <TextBlock Text="WI-FI" Margin="0,22,0,8" FontSize="13" FontWeight="Bold" />
                         <TextBlock x:Name="WifiStatusText" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
                         <Button x:Name="WifiDisconnectButton" Content="Disconnect Wi-Fi" IsEnabled="False" MinWidth="180" Margin="0,12,0,10" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="WifiDisconnect_Click" />
-                        <TextBlock Text="Available networks with an existing Windows saved profile can reconnect directly. New secured networks still need the future Grev Home credential/profile flow."
+                        <TextBlock Text="Choose a network to connect. New secured networks ask for their password on the controller keyboard. Work or school (enterprise) networks still need Windows Settings once."
                                    Margin="0,0,0,10"
                                    Foreground="{DynamicResource MutedBrush}"
                                    TextWrapping="Wrap" />
@@ -503,6 +503,13 @@
                                    Text="No power action armed."
                                    Foreground="{DynamicResource MutedBrush}"
                                    TextWrapping="Wrap" />
+
+                        <TextBlock Text="STARTUP" Margin="0,26,0,8" FontSize="13" FontWeight="Bold" />
+                        <TextBlock Text="Start Grev Home automatically when you sign in to Windows. Turn on automatic sign-in in Windows as well and the PC boots straight into Grev Home, no keyboard needed."
+                                   Foreground="{DynamicResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <Button x:Name="StartWithWindowsButton" Content="Start with Windows: Off" MinWidth="300" MinHeight="56" Margin="0,12,0,8" HorizontalAlignment="Left" Style="{StaticResource WrappedSettingsButtonStyle}" Click="StartWithWindows_Click" />
+                        <TextBlock x:Name="StartWithWindowsStatusText" Foreground="{DynamicResource MutedBrush}" TextWrapping="Wrap" />
                     </StackPanel>
                 </Border>
             </StackPanel>
@@ -512,5 +519,6 @@
     <!-- The shared controller-first keyboard, so Display Name accepts the same full character
          set as account creation and Edit Profile. -->
     <local:ControllerQwertyKeyboard x:Name="DisplayNameKeyboardOverlay" Panel.ZIndex="100" />
+    <local:ControllerQwertyKeyboard x:Name="WifiPasswordKeyboard" Panel.ZIndex="100" />
     </Grid>
 </UserControl>

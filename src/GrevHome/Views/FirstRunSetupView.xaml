@@ -56,6 +56,28 @@
                 </StackPanel>
                 </StackPanel>
 
+                <TextBlock Text="NETWORK" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="Connect to the internet now to link a grev.dad account, restore cloud saves and use the Grev Store. You can skip this and connect later in Settings."
+                           Margin="0,2,0,8"
+                           Foreground="{DynamicResource MutedBrush}"
+                           TextWrapping="Wrap" />
+                <TextBlock x:Name="WifiStatusText" Margin="0,0,0,8" TextWrapping="Wrap" />
+                <Button x:Name="FindWifiButton" Content="Find Wi-Fi networks" MinWidth="300" Height="50" HorizontalAlignment="Left" Click="FindWifi_Click" />
+                <StackPanel x:Name="WifiNetworksPanel" Margin="0,8,0,30" />
+
+                <TextBlock Text="STARTUP" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
+                <TextBlock Text="Open Grev Home when you sign in to Windows. With automatic sign-in turned on in Windows, the PC boots straight into Grev Home."
+                           Margin="0,2,0,8"
+                           Foreground="{DynamicResource MutedBrush}"
+                           TextWrapping="Wrap" />
+                <Button x:Name="StartupChoiceButton"
+                        Content="✓  Start Grev Home when Windows starts"
+                        MinWidth="420"
+                        Height="50"
+                        Margin="0,0,0,30"
+                        HorizontalAlignment="Left"
+                        Click="ToggleStartupChoice_Click" />
+
                 <TextBlock Text="EXISTING GAMES" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource AccentBrush}" />
                 <TextBlock Text="If your Games folder already has games in it, Grev Home can scan it and add them for you."
                            Margin="0,2,0,8"
@@ -83,5 +105,6 @@
         </ScrollViewer>
 
         <local:ControllerQwertyKeyboard x:Name="PathKeyboard" Panel.ZIndex="100" />
+        <local:ControllerQwertyKeyboard x:Name="WifiKeyboard" Panel.ZIndex="100" />
     </Grid>
 </UserControl>

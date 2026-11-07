@@ -238,6 +238,16 @@ public partial class MainWindow : Window
             return;
         }
 
+        try
+        {
+            var startup = new GrevHome.Machine.WindowsStartupService();
+            if (startup.IsAvailable) startup.SetEnabled(result.StartWithWindows);
+        }
+        catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException or InvalidOperationException)
+        {
+            // Startup is a convenience; Settings → Power can turn it on later.
+        }
+
         // Games belong to a GrevID, and no profile exists at first-run time, so the requested scan
         // is held until an account is actually signed in. See OfferPendingFirstRunScan.
         _pendingFirstRunScanRoot = result.ScanGamesFolder ? result.GamesRoot : null;
