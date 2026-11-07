@@ -24,6 +24,30 @@ function Invoke-CodeSign([string]$Path) {
     $signature = Get-AuthenticodeSignature -FilePath $Path
     if ($signature.Status -ne "Valid") { throw "Signature check failed for ${Path}: $($signature.Status)." }
 }
+# Runs one installer step of the CI smoke test. A silent setup should never wait for input, but if
+# one does (a hidden dialog, a stuck prerequisite) the step fails after a timeout with its log,
+# instead of hanging the job until GitHub cancels it hours later.
+function Invoke-SmokeStep([string]$Label, [string]$FilePath, [string[]]$Arguments, [string]$LogPath, [int]$TimeoutMinutes = 10) {
+    Write-Host "Smoke test: $Label"
+    $start = [System.Diagnostics.ProcessStartInfo]::new($FilePath)
+    $start.UseShellExecute = $false
+    $start.CreateNoWindow = $true
+    $Arguments | ForEach-Object { [void]$start.ArgumentList.Add($_) }
+    $process = [System.Diagnostics.Process]::Start($start)
+    if (-not $process.WaitForExit($TimeoutMinutes * 60 * 1000)) {
+        Write-Host "Smoke test step '$Label' did not finish within $TimeoutMinutes minutes."
+        if ($LogPath -and (Test-Path $LogPath)) { Get-Content $LogPath -Tail 120 | Write-Host }
+        Get-Process | Where-Object { $_.ProcessName -match 'GrevHome|unins|_iu|is-|\.tmp|WebView|EdgeUpdate|setup' } |
+            Format-Table Id, ProcessName, StartTime -AutoSize | Out-String | Write-Host
+        try { $process.Kill($true) } catch { }
+        throw "Smoke test step '$Label' timed out."
+    }
+    if ($process.ExitCode -ne 0) {
+        if ($LogPath -and (Test-Path $LogPath)) { Get-Content $LogPath -Tail 120 | Write-Host }
+        throw "Smoke test step '$Label' failed with exit code $($process.ExitCode)."
+    }
+    Write-Host "Smoke test: $Label finished."
+}
 Push-Location (Join-Path $PSScriptRoot "..")
 try {
     $publishDir = Join-Path ([System.IO.Path]::GetTempPath()) ("GrevHome-publish-" + [guid]::NewGuid().ToString("N"))
@@ -59,22 +83,13 @@ try {
         $smokeInstall = Join-Path $smokeRoot "App"
         $smokeLog = Join-Path $smokeRoot "setup.log"
         New-Item -ItemType Directory -Path $smokeRoot | Out-Null
-        $smokeStart = [System.Diagnostics.ProcessStartInfo]::new($enginePath)
-        $smokeStart.UseShellExecute = $false
-        $smokeStart.CreateNoWindow = $true
-        @(
+        Invoke-SmokeStep "silent install" $enginePath @(
             "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
             "/DIR=$smokeInstall", "/LOG=$smokeLog", "/UPDATE=0",
             "/GAMESROOT=$(Join-Path $smokeRoot 'Games')",
             "/BIOSROOT=$(Join-Path $smokeRoot 'bios')",
             "/PCGAMES=1", "/APPS=1", "/EMULATORS=1", "/CONSOLES=PlayStation 2"
-        ) | ForEach-Object { [void]$smokeStart.ArgumentList.Add($_) }
-        $smokeProcess = [System.Diagnostics.Process]::Start($smokeStart)
-        $smokeProcess.WaitForExit()
-        if ($smokeProcess.ExitCode -ne 0) {
-            if (Test-Path $smokeLog) { Get-Content $smokeLog -Tail 80 | Write-Host }
-            throw "Silent installer smoke test failed with exit code $($smokeProcess.ExitCode)."
-        }
+        ) $smokeLog
         if (-not (Test-Path (Join-Path $smokeInstall "GrevHome.exe"))) {
             throw "Silent installer smoke test did not install GrevHome.exe."
         }
@@ -85,27 +100,19 @@ try {
         $preservedPreferences = "[Setup]`r`nGamesRoot=D:\Preserve-Me`r`n"
         Set-Content -LiteralPath $smokePreferences -Value $preservedPreferences -NoNewline
         $updateLog = Join-Path $smokeRoot "update.log"
-        $updateStart = [System.Diagnostics.ProcessStartInfo]::new($enginePath)
-        $updateStart.UseShellExecute = $false
-        $updateStart.CreateNoWindow = $true
-        @(
+        Invoke-SmokeStep "silent update" $enginePath @(
             "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART",
             "/DIR=$smokeInstall", "/LOG=$updateLog", "/UPDATE=1",
             "/GAMESROOT=D:\Must-Not-Replace", "/BIOSROOT=D:\Must-Not-Replace"
-        ) | ForEach-Object { [void]$updateStart.ArgumentList.Add($_) }
-        $updateProcess = [System.Diagnostics.Process]::Start($updateStart)
-        $updateProcess.WaitForExit()
-        if ($updateProcess.ExitCode -ne 0) {
-            if (Test-Path $updateLog) { Get-Content $updateLog -Tail 80 | Write-Host }
-            throw "Silent update smoke test failed with exit code $($updateProcess.ExitCode)."
-        }
+        ) $updateLog
         if ((Get-Content -LiteralPath $smokePreferences -Raw) -ne $preservedPreferences) {
             throw "Silent update replaced the existing first-run preferences."
         }
         $smokeUninstaller = Join-Path $smokeInstall "unins000.exe"
         if (Test-Path $smokeUninstaller) {
-            $uninstallProcess = Start-Process -FilePath $smokeUninstaller -ArgumentList "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART" -Wait -PassThru
-            if ($uninstallProcess.ExitCode -ne 0) { throw "Installer smoke-test cleanup failed." }
+            Invoke-SmokeStep "silent uninstall" $smokeUninstaller @(
+                "/VERYSILENT", "/SUPPRESSMSGBOXES", "/NORESTART", "/LOG=$(Join-Path $smokeRoot 'uninstall.log')"
+            ) (Join-Path $smokeRoot 'uninstall.log')
         }
     }
 

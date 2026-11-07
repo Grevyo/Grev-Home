@@ -93,14 +93,17 @@ jobs:
       - name: Verify Wi-Fi joining and start-with-Windows
         run: dotnet run --project .\tests\MachineSetup\MachineSetup.csproj --configuration Release
 
+      # The installer is also built and smoke-tested on pull requests, so a broken installer is
+      # caught before it reaches main; only main and tags upload or publish it.
       - name: Install Inno Setup
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
         run: |
           choco install innosetup --no-progress -y
           if ($LASTEXITCODE -ne 0) { throw "Inno Setup installation failed" }
 
       - name: Build installer
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))
+        if: github.event_name == 'pull_request' || (github.event_name == 'push' && (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')))
+        timeout-minutes: 45
         env:
           # Optional: with both secrets set, GrevHome.exe and the installers are code-signed.
           GREVHOME_SIGNING_CERT_BASE64: ${{ secrets.GREVHOME_SIGNING_CERT_BASE64 }}
