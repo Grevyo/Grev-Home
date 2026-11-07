@@ -105,7 +105,7 @@ internal static class Program
         Check(previewBackground=="hero.png","Dashboard focus must prefer app hero artwork over tile artwork");
         var friend=new GrevDadFriend("1","friend","Friend",true,DateTimeOffset.UtcNow,new GrevDadPresence("online","Online","game","Playing",null,DateTimeOffset.UtcNow));
         dashboard.SetFriends(true,[friend],false);
-        var friendsPanel=(StackPanel)dashboard.FindName("FriendsPanel");
+        var friendsPanel=(Panel)dashboard.FindName("FriendsPanel");
         Check(friendsPanel.Children.Count==2 && friendsPanel.Children[0] is Button allFriends &&
               allFriends.Content is Border && allFriends.Width==285 && allFriends.Height==145,
             "Dashboard friends must begin with All Friends followed by selectable friend cards");
@@ -132,7 +132,7 @@ internal static class Program
         powerTile.Focus();Pump();
         Check(settingsCarousel.HorizontalOffset>0,"Settings tile focus must scroll the hub carousel");
         powerTile.RaiseEvent(new MouseEventArgs(Mouse.PrimaryDevice,Environment.TickCount){RoutedEvent=Mouse.MouseMoveEvent});Pump();
-        Check(previewTitle.Text.Contains("Power") && previewItems.Items.Count==4,"Controller focus must preview every setting inside the highlighted tile");
+        Check(previewTitle.Text.Contains("Power") && previewItems.Items.Count==5,"Controller focus must preview every setting inside the highlighted tile");
         powerTile.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));Pump();
         Check(((FrameworkElement)settings.FindName("PowerSection")).IsVisible,"A settings tile must open its dedicated settings page");
         Check(settings.TryReturnToSettingsHub(),"Back from a settings page must return to the tile hub first");Pump();

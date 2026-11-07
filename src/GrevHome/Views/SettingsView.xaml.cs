@@ -23,11 +23,11 @@ public partial class SettingsView : UserControl
             ["settings-controller"] = ["Controllers and living-room remotes", "Return Home shortcuts", "Grev Overlay shortcuts", "Hold duration", "Reset shortcuts"],
             ["settings-audio"] = ["Master volume", "Mute", "Output device"],
             ["settings-display"] = ["Resolution", "Refresh rate", "Display mode confirmation"],
-            ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Bluetooth devices", "Refresh connections"],
+            ["settings-connections"] = ["Wi-Fi status", "Wi-Fi networks", "Join new networks", "Bluetooth devices", "Refresh connections"],
             ["settings-system"] = ["Machine and Windows", ".NET runtime", "Storage", "Connected controllers"],
             ["settings-game-scan"] = ["Scan a folder for games", "Automatic console detection", "Box art download"],
             ["settings-theme"] = ["Screen and Return Home transitions", "Overlay and modal motion", "Tile and button feedback", "Ambient background", "UI and startup sounds", "Sound volume", "Controller vibration", "Animation speed", "Preview intro"],
-            ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation"]
+            ["settings-power"] = ["Sleep", "Restart", "Shut down", "Power confirmation", "Start with Windows"]
         };
 
     private readonly SystemStatusService _systemStatusService = new();
