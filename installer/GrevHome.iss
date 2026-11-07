@@ -196,8 +196,21 @@ begin
   BiosFolderPage.Values[0] := ExpandConstant('{param:BIOSROOT|C:\GrevCo\GrevHome\bios}');
 end;
 
+function IsGrevHomeSetupPage(PageID: Integer): Boolean;
+begin
+  Result := (PageID = UsagePage.ID) or (PageID = ConsolePage.ID) or
+    (PageID = GamesPage.ID) or (PageID = GamesFolderPage.ID) or
+    (PageID = BiosPage.ID) or (PageID = BiosFolderPage.ID);
+end;
+
 function ShouldSkipPage(PageID: Integer): Boolean;
 begin
+  { An update keeps the choices made at first install, so it never asks again. }
+  if IsUpdateMode() and IsGrevHomeSetupPage(PageID) then
+  begin
+    Result := True;
+    Exit;
+  end;
   Result :=
     ((PageID = ConsolePage.ID) and not EmulatorSetupSelected()) or
     (((PageID = GamesPage.ID) or (PageID = GamesFolderPage.ID)) and not GamesSetupSelected()) or
@@ -208,6 +221,11 @@ end;
 function NextButtonClick(CurPageID: Integer): Boolean;
 begin
   Result := True;
+  { Silent setup cannot answer a prompt: refusing Next there makes Setup retry the same page
+    forever (the hidden message box is dismissed each time), which is how silent updates hung.
+    A silent install takes its choices from the command line; anything left unset falls back to
+    the standard folders in CurStepChanged. }
+  if WizardSilent() or IsUpdateMode() then Exit;
   if (CurPageID = UsagePage.ID) and
      not (UsagePage.Values[0] or UsagePage.Values[1] or UsagePage.Values[2]) then
   begin
