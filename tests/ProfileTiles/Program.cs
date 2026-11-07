@@ -2,7 +2,9 @@
 // profile-tile contract regression coverage; the grev.dad half runs its real src/profile.ts rules.
 
 using System.IO;
+using System.Text.Json;
 using GrevHome.Input;
+using GrevHome.Online;
 using GrevHome.Profiles;
 using GrevHome.Storage;
 
@@ -169,6 +171,131 @@ try
     var gifPayload = gifDataUrl![(gifDataUrl.IndexOf(',') + 1)..];
     Check(Convert.FromBase64String(gifPayload).SequenceEqual(gifBytes),
         "animated GIF sync must preserve the original bytes rather than flattening to PNG");
+
+    // --- live widget tiles (mirrors src/profile-widgets.ts) -------------------------------------
+    Check(ProfileWidgets.All.Select(info => info.WireName).SequenceEqual(new[]
+        { "recent-games", "game-activity", "most-played", "favourite-games", "best-friends", "bio", "stats", "achievements", "retroachievements" }),
+        "widget kinds and their order must match PROFILE_WIDGETS in grev.dad");
+    foreach (var info in ProfileWidgets.All)
+        Check(ProfileWidgets.FromWire(ProfileWidgets.ToWire(info.Kind)) == info.Kind, $"{info.WireName} must round-trip");
+    Check(ProfileWidgets.FromWire("something-new") is null, "an unknown widget kind degrades to a plain tile");
+    Check(ProfileWidgets.EffectiveCount(ProfileWidgetKind.RecentGames, null) == 6, "recent games default to 6 items");
+    Check(ProfileWidgets.EffectiveCount(ProfileWidgetKind.RecentGames, 40) == 12, "widget counts clamp to 12");
+
+    var widgetTile = BaseTile() with { Widget = ProfileWidgetKind.Stats };
+    Check(ProfileTileGrid.Validate([widgetTile]) is null, "a widget on a text tile is valid");
+    Check(ProfileTileGrid.Validate([BaseTile(kind: ProfileTileKind.Link) with { LinkUrl = "https://grev.dad", Widget = ProfileWidgetKind.Stats }]) is not null,
+        "widgets must be text tiles, like grev.dad");
+    Check(ProfileTileGrid.Validate([widgetTile with { Widget = ProfileWidgetKind.RecentGames, WidgetCount = 13 }]) is not null,
+        "a widget count above 12 is rejected");
+
+    var wire = GrevDadProfileSyncService.ToWireTile(widgetTile with { Widget = ProfileWidgetKind.RecentGames, WidgetCount = 3 }, null);
+    Check(wire.TileType == "text" && wire.Widget == "recent-games" && wire.WidgetConfig?.Count == 3, "widget tiles sync as text tiles with widget + config");
+    var back = GrevDadProfileSyncService.FromWireTile(wire, null);
+    Check(back.Widget == ProfileWidgetKind.RecentGames && back.WidgetCount == 3, "widget tiles round-trip through the sync wire");
+    var plainWire = GrevDadProfileSyncService.ToWireTile(BaseTile(), null);
+    Check(plainWire.Widget is null && plainWire.WidgetConfig is null, "plain tiles send no widget");
+    var unknown = GrevDadProfileSyncService.FromWireTile(wire with { Widget = "future-widget" }, null);
+    Check(unknown.Widget is null && unknown.WidgetCount is null, "a widget this build does not know syncs down as a plain tile");
+
+    // Widget data from grev.dad (shapes from src/profile-unified.ts resolveWidgets).
+    JsonElement Json(string text) => JsonDocument.Parse(text).RootElement.Clone();
+    var now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    var recent = ProfileWidgetViews.FromServer(ProfileWidgetKind.RecentGames, Json($$"""
+        {"widget":"recent-games","items":[
+          {"appId":"retroarch","appName":"RetroArch","contentId":"snes:smw","title":"Super Mario World","lastPlayedAt":{{now - 7200}},"totalSeconds":5400,"sessions":1},
+          {"appId":"steam-1","appName":"Halo","contentId":null,"title":"Halo","lastPlayedAt":{{now - 60}},"totalSeconds":60,"sessions":1},
+          {"appId":"x","appName":"X","title":"Third","lastPlayedAt":{{now}},"totalSeconds":1,"sessions":1}]}
+        """), 2, isSelf: false);
+    Check(recent.Lines.Count == 2, "the item count limits the list");
+    Check(recent.Lines[0].Title == "Super Mario World" && recent.Lines[0].Detail == "RetroArch • 2 h ago", "games show the content name, then the emulator");
+    Check(recent.Lines[1].Detail == "just now", "a game whose title is its app name does not repeat it");
+    var hidden = ProfileWidgetViews.FromServer(ProfileWidgetKind.GameActivity, Json("""{"widget":"game-activity","hidden":true,"reason":"friends-only"}"""), 5, false);
+    Check(hidden.EmptyText == "Shared with friends only." && hidden.Lines.Count == 0, "friends-only widgets say so instead of showing nothing");
+    var activity = ProfileWidgetViews.FromServer(ProfileWidgetKind.GameActivity, Json("""{"nowPlaying":{"title":"Zelda"},"sessions":[]}"""), 5, false);
+    Check(activity.Highlight == "Now playing Zelda" && activity.EmptyText is null, "now playing shows as the highlight");
+    var best = ProfileWidgetViews.FromServer(ProfileWidgetKind.BestFriends, Json("""{"items":[{"userId":"u1","displayName":"Bob","avatarMedia":null,"availability":"online","activityText":"Halo"}]}"""), 6, false);
+    Check(best.Lines.Single() is { IsPerson: true, UserId: "u1", Availability: "online", Detail: "Halo" }, "best friends carry who to open and their presence");
+    var stats = ProfileWidgetViews.FromServer(ProfileWidgetKind.Stats, Json("""{"level":3,"totalXp":1200,"totalTrackedSeconds":null,"completedSessions":4,"uniqueApps":2,"achievements":1}"""), 0, false);
+    Check(stats.Stats.Select(stat => stat.Label).SequenceEqual(new[] { "Level", "XP", "Sessions", "Games", "Achievements" }),
+        "stats a member hides (null) are left out");
+    var ra = ProfileWidgetViews.FromServer(ProfileWidgetKind.RetroAchievements, Json("""
+        {"linked":true,"username":"AliceRA","summary":{"username":"AliceRA","totalPoints":1234,"rank":42,"richPresence":"Exploring Hyrule",
+          "recentlyPlayed":[],"recentAchievements":[{"title":"Sword","gameTitle":"Zelda","points":5,"badgeUrl":"https://media.retroachievements.org/Badge/1.png","hardcore":true}]}}
+        """), 5, false);
+    Check(ra.Subtitle == "AliceRA • 1,234 points • rank 42" && ra.Highlight == "Exploring Hyrule", "RetroAchievements shows points, rank and presence");
+    Check(ra.Lines.Single().ImageUrl!.StartsWith("https://media.retroachievements.org/"), "achievement badges come from RetroAchievements");
+    var raUnlinked = ProfileWidgetViews.FromServer(ProfileWidgetKind.RetroAchievements, Json("""{"linked":false}"""), 5, isSelf: true);
+    Check(raUnlinked.EmptyText!.Contains("Edit Profile"), "the owner is told where to link RetroAchievements");
+    var siteAchievements = ProfileWidgetViews.FromServer(ProfileWidgetKind.Achievements, Json("""{"earned":1,"available":9,"items":[{"name":"First Boot","description":"d","imageUrl":"/achievement-badges/x.svg"}]}"""), 6, false);
+    Check(siteAchievements.Lines.Single().ImageUrl == "https://grev.dad/achievement-badges/x.svg", "grev.dad badge paths become absolute URLs");
+
+    var localStats = new ProfileStatsSnapshot(
+        new ProfileLevelProgress(2, 600, 100, 500, 20), 3600, 3, 0, 2, DateTimeOffset.UtcNow,
+        [new ProfileTopAppStat("a", "Halo", 3000, 2, false, DateTimeOffset.UtcNow)],
+        [new ProfileRecentActivityStat("a", "Halo", 3000, 2, true, DateTimeOffset.UtcNow)],
+        [], []);
+    var offlineActivity = ProfileWidgetViews.FromLocal(ProfileWidgetKind.GameActivity, 5, localStats, null, []);
+    Check(offlineActivity.Highlight == "Now playing Halo", "offline game activity shows what is running on this PC");
+    var offlineMost = ProfileWidgetViews.FromLocal(ProfileWidgetKind.MostPlayed, 5, localStats, null, []);
+    Check(offlineMost.Lines.Single().Detail == "50m • 2 sessions", "offline most played uses local play time");
+    var offlineBest = ProfileWidgetViews.FromLocal(ProfileWidgetKind.BestFriends, 5, localStats, null, []);
+    Check(offlineBest.EmptyText!.Contains("Link Grev.dad"), "online-only widgets explain why they are empty");
+
+    // A real profile document from grev.dad deserializes into the client's records and draws.
+    var documentJson = await File.ReadAllTextAsync(Path.Combine(AppContext.BaseDirectory, "profile-document.json"));
+    var envelope = JsonSerializer.Deserialize<ProfileDocumentApiResponse>(documentJson, JsonDefaults.IndentedWeb)!;
+    var document = envelope.Profile!;
+    Check(document.Relationship == "friend" && !document.IsSelf, "the friend document says who is looking");
+    Check(document.Card.Headline == "Retro collector", "the shared headline comes through");
+    Check(document.Presence?.ActivityText == "Super Mario World", "presence comes through");
+    var documentTiles = document.ToTiles();
+    Check(documentTiles.Count == 8 && documentTiles.All(tile => tile.Widget is not null), "every widget tile keeps its widget");
+    Check(ProfileTileGrid.Validate(documentTiles) is null, "grev.dad's tiles are valid in Grev Home");
+    foreach (var tile in documentTiles)
+    {
+        var view = document.WidgetView(tile)!;
+        Check(view.Kind == tile.Widget, $"{tile.Widget} resolves to its own view");
+    }
+    var documentRecent = document.WidgetView(documentTiles.First(tile => tile.Widget == ProfileWidgetKind.RecentGames))!;
+    Check(documentRecent.Lines.Count == 3 && documentRecent.Lines.Any(line => line.Title == "Shadow of the Colossus"), "recent games come from grev.dad's session history");
+    var documentBest = document.WidgetView(documentTiles.First(tile => tile.Widget == ProfileWidgetKind.BestFriends))!;
+    Check(documentBest.Lines.Count == 1 && documentBest.Lines[0].UserId is not null, "best friends can be opened");
+
+    // Identity sync decisions (GrevDadIdentitySyncService).
+    Check(GrevDadIdentitySyncService.Decide("L", "R", null, null, remoteHasValue: true, localHasValue: true) == IdentitySyncDirection.Pull,
+        "the first sync after linking brings the grev.dad profile over");
+    Check(GrevDadIdentitySyncService.Decide("L", "", null, null, remoteHasValue: false, localHasValue: true) == IdentitySyncDirection.Push,
+        "the first sync uploads a field grev.dad does not have yet");
+    Check(GrevDadIdentitySyncService.Decide("L2", "R", "L1", "R", true, true) == IdentitySyncDirection.Push, "a local edit is uploaded");
+    Check(GrevDadIdentitySyncService.Decide("L", "R2", "L", "R1", true, true) == IdentitySyncDirection.Pull, "a website edit comes down");
+    Check(GrevDadIdentitySyncService.Decide("L", "R", "L", "R", true, true) == IdentitySyncDirection.None, "nothing changed, nothing moves");
+    Check(GrevDadIdentitySyncService.Decide("L2", "R2", "L1", "R1", true, true) == IdentitySyncDirection.Push, "if both changed, this PC's edit wins");
+
+    // Favourite games: offline queue, then grev.dad's list wins after the queue is sent.
+    var favourites = new FavouriteGameService(paths);
+    var mario = new FavouriteGame("grevhome:mario", "Super Mario World", "SNES");
+    Check(await favourites.ToggleAsync(grevId, mario, queueForSync: true), "starring a game makes it a favourite");
+    Check(await favourites.IsFavouriteAsync(grevId, "GREVHOME:MARIO"), "favourite keys match case-insensitively");
+    var queued = await favourites.GetAsync(grevId);
+    Check(queued.Pending.Single().Kind == FavouriteChangeKind.Add, "a linked profile queues the change for grev.dad");
+    var halo = new FavouriteGame("web:halo", "Halo");
+    await favourites.ApplyRemoteAsync(grevId, [mario, halo], queued.Pending);
+    var synced = await favourites.GetAsync(grevId);
+    Check(synced.Pending.Count == 0 && synced.Games.Count == 2, "after sync the list matches grev.dad, including games starred on the website");
+    Check(!await favourites.ToggleAsync(grevId, mario, queueForSync: false), "starring again removes it");
+    Check((await favourites.GetAsync(grevId)).Pending.Count == 0, "an unlinked profile queues nothing");
+
+    // The controller editor keeps grev.dad's profile card slot free.
+    var slot = new ProfileTile(Guid.Empty.ToString(), ProfileTileKind.Text, 0, 0, 4, 6);
+    var slotEditor = new ProfileTileGridEditor([], slot);
+    var widgetAdded = slotEditor.AddWidget(ProfileWidgetKind.RecentGames);
+    Check(widgetAdded is { Widget: ProfileWidgetKind.RecentGames, Width: 4, Height: 2, X: 4 }, "a new widget avoids the card slot and gets its size");
+    Check(ProfileTileGrid.Validate(slotEditor.Tiles) is null, "an added widget is a valid tile");
+    slotEditor.HandleInput(InputAction.Left);
+    Check(slotEditor.ActiveTile!.X == 4, "a held tile cannot move into the card slot");
+    var legacy = new ProfileTileGridEditor([BaseTile(x: 0, y: 0)], slot);
+    Check(legacy.Reserved is null, "a layout already using the card cells is not blocked");
 
     Console.WriteLine("Profile tile tests passed.");
 }

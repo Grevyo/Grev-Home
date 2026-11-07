@@ -7,6 +7,10 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <!-- A real GET /api/grev-home/profiles/{id} response from a local grev.dad worker. -->
+    <None Include="profile-document.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
     <ProjectReference Include="../../src/GrevHome/GrevHome.csproj" />
   </ItemGroup>
 </Project>

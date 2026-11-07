@@ -20,7 +20,10 @@ public sealed record GrevDadServerCapabilities(
     bool ProgressionSync,
     bool ContentIdentity,
     bool OfflineHistoryReplay,
-    bool StalePresenceReplay);
+    bool StalePresenceReplay,
+    bool ProfileTileSync = false,
+    bool Messaging = false,
+    bool CloudSaves = false);
 
 public sealed record GrevDadServerLimits(
     int LinkRequestSeconds,
@@ -28,7 +31,8 @@ public sealed record GrevDadServerLimits(
     int TokenRotationOverlapSeconds,
     int PresenceMinSeconds,
     int PresenceMaxSeconds,
-    int SyncBatchSessions);
+    int SyncBatchSessions,
+    long CloudSaveMaxBytes = 0);
 
 public sealed record GrevDadCapabilitiesSnapshot(
     int ApiVersion,

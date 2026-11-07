@@ -22,9 +22,19 @@
         <SolidColorBrush x:Key="AdminRoleBrush" Color="#D8B65A" />
         <SolidColorBrush x:Key="StandardRoleBrush" Color="#D94B55" />
         <SolidColorBrush x:Key="GuestRoleBrush" Color="#747B88" />
+        <!-- Theme text colours, font and window background (ThemeApplier keeps these in step with
+             the active theme). The defaults reproduce the original white-on-dark Grev Home. -->
+        <SolidColorBrush x:Key="TextBrush" Color="White" />
+        <SolidColorBrush x:Key="ButtonTextBrush" Color="White" />
+        <FontFamily x:Key="ShellFontFamily">Segoe UI</FontFamily>
+        <SolidColorBrush x:Key="HeaderBackgroundBrush" Color="#D90B0F17" />
+        <RadialGradientBrush x:Key="ShellBackgroundBrush" Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
+            <GradientStop Color="#182137" Offset="0" />
+            <GradientStop Color="#090C12" Offset="1" />
+        </RadialGradientBrush>
 
         <Style TargetType="Button">
-            <Setter Property="Foreground" Value="White" />
+            <Setter Property="Foreground" Value="{DynamicResource ButtonTextBrush}" />
             <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
             <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
             <Setter Property="BorderThickness" Value="2" />

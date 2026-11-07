@@ -26,6 +26,14 @@ public partial class MainWindow : Window
     private string _gamesPath = @"C:\GrevCo\GrevHome\Games";
     private string _biosPath = @"C:\GrevCo\GrevHome\bios";
     private ushort _previousButtons;
+    private RetryMode _retry;
+    private Action<string>? _folderPicked;
+    private string? _folderPickerPath;
+
+    private enum RetryMode { None, Install, Update }
+
+    private const string DefaultInstallDirectory = @"C:\GrevCo\GrevHome";
+    private const string UninstallKey = @"Software\Microsoft\Windows\CurrentVersion\Uninstall\{EA4D6CAE-5909-4557-9BC2-0C9B89151999}_is1";
     private DateTime _lastControllerAction = DateTime.MinValue;
 
     public MainWindow()
@@ -41,6 +49,7 @@ public partial class MainWindow : Window
         _controllerTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(70) };
         _controllerTimer.Tick += PollController;
         _controllerTimer.Start();
+        InstallLocationText.Text = ResolveInstallDirectory();
         Loaded += (_, _) =>
         {
             AnimateHero();
@@ -66,7 +75,7 @@ public partial class MainWindow : Window
             await RunInstallerAsync(skipRunningAppCheck: true);
             if (!_installed) return;
 
-            var app = @"C:\GrevCo\GrevHome\GrevHome.exe";
+            var app = Path.Combine(ResolveInstallDirectory(), "GrevHome.exe");
             if (!File.Exists(app))
             {
                 throw new FileNotFoundException("The update completed, but Grev Home could not be found.", app);
@@ -84,8 +93,7 @@ public partial class MainWindow : Window
             NavigationBar.Visibility = Visibility.Visible;
             BackButton.Visibility = Visibility.Collapsed;
             NextButton.Content = "Try again";
-            NextButton.Click -= Next_Click;
-            NextButton.Click += RetryUpdate_Click;
+            _retry = RetryMode.Update;
             NextButton.Focus();
         }
     }
@@ -120,6 +128,7 @@ public partial class MainWindow : Window
     private void ShowPage(int page)
     {
         _page = Math.Clamp(page, 0, _pages.Length - 1);
+        HideNotice();
         foreach (var item in _pages) item.Visibility = Visibility.Collapsed;
         var target = _pages[_page];
         target.Visibility = Visibility.Visible;
@@ -157,12 +166,20 @@ public partial class MainWindow : Window
 
     private void Next_Click(object sender, RoutedEventArgs e)
     {
+        if (_retry != RetryMode.None)
+        {
+            var retry = _retry;
+            _retry = RetryMode.None;
+            if (retry == RetryMode.Update) _ = RunUpdateAsync();
+            else ShowPage(4);
+            return;
+        }
         if (_page == 0) { ShowPage(1); return; }
         if (_page == 1)
         {
             if (PcGamesCheck.IsChecked != true && AppsCheck.IsChecked != true && EmulatorsCheck.IsChecked != true)
             {
-                MessageBox.Show(this, "Choose at least one thing you want Grev Home to handle.", "Choose your setup", MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowNotice("Choose at least one thing you want Grev Home to handle.");
                 return;
             }
             ShowPage(EmulatorsCheck.IsChecked == true ? 2 : 3); return;
@@ -171,7 +188,7 @@ public partial class MainWindow : Window
         {
             if (!ConsoleChecks().Any(x => x.IsChecked == true))
             {
-                MessageBox.Show(this, "Choose at least one system, or go back and turn off Emulators.", "Choose your systems", MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowNotice("Choose at least one system, or go back and turn off Emulators.");
                 return;
             }
             ShowPage(3); return;
@@ -181,7 +198,7 @@ public partial class MainWindow : Window
             if ((GamesExisting.IsChecked == true && !Directory.Exists(_gamesPath)) ||
                 (EmulatorsCheck.IsChecked == true && BiosExisting.IsChecked == true && !Directory.Exists(_biosPath)))
             {
-                MessageBox.Show(this, "Choose valid existing folders before continuing.", "Check your folders", MessageBoxButton.OK, MessageBoxImage.Information);
+                ShowNotice("Choose existing folders for the options you picked, or switch back to the Grev Home standard.");
                 return;
             }
             ReadySelectionText.Text = string.Join(" · ", SelectedUsage());
@@ -190,8 +207,13 @@ public partial class MainWindow : Window
         if (_page == 4) { _ = RunInstallerAsync(); return; }
         if (_page == 5 && _installed)
         {
-            var app = @"C:\GrevCo\GrevHome\GrevHome.exe";
-            if (File.Exists(app)) Process.Start(new ProcessStartInfo(app) { UseShellExecute = true });
+            var app = Path.Combine(ResolveInstallDirectory(), "GrevHome.exe");
+            if (!File.Exists(app))
+            {
+                ShowNotice($"Grev Home was installed, but GrevHome.exe was not found in {Path.GetDirectoryName(app)}.");
+                return;
+            }
+            Process.Start(new ProcessStartInfo(app) { UseShellExecute = true });
             Close();
         }
     }
@@ -199,6 +221,10 @@ public partial class MainWindow : Window
     private void Back_Click(object sender, RoutedEventArgs e)
     {
         if (_installing) return;
+        if (FolderPicker.Visibility == Visibility.Visible) { CloseFolderPicker(); return; }
+        // Leaving a failed install screen cancels its pending retry, so the next Install press
+        // really installs instead of only redrawing the page.
+        _retry = RetryMode.None;
         if (_page == 3 && EmulatorsCheck.IsChecked != true) ShowPage(1);
         else ShowPage(_page - 1);
     }
@@ -225,16 +251,138 @@ public partial class MainWindow : Window
         BiosPathText.Text = _biosPath;
     }
 
-    private void BrowseGames_Click(object sender, RoutedEventArgs e)
+    private void BrowseGames_Click(object sender, RoutedEventArgs e) =>
+        OpenFolderPicker("Choose your Games folder", _gamesPath, path => { _gamesPath = path; GamesPathText.Text = path; });
+
+    private void BrowseBios_Click(object sender, RoutedEventArgs e) =>
+        OpenFolderPicker("Choose your BIOS folder", _biosPath, path => { _biosPath = path; BiosPathText.Text = path; });
+
+    // A controller-first folder browser. The Windows folder dialog cannot be driven by a gamepad,
+    // so drives and folders are shown as ordinary focusable buttons instead.
+    private void OpenFolderPicker(string title, string startPath, Action<string> picked)
     {
-        var dialog = new OpenFolderDialog { Title = "Choose your existing Games folder", InitialDirectory = Directory.Exists(_gamesPath) ? _gamesPath : null };
-        if (dialog.ShowDialog(this) == true) { _gamesPath = dialog.FolderName; GamesPathText.Text = _gamesPath; }
+        _folderPicked = picked;
+        FolderPickerTitle.Text = title;
+        PageHost.IsEnabled = false;
+        NavigationBar.IsEnabled = false;
+        FolderPicker.Visibility = Visibility.Visible;
+        ShowFolder(Directory.Exists(startPath) ? startPath : null);
     }
 
-    private void BrowseBios_Click(object sender, RoutedEventArgs e)
+    private void ShowFolder(string? path)
     {
-        var dialog = new OpenFolderDialog { Title = "Choose your existing BIOS folder", InitialDirectory = Directory.Exists(_biosPath) ? _biosPath : null };
-        if (dialog.ShowDialog(this) == true) { _biosPath = dialog.FolderName; BiosPathText.Text = _biosPath; }
+        _folderPickerPath = path;
+        FolderList.Children.Clear();
+        FolderPickerPath.Text = path ?? "Choose a drive";
+        FolderUseButton.IsEnabled = path is not null;
+        FolderUpButton.IsEnabled = path is not null;
+
+        List<(string Label, string Target)> entries;
+        try
+        {
+            entries = path is null
+                ? DriveInfo.GetDrives()
+                    .Where(drive => drive.IsReady && drive.DriveType is DriveType.Fixed or DriveType.Removable or DriveType.Network)
+                    .Select(drive => (string.IsNullOrWhiteSpace(drive.VolumeLabel)
+                        ? drive.Name.TrimEnd('\\')
+                        : $"{drive.Name.TrimEnd('\\')}  {drive.VolumeLabel}", drive.RootDirectory.FullName))
+                    .ToList()
+                : new DirectoryInfo(path).EnumerateDirectories()
+                    .Where(directory => (directory.Attributes & (FileAttributes.Hidden | FileAttributes.System)) == 0)
+                    .OrderBy(directory => directory.Name, StringComparer.OrdinalIgnoreCase)
+                    .Take(400)
+                    .Select(directory => (directory.Name, directory.FullName))
+                    .ToList();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            entries = [];
+            FolderPickerPath.Text = $"{path} – this folder cannot be opened.";
+        }
+
+        foreach (var (label, target) in entries)
+        {
+            var button = new Button
+            {
+                Content = label,
+                Style = (Style)FindResource("QuietButton"),
+                Margin = new Thickness(0, 0, 10, 10),
+                MinWidth = 160
+            };
+            button.Click += (_, _) => ShowFolder(target);
+            FolderList.Children.Add(button);
+        }
+        if (path is not null && entries.Count == 0 && FolderPickerPath.Text == path)
+        {
+            FolderPickerPath.Text = $"{path} – no folders inside. Choose Use this folder or go up a level.";
+        }
+
+        FolderListScroll.ScrollToTop();
+        Dispatcher.InvokeAsync(() =>
+        {
+            if (FolderList.Children.Count > 0) ((UIElement)FolderList.Children[0]).Focus();
+            else if (FolderUseButton.IsEnabled) FolderUseButton.Focus();
+            else FolderCancelButton.Focus();
+        }, DispatcherPriority.Input);
+    }
+
+    private void FolderUp_Click(object sender, RoutedEventArgs e)
+    {
+        if (_folderPickerPath is null) return;
+        ShowFolder(Directory.GetParent(_folderPickerPath)?.FullName);
+    }
+
+    private void FolderUse_Click(object sender, RoutedEventArgs e)
+    {
+        if (_folderPickerPath is { } path && Directory.Exists(path)) _folderPicked?.Invoke(path);
+        CloseFolderPicker();
+    }
+
+    private void FolderCancel_Click(object sender, RoutedEventArgs e) => CloseFolderPicker();
+
+    private void CloseFolderPicker()
+    {
+        FolderPicker.Visibility = Visibility.Collapsed;
+        PageHost.IsEnabled = true;
+        NavigationBar.IsEnabled = true;
+        _folderPicked = null;
+        FocusPageStart();
+    }
+
+    private void ShowNotice(string message)
+    {
+        NoticeText.Text = message;
+        NoticeText.Visibility = Visibility.Visible;
+    }
+
+    private void HideNotice()
+    {
+        NoticeText.Text = string.Empty;
+        NoticeText.Visibility = Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// Where Grev Home is actually installed. Inno Setup reuses an existing install's folder on
+    /// upgrade and records it under the uninstall key, so launching or updating must read it
+    /// rather than assume the default.
+    /// </summary>
+    private static string ResolveInstallDirectory()
+    {
+        foreach (var root in new[] { Registry.CurrentUser, Registry.LocalMachine })
+        {
+            try
+            {
+                using var key = root.OpenSubKey(UninstallKey);
+                if (key?.GetValue("InstallLocation") is string location && !string.IsNullOrWhiteSpace(location))
+                {
+                    return location.TrimEnd('\\');
+                }
+            }
+            catch (Exception ex) when (ex is System.Security.SecurityException or UnauthorizedAccessException or IOException)
+            {
+            }
+        }
+        return DefaultInstallDirectory;
     }
 
     private async Task RunInstallerAsync(bool skipRunningAppCheck = false)
@@ -294,7 +442,7 @@ public partial class MainWindow : Window
             InstallProgress.Value = 100;
             InstallPercent.Text = "100%";
             InstallTitle.Text = "Your Grev Home is ready.";
-            InstallStatus.Text = "Installed at C:\\GrevCo\\GrevHome";
+            InstallStatus.Text = $"Installed at {ResolveInstallDirectory()}";
             _installed = true;
             _installing = false;
             NavigationBar.Visibility = Visibility.Visible;
@@ -312,9 +460,8 @@ public partial class MainWindow : Window
             NavigationBar.Visibility = Visibility.Visible;
             BackButton.Visibility = _updateMode ? Visibility.Collapsed : Visibility.Visible;
             NextButton.Content = "Try again";
-            NextButton.Click -= Next_Click;
-            if (_updateMode) NextButton.Click += RetryUpdate_Click;
-            else NextButton.Click += Retry_Click;
+            _retry = _updateMode ? RetryMode.Update : RetryMode.Install;
+            NextButton.Focus();
         }
         finally
         {
@@ -359,22 +506,9 @@ public partial class MainWindow : Window
         await resource.CopyToAsync(file);
     }
 
-    private void Retry_Click(object sender, RoutedEventArgs e)
-    {
-        NextButton.Click -= Retry_Click;
-        NextButton.Click += Next_Click;
-        ShowPage(4);
-    }
-
-    private void RetryUpdate_Click(object sender, RoutedEventArgs e)
-    {
-        NextButton.Click -= RetryUpdate_Click;
-        _ = RunUpdateAsync();
-    }
-
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key == Key.Escape && !_installing) { Back_Click(sender, e); e.Handled = true; }
+        if (e.Key == Key.Escape && !_installing && (_page > 0 || FolderPicker.Visibility == Visibility.Visible)) { Back_Click(sender, e); e.Handled = true; }
     }
 
     private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -389,7 +523,7 @@ public partial class MainWindow : Window
     {
         if (_installing)
         {
-            MessageBox.Show(this, "Please let Grev Home finish installing before closing this window.", "Installation in progress", MessageBoxButton.OK, MessageBoxImage.Information);
+            InstallStatus.Text = "Please let Grev Home finish installing before closing this window.";
             e.Cancel = true;
         }
         base.OnClosing(e);
@@ -397,14 +531,22 @@ public partial class MainWindow : Window
 
     private void PollController(object? sender, EventArgs e)
     {
-        XInputState state;
-        try { if (XInputGetState(0, out state) != 0) { _previousButtons = 0; return; } }
+        // Any connected pad drives the installer: Windows does not always put a single controller
+        // in slot 0 (after a reconnect, or with another pad already paired).
+        ushort logicalButtons = 0;
+        try
+        {
+            for (uint slot = 0; slot < 4; slot++)
+            {
+                if (XInputGetState(slot, out var state) != 0) continue;
+                logicalButtons |= state.Gamepad.Buttons;
+                if (state.Gamepad.ThumbLY > 16000) logicalButtons |= DPadUp;
+                else if (state.Gamepad.ThumbLY < -16000) logicalButtons |= DPadDown;
+                if (state.Gamepad.ThumbLX < -16000) logicalButtons |= DPadLeft;
+                else if (state.Gamepad.ThumbLX > 16000) logicalButtons |= DPadRight;
+            }
+        }
         catch (DllNotFoundException) { _controllerTimer.Stop(); return; }
-        var logicalButtons = state.Gamepad.Buttons;
-        if (state.Gamepad.ThumbLY > 16000) logicalButtons |= DPadUp;
-        else if (state.Gamepad.ThumbLY < -16000) logicalButtons |= DPadDown;
-        if (state.Gamepad.ThumbLX < -16000) logicalButtons |= DPadLeft;
-        else if (state.Gamepad.ThumbLX > 16000) logicalButtons |= DPadRight;
         var pressed = (ushort)(logicalButtons & ~_previousButtons);
         _previousButtons = logicalButtons;
         if (pressed == 0 || DateTime.UtcNow - _lastControllerAction < TimeSpan.FromMilliseconds(115)) return;
@@ -413,7 +555,7 @@ public partial class MainWindow : Window
         if ((pressed & (DPadUp | DPadLeft)) != 0) MoveFocus(FocusNavigationDirection.Previous);
         else if ((pressed & (DPadDown | DPadRight)) != 0) MoveFocus(FocusNavigationDirection.Next);
         else if ((pressed & ButtonA) != 0) ActivateFocusedControl();
-        else if ((pressed & ButtonB) != 0 && !_installing && _page > 0) Back_Click(this, new RoutedEventArgs());
+        else if ((pressed & ButtonB) != 0 && !_installing && (_page > 0 || FolderPicker.Visibility == Visibility.Visible)) Back_Click(this, new RoutedEventArgs());
     }
 
     private static void MoveFocus(FocusNavigationDirection direction)

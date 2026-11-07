@@ -18,7 +18,149 @@ public sealed record WifiNetwork(
     int SignalQuality,
     bool IsSecure,
     bool IsConnected,
-    bool CanConnect);
+    bool CanConnect,
+    WifiSecurity Security = WifiSecurity.Unknown,
+    WifiCipher Cipher = WifiCipher.Aes)
+{
+    /// <summary>A network Windows has no saved profile for, which Grev Home can join itself.</summary>
+    public bool CanJoin => !IsConnected && !CanConnect && WifiProfileBuilder.IsSupported(Security);
+
+    public bool NeedsPassword => WifiProfileBuilder.NeedsPassword(Security);
+}
+
+/// <summary>How a network is secured, from its advertised authentication algorithm.</summary>
+public enum WifiSecurity
+{
+    Unknown,
+    Open,
+    /// <summary>Wi-Fi Enhanced Open: encrypted, no password.</summary>
+    Owe,
+    Wep,
+    WpaPersonal,
+    Wpa2Personal,
+    Wpa3Personal,
+    /// <summary>802.1X networks (work, school, eduroam) need a username and certificates.</summary>
+    Enterprise
+}
+
+public enum WifiCipher { None, Tkip, Aes, Wep }
+
+public sealed record WifiJoinResult(bool Connected, string Message);
+
+/// <summary>
+/// Builds the WLAN profile XML Windows needs to join a network it has never seen, from the
+/// password typed on the controller keyboard. Pure, so it is tested without a Wi-Fi adapter.
+/// Open, Enhanced Open and WPA/WPA2/WPA3 Personal are supported; WEP (obsolete and insecure) and
+/// Enterprise (802.1X) are left to Windows Settings.
+/// </summary>
+public static class WifiProfileBuilder
+{
+    public static bool IsSupported(WifiSecurity security) =>
+        security is WifiSecurity.Open or WifiSecurity.Owe or WifiSecurity.WpaPersonal or WifiSecurity.Wpa2Personal or WifiSecurity.Wpa3Personal;
+
+    public static bool NeedsPassword(WifiSecurity security) =>
+        security is WifiSecurity.WpaPersonal or WifiSecurity.Wpa2Personal or WifiSecurity.Wpa3Personal;
+
+    /// <summary>Maps DOT11_AUTH_ALGORITHM / DOT11_CIPHER_ALGORITHM values (wlantypes.h).</summary>
+    public static (WifiSecurity Security, WifiCipher Cipher) Classify(uint authAlgorithm, uint cipherAlgorithm)
+    {
+        var cipher = cipherAlgorithm switch
+        {
+            0 => WifiCipher.None,
+            1 or 5 or 0x101 => WifiCipher.Wep,
+            2 => WifiCipher.Tkip,
+            _ => WifiCipher.Aes
+        };
+        var security = authAlgorithm switch
+        {
+            1 => cipher == WifiCipher.Wep ? WifiSecurity.Wep : WifiSecurity.Open,
+            2 => WifiSecurity.Wep,
+            4 => WifiSecurity.WpaPersonal,
+            7 => WifiSecurity.Wpa2Personal,
+            9 => WifiSecurity.Wpa3Personal,
+            10 => WifiSecurity.Owe,
+            3 or 6 or 8 or 11 => WifiSecurity.Enterprise,
+            _ => WifiSecurity.Unknown
+        };
+        return (security, cipher);
+    }
+
+    public static string Describe(WifiSecurity security) => security switch
+    {
+        WifiSecurity.Open => "open",
+        WifiSecurity.Owe => "enhanced open",
+        WifiSecurity.Wep => "WEP",
+        WifiSecurity.WpaPersonal => "WPA",
+        WifiSecurity.Wpa2Personal => "WPA2",
+        WifiSecurity.Wpa3Personal => "WPA3",
+        WifiSecurity.Enterprise => "enterprise",
+        _ => "unknown security"
+    };
+
+    /// <summary>Null when the password suits the network; otherwise why not. A WPA passphrase is
+    /// 8–63 printable ASCII characters, or exactly 64 hex digits.</summary>
+    public static string? ValidatePassword(WifiSecurity security, string? password)
+    {
+        if (!NeedsPassword(security)) return null;
+        password ??= string.Empty;
+        if (password.Length == 64 && password.All(Uri.IsHexDigit)) return null;
+        if (password.Length is < 8 or > 63) return "Wi-Fi passwords are 8 to 63 characters long.";
+        if (password.Any(character => character is < ' ' or > '~')) return "Wi-Fi passwords use letters, numbers and standard symbols only.";
+        return null;
+    }
+
+    public static string BuildProfileXml(string ssid, WifiSecurity security, WifiCipher cipher, string? password)
+    {
+        if (string.IsNullOrWhiteSpace(ssid)) throw new ArgumentException("A network name is required.", nameof(ssid));
+        if (!IsSupported(security)) throw new NotSupportedException($"Grev Home can't join {Describe(security)} networks; use Windows Settings for this one.");
+        var error = ValidatePassword(security, password);
+        if (error is not null) throw new ArgumentException(error, nameof(password));
+
+        var (authentication, encryption) = security switch
+        {
+            WifiSecurity.Open => ("open", "none"),
+            WifiSecurity.Owe => ("OWE", "AES"),
+            WifiSecurity.WpaPersonal => ("WPAPSK", cipher == WifiCipher.Tkip ? "TKIP" : "AES"),
+            WifiSecurity.Wpa2Personal => ("WPA2PSK", cipher == WifiCipher.Tkip ? "TKIP" : "AES"),
+            _ => ("WPA3SAE", "AES")
+        };
+        var hex = Convert.ToHexString(Encoding.UTF8.GetBytes(ssid));
+        var name = System.Security.SecurityElement.Escape(ssid);
+        var sharedKey = NeedsPassword(security)
+            ? $"""
+                    <sharedKey>
+                        <keyType>{(password!.Length == 64 ? "networkKey" : "passPhrase")}</keyType>
+                        <protected>false</protected>
+                        <keyMaterial>{System.Security.SecurityElement.Escape(password)}</keyMaterial>
+                    </sharedKey>
+              """
+            : string.Empty;
+        return $"""
+            <?xml version="1.0"?>
+            <WLANProfile xmlns="http://www.microsoft.com/networking/WLAN/profile/v1">
+                <name>{name}</name>
+                <SSIDConfig>
+                    <SSID>
+                        <hex>{hex}</hex>
+                        <name>{name}</name>
+                    </SSID>
+                </SSIDConfig>
+                <connectionType>ESS</connectionType>
+                <connectionMode>auto</connectionMode>
+                <MSM>
+                    <security>
+                        <authEncryption>
+                            <authentication>{authentication}</authentication>
+                            <encryption>{encryption}</encryption>
+                            <useOneX>false</useOneX>
+                        </authEncryption>
+            {sharedKey}
+                    </security>
+                </MSM>
+            </WLANProfile>
+            """;
+    }
+}
 
 public sealed class WifiService
 {
@@ -89,13 +231,16 @@ public sealed class WifiService
                 }
 
                 var profile = NullIfEmpty(network.ProfileName);
+                var (security, cipher) = WifiProfileBuilder.Classify(network.DefaultAuthAlgorithm, network.DefaultCipherAlgorithm);
                 networks.Add(new WifiNetwork(
                     ssid,
                     profile,
                     (int)Math.Clamp(network.SignalQuality, 0u, 100u),
                     network.SecurityEnabled,
                     (network.Flags & AvailableNetworkConnectedFlag) != 0,
-                    network.NetworkConnectable && !string.IsNullOrWhiteSpace(profile)));
+                    network.NetworkConnectable && !string.IsNullOrWhiteSpace(profile),
+                    security,
+                    cipher));
             }
 
             return networks
@@ -142,6 +287,71 @@ public sealed class WifiService
         finally
         {
             Marshal.FreeHGlobal(profilePointer);
+        }
+    }
+
+    /// <summary>
+    /// Joins a network Windows has no profile for: saves a profile built from the password,
+    /// connects, and waits for Windows to confirm. If the connection does not come up (usually a
+    /// wrong password) the new profile is removed again, so a mistake never leaves a broken saved
+    /// network behind.
+    /// </summary>
+    public async Task<WifiJoinResult> JoinAsync(WifiNetwork network, string? password, CancellationToken cancellationToken = default)
+    {
+        if (!WifiProfileBuilder.IsSupported(network.Security))
+        {
+            return new WifiJoinResult(false, network.Security == WifiSecurity.Enterprise
+                ? $"{network.Ssid} is a work or school (enterprise) network. Join it once from Windows Settings; Grev Home will then connect to it."
+                : $"{network.Ssid} uses {WifiProfileBuilder.Describe(network.Security)} security, which Grev Home can't set up. Use Windows Settings for this network.");
+        }
+        var passwordError = WifiProfileBuilder.ValidatePassword(network.Security, password);
+        if (passwordError is not null) return new WifiJoinResult(false, passwordError);
+
+        var xml = WifiProfileBuilder.BuildProfileXml(network.Ssid, network.Security, network.Cipher, password);
+        await Task.Run(() => SetProfile(xml), cancellationToken);
+        await Task.Run(() => ConnectSavedProfile(network.Ssid), cancellationToken);
+
+        var deadline = DateTime.UtcNow.AddSeconds(25);
+        while (DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(1000, cancellationToken);
+            var status = await Task.Run(GetStatus, cancellationToken);
+            if (status.IsConnected && string.Equals(status.Ssid, network.Ssid, StringComparison.Ordinal))
+                return new WifiJoinResult(true, $"Connected to {network.Ssid}.");
+        }
+
+        await Task.Run(() => DeleteProfile(network.Ssid), CancellationToken.None);
+        return new WifiJoinResult(false, network.NeedsPassword
+            ? $"Couldn't connect to {network.Ssid}. Check the password and try again."
+            : $"Couldn't connect to {network.Ssid}. Move closer to the router and try again.");
+    }
+
+    private static void SetProfile(string profileXml)
+    {
+        using var client = OpenClient();
+        var selected = SelectInterface(client.Handle);
+        var interfaceGuid = selected.InterfaceGuid;
+        var error = WlanSetProfile(client.Handle, ref interfaceGuid, 0, profileXml, null, true, IntPtr.Zero, out var reason);
+        if (error != 0)
+        {
+            throw new InvalidOperationException(reason != 0
+                ? $"Windows refused the Wi-Fi settings (reason {reason})."
+                : new Win32Exception((int)error).Message);
+        }
+    }
+
+    private static void DeleteProfile(string profileName)
+    {
+        try
+        {
+            using var client = OpenClient();
+            var selected = SelectInterface(client.Handle);
+            var interfaceGuid = selected.InterfaceGuid;
+            WlanDeleteProfile(client.Handle, ref interfaceGuid, profileName, IntPtr.Zero);
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            // Best effort: a stale profile only means Windows retries a wrong password later.
         }
     }
 
@@ -425,4 +635,22 @@ public sealed class WifiService
 
     [DllImport("wlanapi.dll")]
     private static extern void WlanFreeMemory(IntPtr memory);
+
+    [DllImport("wlanapi.dll", CharSet = CharSet.Unicode)]
+    private static extern uint WlanSetProfile(
+        IntPtr clientHandle,
+        ref Guid interfaceGuid,
+        uint flags,
+        string profileXml,
+        string? allUserProfileSecurity,
+        [MarshalAs(UnmanagedType.Bool)] bool overwrite,
+        IntPtr reserved,
+        out uint reasonCode);
+
+    [DllImport("wlanapi.dll", CharSet = CharSet.Unicode)]
+    private static extern uint WlanDeleteProfile(
+        IntPtr clientHandle,
+        ref Guid interfaceGuid,
+        string profileName,
+        IntPtr reserved);
 }

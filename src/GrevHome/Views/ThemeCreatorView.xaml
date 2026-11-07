@@ -7,7 +7,7 @@
         <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
             <StackPanel Margin="72,38" MaxWidth="1040">
                 <TextBlock Text="Theme Creator" FontSize="40" FontWeight="SemiBold" />
-                <TextBlock Text="Themes recolor the whole Grev Home shell - buttons, tiles, cards and role badges. Editing previews live on this page and everywhere else in the shell; nothing is kept unless you save it."
+                <TextBlock Text="A theme is the whole look of Grev Home: every colour, the font and background, and how Home is laid out - console-style rows, tabs, blades or grids, tile shape, size and spacing. Start from any style below (including the PS, Xbox, Wii and Switch styles), change anything, then Save as New Theme to make it your own. Edits preview live; nothing is kept unless you save."
                            Margin="0,6,0,22"
                            Foreground="{DynamicResource MutedBrush}"
                            TextWrapping="Wrap" />
@@ -23,7 +23,7 @@
                     </StackPanel>
                 </Border>
 
-                <TextBlock Text="YOUR THEMES" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
+                <TextBlock Text="STYLES &amp; YOUR THEMES" FontSize="13" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
                 <WrapPanel x:Name="ThemeGalleryPanel" Margin="0,8,0,22" />
 
                 <Border Padding="24" Background="{DynamicResource CardBackgroundBrush}" BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1" CornerRadius="16">
@@ -38,6 +38,26 @@
                             <Button Grid.Column="1" Content="Rename" MinWidth="150" Margin="10,0,0,0" Click="RenameTheme_Click" />
                         </Grid>
 
+                        <TextBlock Text="HOME LAYOUT" Margin="0,0,0,8" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
+                        <Grid Margin="0,0,0,20">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <WrapPanel x:Name="LayoutOptionsPanel" />
+                            <Border x:Name="LayoutPreviewHost"
+                                    Grid.Column="1"
+                                    Width="384"
+                                    Height="216"
+                                    Margin="16,0,0,0"
+                                    VerticalAlignment="Top"
+                                    CornerRadius="10"
+                                    ClipToBounds="True"
+                                    BorderBrush="{DynamicResource CardBorderBrush}"
+                                    BorderThickness="1" />
+                        </Grid>
+
+                        <TextBlock Text="COLOURS" Margin="0,0,0,8" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />
                         <WrapPanel x:Name="ColorFieldsPanel" />
 
                         <TextBlock Text="LIVE PREVIEW" Margin="0,20,0,8" FontSize="11" FontWeight="Bold" Foreground="{DynamicResource MutedBrush}" />

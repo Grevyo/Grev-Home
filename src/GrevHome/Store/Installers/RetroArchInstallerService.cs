@@ -370,6 +370,7 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
         var configPath = Path.Combine(appDataRoot, "retroarch.cfg");
         if (File.Exists(configPath))
         {
+            EnsureConfigValue(configPath, "input_menu_toggle_gamepad_combo", MenuToggleCombo);
             return;
         }
 
@@ -384,10 +385,29 @@ public sealed class RetroArchInstallerService : ITrustedPackageInstaller, ITrust
             .AppendLine($"content_directory = \"{EscapeConfigPath(gamesRoot)}\"")
             .AppendLine($"system_directory = \"{EscapeConfigPath(biosRoot)}\"")
             .AppendLine("config_save_on_exit = \"true\"")
+            .AppendLine("input_autodetect_enable = \"true\"")
+            .AppendLine($"input_menu_toggle_gamepad_combo = \"{MenuToggleCombo}\"")
             .AppendLine("video_fullscreen = \"true\"")
             .ToString();
 
         File.WriteAllText(configPath, config, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+    }
+
+    // L3 + R3 opens RetroArch's quick menu (save states, core options) from the pad. Grev Home's
+    // own shortcuts use LB + RB + View/Menu, so the two never overlap. RetroArch numbers its
+    // combos; 2 is "L3 + R3".
+    private const string MenuToggleCombo = "2";
+
+    /// <summary>Adds a key to an existing retroarch.cfg only when it is not set at all.</summary>
+    private static void EnsureConfigValue(string configPath, string key, string value)
+    {
+        var lines = File.ReadAllLines(configPath);
+        if (lines.Any(line => line.TrimStart().StartsWith(key + " ", StringComparison.Ordinal) ||
+                              line.TrimStart().StartsWith(key + "=", StringComparison.Ordinal)))
+        {
+            return;
+        }
+        File.AppendAllText(configPath, $"{key} = \"{value}\"{Environment.NewLine}", new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
     }
 
     private void PreserveLegacyBinaryConfig(string binaryRoot, string grevId)

@@ -53,12 +53,15 @@ internal sealed record GrevDadSyncApiResponse(
 // grev.dad's own JSON uses ('text','link','media','stat', ...), not the C# enum names - _json is
 // JsonDefaults.IndentedWeb, which has no string-enum converter, so ProfileTileKind etc. are mapped
 // to/from these strings by hand in ToWireTile/FromWireTile rather than serialized directly.
-internal sealed record GrevDadProfileTileWire(
+public sealed record GrevDadProfileTileWire(
     string TileId, string TileType, int X, int Y, int Width, int Height,
     string? Title, string? Body, string? LinkLabel, string? LinkUrl, string? StatValue,
     string BackgroundType, string BackgroundPrimary, string BackgroundSecondary, int BackgroundAngle,
     string? BackgroundMedia, string MediaFit, string MediaOverlay,
-    string TextColour, string BorderColour, string FontFamily);
+    string TextColour, string BorderColour, string FontFamily,
+    string? Widget = null, GrevDadWidgetConfigWire? WidgetConfig = null);
+
+public sealed record GrevDadWidgetConfigWire(int? Count = null);
 
 internal sealed record GrevDadProfileTilesResponse(
     bool Ok, string? Message, int ApiVersion, IReadOnlyList<GrevDadProfileTileWire>? Tiles, long? UpdatedAt);
@@ -347,14 +350,16 @@ public sealed class GrevDadProfileSyncService : IDisposable
         return payload;
     }
 
-    private static GrevDadProfileTileWire ToWireTile(ProfileTile tile, string? backgroundMediaDataUrl) => new(
+    internal static GrevDadProfileTileWire ToWireTile(ProfileTile tile, string? backgroundMediaDataUrl) => new(
         tile.TileId, tile.Kind.ToString().ToLowerInvariant(), tile.X, tile.Y, tile.Width, tile.Height,
         tile.Title, tile.Body, tile.LinkLabel, tile.LinkUrl, tile.StatValue,
         tile.BackgroundType.ToString().ToLowerInvariant(), tile.BackgroundPrimary, tile.BackgroundSecondary, tile.BackgroundAngle,
         backgroundMediaDataUrl, tile.MediaFit.ToString().ToLowerInvariant(), tile.MediaOverlay.ToString().ToLowerInvariant(),
-        tile.TextColour, tile.BorderColour, tile.FontFamily.ToString().ToLowerInvariant());
+        tile.TextColour, tile.BorderColour, tile.FontFamily.ToString().ToLowerInvariant(),
+        tile.Widget is { } widget ? ProfileWidgets.ToWire(widget) : null,
+        tile.Widget is null ? null : new GrevDadWidgetConfigWire(tile.WidgetCount));
 
-    private static ProfileTile FromWireTile(GrevDadProfileTileWire wire, string? backgroundMediaFile) => new(
+    internal static ProfileTile FromWireTile(GrevDadProfileTileWire wire, string? backgroundMediaFile) => new(
         wire.TileId,
         Enum.Parse<ProfileTileKind>(wire.TileType, ignoreCase: true),
         wire.X, wire.Y, wire.Width, wire.Height,
@@ -365,7 +370,9 @@ public sealed class GrevDadProfileSyncService : IDisposable
         Enum.Parse<ProfileTileMediaFit>(wire.MediaFit, ignoreCase: true),
         Enum.Parse<ProfileTileMediaOverlay>(wire.MediaOverlay, ignoreCase: true),
         wire.TextColour, wire.BorderColour,
-        Enum.Parse<ProfileTileFontFamily>(wire.FontFamily, ignoreCase: true));
+        Enum.Parse<ProfileTileFontFamily>(wire.FontFamily, ignoreCase: true),
+        ProfileWidgets.FromWire(wire.Widget),
+        ProfileWidgets.FromWire(wire.Widget) is null ? null : wire.WidgetConfig?.Count);
 
     private async Task<GrevDadSyncApiResponse> SendBatchAsync(
         string grevId,

@@ -8,17 +8,12 @@
         ResizeMode="NoResize"
         WindowState="Maximized"
         Background="{DynamicResource WindowBackgroundBrush}"
-        Foreground="White"
+        Foreground="{DynamicResource TextBrush}"
+        FontFamily="{DynamicResource ShellFontFamily}"
         Loaded="Window_HeaderNavigationLoaded"
         PreviewKeyDown="Window_PreviewKeyDown"
         Closing="Window_Closing">
-    <Grid KeyboardNavigation.DirectionalNavigation="Continue">
-        <Grid.Background>
-            <RadialGradientBrush Center="0.45,0.25" GradientOrigin="0.45,0.25" RadiusX="0.9" RadiusY="0.9">
-                <GradientStop Color="#182137" Offset="0" />
-                <GradientStop Color="{DynamicResource WindowBackgroundColor}" Offset="1" />
-            </RadialGradientBrush>
-        </Grid.Background>
+    <Grid KeyboardNavigation.DirectionalNavigation="Continue" Background="{DynamicResource ShellBackgroundBrush}">
 
         <Image x:Name="DashboardArtworkBackground"
                IsHitTestVisible="False"
@@ -45,8 +40,8 @@
             </Grid.RowDefinitions>
 
             <Border Grid.Row="0"
-                    Background="#D90B0F17"
-                    BorderBrush="#263044"
+                    Background="{DynamicResource HeaderBackgroundBrush}"
+                    BorderBrush="{DynamicResource CardBorderBrush}"
                     BorderThickness="0,0,0,1">
                 <Grid Margin="28,0" KeyboardNavigation.DirectionalNavigation="Continue">
                     <Grid.ColumnDefinitions>

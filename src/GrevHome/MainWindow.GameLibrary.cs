@@ -3,6 +3,7 @@ using System.IO;
 using System.Windows;
 using GrevHome.Games;
 using GrevHome.Navigation;
+using GrevHome.Profiles;
 using GrevHome.Views;
 
 namespace GrevHome;
@@ -34,6 +35,7 @@ public partial class MainWindow
 
         _gameLibraryIntegrationReady = true;
         _gameLibraryService = new GameLibraryService(_paths);
+        _grevDad.ResolveSaveAppIdAsync = ResolveSaveAppIdAsync;
         _installedLibraryView.InitializeGameLibraryUi();
 
         _installedLibraryView.AddGameRequested += (_, _) => OpenGameAdd();
@@ -50,6 +52,7 @@ public partial class MainWindow
         _dashboardView.GameRequested += game => _ = LaunchGameAsync(game);
 
         _gameSettingsView.BackRequested += (_, _) => _navigation.GoBack();
+        _gameSettingsView.FavouriteToggleRequested += (_, _) => _ = ToggleGameFavouriteAsync();
         _gameSettingsView.SaveNameRequested += name => _ = SaveGameNameAsync(name);
         _gameSettingsView.ChooseIconRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.Icon);
         _gameSettingsView.ChooseTileRequested += (_, _) => OpenGameArtworkPicker(GameVisualAssetSlot.TileMedia);
@@ -139,6 +142,44 @@ public partial class MainWindow
             primary.DisplayName,
             primary.GrevId,
             _gameLibraryService?.GetReusableIcons(primary.GrevId) ?? Array.Empty<string>());
+        _gameSettingsView.SetFavourite(false);
+        _ = LoadGameFavouriteAsync(primary.GrevId, _gameSettingsEntry.GameId);
+    }
+
+    private async Task LoadGameFavouriteAsync(string grevId, string gameId)
+    {
+        try
+        {
+            var isFavourite = await _grevDad.FavouriteGames.IsFavouriteAsync(grevId, FavouriteGameService.KeyForLibraryGame(gameId));
+            if (_gameSettingsEntry?.GameId == gameId && _session.PrimaryUser?.GrevId == grevId) _gameSettingsView.SetFavourite(isFavourite);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+        }
+    }
+
+    /// <summary>Stars or unstars the game for the profile's Favourite games widget (synced with
+    /// grev.dad for a linked profile, kept locally otherwise).</summary>
+    private async Task ToggleGameFavouriteAsync()
+    {
+        var primary = _session.PrimaryUser;
+        var game = _gameSettingsEntry;
+        if (primary?.GrevId is null || game is null) return;
+        try
+        {
+            var favourite = new FavouriteGame(
+                FavouriteGameService.KeyForLibraryGame(game.GameId),
+                game.DisplayName,
+                GameLibraryService.GetPlatformDisplayName(game.Platform),
+                ContentId: game.GameId);
+            var isFavourite = await _grevDad.ToggleFavouriteGameAsync(primary.GrevId, favourite);
+            _gameSettingsView.SetFavourite(isFavourite);
+            _gameSettingsView.ShowStatus(isFavourite ? $"{game.DisplayName} added to your favourite games." : $"{game.DisplayName} removed from your favourite games.");
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        {
+            _gameSettingsView.ShowStatus(ex.Message);
+        }
     }
 
     private async Task SaveGameNameAsync(string displayName)
@@ -502,10 +543,12 @@ public partial class MainWindow
         {
             var installedApps = await _installedApps.GetInstalledForUserAsync(primary.GrevId);
             var runtimeEntry = _gameLaunchResolver.Resolve(game, installedApps, primary.GrevId);
-            await PrepareCloudSaveForLaunchAsync(
-                primary.GrevId,
-                runtimeEntry.Manifest.Definition.AppId,
-                runtimeEntry.Manifest.Definition.Name);
+            // The game runs under its own GameId, but its saves live in the emulator's folders,
+            // so the cloud-save gate uses the emulator's setting.
+            var hostAppId = GameLaunchResolver.GetHostAppId(game.Platform);
+            var hostName = installedApps.FirstOrDefault(entry =>
+                string.Equals(entry.Manifest.Definition.AppId, hostAppId, StringComparison.OrdinalIgnoreCase))?.Manifest.Definition.Name ?? hostAppId;
+            await PrepareCloudSaveForLaunchAsync(primary.GrevId, hostAppId, hostName);
             // A directly launched game owns the console surface for its complete emulator
             // lifetime. Emulator setup/file dialogs can temporarily hide their main window;
             // that must never be mistaken for the game ending or minimizing to the tray.
@@ -534,6 +577,25 @@ public partial class MainWindow
         else
         {
             _installedLibraryView.ShowLaunchError(message);
+        }
+    }
+
+    /// <summary>
+    /// Maps a finished session's AppId to the app that owns its save data: a library game maps to
+    /// its emulator, anything else is already an app.
+    /// </summary>
+    private async Task<string> ResolveSaveAppIdAsync(string grevId, string appId)
+    {
+        if (_gameLibraryService is not { } library) return appId;
+        try
+        {
+            var game = (await library.GetForProfileAsync(grevId))
+                .FirstOrDefault(entry => string.Equals(entry.GameId, appId, StringComparison.OrdinalIgnoreCase));
+            return game is null ? appId : GameLaunchResolver.GetHostAppId(game.Platform);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException)
+        {
+            return appId;
         }
     }
 }

@@ -17,6 +17,12 @@ public partial class MainWindow
     private bool _themeEditingDraftIsSaved;
     private bool _themeCreatorReady;
     private string? _themeImportPath;
+    // True while the Theme Creator may be showing an unsaved live preview. Cleared once the real
+    // effective theme has been re-applied after leaving the creator by any route.
+    private bool _themePreviewActive;
+    // Set when the creator opens its own file picker, so returning from it keeps the current
+    // draft (an import, or unsaved edits) instead of reloading the saved theme over it.
+    private bool _themeCreatorResumeDraft;
 
     private void InitializeThemeCreatorIntegration()
     {
@@ -49,24 +55,43 @@ public partial class MainWindow
 
         _navigation.RouteChanged += route =>
         {
-            if (route == Route.ThemeCreator) { RouteHost.Content = _themeCreatorView; _ = OpenThemeCreatorAsync(); }
-            else if (route == Route.ThemeFilePicker) RouteHost.Content = _themeFilePickerView;
+            if (route == Route.ThemeCreator)
+            {
+                RouteHost.Content = _themeCreatorView;
+                _themePreviewActive = true;
+                if (_themeCreatorResumeDraft)
+                {
+                    _themeCreatorResumeDraft = false;
+                    RenderThemeCreator();
+                }
+                else
+                {
+                    _ = OpenThemeCreatorAsync();
+                }
+            }
+            else if (route == Route.ThemeFilePicker)
+            {
+                RouteHost.Content = _themeFilePickerView;
+            }
+            else if (_themePreviewActive)
+            {
+                // Back, B, Return Home or any other way out: nothing unsaved stays on screen.
+                _themePreviewActive = false;
+                _themeCreatorResumeDraft = false;
+                _ = ApplyEffectiveThemeAsync();
+            }
         };
     }
 
     private void OpenThemeCreator()
     {
+        _themeCreatorResumeDraft = false;
         _navigation.Navigate(Route.ThemeCreator);
     }
 
-    private void CloseThemeCreator()
-    {
-        // Editing previews live, so anything not explicitly saved is undone here: whatever was
-        // actually active before the Theme Creator opened is re-applied on the way out, exactly
-        // like closing a document without saving.
-        _ = ApplyEffectiveThemeAsync();
-        _navigation.GoBack();
-    }
+    // Editing previews live, so anything not explicitly saved is undone when the creator is left;
+    // the route handler re-applies the real effective theme for every way out, not just this one.
+    private void CloseThemeCreator() => _navigation.GoBack();
 
     private async Task OpenThemeCreatorAsync()
     {
@@ -88,7 +113,7 @@ public partial class MainWindow
         _themeMachineScope = false;
         var active = ResolveEditingActive(service);
         _themeEditingDraft = active;
-        _themeEditingDraftIsSaved = !active.IsBuiltIn;
+        _themeEditingDraftIsSaved = IsSavedInCurrentScope(active);
         RenderThemeCreator();
     }
 
@@ -111,8 +136,7 @@ public partial class MainWindow
             _themeCreatorView.ShowStatus("This theme scope is no longer available to the current Primary User.");
             return;
         }
-        var state = CurrentThemeState;
-        var theme = service.ResolveAll(state).FirstOrDefault(candidate => string.Equals(candidate.Id, themeId, StringComparison.OrdinalIgnoreCase));
+        var theme = CurrentScopeThemes(service).FirstOrDefault(candidate => string.Equals(candidate.Id, themeId, StringComparison.OrdinalIgnoreCase));
         if (theme is null) return;
 
         try
@@ -123,7 +147,7 @@ public partial class MainWindow
             else _profileThemeState = _profileThemeState with { ActiveThemeId = theme.Id };
             ThemeApplier.Apply(theme);
             _themeEditingDraft = theme;
-            _themeEditingDraftIsSaved = !theme.IsBuiltIn;
+            _themeEditingDraftIsSaved = IsSavedInCurrentScope(theme);
             RenderThemeCreator();
             _themeCreatorView.ShowStatus($"{theme.Name} is now the active theme.");
         }
@@ -196,7 +220,7 @@ public partial class MainWindow
             var active = ResolveEditingActive(service);
             ThemeApplier.Apply(active);
             _themeEditingDraft = active;
-            _themeEditingDraftIsSaved = !active.IsBuiltIn;
+            _themeEditingDraftIsSaved = IsSavedInCurrentScope(active);
             RenderThemeCreator();
             _themeCreatorView.ShowStatus("Theme deleted.");
         }
@@ -212,7 +236,7 @@ public partial class MainWindow
         if (service is null) return;
         _themeCreatorView.SetEditing(_themeEditingDraft);
         var state = CurrentThemeState;
-        _themeCreatorView.SetGallery(service.ResolveAll(state), state.ActiveThemeId ?? string.Empty, _themeEditingDraft.Id);
+        _themeCreatorView.SetGallery(CurrentScopeThemes(service), state.ActiveThemeId ?? string.Empty, _themeEditingDraft.Id);
         var canManageMachine = CanUseAdminConsole();
         _themeCreatorView.SetScope(_themeMachineScope, canManageMachine, !_themeMachineScope && state.ActiveThemeId is null);
         var canEditScope = _themeMachineScope ? canManageMachine : CurrentThemeOwnerGrevId is not null;
@@ -240,6 +264,7 @@ public partial class MainWindow
 
     private void OpenThemeFilePicker()
     {
+        _themeCreatorResumeDraft = true;
         _themeImportPath = null;
         ShowThemeFilePickerHome();
         _navigation.Navigate(Route.ThemeFilePicker);
@@ -302,6 +327,17 @@ public partial class MainWindow
     }
 
     private ThemeState CurrentThemeState => _themeMachineScope ? _machineThemeState : _profileThemeState;
+
+    // Profiles can also pick the Admin's machine custom themes; the machine scope lists its own.
+    private IReadOnlyList<ThemeDefinition> CurrentScopeThemes(ThemeService service) => _themeMachineScope
+        ? service.ResolveAll(_machineThemeState)
+        : service.ResolveAllForProfile(_profileThemeState, _machineThemeState);
+
+    // Save-in-place and Delete only apply to a custom theme stored in the scope being edited, never
+    // to a built-in or (from a profile) to one of the Admin's machine themes.
+    private bool IsSavedInCurrentScope(ThemeDefinition theme) =>
+        !theme.IsBuiltIn && CurrentThemeState.CustomThemes.Any(custom =>
+            string.Equals(custom.Id, theme.Id, StringComparison.OrdinalIgnoreCase));
     private string? CurrentThemeOwnerGrevId => _themeMachineScope ? null : _session.PrimaryUser?.GrevId;
     private bool CanEditCurrentThemeScope() => _themeMachineScope ? CanUseAdminConsole() : CurrentThemeOwnerGrevId is not null;
 
@@ -338,7 +374,7 @@ public partial class MainWindow
         if (service is null) return;
         var active = ResolveEditingActive(service);
         _themeEditingDraft = active;
-        _themeEditingDraftIsSaved = !active.IsBuiltIn;
+        _themeEditingDraftIsSaved = IsSavedInCurrentScope(active);
         RenderThemeCreator();
         _themeCreatorView.ShowStatus(_themeMachineScope
             ? "Editing the Admin-owned machine default."

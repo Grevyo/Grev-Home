@@ -18,13 +18,14 @@ namespace GrevHome.Presentation;
 public static class ShellTileMotion
 {
     private const double RestScale = 1d;
-    private const double ActiveScale = 1.045;
+    private static double ActiveScale = 1.045;
     private const double PressScale = .975;
     private const double ActiveLift = -5d;
     private const double GlowBlur = 26d;
     private const double GlowOpacity = .62;
 
-    private static readonly Color GlowColor = Color.FromRgb(0x7E, 0xA6, 0xFF);
+    private static Color GlowColor = Color.FromRgb(0x7E, 0xA6, 0xFF);
+    private static bool _glowEnabled = true;
     private static ShellMotionSettings _settings = new();
 
     /// <summary>
@@ -33,6 +34,17 @@ public static class ShellTileMotion
     /// is started while the setting is off.
     /// </summary>
     public static void Configure(ShellMotionSettings settings) => _settings = settings;
+
+    /// <summary>
+    /// The active theme's focus style: how far a focused tile grows, its glow colour (the theme's
+    /// accent) and whether it glows at all. Motion settings can still turn motion off entirely.
+    /// </summary>
+    public static void ConfigureFocus(double activeScale, Color glowColor, bool glowEnabled)
+    {
+        ActiveScale = Math.Clamp(activeScale, 1, 1.2);
+        GlowColor = glowColor;
+        _glowEnabled = glowEnabled;
+    }
 
     private static double SpeedFactor => _settings.AnimationSpeed switch
     {
@@ -81,7 +93,8 @@ public static class ShellTileMotion
         var hovered = button.IsMouseOver && _settings.TileHoverEffectsEnabled;
         var focused = button.IsKeyboardFocused && _settings.TileFocusAnimationEnabled;
         var active = button.IsEnabled && (hovered || focused);
-        Apply(button, active ? ActiveScale : RestScale, active ? ActiveLift : 0, active);
+        var moves = ActiveScale > 1.0001;
+        Apply(button, active && moves ? ActiveScale : RestScale, active && moves ? ActiveLift : 0, active && _glowEnabled);
     }
 
     /// <summary>
@@ -218,6 +231,7 @@ public static class ShellTileMotion
                 };
                 button.Effect = effect;
             }
+            effect.Color = GlowColor;
             effect.BeginAnimation(DropShadowEffect.BlurRadiusProperty, new DoubleAnimation(GlowBlur, duration) { EasingFunction = easing });
             effect.BeginAnimation(DropShadowEffect.OpacityProperty, new DoubleAnimation(GlowOpacity, duration) { EasingFunction = easing });
             return;

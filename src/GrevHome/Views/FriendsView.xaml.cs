@@ -10,6 +10,7 @@ namespace GrevHome.Views;
 public partial class FriendsView : UserControl
 {
     private string? _friendCode;
+    private IReadOnlySet<string> _bestFriends = new HashSet<string>();
     private readonly Dictionary<string, Button> _friendButtons = new();
     public event EventHandler? BackRequested;
     public event EventHandler? RefreshRequested;
@@ -26,14 +27,16 @@ public partial class FriendsView : UserControl
     }
 
     public void SetFriends(string accountName, string? friendCode, IReadOnlyList<GrevDadFriend> friends,
-        GrevDadFriendRequestsSnapshot requests, bool offline, GrevDadFriend? self = null)
+        GrevDadFriendRequestsSnapshot requests, bool offline, GrevDadFriend? self = null, IReadOnlySet<string>? bestFriends = null)
     {
+        _bestFriends = bestFriends ?? new HashSet<string>();
         _friendCode = friendCode;
         FriendCodeText.Text = string.IsNullOrWhiteSpace(friendCode) ? "Generating…" : friendCode;
         ContextText.Text = offline ? $"{accountName} • Grev.dad offline • showing cached friends" : $"{accountName} • Grev.dad connected";
         FriendsPanel.Children.Clear();
         _friendButtons.Clear();
-        foreach (var friend in friends.OrderByDescending(item => item.Presence.Availability != "offline").ThenByDescending(item => item.Presence.UpdatedAtUtc).ThenBy(item => item.DisplayName))
+        // Best friends first, then whoever is online.
+        foreach (var friend in friends.OrderByDescending(item => _bestFriends.Contains(item.UserId)).ThenByDescending(item => item.Presence.Availability != "offline").ThenByDescending(item => item.Presence.UpdatedAtUtc).ThenBy(item => item.DisplayName))
         {
             var button = CreateFriendCard(friend);
             _friendButtons[friend.UserId] = button;
@@ -50,14 +53,19 @@ public partial class FriendsView : UserControl
         StatusText.Text = string.Empty;
     }
 
-    public Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false) => CreateFriendCard(friend, this, selected => FriendSelected?.Invoke(selected), isSelf);
+    public Button CreateFriendCard(GrevDadFriend friend, bool isSelf = false) =>
+        CreateFriendCard(friend, this, selected => FriendSelected?.Invoke(selected), isSelf, !isSelf && _bestFriends.Contains(friend.UserId));
 
-    public static Button CreateFriendCard(GrevDadFriend friend, FrameworkElement resources, Action<GrevDadFriend> selected, bool isSelf = false)
+    /// <summary>The mini profile card used in friends lists: avatar, name, headline, what they are
+    /// playing, a short bio and the stats they chose to share, on their card artwork.</summary>
+    public static Button CreateFriendCard(GrevDadFriend friend, FrameworkElement resources, Action<GrevDadFriend> selected, bool isSelf = false, bool isBestFriend = false)
     {
         var card = friend.PublicCard ?? new GrevDadPublicCard();
         var details = string.IsNullOrWhiteSpace(friend.Presence.ActivityText)
             ? (string.IsNullOrWhiteSpace(card.StatusMessage) ? friend.Presence.Availability : card.StatusMessage)
-            : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
+            : friend.Presence.ActivityType == "playing"
+                ? $"🎮 Playing {friend.Presence.ActivityText}"
+                : $"{friend.Presence.Availability} • {friend.Presence.ActivityText}";
         var frameThickness = card.Frame == "clean" ? new Thickness(0) : card.Frame == "double" ? new Thickness(5) : new Thickness(2);
 
         // Background/BorderBrush/etc. live in a Style (based on SharpTileButtonStyle) rather than as
@@ -84,7 +92,7 @@ public partial class FriendsView : UserControl
         var nameStack = new StackPanel { Margin = new Thickness(10, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         nameStack.Children.Add(new TextBlock
         {
-            Text = isSelf ? $"{friend.DisplayName}  •  YOUR PREVIEW" : friend.DisplayName,
+            Text = isSelf ? $"{friend.DisplayName}  •  YOUR PREVIEW" : isBestFriend ? $"★ {friend.DisplayName}" : friend.DisplayName,
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
             TextTrimming = TextTrimming.CharacterEllipsis
@@ -98,6 +106,18 @@ public partial class FriendsView : UserControl
                 FontWeight = FontWeights.Bold,
                 Foreground = (Brush)resources.FindResource("AccentBrush"),
                 Margin = new Thickness(0, 2, 0, 0)
+            });
+        }
+
+        if (!string.IsNullOrWhiteSpace(card.Headline))
+        {
+            nameStack.Children.Add(new TextBlock
+            {
+                Text = card.Headline,
+                FontSize = 12,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 2, 0, 0),
+                TextTrimming = TextTrimming.CharacterEllipsis
             });
         }
 

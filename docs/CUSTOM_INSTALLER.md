@@ -12,7 +12,11 @@ The source assets live in `installer/Launcher/Assets` and are compiled into the 
 
 ## Input
 
-Every action is available by mouse and keyboard. XInput controllers support D-pad or left-stick focus movement, A to select, and B to go back. Focus remains visibly outlined throughout the flow.
+Every action is available by mouse and keyboard. XInput controllers in any of the four slots support D-pad or left-stick focus movement, A to select, and B to go back. Focus remains visibly outlined throughout the flow.
+
+Nothing in the flow opens a Windows dialog a controller cannot operate: validation messages appear inline above the navigation bar, and "Use my existing folder" opens Grev Home's own folder browser (drives, then folders, as focusable buttons, with Up a level / Cancel / Use this folder).
+
+Launching and updating use the folder Grev Home is actually installed in, read from Inno Setup's uninstall registration, with `C:\GrevCo\GrevHome` only as the fallback.
 
 ## Setup choices
 

@@ -13,8 +13,18 @@ public partial class ProfileTileEditorView : UserControl
 {
     private const int CellSize = 56;
     private const int CellGap = 4;
-    private static readonly ProfileTileKind[] AddKinds =
-        [ProfileTileKind.Text, ProfileTileKind.Link, ProfileTileKind.Media, ProfileTileKind.Stat];
+    private sealed record TileChoice(string Label, ProfileTileKind Kind, ProfileWidgetKind? Widget = null);
+
+    // The four plain tile types, then every live widget, in one controller-cyclable list.
+    private static readonly TileChoice[] AddChoices =
+    [
+        new("Text", ProfileTileKind.Text),
+        new("Link", ProfileTileKind.Link),
+        new("Picture / GIF", ProfileTileKind.Media),
+        new("Stat", ProfileTileKind.Stat),
+        .. ProfileWidgets.All.Select(info => new TileChoice($"{info.Label} widget", ProfileTileKind.Text, info.Kind))
+    ];
+    private static readonly int FirstWidgetChoice = 4;
     private static readonly string[] ColourPresets =
         ["#11161d", "#3157c9", "#f4f7fb", "#394657", "#d4a72c", "#7c3aed", "#dc2626", "#059669", "#000000", "#ffffff"];
 
@@ -39,7 +49,7 @@ public partial class ProfileTileEditorView : UserControl
         Loaded += (_, _) => Focus();
     }
 
-    public void Load(IReadOnlyList<ProfileTile> tiles, string? mediaRoot = null)
+    public void Load(IReadOnlyList<ProfileTile> tiles, string? mediaRoot = null, ProfileTile? cardSlot = null)
     {
         _choosingAddKind = false;
         _addKindIndex = 0;
@@ -47,7 +57,7 @@ public partial class ProfileTileEditorView : UserControl
         _settingsIndex = 0;
         _pendingKeyboardField = null;
         _mediaRoot = mediaRoot;
-        _editor = new ProfileTileGridEditor(tiles);
+        _editor = new ProfileTileGridEditor(tiles, cardSlot);
         Render();
     }
 
@@ -61,15 +71,15 @@ public partial class ProfileTileEditorView : UserControl
             switch (action)
             {
                 case InputAction.Left or InputAction.Up:
-                    _addKindIndex = (_addKindIndex + AddKinds.Length - 1) % AddKinds.Length;
+                    _addKindIndex = (_addKindIndex + AddChoices.Length - 1) % AddChoices.Length;
                     Render();
                     return true;
                 case InputAction.Right or InputAction.Down:
-                    _addKindIndex = (_addKindIndex + 1) % AddKinds.Length;
+                    _addKindIndex = (_addKindIndex + 1) % AddChoices.Length;
                     Render();
                     return true;
                 case InputAction.Accept:
-                    AddTile(AddKinds[_addKindIndex]);
+                    AddChoice(AddChoices[_addKindIndex]);
                     _choosingAddKind = false;
                     Render();
                     return true;
@@ -161,6 +171,32 @@ public partial class ProfileTileEditorView : UserControl
         Render();
     }
 
+    /// <summary>"Live Widget": opens the add chooser on the first widget, so D-Pad picks which.</summary>
+    private void AddWidget_Click(object sender, RoutedEventArgs e)
+    {
+        if (_editor is null) return;
+        _choosingAddKind = true;
+        _addKindIndex = FirstWidgetChoice;
+        Render();
+    }
+
+    private void AddChoice(TileChoice choice)
+    {
+        if (choice.Widget is not { } widget)
+        {
+            AddTile(choice.Kind);
+            return;
+        }
+        if (_editor?.AddWidget(widget) is null)
+        {
+            PromptText.Text = _editor?.Tiles.Count >= ProfileTileGrid.MaxTiles
+                ? $"A profile can have up to {ProfileTileGrid.MaxTiles} tiles."
+                : "There is no free space left for a new tile.";
+            return;
+        }
+        PromptText.Text = $"{ProfileWidgets.Info(widget).Label} added. Move it with the D-Pad and press A to place it.";
+    }
+
     private void AddTile(ProfileTileKind kind)
     {
         if (_editor is null) return;
@@ -250,6 +286,24 @@ public partial class ProfileTileEditorView : UserControl
 
     private static IReadOnlyList<TileSettingsField> GetSettingsFields(ProfileTile tile)
     {
+        if (tile.Widget is { } widget)
+        {
+            var widgetFields = new List<TileSettingsField> { TileSettingsField.Title };
+            if (ProfileWidgets.Info(widget).IsList) widgetFields.Add(TileSettingsField.WidgetCount);
+            widgetFields.AddRange([
+                TileSettingsField.BackgroundType,
+                TileSettingsField.BackgroundPrimary,
+                TileSettingsField.BackgroundSecondary,
+                TileSettingsField.BackgroundAngle,
+                TileSettingsField.Media,
+                TileSettingsField.MediaFit,
+                TileSettingsField.MediaOverlay,
+                TileSettingsField.TextColour,
+                TileSettingsField.BorderColour,
+                TileSettingsField.FontFamily
+            ]);
+            return widgetFields;
+        }
         var fields = new List<TileSettingsField> { TileSettingsField.Title, TileSettingsField.Body };
         if (tile.Kind == ProfileTileKind.Link)
         {
@@ -348,6 +402,12 @@ public partial class ProfileTileEditorView : UserControl
                 break;
             case TileSettingsField.FontFamily:
                 updated = tile with { FontFamily = Cycle(tile.FontFamily, direction) };
+                break;
+            case TileSettingsField.WidgetCount when tile.Widget is { } widget:
+                updated = tile with
+                {
+                    WidgetCount = Math.Clamp(ProfileWidgets.EffectiveCount(widget, tile.WidgetCount) + direction, ProfileWidgets.MinCount, ProfileWidgets.MaxCount)
+                };
                 break;
             default:
                 return;
@@ -471,6 +531,7 @@ public partial class ProfileTileEditorView : UserControl
 
         GridCanvas.Width = ProfileTileGrid.Columns * CellSize;
         GridCanvas.Height = ProfileTileGrid.MaxRows * CellSize;
+        if (_editor.Reserved is { } slot) GridCanvas.Children.Add(CreateCardSlotElement(slot));
         foreach (var tile in _editor.Tiles)
             GridCanvas.Children.Add(CreateTileElement(tile, isActive: tile.TileId == _editor.ActiveTile?.TileId));
         GridCanvas.Children.Add(CreateCursorElement());
@@ -480,8 +541,9 @@ public partial class ProfileTileEditorView : UserControl
 
         if (_choosingAddKind)
         {
-            var selected = AddKinds[_addKindIndex] == ProfileTileKind.Media ? "Picture / GIF" : AddKinds[_addKindIndex].ToString();
-            HintText.Text = $"Choose tile type: {selected}. Use D-Pad/arrow keys to change type.";
+            var choice = AddChoices[_addKindIndex];
+            var hint = choice.Widget is { } widget ? $" {ProfileWidgets.Info(widget).Hint}" : string.Empty;
+            HintText.Text = $"Choose tile type ({_addKindIndex + 1} of {AddChoices.Length}): {choice.Label}.{hint} Use D-Pad/arrow keys to change type.";
             PromptText.Text = IsControllerActive ? "A Add    B Cancel" : "Enter Add    Esc Cancel";
         }
         else if (_editingSettings)
@@ -557,6 +619,18 @@ public partial class ProfileTileEditorView : UserControl
         }
 
         var stack = new StackPanel { Margin = new Thickness(9), VerticalAlignment = VerticalAlignment.Center };
+        if (tile.Widget is { } widget)
+        {
+            stack.Children.Add(new TextBlock
+            {
+                Text = $"◆ {ProfileWidgets.Info(widget).Label.ToUpperInvariant()}",
+                Foreground = foreground,
+                FontSize = 9,
+                FontWeight = FontWeights.Bold,
+                Opacity = 0.75,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            });
+        }
         stack.Children.Add(new TextBlock
         {
             Text = tile.Title ?? (tile.Kind == ProfileTileKind.Media ? "Picture tile" : $"{tile.Kind} tile"),
@@ -636,6 +710,34 @@ public partial class ProfileTileEditorView : UserControl
         _ => "Segoe UI"
     });
 
+    /// <summary>grev.dad's profile card slot, drawn so it is clear why tiles cannot go there.</summary>
+    private static FrameworkElement CreateCardSlotElement(ProfileTile slot)
+    {
+        var border = new Border
+        {
+            Width = slot.Width * CellSize - CellGap,
+            Height = slot.Height * CellSize - CellGap,
+            Background = new SolidColorBrush(Color.FromArgb(60, 49, 87, 201)),
+            BorderBrush = new SolidColorBrush(Color.FromRgb(0x52, 0x60, 0x74)),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            IsHitTestVisible = false,
+            Child = new TextBlock
+            {
+                Text = "PROFILE CARD\nMove it on grev.dad",
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                FontSize = 11,
+                FontWeight = FontWeights.Bold,
+                Opacity = 0.75
+            }
+        };
+        Canvas.SetLeft(border, slot.X * CellSize + CellGap / 2.0);
+        Canvas.SetTop(border, slot.Y * CellSize + CellGap / 2.0);
+        return border;
+    }
+
     private FrameworkElement CreateCursorElement()
     {
         var editor = _editor!;
@@ -675,6 +777,7 @@ public partial class ProfileTileEditorView : UserControl
         TileSettingsField.TextColour => "Text colour",
         TileSettingsField.BorderColour => "Border colour",
         TileSettingsField.FontFamily => "Font",
+        TileSettingsField.WidgetCount => "Items shown",
         _ => field.ToString()
     };
 
@@ -684,6 +787,7 @@ public partial class ProfileTileEditorView : UserControl
         TileSettingsField.BackgroundPrimary or TileSettingsField.BackgroundSecondary or TileSettingsField.TextColour or TileSettingsField.BorderColour => "Left/Right cycles useful presets. Press A to enter any #RRGGBB colour.",
         TileSettingsField.Media => "Press A to choose a PNG, JPG, BMP or animated GIF from Grev Home Files.",
         TileSettingsField.BackgroundAngle => "Left/Right adjusts by 5 degrees.",
+        TileSettingsField.WidgetCount => "Left/Right changes how many games, friends or achievements this widget lists (1 to 12).",
         _ => "Use Left/Right to change this setting."
     };
 
@@ -704,6 +808,7 @@ public partial class ProfileTileEditorView : UserControl
         TileSettingsField.TextColour => tile.TextColour,
         TileSettingsField.BorderColour => tile.BorderColour,
         TileSettingsField.FontFamily => tile.FontFamily.ToString(),
+        TileSettingsField.WidgetCount => tile.Widget is { } kind ? ProfileWidgets.EffectiveCount(kind, tile.WidgetCount).ToString() : "—",
         _ => string.Empty
     };
 
@@ -723,6 +828,7 @@ public partial class ProfileTileEditorView : UserControl
         MediaOverlay,
         TextColour,
         BorderColour,
-        FontFamily
+        FontFamily,
+        WidgetCount
     }
 }

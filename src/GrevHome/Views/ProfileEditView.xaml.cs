@@ -35,7 +35,8 @@ public partial class ProfileEditView : UserControl
         DisplayName,
         StatusMessage,
         Bio,
-        Password
+        Password,
+        RetroAchievements
     }
 
     private LocalProfile? _profile;
@@ -85,6 +86,9 @@ public partial class ProfileEditView : UserControl
                     break;
                 case KeyboardTarget.Password:
                     if (_profile is not null) SetPasswordRequested?.Invoke(_profile.GrevId, value);
+                    break;
+                case KeyboardTarget.RetroAchievements:
+                    if (!string.IsNullOrWhiteSpace(value)) LinkRetroAchievementsRequested?.Invoke(value.Trim());
                     break;
             }
         };

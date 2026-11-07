@@ -37,9 +37,28 @@ Store tile opens Vita3K for that installation step.
 
 ## Controller and readiness behaviour
 
-- Dolphin receives a per-GrevID Player 1 XInput mapping during silent setup.
-- Azahar, Cemu, Xenia, xemu and Vita3K retain their native SDL/XInput device
-  discovery so the active controller is not pinned to another user's device.
+Every emulator is playable on a pad straight after its silent install. Defaults
+are written by `Store/EmulatorControllerDefaults.cs` (PCSX2 and RetroArch by their
+own installers) on install, update and repair, but only while the emulator has
+no controller mapping of its own: a missing file, or one still holding keyboard
+or null defaults. Anything a person mapped is never replaced.
+
+| Emulator | Controller default | Format source |
+| --- | --- | --- |
+| RetroArch | Pads auto-configure; L3 + R3 opens the quick menu | `input_menu_toggle_gamepad_combo = 2` ([input_defines.h](https://github.com/libretro/RetroArch/blob/master/input/input_defines.h)) |
+| PCSX2 | SDL bindings for pad 1, added next to the keyboard ones | PCSX2's automatic-mapping names ([PadDualshock2.cpp](https://github.com/PCSX2/pcsx2/blob/master/pcsx2/SIO/Pad/PadDualshock2.cpp), [SDLInputSource.cpp](https://github.com/PCSX2/pcsx2/blob/master/pcsx2/Input/SDLInputSource.cpp)) |
+| Dolphin | GameCube pad, plus Wii Remote + Nunchuk (pointer on right stick, shake on B) | `GCPadNew.ini`, `WiimoteNew.ini` |
+| Azahar | SDL bindings with no GUID, so whichever pad is connected works | `qt-config.ini` `[Controls]` ([settings.h](https://github.com/azahar-emu/azahar/blob/master/src/common/settings.h), [sdl_impl.cpp](https://github.com/azahar-emu/azahar/blob/master/src/input_common/sdl/sdl_impl.cpp)) |
+| RPCS3 | Player 1 on the XInput handler; RPCS3 fills its own default mapping | `config/input_configs/global/Default.yml` ([pad_config.h](https://github.com/RPCS3/rpcs3/blob/master/rpcs3/Emu/Io/pad_config.h)) |
+| Cemu | Wii U GamePad on XInput user 0 with Cemu's default mapping | `controllerProfiles/controller0.xml` ([InputManager.cpp](https://github.com/cemu-project/Cemu/blob/main/src/input/InputManager.cpp), [VPADController.cpp](https://github.com/cemu-project/Cemu/blob/main/src/input/emulated/VPADController.cpp)) |
+| Xenia, xemu, Vita3K | Native XInput / `input.auto_bind` / SDL game controller | nothing written |
+
+First-run prompts that would stop a controller-only launch are switched off:
+Dolphin's auto-update prompt (`[AutoUpdate] UpdateTrack =`), Cemu's update check
+(`check_update`; its Getting Started dialog is already skipped because Grev Home
+writes `settings.xml`), and RPCS3's welcome box and update check
+(`GuiConfigs/CurrentSettings.ini`). Grev Store owns emulator updates.
+`tests/EmulatorSetup` checks all of this.
 - RPCS3, Vita3K and xemu expose temporary controller-driven mouse and keyboard
   controls for their unavoidable firmware/system-file screens. The first-launch
   guide has a one-press action that disables this layer afterward, leaving the

@@ -26,16 +26,28 @@ public enum ProfileTileEditorMode
 public sealed class ProfileTileGridEditor
 {
     private List<ProfileTile> _tiles;
+    private readonly ProfileTile? _reserved;
 
-    public ProfileTileGridEditor(IReadOnlyList<ProfileTile> tiles)
+    /// <param name="reserved">Cells no tile may use: grev.dad's profile card slot.</param>
+    public ProfileTileGridEditor(IReadOnlyList<ProfileTile> tiles, ProfileTile? reserved = null)
     {
         _tiles = tiles.ToList();
+        // A layout from before the card slot existed may already use those cells; only reserve
+        // the slot when it is free, so such a layout stays editable.
+        _reserved = reserved is not null && !_tiles.Any(tile => ProfileTileGrid.Overlaps(tile, reserved)) ? reserved : null;
         var first = _tiles.FirstOrDefault();
         CursorX = first?.X ?? 0;
         CursorY = first?.Y ?? 0;
     }
 
     public IReadOnlyList<ProfileTile> Tiles => _tiles;
+    public ProfileTile? Reserved => _reserved;
+
+    private bool Blocked(ProfileTile candidate) =>
+        _tiles.Any(other => other.TileId != candidate.TileId && ProfileTileGrid.Overlaps(candidate, other)) ||
+        (_reserved is not null && ProfileTileGrid.Overlaps(candidate, _reserved));
+
+    private IReadOnlyList<ProfileTile> Obstacles => _reserved is null ? _tiles : [.. _tiles, _reserved];
     public ProfileTileEditorMode Mode { get; private set; } = ProfileTileEditorMode.Browsing;
     public int CursorX { get; private set; }
     public int CursorY { get; private set; }
@@ -91,9 +103,9 @@ public sealed class ProfileTileGridEditor
         var tileId = Guid.NewGuid().ToString();
         var atCursor = new ProfileTile(tileId, kind, CursorX, CursorY, width, height);
         var placement =
-            ProfileTileGrid.InBounds(atCursor) && !_tiles.Any(other => ProfileTileGrid.Overlaps(atCursor, other))
+            ProfileTileGrid.InBounds(atCursor) && !Blocked(atCursor)
                 ? atCursor
-                : ProfileTileGrid.FindFreePlacement(_tiles, kind, width, height, tileId);
+                : ProfileTileGrid.FindFreePlacement(Obstacles, kind, width, height, tileId);
         if (placement is null) return null;
 
         _tiles.Add(placement);
@@ -103,6 +115,19 @@ public sealed class ProfileTileGridEditor
         _activeTileOrigin = placement;
         Mode = ProfileTileEditorMode.Holding;
         return placement;
+    }
+
+    /// <summary>Adds a live widget tile (a Text tile carrying the widget) the same way AddTile
+    /// adds any tile: at the cursor when it fits, else the first free cell, then held.</summary>
+    public ProfileTile? AddWidget(ProfileWidgetKind kind)
+    {
+        var info = ProfileWidgets.Info(kind);
+        var added = AddTile(ProfileTileKind.Text, info.Width, info.Height) ?? AddTile(ProfileTileKind.Text, 2, 2);
+        if (added is null) return null;
+        var widget = added with { Title = info.Label, Widget = kind };
+        ReplaceActiveTile(widget);
+        _activeTileOrigin = widget;
+        return widget;
     }
 
     private bool HandleHolding(InputAction action)
@@ -172,7 +197,7 @@ public sealed class ProfileTileGridEditor
         if (ActiveTile is null || Mode == ProfileTileEditorMode.Browsing) return false;
         if (!string.Equals(updated.TileId, ActiveTile.TileId, StringComparison.OrdinalIgnoreCase)) return false;
         if (!ProfileTileGrid.InBounds(updated)) return false;
-        if (_tiles.Any(other => other.TileId != updated.TileId && ProfileTileGrid.Overlaps(updated, other))) return false;
+        if (Blocked(updated)) return false;
         ReplaceActiveTile(updated);
         return true;
     }
@@ -203,7 +228,7 @@ public sealed class ProfileTileGridEditor
         var (dx, dy) = Delta(direction);
         var candidate = ActiveTile with { X = ActiveTile.X + dx, Y = ActiveTile.Y + dy };
         if (!ProfileTileGrid.InBounds(candidate)) return;
-        if (_tiles.Any(other => other.TileId != candidate.TileId && ProfileTileGrid.Overlaps(candidate, other))) return;
+        if (Blocked(candidate)) return;
 
         ReplaceActiveTile(candidate);
         CursorX = candidate.X;
@@ -220,7 +245,7 @@ public sealed class ProfileTileGridEditor
         };
         if (candidate == ActiveTile) return true; // clamped to a no-op edge; still consume the input
         if (!ProfileTileGrid.InBounds(candidate)) return true;
-        if (_tiles.Any(other => other.TileId != candidate.TileId && ProfileTileGrid.Overlaps(candidate, other))) return true;
+        if (Blocked(candidate)) return true;
 
         ReplaceActiveTile(candidate);
         return true;

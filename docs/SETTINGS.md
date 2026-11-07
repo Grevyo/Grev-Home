@@ -37,8 +37,10 @@ future runtime recovery settings
 0.6 implements controller system shortcuts through:
 
 ```text
-%ProgramData%\Grev Home\Data\Input\controller-shortcuts.json
+C:\GrevCo\GrevHome\Data\Input\controller-shortcuts.json
 ```
+
+(See `CONTROLLER_SHORTCUTS.md`; `GREV_HOME_ROOT` can redirect the root for testing.)
 
 The settings UI edits the same `ControllerShortcutService` configuration consumed by the runtime; there is no second copy of shortcut state in the UI.
 
@@ -96,16 +98,14 @@ Display Name changes update `profile.json` and the active signed-in session with
 
 Guest or future account types without a local GrevID can still use machine-wide Settings, but local account editing is disabled until a local account is Primary.
 
-## What 0.6 deliberately does not include
+## Settings today
 
-0.6 is the Settings/configuration backbone only. It does not yet implement:
+The Settings hub has nine sections: Account, Controller shortcuts, Audio, Display, Connections
+(Wi-Fi/Bluetooth), System status, Game scan, Theme & Motion, and Power. Machine controls are
+described in `MACHINE_SETTINGS.md`, themes in `THEMES.md`.
 
-- shutdown/restart/sleep controls;
-- Wi-Fi or Bluetooth management;
-- storage management;
-- controller firmware/pairing;
-- account migration or Username changes;
-- package/Store settings;
-- visual themes or Theme Studio.
-
-Those features should plug into this Settings/dashboard structure in later backbone milestones rather than creating independent fullscreen windows or isolated configuration systems.
+- Display Name is edited with the shared controller keyboard (`ControllerQwertyKeyboard`), the
+  same full character set as account creation and Edit Profile.
+- Power actions need a second press within 8 seconds; the button resets to normal when that
+  window ends.
+- Inset rows and preview chips use theme brushes, so every section follows the active theme.

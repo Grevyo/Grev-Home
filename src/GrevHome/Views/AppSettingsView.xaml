@@ -78,7 +78,7 @@
                                 Visibility="Collapsed"
                                 Margin="0,18,0,0"
                                 Padding="16"
-                                Background="#0B0E15"
+                                Background="{DynamicResource WindowBackgroundBrush}"
                                 BorderBrush="{DynamicResource CardBorderBrush}"
                                 BorderThickness="1"
                                 CornerRadius="10">

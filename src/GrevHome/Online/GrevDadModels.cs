@@ -40,7 +40,9 @@ public sealed record GrevDadPublicCard(
     string Bio = "",
     string StatusMessage = "",
     long TotalTrackedSeconds = 0,
-    int CompletedSessions = 0);
+    int CompletedSessions = 0,
+    // From the shared grev.dad profile; read-only here (edited through the profile identity).
+    string Headline = "");
 
 public sealed record GrevDadAccountSnapshot(
     GrevDadConnectionState State,

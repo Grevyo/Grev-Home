@@ -117,20 +117,84 @@ right. Whoever wires this in needs to:
 toolchain, never compiled. XAML is exactly the kind of thing this environment cannot catch a
 mistake in - a bad binding or missing `using` reads fine here and fails only on a real build.
 
-## Still to do
+## Live widgets
 
-- **Wiring the editor view into `MainWindow`'s navigation** (see above) and **wiring
-  `SyncProfileTilesAsync` to an actual call site** and to an automated test (see Cloud sync above) -
-  both exist and are documented but nothing calls either yet.
-- `HandleInput` itself still returns `false` for Accept on an empty cell (unchanged) - the view
-  adds tiles through its own toolbar (`ProfileTileGridEditor.AddTile`) rather than that path, so a
-  D-Pad user reaches "add" via the toolbar buttons (already focus/D-Pad navigable through Grev
-  Home's existing `MoveFocus` wiring) rather than pressing Accept on empty space. A more direct
-  "Accept on empty cell opens a kind picker right there" flow is still open if that turns out to
-  read better once this is actually on screen.
-- Editing a tile's picture (`ProfileTileKind.Media`) isn't wired into the view yet - `EditTile_Click`
-  shows a message and stops rather than opening a media/file picker.
-- Unit/manual verification of everything in this document on an actual Windows/WPF build (a
-  `tests/ProfileTiles`-style project exists and covers the non-view pieces; the view itself has no
-  test at all - WPF UI is much harder to unit test than the pure logic classes are). This
-  repository was authored without access to a .NET toolchain and has not been compiled.
+A tile can carry a widget (`ProfileWidgets.cs`, mirroring `src/profile-widgets.ts` on grev.dad):
+recent games, game activity, most played, favourite games, best friends, bio, stats,
+achievements and RetroAchievements. A widget tile is a `Text` tile with `Widget` set, plus an
+optional `WidgetCount` (1–12 items, list widgets only). That is how grev.dad stores it too, so the
+sync wire just adds `widget` and `widgetConfig`. A widget kind this build doesn't know syncs down as
+a plain tile.
+
+- **Adding:** in the controller editor, A on an empty cell opens the type picker; widgets follow
+  the four plain types. The toolbar's *Live Widget…* button jumps straight to them. A new widget
+  takes its natural size where the cursor is, or the first free cell.
+- **Settings:** Y on a widget tile shows Title, *Items shown* (Left/Right), then the usual
+  appearance fields. Widget tiles have no free text.
+- **Card slot:** grev.dad keeps a 4 × 6 slot for the profile card. When the last profile document
+  says where it is, the editor draws it and won't let tiles into it, since the website would refuse
+  that layout. A layout that already uses those cells isn't blocked.
+
+`ProfileWidgetViews` turns widget data into a `ProfileWidgetView`, which `ProfileTileBoard` draws.
+The data comes from grev.dad's resolved widgets (`FromServer`) or, unlinked or offline, from this
+PC: local history, milestones, favourites and bio (`FromLocal`).
+
+## Profile pages
+
+- **Your profile** (`ProfileView`): a *Profile space* section draws the tile grid with
+  `ProfileTileBoard`. The mini profile card sits in its slot, and *Edit Tiles* opens the editor.
+  - Linked: opening the page syncs tiles, favourites and identity, then shows grev.dad's document,
+    so it matches the website.
+  - Unlinked or offline: it shows the local tiles.
+- **A friend's profile** (`FriendProfileView`): their tiles and widgets, as grev.dad resolved
+  them for you. Friends see sessions they share with friends, never private ones. It also has
+  *Add to best friends*.
+- **Controller:** every tile is a focusable button, so the D-Pad moves through a profile tile by
+  tile and the page scrolls with it.
+  - A on a friend in Best friends opens their profile.
+  - A on a link tile opens it in the Grev.dad browser (grev.dad pages) or the general web browser
+    (other https pages).
+- **Mini profile card** (`ProfileMiniCardView`, and the friend card in `FriendsView`): avatar with
+  a presence ring, name, headline, now playing, a short bio, the stats they chose to share, and a
+  ★ for best friends. Best friends sort first in the friends list.
+
+## One identity with grev.dad
+
+For a linked profile, the display name, bio, avatar and banner are the same on both sides
+(`GrevDadIdentitySyncService`).
+
+- The sync is three-way per field. Each side's fingerprint is compared with the one stored when
+  they last agreed (`Presentation/GrevDad/identity-sync.json`), and whichever side changed is copied
+  to the other. If both changed, this PC wins.
+- The first sync after linking takes grev.dad's value for every field it has. That's how a grev.dad
+  profile comes over to a new install.
+- Pictures from grev.dad (PNG, JPEG, GIF, WebP) are re-encoded as PNG for the local importers.
+- The sync runs after linking, on sign-in, after saving Edit Profile and when your profile page opens.
+- Bios are now up to 800 characters with line breaks, matching grev.dad.
+- Saving the public card sends only its display options. Identity goes only through the sync, so
+  saving on this PC can't overwrite a picture or bio changed on the website.
+
+## Favourite games and RetroAchievements
+
+- **Favourite games:** each game's settings page has a ☆ button. Favourites work offline
+  (`FavouriteGameService`). For a linked profile, changes queue and replay to grev.dad, then
+  grev.dad's list becomes the local list, so games starred on the website show up here too.
+- **RetroAchievements:** Edit Profile → Grev.dad account has a RetroAchievements section. Enter
+  only your RetroAchievements username; grev.dad looks the account up with its own API key. No
+  RetroAchievements password or key is ever entered in Grev Home.
+
+## Tests
+
+`tests/ProfileTiles` covers:
+
+- the widget contract against grev.dad's list, and widget validation
+- the sync wire round trip, including unknown kinds
+- `FromServer` with every widget shape, plus a real profile document captured from a local
+  grev.dad worker (`profile-document.json`)
+- the offline views
+- identity sync decisions
+- the favourites queue
+- the editor's card slot
+
+It runs on Linux with `dotnet exec`. The WPF views (`ProfileTileBoard`, `ProfileMiniCardView`, the
+page changes) compile, but they need checking on Windows.

@@ -27,6 +27,8 @@ public partial class ProfileView : UserControl
         _currentGrevId = profile?.GrevId;
         _cloudLinked = false;
         SetCloudAccountData(null,false);
+        SetProfileSpace(null, "Loading tiles…");
+        EditTilesButton.IsEnabled = profile is not null && canEdit && !profile.IsBuiltInGuest;
         _lastStats = null;
         ApplyPresentation(ProfilePresentationSettings.Default);
 

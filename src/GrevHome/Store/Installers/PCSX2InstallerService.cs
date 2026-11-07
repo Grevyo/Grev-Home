@@ -292,6 +292,7 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
             {
                 await ConfigureControllerFirstDefaultsAsync(grevId, cancellationToken);
             }
+            await EnsureControllerBindingsAsync(grevId, cancellationToken);
 
             await _installedApps.RegisterInstalledAsync(
                 package.App,
@@ -427,6 +428,54 @@ public sealed class PCSX2InstallerService : ITrustedPackageInstaller, ITrustedPa
         UpsertIniValue(lines, "UI", "StartBigPictureMode", "true");
         UpsertIniValue(lines, "UI", "StartFullscreen", "true");
         await File.WriteAllLinesAsync(iniPath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+    }
+
+    // PCSX2's own automatic-mapping output for the first SDL game controller (DualShock 2 bind
+    // names from PadDualshock2, SDL setting names from SDLInputSource). Grev Home skips PCSX2's
+    // setup wizard, which is where that automatic mapping would otherwise be offered.
+    internal static readonly (string Bind, string Source)[] SdlPadBindings =
+    [
+        ("Up", "SDL-0/DPadUp"), ("Right", "SDL-0/DPadRight"), ("Down", "SDL-0/DPadDown"), ("Left", "SDL-0/DPadLeft"),
+        ("Triangle", "SDL-0/FaceNorth"), ("Circle", "SDL-0/FaceEast"), ("Cross", "SDL-0/FaceSouth"), ("Square", "SDL-0/FaceWest"),
+        ("Select", "SDL-0/Back"), ("Start", "SDL-0/Start"),
+        ("L1", "SDL-0/LeftShoulder"), ("L2", "SDL-0/+LeftTrigger"), ("R1", "SDL-0/RightShoulder"), ("R2", "SDL-0/+RightTrigger"),
+        ("L3", "SDL-0/LeftStick"), ("R3", "SDL-0/RightStick"),
+        ("LUp", "SDL-0/-LeftY"), ("LRight", "SDL-0/+LeftX"), ("LDown", "SDL-0/+LeftY"), ("LLeft", "SDL-0/-LeftX"),
+        ("RUp", "SDL-0/-RightY"), ("RRight", "SDL-0/+RightX"), ("RDown", "SDL-0/+RightY"), ("RLeft", "SDL-0/-RightX"),
+        ("LargeMotor", "SDL-0/LargeMotor"), ("SmallMotor", "SDL-0/SmallMotor")
+    ];
+
+    /// <summary>
+    /// Gives PCSX2's first pad native controller bindings when it has none yet. They are added as
+    /// extra bindings next to the keyboard defaults (PCSX2 reads repeated keys as alternatives),
+    /// and a pad someone already mapped to any controller is left exactly as it is.
+    /// </summary>
+    private async Task EnsureControllerBindingsAsync(string grevId, CancellationToken cancellationToken)
+    {
+        var iniPath = Path.Combine(_paths.GetProfileAppDataRoot(grevId, "pcsx2"), "PCSX2.ini");
+        if (!File.Exists(iniPath)) return;
+        var lines = (await File.ReadAllLinesAsync(iniPath, cancellationToken)).ToList();
+        if (!AddSdlPadBindings(lines)) return;
+        await File.WriteAllLinesAsync(iniPath, lines, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), cancellationToken);
+    }
+
+    internal static bool AddSdlPadBindings(List<string> lines)
+    {
+        var (start, end) = FindIniSection(lines, "Pad1");
+        if (start >= 0 && lines.Skip(start + 1).Take(end - start - 1).Any(line =>
+                line.Contains("SDL-", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("XInput-", StringComparison.OrdinalIgnoreCase) ||
+                line.Contains("DInput-", StringComparison.OrdinalIgnoreCase)))
+        {
+            return false;
+        }
+
+        UpsertIniValue(lines, "InputSources", "SDL", "true");
+        UpsertIniValue(lines, "Pad1", "Type", "DualShock2");
+        (start, end) = FindIniSection(lines, "Pad1");
+        var additions = SdlPadBindings.Select(binding => $"{binding.Bind} = {binding.Source}").ToArray();
+        lines.InsertRange(end, additions);
+        return true;
     }
 
     internal static void UpsertIniValue(List<string> lines, string section, string key, string value)

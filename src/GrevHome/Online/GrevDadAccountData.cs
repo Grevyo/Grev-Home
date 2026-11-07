@@ -9,7 +9,9 @@ public sealed record CloudProfileSource(string GrevId, long? ProfileCreatedAt, l
     int CompletedSessions, int UniqueApps, CloudAppStat[] Apps, long UpdatedAt);
 public sealed record GrevDadAccountData(bool Ok, int ApiVersion, string UserId, string Username,
     string DisplayName, long AccountCreatedAt, long DownloadedAt, CloudProfileSource[] Sources,
-    SharedAccountProgression? SharedProgression = null, CloudAchievement[]? Achievements = null);
+    SharedAccountProgression? SharedProgression = null, CloudAchievement[]? Achievements = null,
+    CloudSaveSummary[]? CloudSaves = null);
+public sealed record CloudSaveSummary(string AppId, long SizeBytes, DateTimeOffset UpdatedAtUtc);
 public sealed record SharedAccountProgression(long TotalXp, int Level, int XpPerLevel, long HomeTotalXp);
 public sealed record CloudAchievement(string Id,string Name,string Description,string Source,long AwardedAt);
 

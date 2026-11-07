@@ -166,7 +166,7 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBox x:Name="BioTextBox"
-                                             MaxLength="160"
+                                             MaxLength="800"
                                              MinHeight="78"
                                              FontSize="16"
                                              Padding="12"

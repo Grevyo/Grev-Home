@@ -16,15 +16,46 @@ public partial class FriendProfileView : UserControl
     private bool _isSelfPreview;
     public event EventHandler? BackRequested;
     public event EventHandler? MessageRequested;
+    public event EventHandler? BestFriendToggleRequested;
+    public event Action<string>? FriendProfileRequested;
+    public event Action<string>? LinkRequested;
 
     public FriendProfileView()
     {
         InitializeComponent();
+        TileBoard.FriendRequested += userId => FriendProfileRequested?.Invoke(userId);
+        TileBoard.LinkRequested += url => LinkRequested?.Invoke(url);
     }
+
+    /// <summary>Their tiles and live widgets, as grev.dad resolved them for you.</summary>
+    public void SetProfileSpace(ProfileSpace? space, string? status = null)
+    {
+        TileBoard.SetSpace(space);
+        TilesStatusText.Text = status ?? string.Empty;
+        TilesStatusText.Visibility = string.IsNullOrWhiteSpace(status) ? Visibility.Collapsed : Visibility.Visible;
+        TilesHeadingText.Visibility = space is null && string.IsNullOrWhiteSpace(status) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    public void SetBestFriend(bool isBestFriend, bool canChange)
+    {
+        BestFriendButton.Visibility = canChange ? Visibility.Visible : Visibility.Collapsed;
+        BestFriendButton.Content = isBestFriend ? "★ Best friend" : "☆ Add to best friends";
+    }
+
+    public void ShowStatus(string message)
+    {
+        ProfileStatusText.Text = message;
+        ProfileStatusText.Visibility = string.IsNullOrWhiteSpace(message) ? Visibility.Collapsed : Visibility.Visible;
+    }
+
+    private void BestFriend_Click(object sender, RoutedEventArgs e) => BestFriendToggleRequested?.Invoke(this, EventArgs.Empty);
 
     public void SetFriend(GrevDadFriend friend, bool isSelf = false)
     {
         _isSelfPreview = isSelf;
+        ShowStatus(string.Empty);
+        SetProfileSpace(null);
+        SetBestFriend(false, canChange: false);
         MessageButton.Visibility = isSelf ? Visibility.Collapsed : Visibility.Visible;
         PreviewText.Text = isSelf
             ? "YOUR PUBLIC CARD PREVIEW • LIVE ACCOUNT TOTALS ARE SUPPLIED BY GREV.DAD"
@@ -39,8 +70,8 @@ public partial class FriendProfileView : UserControl
         AvatarText.Visibility = AvatarImage.Source is null ? Visibility.Visible : Visibility.Collapsed;
 
         DisplayNameText.Text = friend.DisplayName;
-        BioText.Text = card.Bio;
-        BioText.Visibility = string.IsNullOrWhiteSpace(card.Bio) ? Visibility.Collapsed : Visibility.Visible;
+        BioText.Text = string.IsNullOrWhiteSpace(card.Headline) ? card.Bio : $"{card.Headline}\n{card.Bio}".Trim();
+        BioText.Visibility = string.IsNullOrWhiteSpace(BioText.Text) ? Visibility.Collapsed : Visibility.Visible;
         VerifiedText.Visibility = friend.IsVerified ? Visibility.Visible : Visibility.Collapsed;
         UsernameText.Text = card.ShowUsername ? $"@{friend.Username}" : string.Empty;
         UsernameText.Visibility = card.ShowUsername ? Visibility.Visible : Visibility.Collapsed;

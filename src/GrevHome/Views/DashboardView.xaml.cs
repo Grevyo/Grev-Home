@@ -40,10 +40,12 @@ public partial class DashboardView : UserControl
     private string? _pendingTileId;
     private bool _pendingTileLongPress;
     private readonly Dictionary<Button, string?> _backgroundByButton = new();
+    private DashboardDataSnapshot? _lastSnapshot;
 
     public DashboardView()
     {
         InitializeComponent();
+        InitializeLayout();
         AddHandler(Keyboard.GotKeyboardFocusEvent, new KeyboardFocusChangedEventHandler(Dashboard_GotKeyboardFocus), true);
         SetDashboardData(DashboardDataSnapshot.Empty);
         SetSystemActivity(NotificationSnapshot.Empty, TransferSnapshot.Empty);
@@ -53,8 +55,13 @@ public partial class DashboardView : UserControl
     {
         if (e.NewFocus is not Button button) return;
         BackgroundPreviewRequested?.Invoke(_backgroundByButton.TryGetValue(button, out var background) ? background : null);
+        OnLayoutFocus(button);
+        // The scrolling row may be the tile's own carousel or, in a merged layout, the outer row
+        // that holds every section; whichever scrolls horizontally keeps the focused tile in view.
         var carousel = FindAncestor<ScrollViewer>(button);
-        if (carousel is null || carousel.HorizontalScrollBarVisibility != ScrollBarVisibility.Hidden) return;
+        while (carousel is not null && carousel.HorizontalScrollBarVisibility != ScrollBarVisibility.Hidden)
+            carousel = FindAncestor<ScrollViewer>(carousel);
+        if (carousel is null) return;
         button.BringIntoView(new Rect(-18,0,button.ActualWidth+36,button.ActualHeight));
         UpdateCarouselFade(carousel);
     }
@@ -150,6 +157,7 @@ public partial class DashboardView : UserControl
     public void SetDashboardData(DashboardDataSnapshot snapshot)
     {
         ArgumentNullException.ThrowIfNull(snapshot);
+        _lastSnapshot = snapshot;
 
         ActivitySummaryText.Text = snapshot.AppsPlayed == 0
             ? "No completed app sessions recorded for this account yet."
@@ -161,7 +169,8 @@ public partial class DashboardView : UserControl
             ContinueButton.Visibility = Visibility.Visible;
             ContinueButton.Tag = continueApp.AppId;
             ContinueButton.Padding = new Thickness(0, 0, 0, 0);
-            ContinueButton.Content = CreateActivityTile(continueApp);
+            ContinueButton.Content = CreateActivityTile(ContinueButton, continueApp);
+            ApplyTileMetrics(ContinueButton);
             ShellTileMotion.Attach(ContinueButton);
             _backgroundByButton[ContinueButton] = GetDashboardBackground(continueApp);
         }
@@ -172,6 +181,7 @@ public partial class DashboardView : UserControl
             ContinueButton.Content = null;
         }
 
+        foreach (var old in RecentAppsPanel.Children.OfType<Button>()) _tileTitles.Remove(old);
         RecentAppsPanel.Children.Clear();
         var recentItems = snapshot.RecentlyUsed
             .Where(item => snapshot.ContinueApp is null ||
@@ -189,9 +199,8 @@ public partial class DashboardView : UserControl
 
         ShellTileMotion.PlayReveal(RecentAppsPanel.Children.OfType<FrameworkElement>());
 
-        ActivitySection.Visibility = snapshot.AppsPlayed > 0
-            ? Visibility.Visible
-            : Visibility.Collapsed;
+        _recentAvailable = snapshot.AppsPlayed > 0;
+        RefreshSections();
     }
 
     private static string? GetDashboardBackground(DashboardAppActivity item) =>
@@ -235,8 +244,10 @@ public partial class DashboardView : UserControl
     public event Action<GrevDadFriend>? FriendProfileRequested;
     public void SetFriends(bool available, IReadOnlyList<GrevDadFriend> friends, bool offline)
     {
-        FriendsSection.Visibility = available ? Visibility.Visible : Visibility.Collapsed;
+        _friendsAvailable = available;
+        foreach (var old in FriendsPanel.Children.OfType<Button>()) _tileTitles.Remove(old);
         FriendsPanel.Children.Clear();
+        RefreshSections();
         if (!available) return;
         var online = friends.Count(friend => !string.Equals(friend.Presence.Availability, "offline", StringComparison.OrdinalIgnoreCase));
         FriendsSummaryText.Text = offline ? $"Offline • {friends.Count} cached" : $"{online} online • {friends.Count} total";
@@ -244,9 +255,10 @@ public partial class DashboardView : UserControl
         {
             Style = (Style)FindResource("DashboardTileStyle"),
             Padding = new Thickness(0),
-            Content = AppArtworkFactory.CreateTile("All Friends", "builtin://dashboard/friends", "#335EA8"),
             ToolTip = $"Open friends, requests and friend code • {friends.Count} total"
         };
+        allFriendsButton.Content = CreateTileContent(allFriendsButton, "All Friends", "builtin://dashboard/friends", null, "#335EA8");
+        ApplyTileMetrics(allFriendsButton);
         allFriendsButton.Click += Friends_Click;
         ShellTileMotion.Attach(allFriendsButton);
         FriendsPanel.Children.Add(allFriendsButton);
@@ -258,7 +270,9 @@ public partial class DashboardView : UserControl
         {
             // CreateFriendCard already attaches ShellTileMotion.
             var friendButton = FriendsView.CreateFriendCard(friend, this, selected => FriendProfileRequested?.Invoke(selected));
+            _tileTitles[friendButton] = friend.DisplayName;
             FriendsPanel.Children.Add(friendButton);
+            ApplyTileMetrics(friendButton, keepSize: true);
         }
 
         ShellTileMotion.PlayReveal(FriendsPanel.Children.OfType<FrameworkElement>());
@@ -342,8 +356,8 @@ public partial class DashboardView : UserControl
         var definition = DashboardTileCatalog.Get(id);
         var tile = _tilePresentations.TryGetValue(id, out var resolved) ? resolved : new ResolvedDashboardTile(id, definition.Name, detail, definition.Color, null, definition.IconAsset, false);
         button.Padding = new Thickness(0);
-        if (!string.IsNullOrWhiteSpace(tile.TileMediaPath)) button.Content = AppArtworkFactory.CreateFullTile(tile.TileMediaPath, tile.TileColor, 285, 145);
-        else button.Content = AppArtworkFactory.CreateTile(tile.DisplayName, tile.IconAsset, tile.TileColor);
+        button.Content = CreateTileContent(button, tile.DisplayName, tile.IconAsset, tile.TileMediaPath, tile.TileColor);
+        ApplyTileMetrics(button);
         button.ToolTip = $"{tile.DisplayName} • {detail} • Hold A or right-click for appearance settings";
     }
 
@@ -375,21 +389,19 @@ public partial class DashboardView : UserControl
         };
 
         button.Padding = new Thickness(0, 0, 0, 0);
-        button.Content = CreateActivityTile(item);
+        button.Content = CreateActivityTile(button, item);
+        ApplyTileMetrics(button);
         button.Click += ActivityApp_Click;
         return button;
     }
 
-    private static FrameworkElement CreateActivityTile(DashboardAppActivity item)
+    private FrameworkElement CreateActivityTile(Button button, DashboardAppActivity item)
     {
         var presentation = item.Presentation;
+        var displayName = presentation?.DisplayName ?? item.AppName;
         if (!string.IsNullOrWhiteSpace(presentation?.TileMediaPath))
         {
-            var fullTile = AppArtworkFactory.CreateFullTile(
-                presentation.TileMediaPath,
-                presentation.TileColor,
-                285,
-                145);
+            var fullTile = CreateTileContent(button, displayName, null, presentation.TileMediaPath, presentation.TileColor);
             var fullGrid = new Grid();
             fullGrid.Children.Add(fullTile);
             AddGameConsoleLogo(fullGrid, item);
@@ -397,11 +409,13 @@ public partial class DashboardView : UserControl
             return fullGrid;
         }
 
-        var tile = AppArtworkFactory.CreateTile(
-            presentation?.DisplayName ?? item.AppName,
+        var tile = CreateTileContent(
+            button,
+            displayName,
             item.AppId.StartsWith("game.", StringComparison.OrdinalIgnoreCase)
                 ? null
                 : presentation?.TileMediaPath ?? presentation?.IconPath,
+            null,
             presentation?.TileColor);
         var grid = new Grid();
         grid.Children.Add(tile);

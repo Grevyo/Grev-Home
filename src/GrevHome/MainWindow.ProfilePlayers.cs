@@ -471,6 +471,17 @@ public partial class MainWindow
 
             _profileView.SetStats(stats);
             _profileView.SetCloudAccountData(cloud,pending);
+
+            // The profile's tile grid: grev.dad's live widgets when linked, this PC's otherwise.
+            if (GetProfileTarget() is { } target)
+            {
+                var space = await _grevDad.LoadProfileSpaceAsync(target, stats);
+                if (_navigation.Current == Route.ProfileView &&
+                    string.Equals(GetProfileTarget()?.GrevId, grevId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _profileView.SetProfileSpace(space, space.Source);
+                }
+            }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
         {

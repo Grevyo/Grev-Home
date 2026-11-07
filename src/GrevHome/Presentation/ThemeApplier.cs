@@ -24,6 +24,20 @@ public static class ThemeApplier
     public const string AdminRoleKey = "AdminRoleBrush";
     public const string StandardRoleKey = "StandardRoleBrush";
     public const string GuestRoleKey = "GuestRoleBrush";
+    public const string TextKey = "TextBrush";
+    public const string ButtonTextKey = "ButtonTextBrush";
+    public const string FontFamilyKey = "ShellFontFamily";
+    public const string ShellBackgroundKey = "ShellBackgroundBrush";
+    public const string HeaderBackgroundKey = "HeaderBackgroundBrush";
+
+    /// <summary>The layout of the theme applied most recently (Classic before any theme).</summary>
+    public static ThemeLayout CurrentLayout { get; private set; } = ThemeLayout.Classic;
+
+    /// <summary>
+    /// Raised after a theme is applied, so surfaces whose arrangement comes from the theme
+    /// (Home) can re-lay themselves out. Colours need no event: they are DynamicResources.
+    /// </summary>
+    public static event Action<ThemeLayout>? LayoutApplied;
 
     public static void Apply(ThemeDefinition theme)
     {
@@ -45,6 +59,42 @@ public static class ThemeApplier
         resources[AdminRoleKey] = Brush(theme.AdminRole);
         resources[StandardRoleKey] = Brush(theme.StandardRole);
         resources[GuestRoleKey] = Brush(theme.GuestRole);
+        resources[TextKey] = Brush(theme.EffectiveText);
+        resources[ButtonTextKey] = Brush(theme.EffectiveButtonText);
+        // The persistent header is the card colour, slightly see-through, so it reads on light
+        // and dark themes alike.
+        var header = ParseColor(theme.CardBackground);
+        resources[HeaderBackgroundKey] = new SolidColorBrush(Color.FromArgb(0xD9, header.R, header.G, header.B));
+
+        var layout = theme.EffectiveLayout;
+        resources[FontFamilyKey] = new FontFamily(layout.FontFamily);
+        resources[ShellBackgroundKey] = CreateShellBackground(theme.WindowBackground, layout);
+        ShellTileMotion.ConfigureFocus(layout.FocusScale, ParseColor(theme.Accent), layout.FocusEffect != HomeFocusEffect.Outline);
+
+        CurrentLayout = layout;
+        LayoutApplied?.Invoke(layout);
+    }
+
+    /// <summary>The window's own background. Glow with the default colours is the original look.</summary>
+    internal static Brush CreateShellBackground(string windowBackground, ThemeLayout layout)
+    {
+        var baseColor = ParseColor(windowBackground);
+        var glow = ParseColor(layout.BackgroundGlow);
+        Brush brush = layout.BackgroundStyle switch
+        {
+            HomeBackgroundStyle.Solid => new SolidColorBrush(baseColor),
+            HomeBackgroundStyle.Gradient => new LinearGradientBrush(glow, baseColor, 90),
+            _ => new RadialGradientBrush
+            {
+                Center = new System.Windows.Point(0.45, 0.25),
+                GradientOrigin = new System.Windows.Point(0.45, 0.25),
+                RadiusX = 0.9,
+                RadiusY = 0.9,
+                GradientStops = { new GradientStop(glow, 0), new GradientStop(baseColor, 1) }
+            }
+        };
+        brush.Freeze();
+        return brush;
     }
 
     private static SolidColorBrush Brush(string hex) => new(ParseColor(hex));
